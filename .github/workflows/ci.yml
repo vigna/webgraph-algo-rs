@@ -1,0 +1,48 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - "master"
+  push:
+    branches:
+      - "master"
+
+jobs:
+  lint:
+    name: Lint code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Rust
+        uses: MatteoH2O1999/setup-rust@v1
+        with:
+          channel: stable
+          profile: minimal
+          components: clippy rustfmt
+      - name: Check code formatting
+        run: cargo fmt -- --check
+      - name: Check clippy lint
+        run: cargo clippy
+
+  tests:
+    name: Unit tests on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Rust
+        uses: MatteoH2O1999/setup-rust@v1
+      - name: Test build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
