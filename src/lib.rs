@@ -1,13 +1,2 @@
-pub fn dummy() {
-    println!("Dummy!")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        dummy();
-    }
-}
+pub mod algo;
+pub use algo::{NodeFactory, NodeVisit};
