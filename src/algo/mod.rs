@@ -1,4 +1,4 @@
 mod traits;
-pub use traits::{NodeFactory, NodeVisit};
+pub use traits::*;
 
 pub mod bfv;
