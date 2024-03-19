@@ -48,11 +48,12 @@ impl<'a, G: RandomAccessGraph> NodeVisit for Node<'a, G> {
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
     let graph = BVGraph::with_basename("graphs/sk-2005").load()?;
+    let main_pl = ProgressLogger::default();
     let node_factory = Factory::new(&graph);
     let visit = SingleThreadedBreadthFirstVisit::new(&graph, &node_factory);
     let mut pl = ProgressLogger::default();
     pl.display_memory(true).local_speed(true);
-    let result = visit.visit(&mut pl);
-    pl.info(format_args!("Average node index: {}", result));
+    let result = visit.visit(pl);
+    main_pl.info(format_args!("Average node index: {}", result));
     Ok(())
 }

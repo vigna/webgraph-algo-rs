@@ -12,5 +12,5 @@ pub trait NodeFactory {
 }
 
 pub trait GraphVisit<N: NodeVisit> {
-    fn visit(self, pl: &mut impl ProgressLog) -> N::PartialResult;
+    fn visit(self, pl: impl ProgressLog) -> N::PartialResult;
 }
