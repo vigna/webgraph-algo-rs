@@ -2,9 +2,14 @@ use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 
 pub trait NodeVisit {
-    type PartialResult;
-    fn visit(self, partial_result: Self::PartialResult) -> Self::PartialResult;
-    fn init_result() -> Self::PartialResult;
+    type AccumulatedResult;
+    type VisitResult;
+    fn visit(self) -> Self::VisitResult;
+    fn accumulate_result(
+        partial_result: Self::AccumulatedResult,
+        visit_result: Self::VisitResult,
+    ) -> Self::AccumulatedResult;
+    fn init_result() -> Self::AccumulatedResult;
 }
 
 pub trait NodeFactory {

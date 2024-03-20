@@ -2,9 +2,8 @@ use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
 use webgraph::graphs::BVGraph;
 use webgraph::traits::RandomAccessGraph;
-use webgraph_algo::algo::bfv::SingleThreadedBreadthFirstVisit;
-use webgraph_algo::algo::GraphVisit;
-use webgraph_algo::{NodeFactory, NodeVisit};
+use webgraph_algo::algo::bfv::*;
+use webgraph_algo::prelude::*;
 
 struct Node<'a, G: RandomAccessGraph> {
     graph: &'a G,
@@ -33,14 +32,22 @@ impl<'a, G: RandomAccessGraph> NodeFactory for Factory<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph> NodeVisit for Node<'a, G> {
-    type PartialResult = f64;
+    type AccumulatedResult = f64;
+    type VisitResult = f64;
 
     #[inline]
-    fn visit(self, partial_result: f64) -> Self::PartialResult {
-        partial_result + self.index as f64 / self.graph.num_nodes() as f64
+    fn visit(self) -> Self::VisitResult {
+        self.index as f64 / self.graph.num_nodes() as f64
     }
 
-    fn init_result() -> Self::PartialResult {
+    fn accumulate_result(
+        partial_result: Self::AccumulatedResult,
+        visit_result: Self::VisitResult,
+    ) -> Self::AccumulatedResult {
+        partial_result + visit_result
+    }
+
+    fn init_result() -> Self::AccumulatedResult {
         0.0
     }
 }
@@ -50,10 +57,18 @@ fn main() -> Result<()> {
     let graph = BVGraph::with_basename("graphs/sk-2005").load()?;
     let main_pl = ProgressLogger::default();
     let node_factory = Factory::new(&graph);
-    let visit = SingleThreadedBreadthFirstVisit::new(&graph, &node_factory);
-    let mut pl = ProgressLogger::default();
-    pl.display_memory(true).local_speed(true);
-    let result = visit.visit(pl);
-    main_pl.info(format_args!("Average node index: {}", result));
+
+    let pram_visit = PramBreadthFirstVisit::new(&graph, &node_factory);
+    let mut pram_pl = ProgressLogger::default();
+    pram_pl.display_memory(true).local_speed(true);
+    let pram_result = pram_visit.visit(pram_pl)?;
+    main_pl.info(format_args!("Average node index: {}", pram_result));
+
+    let sequential_visit = SingleThreadedBreadthFirstVisit::new(&graph, &node_factory);
+    let mut sequential_pl = ProgressLogger::default();
+    sequential_pl.display_memory(true).local_speed(true);
+    let sequential_result = sequential_visit.visit(sequential_pl)?;
+    main_pl.info(format_args!("Average node index: {}", sequential_result));
+
     Ok(())
 }

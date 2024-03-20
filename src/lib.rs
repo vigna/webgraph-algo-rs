@@ -1,2 +1,5 @@
 pub mod algo;
-pub use algo::{NodeFactory, NodeVisit};
+
+pub mod prelude {
+    pub use crate::algo::{GraphVisit, NodeFactory, NodeVisit};
+}
