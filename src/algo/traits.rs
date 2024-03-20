@@ -1,3 +1,4 @@
+use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 
 pub trait NodeVisit {
@@ -12,5 +13,5 @@ pub trait NodeFactory {
 }
 
 pub trait GraphVisit<N: NodeVisit> {
-    fn visit(self, pl: impl ProgressLog) -> N::PartialResult;
+    fn visit(self, pl: impl ProgressLog) -> Result<N::AccumulatedResult>;
 }

@@ -1,4 +1,5 @@
-use crate::algo::traits::{GraphVisit, NodeFactory, NodeVisit};
+use crate::prelude::*;
+use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use std::{collections::VecDeque, marker::PhantomData};
 use sux::bits::BitVec;
@@ -131,7 +132,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> IntoItera
 impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> GraphVisit<N>
     for SingleThreadedBreadthFirstVisit<'a, G, N, F>
 {
-    fn visit(self, mut pl: impl ProgressLog) -> N::PartialResult {
+    fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph in BFS order...");
         let mut result = N::init_result();
@@ -140,6 +141,6 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> GraphVisi
             result = node.visit(result);
         }
         pl.done();
-        result
+        Ok(result)
     }
 }
