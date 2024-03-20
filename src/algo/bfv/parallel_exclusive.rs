@@ -11,7 +11,12 @@ use std::{
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
-pub struct PramBreadthFirstVisit<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> {
+pub struct ParallelExclusiveBreadthFirstVisit<
+    'a,
+    G: RandomAccessGraph,
+    N: NodeVisit,
+    F: NodeFactory<Node = N>,
+> {
     graph: &'a G,
     start: usize,
     node_factory: &'a F,
@@ -20,15 +25,15 @@ pub struct PramBreadthFirstVisit<'a, G: RandomAccessGraph, N: NodeVisit, F: Node
 }
 
 impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
-    PramBreadthFirstVisit<'a, G, N, F>
+    ParallelExclusiveBreadthFirstVisit<'a, G, N, F>
 {
     fn build(
         graph: &'a G,
         start: usize,
         node_factory: &'a F,
         pool: Option<ThreadPool>,
-    ) -> PramBreadthFirstVisit<'a, G, N, F> {
-        PramBreadthFirstVisit {
+    ) -> ParallelExclusiveBreadthFirstVisit<'a, G, N, F> {
+        ParallelExclusiveBreadthFirstVisit {
             graph,
             start,
             node_factory,
@@ -41,11 +46,14 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
         graph: &'a G,
         node_factory: &'a F,
         start: usize,
-    ) -> PramBreadthFirstVisit<'a, G, N, F> {
+    ) -> ParallelExclusiveBreadthFirstVisit<'a, G, N, F> {
         Self::build(graph, start, node_factory, None)
     }
 
-    pub fn new(graph: &'a G, node_factory: &'a F) -> PramBreadthFirstVisit<'a, G, N, F> {
+    pub fn new(
+        graph: &'a G,
+        node_factory: &'a F,
+    ) -> ParallelExclusiveBreadthFirstVisit<'a, G, N, F> {
         Self::with_start(graph, node_factory, 0)
     }
 }
@@ -56,7 +64,7 @@ impl<
         R: Send + Clone,
         N: NodeVisit<AccumulatedResult = R>,
         F: NodeFactory<Node = N> + Sync,
-    > GraphVisit<N> for PramBreadthFirstVisit<'a, G, N, F>
+    > GraphVisit<N> for ParallelExclusiveBreadthFirstVisit<'a, G, N, F>
 {
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         let result = Arc::new(Mutex::new(N::init_result()));
@@ -85,7 +93,7 @@ impl<
             "Using {} threads.",
             threads.current_num_threads()
         ));
-        pl.start("Visiting graph with PRAM Parallel BFS...");
+        pl.start("Visiting graph with ParallelExclusive Parallel BFS...");
 
         loop {
             current_frontier.clear();

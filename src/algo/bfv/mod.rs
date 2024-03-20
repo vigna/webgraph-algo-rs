@@ -1,5 +1,5 @@
 mod single_thread;
 pub use single_thread::*;
 
-mod pram;
-pub use pram::*;
+mod parallel_exclusive;
+pub use parallel_exclusive::*;

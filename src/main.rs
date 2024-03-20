@@ -58,7 +58,7 @@ fn main() -> Result<()> {
     let main_pl = ProgressLogger::default();
     let node_factory = Factory::new(&graph);
 
-    let pram_visit = PramBreadthFirstVisit::new(&graph, &node_factory);
+    let pram_visit = ParallelExclusiveBreadthFirstVisit::new(&graph, &node_factory);
     let mut pram_pl = ProgressLogger::default();
     pram_pl.display_memory(true).local_speed(true);
     let pram_result = pram_visit.visit(pram_pl)?;
