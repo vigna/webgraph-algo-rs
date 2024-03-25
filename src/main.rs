@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
 use webgraph::graphs::BVGraph;
-use webgraph::traits::RandomAccessGraph;
+use webgraph::traits::{RandomAccessGraph, SequentialLabeling};
 use webgraph_algo::algo::bfv::*;
 use webgraph_algo::prelude::*;
 
@@ -64,9 +64,9 @@ fn main() -> Result<()> {
     let pram_visit = ParallelExclusiveBreadthFirstVisit::new(&graph, &node_factory);
     let mut pram_pl = ProgressLogger::default();
     pram_pl.display_memory(true).local_speed(true);
-    let mut pram_result = pram_visit.visit(pram_pl)?;
+    let mut par_exclusive_result = pram_visit.visit(pram_pl)?;
     main_pl.info(format_args!("Sorting parallel result"));
-    pram_result.sort();
+    par_exclusive_result.sort();
 
     let sequential_visit = SingleThreadedBreadthFirstVisit::new(&graph, &node_factory);
     let mut sequential_pl = ProgressLogger::default();
@@ -75,7 +75,9 @@ fn main() -> Result<()> {
     main_pl.info(format_args!("Sorting sequential result"));
     sequential_result.sort();
 
-    assert!(sequential_result == pram_result);
+    assert!(sequential_result == par_exclusive_result);
+    assert!(sequential_result.len() == graph.num_nodes());
+    assert!(par_exclusive_result.len() == graph.num_nodes());
 
     Ok(())
 }
