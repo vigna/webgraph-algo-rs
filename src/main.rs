@@ -55,7 +55,9 @@ impl<'a, G: RandomAccessGraph> NodeVisit for Node<'a, G> {
 
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
-    let graph = BVGraph::with_basename("graphs/cnr-2000").load()?;
+    let graph =
+        BVGraph::with_basename(std::env::args().nth(1).expect("No graph basename provided"))
+            .load()?;
     let main_pl = ProgressLogger::default();
     let node_factory = Factory::new(&graph);
 
