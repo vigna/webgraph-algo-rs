@@ -167,9 +167,9 @@ impl<
                                 || {
                                     let mut successors = Vec::new();
                                     for node_index in chunk {
-                                        let mut succs: Vec<_> =
-                                            graph.successors(*node_index).into_iter().collect();
-                                        successors.append(&mut succs);
+                                        successors.append(&mut Vec::from_iter(
+                                            graph.successors(*node_index),
+                                        ));
                                     }
                                     let mut to_add = Vec::new();
                                     {
