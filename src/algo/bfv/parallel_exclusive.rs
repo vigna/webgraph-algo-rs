@@ -11,6 +11,11 @@ use std::{
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
+/// A parallel visit that guarantees BFV order and exclusive access during
+/// partial result accumulation.
+///
+/// The order of the nodes is not guaranteed to be the same as [crate::algo::bfv::SingleThreadedBreadthFirstVisit],
+/// but is guarantees to never visit a node of a distance `X+1` before having visited all the nodes at distance `X`.
 pub struct ParallelExclusiveBreadthFirstVisit<
     'a,
     G: RandomAccessGraph,
@@ -42,6 +47,14 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
         }
     }
 
+    /// Constructs a parallel exclusive BFV starting from the node with the specified index in the
+    /// provided graph using the provided node factory.
+    ///
+    /// # Arguments:
+    /// - `graph`: An immutable reference to the graph to visit.
+    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
+    /// from their index.
+    /// - `start`: The index of the node from which to start the visit.
     pub fn with_start(
         graph: &'a G,
         node_factory: &'a F,
@@ -50,6 +63,12 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
         Self::build(graph, start, node_factory, None)
     }
 
+    /// Constructs a parallel exclusive BFV for the specified graph using the provided node factory.
+    ///
+    /// # Arguments:
+    /// - `graph`: An immutable reference to the graph to visit.
+    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
+    /// from their index.
     pub fn new(
         graph: &'a G,
         node_factory: &'a F,

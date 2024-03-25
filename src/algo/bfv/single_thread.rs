@@ -5,6 +5,7 @@ use std::{collections::VecDeque, marker::PhantomData};
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
+/// An iterator on nodes that visits a graph with a Breadth First strategy.
 pub struct SingleThreadedBreadthFirstIterator<'a, G: RandomAccessGraph, N, F: NodeFactory<Node = N>>
 {
     graph: &'a G,
@@ -16,6 +17,9 @@ pub struct SingleThreadedBreadthFirstIterator<'a, G: RandomAccessGraph, N, F: No
     _node_type: PhantomData<N>,
 }
 
+/// A simple sequential Breadth First visit on a graph.
+///
+/// It also implements [`IntoIterator`], so it can be used in `for ... in Visit`.
 pub struct SingleThreadedBreadthFirstVisit<
     'a,
     G: RandomAccessGraph,
@@ -61,10 +65,23 @@ impl<'a, G: RandomAccessGraph, N, F: NodeFactory<Node = N>> Iterator
 impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
     SingleThreadedBreadthFirstVisit<'a, G, N, F>
 {
+    /// Constructs a sequential BFV for the specified graph using the provided node factory.
+    ///
+    /// # Arguments:
+    /// - `graph`: An immutable reference to the graph to visit.
+    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
+    /// from their index.
     pub fn new(graph: &'a G, node_factory: &'a F) -> SingleThreadedBreadthFirstVisit<'a, G, N, F> {
         Self::with_start(graph, node_factory, 0)
     }
 
+    /// Constructs a sequential BFV starting from the node with the specified index in the
+    /// provided graph using the provided node factory.
+    ///
+    /// # Arguments:
+    /// - `graph`: An immutable reference to the graph to visit.
+    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
+    /// from their index.
     pub fn with_start(
         graph: &'a G,
         node_factory: &'a F,
