@@ -9,6 +9,7 @@ pub struct SingleThreadedBreadthFirstIterator<'a, G: RandomAccessGraph, N, F: No
 {
     graph: &'a G,
     start: usize,
+    cursor: usize,
     node_factory: &'a F,
     visited: BitVec,
     queue: VecDeque<usize>,
@@ -34,14 +35,14 @@ impl<'a, G: RandomAccessGraph, N, F: NodeFactory<Node = N>> Iterator
     fn next(&mut self) -> Option<N> {
         let current_node_index = match self.queue.pop_front() {
             None => {
-                while self.visited[self.start] {
-                    self.start += 1;
-                    if self.start >= self.graph.num_nodes() {
+                while self.visited[self.cursor] {
+                    self.cursor = (self.cursor + 1) % self.graph.num_nodes();
+                    if self.cursor == self.start {
                         return None;
                     }
                 }
-                self.visited.set(self.start, true);
-                self.start
+                self.visited.set(self.cursor, true);
+                self.cursor
             }
             Some(node) => node,
         };
@@ -87,6 +88,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> IntoItera
         SingleThreadedBreadthFirstIterator {
             graph: self.graph,
             start: self.start,
+            cursor: self.start,
             visited: BitVec::new(self.graph.num_nodes()),
             queue: VecDeque::new(),
             node_factory: self.node_factory,
@@ -104,6 +106,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> IntoItera
         SingleThreadedBreadthFirstIterator {
             graph: self.graph,
             start: self.start,
+            cursor: self.start,
             visited: BitVec::new(self.graph.num_nodes()),
             queue: VecDeque::new(),
             node_factory: self.node_factory,
@@ -121,6 +124,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> IntoItera
         SingleThreadedBreadthFirstIterator {
             graph: self.graph,
             start: self.start,
+            cursor: self.start,
             visited: BitVec::new(self.graph.num_nodes()),
             queue: VecDeque::new(),
             node_factory: self.node_factory,

@@ -67,6 +67,7 @@ impl<
     > GraphVisit<N> for ParallelExclusiveBreadthFirstVisit<'a, G, N, F>
 {
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
+        let num_nodes = self.graph.num_nodes();
         let result = Arc::new(Mutex::new(N::init_result()));
         let visited_ref = Arc::new(Mutex::new(BitVec::new(self.graph.num_nodes())));
         let mut current_frontier = Vec::new();
@@ -86,8 +87,10 @@ impl<
                     })?
             }
         };
+        next_frontier_ref.lock().unwrap().push(start);
+        visited_ref.lock().unwrap().set(start, true);
 
-        pl.expected_updates(Some(self.graph.num_nodes()));
+        pl.expected_updates(Some(num_nodes));
         pl.info(format_args!(
             "Using {} threads.",
             threads.current_num_threads()
@@ -96,16 +99,16 @@ impl<
 
         loop {
             current_frontier.clear();
-            current_frontier.append(next_frontier_ref.lock().unwrap().as_mut());
+            current_frontier.append(&mut next_frontier_ref.lock().unwrap());
             if current_frontier.is_empty() {
                 let mut visited = visited_ref.lock().unwrap();
                 while visited[start] {
-                    start += 1;
-                    if start >= visited.len() {
+                    start = (start + 1) % num_nodes;
+                    if start == self.start {
                         break;
                     }
                 }
-                if start >= visited.len() {
+                if start == self.start {
                     break;
                 }
                 visited.set(start, true);
