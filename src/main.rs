@@ -32,43 +32,49 @@ impl<'a, G: RandomAccessGraph> NodeFactory for Factory<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph> NodeVisit for Node<'a, G> {
-    type AccumulatedResult = f64;
-    type VisitResult = f64;
+    type AccumulatedResult = Vec<usize>;
+    type VisitResult = usize;
 
     #[inline]
     fn visit(self) -> Self::VisitResult {
-        self.index as f64 / self.graph.num_nodes() as f64
+        self.graph.successors(self.index);
+        self.index
     }
 
     fn accumulate_result(
-        partial_result: Self::AccumulatedResult,
+        mut partial_result: Self::AccumulatedResult,
         visit_result: Self::VisitResult,
     ) -> Self::AccumulatedResult {
-        partial_result + visit_result
+        partial_result.push(visit_result);
+        partial_result
     }
 
     fn init_result() -> Self::AccumulatedResult {
-        0.0
+        Vec::new()
     }
 }
 
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
-    let graph = BVGraph::with_basename("graphs/sk-2005").load()?;
+    let graph = BVGraph::with_basename("graphs/cnr-2000").load()?;
     let main_pl = ProgressLogger::default();
     let node_factory = Factory::new(&graph);
 
     let pram_visit = ParallelExclusiveBreadthFirstVisit::new(&graph, &node_factory);
     let mut pram_pl = ProgressLogger::default();
     pram_pl.display_memory(true).local_speed(true);
-    let pram_result = pram_visit.visit(pram_pl)?;
-    main_pl.info(format_args!("Average node index: {}", pram_result));
+    let mut pram_result = pram_visit.visit(pram_pl)?;
+    main_pl.info(format_args!("Sorting parallel result"));
+    pram_result.sort();
 
     let sequential_visit = SingleThreadedBreadthFirstVisit::new(&graph, &node_factory);
     let mut sequential_pl = ProgressLogger::default();
     sequential_pl.display_memory(true).local_speed(true);
-    let sequential_result = sequential_visit.visit(sequential_pl)?;
-    main_pl.info(format_args!("Average node index: {}", sequential_result));
+    let mut sequential_result = sequential_visit.visit(sequential_pl)?;
+    main_pl.info(format_args!("Sorting sequential result"));
+    sequential_result.sort();
+
+    assert!(sequential_result == pram_result);
 
     Ok(())
 }

@@ -86,14 +86,13 @@ impl<
                     })?
             }
         };
-        next_frontier_ref.lock().unwrap().push(start);
 
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.info(format_args!(
             "Using {} threads.",
             threads.current_num_threads()
         ));
-        pl.start("Visiting graph with ParallelExclusive Parallel BFS...");
+        pl.start("Visiting graph with ParallelExclusive Parallel BFV...");
 
         loop {
             current_frontier.clear();
@@ -169,14 +168,15 @@ impl<
                 });
                 pl.update_with_count(number_of_nodes);
             } else {
+                let node = current_frontier.pop().unwrap();
                 let mut visited = visited_ref.lock().unwrap();
                 let mut next_frontier = next_frontier_ref.lock().unwrap();
                 let mut res = result.lock().unwrap();
                 *res = N::accumulate_result(
                     res.clone(),
-                    self.node_factory.node_from_index(start).visit(),
+                    self.node_factory.node_from_index(node).visit(),
                 );
-                for succ in self.graph.successors(start) {
+                for succ in self.graph.successors(node) {
                     if !visited[succ] {
                         visited.set(succ, true);
                         next_frontier.push(succ);

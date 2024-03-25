@@ -134,7 +134,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> GraphVisi
 {
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         pl.expected_updates(Some(self.graph.num_nodes()));
-        pl.start("Visiting graph in BFS order...");
+        pl.start("Visiting graph with a sequential BFV...");
         let mut result = N::init_result();
         for node in self {
             pl.light_update();
