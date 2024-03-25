@@ -42,11 +42,10 @@ impl<'a, G: RandomAccessGraph> NodeVisit for Node<'a, G> {
     }
 
     fn accumulate_result(
-        mut partial_result: Self::AccumulatedResult,
+        partial_result: &mut Self::AccumulatedResult,
         visit_result: Self::VisitResult,
-    ) -> Self::AccumulatedResult {
-        partial_result.push(visit_result);
-        partial_result
+    ) {
+        partial_result.push(visit_result)
     }
 
     fn init_result() -> Self::AccumulatedResult {

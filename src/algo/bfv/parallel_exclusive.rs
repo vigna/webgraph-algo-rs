@@ -61,7 +61,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
 impl<
         'a,
         G: RandomAccessGraph + Sync,
-        R: Send + Clone,
+        R: Send,
         N: NodeVisit<AccumulatedResult = R>,
         F: NodeFactory<Node = N> + Sync,
     > GraphVisit<N> for ParallelExclusiveBreadthFirstVisit<'a, G, N, F>
@@ -137,11 +137,9 @@ impl<
                                     }
                                     {
                                         let mut result_mutex = result_ref.lock().unwrap();
-                                        let mut partial = result_mutex.clone();
                                         for r in results {
-                                            partial = N::accumulate_result(partial, r);
+                                            N::accumulate_result(&mut result_mutex, r);
                                         }
-                                        *result_mutex = partial;
                                     }
                                 },
                                 || {
@@ -172,10 +170,7 @@ impl<
                 let mut visited = visited_ref.lock().unwrap();
                 let mut next_frontier = next_frontier_ref.lock().unwrap();
                 let mut res = result.lock().unwrap();
-                *res = N::accumulate_result(
-                    res.clone(),
-                    self.node_factory.node_from_index(node).visit(),
-                );
+                N::accumulate_result(&mut res, self.node_factory.node_from_index(node).visit());
                 for succ in self.graph.successors(node) {
                     if !visited[succ] {
                         visited.set(succ, true);

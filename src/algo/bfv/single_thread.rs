@@ -138,7 +138,7 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> GraphVisi
         let mut result = N::init_result();
         for node in self {
             pl.light_update();
-            result = N::accumulate_result(result, node.visit());
+            N::accumulate_result(&mut result, node.visit());
         }
         pl.done();
         Ok(result)

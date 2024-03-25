@@ -6,9 +6,9 @@ pub trait NodeVisit {
     type VisitResult;
     fn visit(self) -> Self::VisitResult;
     fn accumulate_result(
-        partial_result: Self::AccumulatedResult,
+        partial_result: &mut Self::AccumulatedResult,
         visit_result: Self::VisitResult,
-    ) -> Self::AccumulatedResult;
+    );
     fn init_result() -> Self::AccumulatedResult;
 }
 
