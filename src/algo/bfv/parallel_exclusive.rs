@@ -47,6 +47,40 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>>
         }
     }
 
+    /// Constructs a parallel exclusive BFV for the provided graph starting from the node with the
+    /// specified index using the provided node factory and thread pool.
+    ///
+    /// # Arguments:
+    /// - `graph`: An immutable reference to the graph to visit.
+    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
+    /// from their index.
+    /// - `start`: The index of the node from which to start the visit.
+    /// - `pool`: The thread pool to use to parallelize the visit.
+    pub fn with_start_and_threads(
+        graph: &'a G,
+        node_factory: &'a F,
+        start: usize,
+        pool: ThreadPool,
+    ) -> ParallelExclusiveBreadthFirstVisit<'a, G, N, F> {
+        Self::build(graph, start, node_factory, Some(pool))
+    }
+
+    /// Constructs a parallel exclusive BFV for the provided graph using the provided node factory
+    /// and thread pool.
+    ///
+    /// # Arguments:
+    /// - `graph`: An immutable reference to the graph to visit.
+    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
+    /// from their index.
+    /// - `pool`: The thread pool to use to parallelize the visit.
+    pub fn with_threads(
+        graph: &'a G,
+        node_factory: &'a F,
+        pool: ThreadPool,
+    ) -> ParallelExclusiveBreadthFirstVisit<'a, G, N, F> {
+        Self::build(graph, 0, node_factory, Some(pool))
+    }
+
     /// Constructs a parallel exclusive BFV starting from the node with the specified index in the
     /// provided graph using the provided node factory.
     ///
