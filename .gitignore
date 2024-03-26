@@ -14,4 +14,4 @@ Cargo.lock
 *.pdb
 
 #graph folder
-graphs/
+/graphs/
