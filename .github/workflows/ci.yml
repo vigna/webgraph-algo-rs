@@ -43,6 +43,6 @@ jobs:
       - name: Setup Rust
         uses: MatteoH2O1999/setup-rust@v1
       - name: Test build
-        run: cargo build --verbose
+        run: cargo build
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test
