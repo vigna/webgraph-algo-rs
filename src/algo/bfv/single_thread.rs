@@ -165,3 +165,71 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> GraphVisi
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use anyhow::Context;
+    use webgraph::graphs::BVGraph;
+
+    use super::*;
+
+    struct Node {
+        index: usize,
+    }
+
+    struct Factory {}
+
+    impl NodeVisit for Node {
+        type VisitResult = usize;
+        type AccumulatedResult = Vec<usize>;
+
+        fn init_result() -> Self::AccumulatedResult {
+            Vec::new()
+        }
+
+        fn accumulate_result(
+            partial_result: &mut Self::AccumulatedResult,
+            visit_result: Self::VisitResult,
+        ) {
+            partial_result.push(visit_result)
+        }
+
+        fn visit(self) -> Self::VisitResult {
+            self.index
+        }
+    }
+
+    impl NodeFactory for Factory {
+        type Node = Node;
+
+        fn node_from_index(&self, node_index: usize) -> Self::Node {
+            Node { index: node_index }
+        }
+    }
+
+    #[test]
+    fn test_sequential_bfv_with_start() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let factory = Factory {};
+        let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, &factory, 10);
+
+        assert_eq!(visit.start, 10);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sequential_bfv_new() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let factory = Factory {};
+        let visit = SingleThreadedBreadthFirstVisit::new(&graph, &factory);
+
+        assert_eq!(visit.start, 0);
+
+        Ok(())
+    }
+}
