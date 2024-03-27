@@ -58,17 +58,24 @@ fn main() -> Result<()> {
     let graph =
         BVGraph::with_basename(std::env::args().nth(1).expect("No graph basename provided"))
             .load()?;
+    let start = std::env::args()
+        .nth(2)
+        .unwrap_or("0".to_string())
+        .parse()
+        .expect("No valid index provided");
     let main_pl = ProgressLogger::default();
     let node_factory = Factory::new(&graph);
 
-    let pram_visit = ParallelExclusiveBreadthFirstVisit::new(&graph, &node_factory);
-    let mut pram_pl = ProgressLogger::default();
-    pram_pl.display_memory(true).local_speed(true);
-    let mut par_exclusive_result = pram_visit.visit(pram_pl)?;
+    let parallel_exclusive_visit =
+        ParallelExclusiveBreadthFirstVisit::with_start(&graph, &node_factory, start);
+    let mut parallel_exclusive_pl = ProgressLogger::default();
+    parallel_exclusive_pl.display_memory(true).local_speed(true);
+    let mut par_exclusive_result = parallel_exclusive_visit.visit(parallel_exclusive_pl)?;
     main_pl.info(format_args!("Sorting parallel result"));
     par_exclusive_result.sort();
 
-    let sequential_visit = SingleThreadedBreadthFirstVisit::new(&graph, &node_factory);
+    let sequential_visit =
+        SingleThreadedBreadthFirstVisit::with_start(&graph, &node_factory, start);
     let mut sequential_pl = ProgressLogger::default();
     sequential_pl.display_memory(true).local_speed(true);
     let mut sequential_result = sequential_visit.visit(sequential_pl)?;
