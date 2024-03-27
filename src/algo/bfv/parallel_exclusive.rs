@@ -176,9 +176,13 @@ impl<
 
             if number_of_nodes > 1 {
                 threads.install(|| {
+                    let chunk_size = match current_frontier.len() / threads.current_num_threads() {
+                        0 => threads.current_num_threads(),
+                        n => n,
+                    };
                     current_frontier
                         .as_mut_slice()
-                        .par_chunks(threads.current_num_threads())
+                        .par_chunks(chunk_size)
                         .for_each(|chunk| {
                             if chunk.is_empty() {
                                 return;
