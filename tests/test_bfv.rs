@@ -118,13 +118,13 @@ fn test_sequential_bfv_with_start() -> Result<()> {
         .load()
         .with_context(|| "Cannot load graph")?;
     let factory = Factory {};
-    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, &factory, 10);
+    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, &factory, 10000);
 
     let result = visit
         .visit(Option::<ProgressLogger>::None)
         .with_context(|| "Error during visit")?;
 
-    let expected_distances = get_correct_bfv_order(&graph, 10);
+    let expected_distances = get_correct_bfv_order(&graph, 10000);
 
     let mut distances = Vec::new();
     let mut count = 0;
@@ -180,13 +180,13 @@ fn test_parallel_bfv_with_start() -> Result<()> {
         .load()
         .with_context(|| "Cannot load graph")?;
     let factory = Factory {};
-    let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 150);
+    let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 10000);
 
     let result = visit
         .visit(Option::<ProgressLogger>::None)
         .with_context(|| "Error during visit")?;
 
-    let expected_distances = get_correct_bfv_order(&graph, 150);
+    let expected_distances = get_correct_bfv_order(&graph, 10000);
 
     let mut distances = Vec::new();
     let mut count = 0;
