@@ -168,10 +168,9 @@ impl<'a, G: RandomAccessGraph, N: NodeVisit, F: NodeFactory<Node = N>> GraphVisi
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use anyhow::Context;
     use webgraph::graphs::BVGraph;
-
-    use super::*;
 
     struct Node {
         index: usize,

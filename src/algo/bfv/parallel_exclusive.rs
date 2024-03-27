@@ -242,3 +242,104 @@ impl<
         Ok(Arc::into_inner(result).unwrap().into_inner().unwrap())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use anyhow::Context;
+    use webgraph::graphs::BVGraph;
+
+    struct Node {
+        index: usize,
+    }
+
+    struct Factory {}
+
+    impl NodeVisit for Node {
+        type VisitResult = usize;
+        type AccumulatedResult = Vec<usize>;
+
+        fn init_result() -> Self::AccumulatedResult {
+            Vec::new()
+        }
+
+        fn accumulate_result(
+            partial_result: &mut Self::AccumulatedResult,
+            visit_result: Self::VisitResult,
+        ) {
+            partial_result.push(visit_result)
+        }
+
+        fn visit(self) -> Self::VisitResult {
+            self.index
+        }
+    }
+
+    impl NodeFactory for Factory {
+        type Node = Node;
+
+        fn node_from_index(&self, node_index: usize) -> Self::Node {
+            Node { index: node_index }
+        }
+    }
+
+    #[test]
+    fn test_parallel_bfv_with_start() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let factory = Factory {};
+        let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 10);
+
+        assert_eq!(visit.start, 10);
+        assert!(visit.thread_pool.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parallel_bfv_new() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let factory = Factory {};
+        let visit = ParallelExclusiveBreadthFirstVisit::new(&graph, &factory);
+
+        assert_eq!(visit.start, 0);
+        assert!(visit.thread_pool.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parallel_bfv_with_threads() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let factory = Factory {};
+        let threads = ThreadPoolBuilder::default().build()?;
+        let visit = ParallelExclusiveBreadthFirstVisit::with_threads(&graph, &factory, threads);
+
+        assert_eq!(visit.start, 0);
+        assert!(visit.thread_pool.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parallel_bfv_with_start_and_threads() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let factory = Factory {};
+        let threads = ThreadPoolBuilder::default().build()?;
+        let visit = ParallelExclusiveBreadthFirstVisit::with_start_and_threads(
+            &graph, &factory, 150, threads,
+        );
+
+        assert_eq!(visit.start, 150);
+        assert!(visit.thread_pool.is_some());
+
+        Ok(())
+    }
+}
