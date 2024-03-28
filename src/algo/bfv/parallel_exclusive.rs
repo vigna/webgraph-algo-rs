@@ -177,7 +177,7 @@ impl<
             if number_of_nodes > 1 {
                 threads.install(|| {
                     let chunk_size = match current_frontier.len() / threads.current_num_threads() {
-                        0 => threads.current_num_threads(),
+                        0 => current_frontier.len(),
                         n => n,
                     };
                     current_frontier
