@@ -76,7 +76,9 @@ fn get_correct_bfv_order<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<V
         }
     }
 
-    distances.push(remainder);
+    if !remainder.is_empty() {
+        distances.push(remainder);
+    }
 
     distances
 }
