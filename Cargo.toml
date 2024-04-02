@@ -12,3 +12,15 @@ rayon = "1.8.1"
 stderrlog = "0.6.0"
 sux = {git = "https://github.com/vigna/sux-rs"}
 webgraph = {git = "https://github.com/vigna/webgraph-rs"}
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+iai = "0.1"
+
+[[bench]]
+name = "criterion_benchmark"
+harness = false
+
+[[bench]]
+name = "iai_benchmark"
+harness = false
