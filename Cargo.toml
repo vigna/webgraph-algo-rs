@@ -10,7 +10,7 @@ anyhow = { version = "1.0.79", features=["backtrace"]}
 dsi-progress-logger = "0.2.3"
 rayon = "1.8.1"
 stderrlog = "0.6.0"
-sux = {git = "https://github.com/vigna/sux-rs"}
+sux = "0.3.1"
 webgraph = {git = "https://github.com/vigna/webgraph-rs"}
 
 [dev-dependencies]
