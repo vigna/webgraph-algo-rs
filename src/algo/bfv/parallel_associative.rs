@@ -146,7 +146,7 @@ impl<
             "Using {} threads.",
             threads.current_num_threads()
         ));
-        pl.start("Visiting graph with ParallelExclusive Parallel BFV...");
+        pl.start("Visiting graph with ParallelAssociative Parallel BFV...");
 
         loop {
             current_frontier.clear();
