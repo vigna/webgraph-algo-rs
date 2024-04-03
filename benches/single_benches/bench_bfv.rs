@@ -53,11 +53,16 @@ pub fn bench_bfv(c: &mut Criterion) {
     let mut group = c.benchmark_group("Breadth first visit");
     group.sampling_mode(criterion::SamplingMode::Flat);
     group.sample_size(NUM_SAMPLES);
-    for graph in BENCH_GRAPHS {
-        let graph = BVGraph::with_basename(graph).load().unwrap();
+    for graph_basename in BENCH_GRAPHS {
+        let graph = BVGraph::with_basename(graph_basename).load().unwrap();
+        let graph_name = std::path::Path::new(graph_basename)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
         let factory = Factory {};
         let input = (&graph, &factory);
-        let parameter = format!("{} nodes", graph.num_nodes());
+        let parameter = format!("{} ({} nodes)", graph_name, graph.num_nodes());
         group.throughput(Throughput::Elements(graph.num_nodes().try_into().unwrap()));
 
         group.bench_with_input(
