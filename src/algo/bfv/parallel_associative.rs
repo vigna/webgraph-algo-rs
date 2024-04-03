@@ -158,12 +158,22 @@ impl<
                     let visits: Vec<_> = (0..num_nodes)
                         .into_par_iter()
                         .filter(|&index| !visited_vec[index])
-                        .map(|index| self.node_factory.node_from_index(index).visit())
                         .collect();
                     let count = visits.len();
-                    for visit_result in visits {
-                        N::accumulate_result(&mut result_mutex, visit_result);
-                    }
+                    let partial = visits
+                        .par_iter()
+                        .fold(N::init_result, |mut acc, &elem| {
+                            N::accumulate_result(
+                                &mut acc,
+                                self.node_factory.node_from_index(elem).visit(),
+                            );
+                            acc
+                        })
+                        .reduce(N::init_result, |mut acc, elem| {
+                            N::merge_result(&mut acc, elem);
+                            acc
+                        });
+                    N::merge_result(&mut result_mutex, partial);
                     count
                 });
                 pl.update_with_count(visited_nodes);
