@@ -15,7 +15,7 @@ use webgraph::traits::RandomAccessGraph;
 /// partial result accumulation.
 ///
 /// The order of the nodes is not guaranteed to be the same as [crate::algo::bfv::SingleThreadedBreadthFirstVisit],
-/// but is guarantees to never visit a node of a distance `X+1` before having visited all the nodes at distance `X`.
+/// but is guaranteed to never visit a node of a distance `X+1` before having visited all the nodes at distance `X`.
 pub struct ParallelExclusiveBreadthFirstVisit<
     'a,
     G: RandomAccessGraph,
