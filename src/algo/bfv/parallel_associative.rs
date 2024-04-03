@@ -114,8 +114,7 @@ impl<
         'a,
         G: RandomAccessGraph + Sync,
         R: Send,
-        V: Send,
-        N: AssociativeNodeVisit<AccumulatedResult = R, VisitResult = V>,
+        N: AssociativeNodeVisit<AccumulatedResult = R>,
         F: NodeFactory<Node = N> + Sync,
     > GraphVisit<N> for ParallelAssociativeBreadthFirstVisit<'a, G, N, F>
 {
