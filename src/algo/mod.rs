@@ -1,4 +1,3 @@
-mod traits;
-pub use traits::*;
+pub mod traits;
 
 pub mod bfv;
