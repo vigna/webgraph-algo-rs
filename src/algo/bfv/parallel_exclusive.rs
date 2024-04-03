@@ -3,11 +3,7 @@ use anyhow::{Context, Ok, Result};
 use dsi_progress_logger::ProgressLog;
 use rayon::{join, prelude::*};
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use std::{
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-    thread::available_parallelism,
-};
+use std::{marker::PhantomData, sync::Mutex, thread::available_parallelism};
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -122,10 +118,10 @@ impl<
 {
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         let num_nodes = self.graph.num_nodes();
-        let result = Arc::new(Mutex::new(N::init_result()));
-        let visited_ref = Arc::new(Mutex::new(BitVec::new(self.graph.num_nodes())));
+        let result = Mutex::new(N::init_result());
+        let visited_ref = Mutex::new(BitVec::new(self.graph.num_nodes()));
         let mut current_frontier = Vec::new();
-        let next_frontier_ref = Arc::new(Mutex::new(Vec::new()));
+        let next_frontier_ref = Mutex::new(Vec::new());
         let threads = match self.thread_pool {
             Some(t) => t,
             None => {
@@ -184,25 +180,16 @@ impl<
                         .as_mut_slice()
                         .par_chunks(chunk_size)
                         .for_each(|chunk| {
-                            if chunk.is_empty() {
-                                return;
-                            }
-                            let result_ref = result.clone();
-                            let visited_vec = visited_ref.clone();
-                            let next_frontier_vec = next_frontier_ref.clone();
-                            let graph = self.graph;
-                            let factory = self.node_factory;
-
                             join(
                                 || {
                                     let results: Vec<_> = chunk
                                         .par_iter()
                                         .map(|node_index| {
-                                            factory.node_from_index(*node_index).visit()
+                                            self.node_factory.node_from_index(*node_index).visit()
                                         })
                                         .collect();
                                     {
-                                        let mut result_mutex = result_ref.lock().unwrap();
+                                        let mut result_mutex = result.lock().unwrap();
                                         for r in results {
                                             N::accumulate_result(&mut result_mutex, r);
                                         }
@@ -212,12 +199,12 @@ impl<
                                     let mut successors = Vec::new();
                                     for node_index in chunk {
                                         successors.append(&mut Vec::from_iter(
-                                            graph.successors(*node_index),
+                                            self.graph.successors(*node_index),
                                         ));
                                     }
                                     let mut to_add = Vec::new();
                                     {
-                                        let mut visited = visited_vec.lock().unwrap();
+                                        let mut visited = visited_ref.lock().unwrap();
                                         for succ in successors {
                                             if !visited[succ] {
                                                 visited.set(succ, true);
@@ -225,7 +212,7 @@ impl<
                                             }
                                         }
                                     }
-                                    next_frontier_vec.lock().unwrap().append(&mut to_add);
+                                    next_frontier_ref.lock().unwrap().append(&mut to_add);
                                 },
                             );
                         });
@@ -249,7 +236,7 @@ impl<
 
         pl.done();
 
-        Ok(Arc::into_inner(result).unwrap().into_inner().unwrap())
+        Ok(result.into_inner().unwrap())
     }
 }
 

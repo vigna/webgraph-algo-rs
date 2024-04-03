@@ -3,11 +3,7 @@ use anyhow::{Context, Ok, Result};
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use std::{
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-    thread::available_parallelism,
-};
+use std::{marker::PhantomData, sync::Mutex, thread::available_parallelism};
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -120,10 +116,10 @@ impl<
 {
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         let num_nodes = self.graph.num_nodes();
-        let result = Arc::new(Mutex::new(N::init_result()));
-        let visited_ref = Arc::new(Mutex::new(BitVec::new(self.graph.num_nodes())));
+        let result = Mutex::new(N::init_result());
+        let visited_ref = Mutex::new(BitVec::new(self.graph.num_nodes()));
         let mut current_frontier = Vec::new();
-        let next_frontier_ref = Arc::new(Mutex::new(Vec::new()));
+        let next_frontier_ref = Mutex::new(Vec::new());
         let threads = match self.thread_pool {
             Some(t) => t,
             None => {
@@ -245,7 +241,7 @@ impl<
 
         pl.done();
 
-        Ok(Arc::into_inner(result).unwrap().into_inner().unwrap())
+        Ok(result.into_inner().unwrap())
     }
 }
 
