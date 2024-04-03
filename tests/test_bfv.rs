@@ -34,6 +34,15 @@ impl NodeVisit for Node {
     }
 }
 
+impl AssociativeNodeVisit for Node {
+    fn merge_result(
+        accumulated_result: &mut Self::AccumulatedResult,
+        mut partial_result: Self::AccumulatedResult,
+    ) {
+        accumulated_result.append(&mut partial_result)
+    }
+}
+
 impl NodeFactory for Factory {
     type Node = Node;
 
@@ -146,7 +155,7 @@ fn test_sequential_bfv_with_start() -> Result<()> {
 }
 
 #[test]
-fn test_parallel_bfv() -> Result<()> {
+fn test_parallel_exclusive_bfv() -> Result<()> {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .with_context(|| "Cannot load graph")?;
@@ -177,12 +186,74 @@ fn test_parallel_bfv() -> Result<()> {
 }
 
 #[test]
-fn test_parallel_bfv_with_start() -> Result<()> {
+fn test_parallel_exclusive_bfv_with_start() -> Result<()> {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .with_context(|| "Cannot load graph")?;
     let factory = Factory {};
     let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 10000);
+
+    let result = visit
+        .visit(Option::<ProgressLogger>::None)
+        .with_context(|| "Error during visit")?;
+
+    let expected_distances = get_correct_bfv_order(&graph, 10000);
+
+    let mut distances = Vec::new();
+    let mut count = 0;
+    for distance in expected_distances.clone() {
+        let mut nodes = result[count..count + distance.len()].to_owned();
+        nodes.sort();
+        distances.push(nodes);
+        count += distance.len();
+    }
+
+    assert_eq!(distances.len(), expected_distances.len());
+    for (distance, expected_distance) in zip(distances, expected_distances) {
+        assert_eq!(distance, expected_distance);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_parallel_associative_bfv() -> Result<()> {
+    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        .load()
+        .with_context(|| "Cannot load graph")?;
+    let factory = Factory {};
+    let visit = ParallelAssociativeBreadthFirstVisit::new(&graph, &factory);
+
+    let result = visit
+        .visit(Option::<ProgressLogger>::None)
+        .with_context(|| "Error during visit")?;
+
+    let expected_distances = get_correct_bfv_order(&graph, 0);
+
+    let mut distances = Vec::new();
+    let mut count = 0;
+    for distance in expected_distances.clone() {
+        let mut nodes = result[count..count + distance.len()].to_owned();
+        nodes.sort();
+        distances.push(nodes);
+        count += distance.len();
+    }
+
+    assert_eq!(distances.len(), expected_distances.len());
+    for (distance, expected_distance) in zip(distances, expected_distances) {
+        assert_eq!(distance, expected_distance);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_parallel_associative_bfv_with_start() -> Result<()> {
+    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        .load()
+        .with_context(|| "Cannot load graph")?;
+    let factory = Factory {};
+    let visit = ParallelAssociativeBreadthFirstVisit::with_start(&graph, &factory, 10000);
 
     let result = visit
         .visit(Option::<ProgressLogger>::None)

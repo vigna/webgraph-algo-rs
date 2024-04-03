@@ -53,6 +53,15 @@ impl<'a, G: RandomAccessGraph> NodeVisit for Node<'a, G> {
     }
 }
 
+impl<'a, G: RandomAccessGraph> AssociativeNodeVisit for Node<'a, G> {
+    fn merge_result(
+        accumulated_result: &mut Self::AccumulatedResult,
+        mut partial_result: Self::AccumulatedResult,
+    ) {
+        accumulated_result.append(&mut partial_result)
+    }
+}
+
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
     let graph =
@@ -71,8 +80,18 @@ fn main() -> Result<()> {
     let mut parallel_exclusive_pl = ProgressLogger::default();
     parallel_exclusive_pl.display_memory(true).local_speed(true);
     let mut par_exclusive_result = parallel_exclusive_visit.visit(parallel_exclusive_pl)?;
-    main_pl.info(format_args!("Sorting parallel result"));
+    main_pl.info(format_args!("Sorting parallel exclusive result"));
     par_exclusive_result.sort();
+
+    let parallel_associative_visit =
+        ParallelAssociativeBreadthFirstVisit::with_start(&graph, &node_factory, start);
+    let mut parallel_associative_pl = ProgressLogger::default();
+    parallel_associative_pl
+        .display_memory(true)
+        .local_speed(true);
+    let mut par_associative_result = parallel_associative_visit.visit(parallel_associative_pl)?;
+    main_pl.info(format_args!("Sorting parallel associative"));
+    par_associative_result.sort();
 
     let sequential_visit =
         SingleThreadedBreadthFirstVisit::with_start(&graph, &node_factory, start);
@@ -83,8 +102,11 @@ fn main() -> Result<()> {
     sequential_result.sort();
 
     assert!(sequential_result == par_exclusive_result);
-    assert!(sequential_result.len() == graph.num_nodes());
-    assert!(par_exclusive_result.len() == graph.num_nodes());
+    assert!(sequential_result == par_associative_result);
+    assert!(par_exclusive_result == par_associative_result);
+    assert_eq!(sequential_result.len(), graph.num_nodes());
+    assert_eq!(par_associative_result.len(), graph.num_nodes());
+    assert_eq!(par_exclusive_result.len(), graph.num_nodes());
 
     Ok(())
 }

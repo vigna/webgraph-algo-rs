@@ -30,6 +30,15 @@ impl NodeVisit for Node {
     }
 }
 
+impl AssociativeNodeVisit for Node {
+    fn merge_result(
+        accumulated_result: &mut Self::AccumulatedResult,
+        mut partial_result: Self::AccumulatedResult,
+    ) {
+        accumulated_result.append(&mut partial_result)
+    }
+}
+
 impl NodeFactory for Factory {
     type Node = Node;
 
@@ -67,6 +76,16 @@ fn test_bfv_cnr_2000_parallel_exclusive() -> Vec<usize> {
     visit.visit(Option::<ProgressLogger>::None).unwrap()
 }
 
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_cnr_2000_parallel_associative() -> Vec<usize> {
+    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        .load()
+        .unwrap();
+    let factory = Factory {};
+    let visit = ParallelAssociativeBreadthFirstVisit::with_start(&graph, &factory, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
+}
+
 #[cfg(windows)]
 fn main() {
     println!("iai not available on Windows. Skipping...");
@@ -79,5 +98,6 @@ use iai::main;
 main!(
     test_bfv_cnr_2000_setup,
     test_bfv_cnr_2000_sequential,
-    test_bfv_cnr_2000_parallel_exclusive
+    test_bfv_cnr_2000_parallel_exclusive,
+    test_bfv_cnr_2000_parallel_associative
 );

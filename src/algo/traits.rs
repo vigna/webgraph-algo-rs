@@ -27,6 +27,23 @@ pub trait NodeVisit {
     fn init_result() -> Self::AccumulatedResult;
 }
 
+/// A visitable node whose visit has the associative property.
+///
+/// It allows to further parallelize graph visits by accumulating
+/// results in chunks.
+pub trait AssociativeNodeVisit: NodeVisit {
+    /// Merges the partial result into the accumulated result.
+    ///
+    /// # Arguments
+    /// - `accumulated_result`: the mutable reference to the accumulated
+    /// result to merge into.
+    /// - `partial_result`: the partial result to merge into the accumulated result.
+    fn merge_result(
+        accumulated_result: &mut Self::AccumulatedResult,
+        partial_result: Self::AccumulatedResult,
+    );
+}
+
 /// A factory that creates nodes from their index.
 pub trait NodeFactory {
     /// The type of nods that are returned by this factory.

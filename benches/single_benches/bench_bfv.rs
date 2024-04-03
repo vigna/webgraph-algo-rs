@@ -32,6 +32,15 @@ impl NodeVisit for Node {
     }
 }
 
+impl AssociativeNodeVisit for Node {
+    fn merge_result(
+        accumulated_result: &mut Self::AccumulatedResult,
+        mut partial_result: Self::AccumulatedResult,
+    ) {
+        accumulated_result.append(&mut partial_result)
+    }
+}
+
 impl NodeFactory for Factory {
     type Node = Node;
 
@@ -72,6 +81,18 @@ pub fn bench_bfv(c: &mut Criterion) {
                         .visit(Option::<ProgressLogger>::None)
                         .unwrap()
                 });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("Parallel associative", &parameter),
+            &input,
+            |b, i| {
+                b.iter_with_large_drop(|| {
+                    ParallelAssociativeBreadthFirstVisit::with_start(i.0, i.1, 10000)
+                        .visit(Option::<ProgressLogger>::None)
+                        .unwrap()
+                })
             },
         );
     }
