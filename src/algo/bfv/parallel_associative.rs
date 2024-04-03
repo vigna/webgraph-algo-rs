@@ -173,10 +173,10 @@ impl<
             let number_of_nodes = current_frontier.len();
 
             if number_of_nodes > 1 {
-                let chunk = current_frontier.as_slice();
+                let nodes_slice = current_frontier.as_slice();
                 threads.join(
                     || {
-                        let partial_result = chunk
+                        let partial_result = nodes_slice
                             .par_iter()
                             .fold(N::init_result, |mut acc, &elem| {
                                 N::accumulate_result(
@@ -195,7 +195,7 @@ impl<
                         }
                     },
                     || {
-                        chunk
+                        nodes_slice
                             .par_iter()
                             .fold(Vec::new, |mut acc, &elem| {
                                 acc.append(&mut Vec::from_iter(self.graph.successors(elem)));
