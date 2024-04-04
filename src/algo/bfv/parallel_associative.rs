@@ -3,7 +3,7 @@ use crate::prelude::*;
 use anyhow::{Context, Ok, Result};
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::{join, ThreadPool, ThreadPoolBuilder};
 use std::sync::atomic::Ordering;
 use std::{marker::PhantomData, sync::Mutex, thread::available_parallelism};
 use webgraph::traits::RandomAccessGraph;
@@ -150,26 +150,32 @@ impl<
             current_frontier.append(&mut next_frontier_ref.lock().unwrap());
             if current_frontier.is_empty() {
                 let visited_nodes = threads.install(|| {
-                    let mut result_mutex = result.lock().unwrap();
                     let visits: Vec<_> = (0..num_nodes)
                         .into_par_iter()
                         .filter(|&index| !visited[index])
                         .collect();
                     let count = visits.len();
-                    let partial = visits
-                        .par_iter()
-                        .fold(N::init_result, |mut acc, &elem| {
-                            N::accumulate_result(
-                                &mut acc,
-                                self.node_factory.node_from_index(elem).visit(),
-                            );
-                            acc
-                        })
-                        .reduce(N::init_result, |mut acc, elem| {
-                            N::merge_result(&mut acc, elem);
-                            acc
-                        });
-                    N::merge_result(&mut result_mutex, partial);
+                    let chunk_size = match visits.len() / threads.current_num_threads() {
+                        0 => std::cmp::max(1, visits.len()),
+                        n => n,
+                    };
+                    visits.par_chunks(chunk_size).for_each(|chunk| {
+                        let partial = chunk
+                            .par_iter()
+                            .fold(N::init_result, |mut acc, &elem| {
+                                N::accumulate_result(
+                                    &mut acc,
+                                    self.node_factory.node_from_index(elem).visit(),
+                                );
+                                acc
+                            })
+                            .reduce(N::init_result, |mut acc, other| {
+                                N::merge_result(&mut acc, other);
+                                acc
+                            });
+                        let mut result_mutex = result.lock().unwrap();
+                        N::merge_result(&mut result_mutex, partial)
+                    });
                     count
                 });
                 pl.update_with_count(visited_nodes);
@@ -179,45 +185,55 @@ impl<
             let number_of_nodes = current_frontier.len();
 
             if number_of_nodes > 1 {
-                let nodes_slice = current_frontier.as_slice();
-                threads.join(
-                    || {
-                        let partial_result = nodes_slice
-                            .par_iter()
-                            .fold(N::init_result, |mut acc, &elem| {
-                                N::accumulate_result(
-                                    &mut acc,
-                                    self.node_factory.node_from_index(elem).visit(),
-                                );
-                                acc
-                            })
-                            .reduce(N::init_result, |mut acc, elem| {
-                                N::merge_result(&mut acc, elem);
-                                acc
-                            });
-                        {
-                            let mut result_mutex = result.lock().unwrap();
-                            N::merge_result(&mut result_mutex, partial_result);
-                        }
-                    },
-                    || {
-                        let mut to_add = nodes_slice
-                            .par_iter()
-                            .fold(Vec::new, |mut acc, &node_index| {
-                                for succ in self.graph.successors(node_index) {
-                                    if !visited.swap(succ, true, Ordering::Relaxed) {
-                                        acc.push(succ);
+                threads.install(|| {
+                    let chunk_size = match current_frontier.len() / threads.current_num_threads() {
+                        0 => current_frontier.len(),
+                        n => n,
+                    };
+                    current_frontier
+                        .as_mut_slice()
+                        .par_chunks(chunk_size)
+                        .for_each(|chunk| {
+                            join(
+                                || {
+                                    let partial = chunk
+                                        .par_iter()
+                                        .fold(N::init_result, |mut acc, &elem| {
+                                            N::accumulate_result(
+                                                &mut acc,
+                                                self.node_factory.node_from_index(elem).visit(),
+                                            );
+                                            acc
+                                        })
+                                        .reduce(N::init_result, |mut acc, other| {
+                                            N::merge_result(&mut acc, other);
+                                            acc
+                                        });
+                                    {
+                                        let mut result_mutex = result.lock().unwrap();
+                                        N::merge_result(&mut result_mutex, partial);
                                     }
-                                }
-                                acc
-                            })
-                            .reduce(Vec::new, |mut acc, mut other| {
-                                acc.append(&mut other);
-                                acc
-                            });
-                        next_frontier_ref.lock().unwrap().append(&mut to_add);
-                    },
-                );
+                                },
+                                || {
+                                    let mut to_add = chunk
+                                        .par_iter()
+                                        .fold(Vec::new, |mut acc, &node_index| {
+                                            for succ in self.graph.successors(node_index) {
+                                                if !visited.swap(succ, true, Ordering::Relaxed) {
+                                                    acc.push(succ);
+                                                }
+                                            }
+                                            acc
+                                        })
+                                        .reduce(Vec::new, |mut acc, mut other| {
+                                            acc.append(&mut other);
+                                            acc
+                                        });
+                                    next_frontier_ref.lock().unwrap().append(&mut to_add);
+                                },
+                            );
+                        });
+                });
                 pl.update_with_count(number_of_nodes);
             } else {
                 let node = current_frontier.pop().unwrap();
