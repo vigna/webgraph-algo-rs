@@ -53,7 +53,7 @@ pub fn bench_bfv(c: &mut Criterion) {
     let mut group = c.benchmark_group("Breadth first visit");
     group.sampling_mode(criterion::SamplingMode::Flat);
     group.sample_size(NUM_SAMPLES);
-    for graph_basename in BENCH_GRAPHS {
+    for (graph_basename, start) in BENCH_GRAPHS {
         let graph = BVGraph::with_basename(graph_basename).load().unwrap();
         let graph_name = std::path::Path::new(graph_basename)
             .file_name()
@@ -70,7 +70,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    SingleThreadedBreadthFirstVisit::with_start(i.0, i.1, 10000)
+                    SingleThreadedBreadthFirstVisit::with_start(i.0, i.1, start)
                         .visit(Option::<ProgressLogger>::None)
                         .unwrap()
                 });
@@ -82,7 +82,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    ParallelExclusiveBreadthFirstVisit::with_start(i.0, i.1, 10000)
+                    ParallelExclusiveBreadthFirstVisit::with_start(i.0, i.1, start)
                         .visit(Option::<ProgressLogger>::None)
                         .unwrap()
                 });
@@ -94,7 +94,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    ParallelAssociativeBreadthFirstVisit::with_start(i.0, i.1, 10000)
+                    ParallelAssociativeBreadthFirstVisit::with_start(i.0, i.1, start)
                         .visit(Option::<ProgressLogger>::None)
                         .unwrap()
                 })

@@ -86,6 +86,45 @@ fn test_bfv_cnr_2000_parallel_associative() -> Vec<usize> {
     visit.visit(Option::<ProgressLogger>::None).unwrap()
 }
 
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_in_2004_setup() -> (usize, Node) {
+    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+        .load()
+        .unwrap();
+    let factory = Factory {};
+    (graph.num_nodes(), factory.node_from_index(10000))
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_in_2004_sequential() -> Vec<usize> {
+    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+        .load()
+        .unwrap();
+    let factory = Factory {};
+    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, &factory, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_in_2004_parallel_exclusive() -> Vec<usize> {
+    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+        .load()
+        .unwrap();
+    let factory = Factory {};
+    let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_in_2004_parallel_associative() -> Vec<usize> {
+    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+        .load()
+        .unwrap();
+    let factory = Factory {};
+    let visit = ParallelAssociativeBreadthFirstVisit::with_start(&graph, &factory, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
+}
+
 #[cfg(windows)]
 fn main() {
     println!("iai not available on Windows. Skipping...");
@@ -99,5 +138,9 @@ main!(
     test_bfv_cnr_2000_setup,
     test_bfv_cnr_2000_sequential,
     test_bfv_cnr_2000_parallel_exclusive,
-    test_bfv_cnr_2000_parallel_associative
+    test_bfv_cnr_2000_parallel_associative,
+    test_bfv_in_2004_setup,
+    test_bfv_in_2004_sequential,
+    test_bfv_in_2004_parallel_exclusive,
+    test_bfv_in_2004_parallel_associative
 );
