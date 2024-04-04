@@ -1,10 +1,11 @@
+use super::super::internals::AtomicBitVec;
 use crate::prelude::*;
 use anyhow::{Context, Ok, Result};
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::sync::atomic::Ordering;
 use std::{marker::PhantomData, sync::Mutex, thread::available_parallelism};
-use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// A parallel visit that guarantees BFV order.
@@ -117,7 +118,7 @@ impl<
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         let num_nodes = self.graph.num_nodes();
         let result = Mutex::new(N::init_result());
-        let visited_ref = Mutex::new(BitVec::new(self.graph.num_nodes()));
+        let visited = AtomicBitVec::new(self.graph.num_nodes());
         let mut current_frontier = Vec::new();
         let next_frontier_ref = Mutex::new(Vec::new());
         let threads = match self.thread_pool {
@@ -135,7 +136,7 @@ impl<
             }
         };
         next_frontier_ref.lock().unwrap().push(self.start);
-        visited_ref.lock().unwrap().set(self.start, true);
+        visited.set(self.start, true, Ordering::Relaxed);
 
         pl.expected_updates(Some(num_nodes));
         pl.info(format_args!(
@@ -149,11 +150,10 @@ impl<
             current_frontier.append(&mut next_frontier_ref.lock().unwrap());
             if current_frontier.is_empty() {
                 let visited_nodes = threads.install(|| {
-                    let visited_vec = visited_ref.lock().unwrap();
                     let mut result_mutex = result.lock().unwrap();
                     let visits: Vec<_> = (0..num_nodes)
                         .into_par_iter()
-                        .filter(|&index| !visited_vec[index])
+                        .filter(|&index| !visited[index])
                         .collect();
                     let count = visits.len();
                     let partial = visits
@@ -201,37 +201,31 @@ impl<
                         }
                     },
                     || {
-                        nodes_slice
+                        let mut to_add = nodes_slice
                             .par_iter()
-                            .fold(Vec::new, |mut acc, &elem| {
-                                acc.append(&mut Vec::from_iter(self.graph.successors(elem)));
-                                acc
-                            })
-                            .for_each(|elem| {
-                                let mut to_add = Vec::with_capacity(elem.len());
-                                {
-                                    let mut visited = visited_ref.lock().unwrap();
-                                    for succ in elem {
-                                        if !visited[succ] {
-                                            visited.set(succ, true);
-                                            to_add.push(succ);
-                                        }
+                            .fold(Vec::new, |mut acc, &node_index| {
+                                for succ in self.graph.successors(node_index) {
+                                    if !visited.swap(succ, true, Ordering::Relaxed) {
+                                        acc.push(succ);
                                     }
                                 }
-                                next_frontier_ref.lock().unwrap().append(&mut to_add);
+                                acc
+                            })
+                            .reduce(Vec::new, |mut acc, mut other| {
+                                acc.append(&mut other);
+                                acc
                             });
+                        next_frontier_ref.lock().unwrap().append(&mut to_add);
                     },
                 );
                 pl.update_with_count(number_of_nodes);
             } else {
                 let node = current_frontier.pop().unwrap();
-                let mut visited = visited_ref.lock().unwrap();
                 let mut next_frontier = next_frontier_ref.lock().unwrap();
                 let mut res = result.lock().unwrap();
                 N::accumulate_result(&mut res, self.node_factory.node_from_index(node).visit());
                 for succ in self.graph.successors(node) {
-                    if !visited[succ] {
-                        visited.set(succ, true);
+                    if !visited.swap(succ, true, Ordering::Relaxed) {
                         next_frontier.push(succ);
                     }
                 }
