@@ -66,17 +66,14 @@ impl<B: AsRef<[AtomicUsize]>> AtomicBitVec<B> {
         let word_index = index / BITS;
         let bit_index = index % BITS;
         let data: &[AtomicUsize] = self.data.as_ref();
-        let old_value;
 
-        if value {
-            old_value = data
-                .get_unchecked(word_index)
-                .fetch_or(1 << bit_index, order);
+        let old_value = if value {
+            data.get_unchecked(word_index)
+                .fetch_or(1 << bit_index, order)
         } else {
-            old_value = data
-                .get_unchecked(word_index)
-                .fetch_and(!(1 << bit_index), order);
-        }
+            data.get_unchecked(word_index)
+                .fetch_and(!(1 << bit_index), order)
+        };
 
         (old_value >> (bit_index)) & 1 != 0
     }
