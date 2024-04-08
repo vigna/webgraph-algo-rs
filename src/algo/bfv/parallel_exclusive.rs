@@ -121,8 +121,7 @@ impl<
         let num_nodes = self.graph.num_nodes();
         let result = Mutex::new(N::init_result());
         let visited = AtomicBitVec::new(self.graph.num_nodes());
-        let mut current_frontier = Vec::new();
-        let next_frontier_ref = Mutex::new(Vec::new());
+        let mut next_frontier = Vec::new();
         let threads = match self.thread_pool {
             Some(t) => t,
             None => {
@@ -137,7 +136,7 @@ impl<
                     })?
             }
         };
-        next_frontier_ref.lock().unwrap().push(self.start);
+        next_frontier.push(self.start);
         visited.set(self.start, true, Ordering::Relaxed);
 
         pl.expected_updates(Some(num_nodes));
@@ -148,8 +147,7 @@ impl<
         pl.start("Visiting graph with ParallelExclusive Parallel BFV...");
 
         loop {
-            current_frontier.clear();
-            current_frontier.append(&mut next_frontier_ref.lock().unwrap());
+            let mut current_frontier = next_frontier;
             if current_frontier.is_empty() {
                 let visited_nodes = threads.install(|| {
                     let mut result_mutex = result.lock().unwrap();
@@ -171,16 +169,15 @@ impl<
             let number_of_nodes = current_frontier.len();
 
             if number_of_nodes > 1 {
-                threads.install(|| {
+                next_frontier = threads.install(|| {
                     let chunk_size = match current_frontier.len() / threads.current_num_threads() {
                         0 => current_frontier.len(),
                         n => n,
                     };
-                    current_frontier
-                        .as_mut_slice()
+                    let next_nodes = current_frontier
                         .par_chunks(chunk_size)
-                        .for_each(|chunk| {
-                            join(
+                        .map(|chunk| {
+                            let (_, nodes) = join(
                                 || {
                                     let results: Vec<_> = chunk
                                         .par_iter()
@@ -196,7 +193,7 @@ impl<
                                     }
                                 },
                                 || {
-                                    let mut to_add = chunk
+                                    let to_add = chunk
                                         .par_iter()
                                         .fold(Vec::new, |mut acc, &node_index| {
                                             for succ in self.graph.successors(node_index) {
@@ -210,15 +207,19 @@ impl<
                                             acc.append(&mut other);
                                             acc
                                         });
-                                    next_frontier_ref.lock().unwrap().append(&mut to_add);
+                                    to_add
                                 },
                             );
-                        });
+                            nodes
+                        })
+                        .collect::<Vec<_>>()
+                        .concat();
+                    next_nodes
                 });
                 pl.update_with_count(number_of_nodes);
             } else {
                 let node = current_frontier.pop().unwrap();
-                let mut next_frontier = next_frontier_ref.lock().unwrap();
+                next_frontier = Vec::new();
                 let mut res = result.lock().unwrap();
                 N::accumulate_result(&mut res, self.node_factory.node_from_index(node).visit());
                 for succ in self.graph.successors(node) {
