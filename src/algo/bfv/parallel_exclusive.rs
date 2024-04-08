@@ -119,8 +119,11 @@ impl<
 {
     fn visit(self, mut pl: impl ProgressLog) -> Result<N::AccumulatedResult> {
         let num_nodes = self.graph.num_nodes();
+        // The result of the visit
         let result = Mutex::new(N::init_result());
+        // The bit vector storing which nodes have been visited already
         let visited = AtomicBitVec::new(self.graph.num_nodes());
+        // The nodes to visit on the next iteration of the visit
         let mut next_frontier = Vec::new();
         let threads = match self.thread_pool {
             Some(t) => t,
@@ -136,6 +139,8 @@ impl<
                     })?
             }
         };
+
+        // Bootstrap the visit with the starting node
         next_frontier.push(self.start);
         visited.set(self.start, true, Ordering::Relaxed);
 
@@ -147,8 +152,12 @@ impl<
         pl.start("Visiting graph with ParallelExclusive Parallel BFV...");
 
         loop {
+            // Update the current frontier with the nodes computed during the
+            // previous iteration
             let mut current_frontier = next_frontier;
             if current_frontier.is_empty() {
+                // If the connected component has been visited already, all the
+                // other nodes may be visited in parallel
                 let visited_nodes = threads.install(|| {
                     let mut result_mutex = result.lock().unwrap();
                     let visits: Vec<_> = (0..num_nodes)
@@ -169,6 +178,8 @@ impl<
             let number_of_nodes = current_frontier.len();
 
             if number_of_nodes > 1 {
+                // If we need to visit more than 1 node visit them in parallel and
+                // compute the next frontier
                 next_frontier = threads.install(|| {
                     let chunk_size = match current_frontier.len() / threads.current_num_threads() {
                         0 => current_frontier.len(),
@@ -177,6 +188,10 @@ impl<
                     let next_nodes = current_frontier
                         .par_chunks(chunk_size)
                         .map(|chunk| {
+                            // Divide the visit in 2 tasks:
+                            // * Visit the nodes and accumulate the results
+                            // * Compute the nodes' successors and populate the vector of nodes to visit
+                            // on the next iteration
                             let (_, nodes) = join(
                                 || {
                                     let results: Vec<_> = chunk
@@ -218,6 +233,8 @@ impl<
                 });
                 pl.update_with_count(number_of_nodes);
             } else {
+                // If we need to visit a single node it is better to avoid
+                // the overhead of parallelization
                 let node = current_frontier.pop().unwrap();
                 next_frontier = Vec::new();
                 let mut res = result.lock().unwrap();

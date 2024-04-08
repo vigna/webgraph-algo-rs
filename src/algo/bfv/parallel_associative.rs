@@ -134,6 +134,8 @@ impl<
                     })?
             }
         };
+
+        // Bootstrap the visit with the starting node
         next_frontier.push(self.start);
         visited.set(self.start, true, Ordering::Relaxed);
 
@@ -147,6 +149,8 @@ impl<
         loop {
             let mut current_frontier = next_frontier;
             if current_frontier.is_empty() {
+                // If the connected component has been visited already, all the
+                // other nodes may be visited in parallel
                 let visited_nodes = threads.install(|| {
                     let visits: Vec<_> = (0..num_nodes)
                         .into_par_iter()
@@ -183,6 +187,8 @@ impl<
             let number_of_nodes = current_frontier.len();
 
             if number_of_nodes > 1 {
+                // If we need to visit more than 1 node visit them in parallel and
+                // compute the next frontier
                 next_frontier = threads.install(|| {
                     let chunk_size = match current_frontier.len() / threads.current_num_threads() {
                         0 => current_frontier.len(),
@@ -191,6 +197,10 @@ impl<
                     let next_nodes = current_frontier
                         .par_chunks(chunk_size)
                         .map(|chunk| {
+                            // Divide the visit in 2 tasks:
+                            // * Visit the nodes and accumulate the results
+                            // * Compute the nodes' successors and populate the vector of nodes to visit
+                            // on the next iteration
                             let (_, nodes) = join(
                                 || {
                                     let partial = chunk
@@ -237,6 +247,8 @@ impl<
                 });
                 pl.update_with_count(number_of_nodes);
             } else {
+                // If we need to visit a single node it is better to avoid
+                // the overhead of parallelization
                 let node = current_frontier.pop().unwrap();
                 next_frontier = Vec::new();
                 let mut res = result.lock().unwrap();
