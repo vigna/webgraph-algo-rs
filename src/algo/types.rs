@@ -25,7 +25,7 @@ impl BreadthFirstVisitTreeBuilder {
     }
 
     pub fn cut(&mut self) {
-        self.cuts.push(self.order.len() - 1)
+        self.cuts.push(self.order.len())
     }
 
     pub fn build(self) -> BreadthFirstVisitTree {
@@ -44,7 +44,7 @@ impl BreadthFirstVisitTree {
     pub fn get_by_distance(&self, distance: usize) -> Vec<usize> {
         let first_index = self.cuts[distance];
         let last_index = if distance >= self.cuts.len() + 1 {
-            self.order.len() - 1
+            self.order.len()
         } else {
             self.cuts[distance + 1]
         };
