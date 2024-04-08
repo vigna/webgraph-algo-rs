@@ -4,56 +4,12 @@ use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::bfv::*;
 use webgraph_algo::prelude::*;
 
-struct Node {
-    index: usize,
-}
-
-struct Factory {}
-
-impl NodeVisit for Node {
-    type VisitResult = usize;
-    type AccumulatedResult = Vec<usize>;
-
-    fn visit(self) -> Self::VisitResult {
-        self.index
-    }
-
-    fn init_result() -> Self::AccumulatedResult {
-        Vec::new()
-    }
-
-    fn accumulate_result(
-        partial_result: &mut Self::AccumulatedResult,
-        visit_result: Self::VisitResult,
-    ) {
-        partial_result.push(visit_result)
-    }
-}
-
-impl AssociativeNodeVisit for Node {
-    fn merge_result(
-        accumulated_result: &mut Self::AccumulatedResult,
-        mut partial_result: Self::AccumulatedResult,
-    ) {
-        accumulated_result.append(&mut partial_result)
-    }
-}
-
-impl NodeFactory for Factory {
-    type Node = Node;
-
-    fn node_from_index(&self, node_index: usize) -> Self::Node {
-        Node { index: node_index }
-    }
-}
-
 #[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_cnr_2000_setup() -> (usize, Node) {
+fn test_bfv_cnr_2000_setup() -> usize {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let factory = Factory {};
-    (graph.num_nodes(), factory.node_from_index(10000))
+    graph.num_nodes()
 }
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -61,38 +17,16 @@ fn test_bfv_cnr_2000_sequential() -> Vec<usize> {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let factory = Factory {};
-    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, &factory, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
+    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap().order
 }
 
 #[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_cnr_2000_parallel_exclusive() -> Vec<usize> {
-    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
-        .load()
-        .unwrap();
-    let factory = Factory {};
-    let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
-}
-
-#[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_cnr_2000_parallel_associative() -> Vec<usize> {
-    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
-        .load()
-        .unwrap();
-    let factory = Factory {};
-    let visit = ParallelAssociativeBreadthFirstVisit::with_start(&graph, &factory, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
-}
-
-#[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_in_2004_setup() -> (usize, Node) {
+fn test_bfv_in_2004_setup() -> usize {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let factory = Factory {};
-    (graph.num_nodes(), factory.node_from_index(10000))
+    graph.num_nodes()
 }
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -100,29 +34,8 @@ fn test_bfv_in_2004_sequential() -> Vec<usize> {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let factory = Factory {};
-    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, &factory, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
-}
-
-#[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_in_2004_parallel_exclusive() -> Vec<usize> {
-    let graph = BVGraph::with_basename("tests/graphs/in-2004")
-        .load()
-        .unwrap();
-    let factory = Factory {};
-    let visit = ParallelExclusiveBreadthFirstVisit::with_start(&graph, &factory, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
-}
-
-#[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_in_2004_parallel_associative() -> Vec<usize> {
-    let graph = BVGraph::with_basename("tests/graphs/in-2004")
-        .load()
-        .unwrap();
-    let factory = Factory {};
-    let visit = ParallelAssociativeBreadthFirstVisit::with_start(&graph, &factory, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
+    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap().order
 }
 
 #[cfg(windows)]
@@ -137,10 +50,6 @@ use iai::main;
 main!(
     test_bfv_cnr_2000_setup,
     test_bfv_cnr_2000_sequential,
-    test_bfv_cnr_2000_parallel_exclusive,
-    test_bfv_cnr_2000_parallel_associative,
     test_bfv_in_2004_setup,
     test_bfv_in_2004_sequential,
-    test_bfv_in_2004_parallel_exclusive,
-    test_bfv_in_2004_parallel_associative
 );

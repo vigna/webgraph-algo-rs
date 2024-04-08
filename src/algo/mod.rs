@@ -1,5 +1,5 @@
-mod internals;
-
 pub mod traits;
+
+pub mod types;
 
 pub mod bfv;
