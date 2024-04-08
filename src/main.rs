@@ -1,7 +1,6 @@
 use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
 use webgraph::graphs::BVGraph;
-use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::bfv::*;
 use webgraph_algo::prelude::*;
 
@@ -18,17 +17,15 @@ fn main() -> Result<()> {
     let main_pl = ProgressLogger::default();
     main_pl.info(format_args!("Starting test..."));
 
-    let webgraph_visit = webgraph::algo::BfsOrder::new(&graph);
-    let webgraph_order = webgraph_visit.collect::<Vec<_>>();
-
     let sequential_visit = SingleThreadedBreadthFirstVisit::with_start(&graph, start);
     let mut sequential_pl = ProgressLogger::default();
     sequential_pl.display_memory(true).local_speed(true);
-    let sequential_result = sequential_visit.visit(sequential_pl)?;
-    let sequential_order = sequential_result.order;
+    sequential_visit.visit(sequential_pl)?;
 
-    assert_eq!(sequential_order.len(), graph.num_nodes());
-    assert_eq!(webgraph_order.len(), graph.num_nodes());
+    let parallel_visit = ParallelBreadthFirstVisit::with_start(&graph, start);
+    let mut parallel_pl = ProgressLogger::default();
+    parallel_pl.display_memory(true).local_speed(true);
+    parallel_visit.visit(parallel_pl)?;
 
     Ok(())
 }

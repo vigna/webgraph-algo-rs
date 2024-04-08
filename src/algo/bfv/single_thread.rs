@@ -1,19 +1,18 @@
 use crate::prelude::*;
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
+use std::collections::VecDeque;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// A simple sequential Breadth First visit on a graph.
-///
-/// It also implements [`IntoIterator`], so it can be used in `for ... in Visit`.
 pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
 }
 
 impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
-    /// Constructs a sequential BFV for the specified graph using the provided node factory.
+    /// Constructs a sequential BFV for the specified graph.
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
@@ -22,7 +21,7 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
     }
 
     /// Constructs a sequential BFV starting from the node with the specified index in the
-    /// provided graph using the provided node factory.
+    /// provided graph.
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
@@ -34,46 +33,38 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
-    fn visit(self, mut pl: impl ProgressLog) -> Result<BreadthFirstVisitTree> {
+    fn visit(self, mut pl: impl ProgressLog) -> Result<()> {
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph with a sequential BFV...");
 
-        let mut result = BreadthFirstVisitTreeBuilder::new();
-
         let mut visited = BitVec::new(self.graph.num_nodes());
-        let mut queue = Vec::new();
+        let mut queue = VecDeque::new();
 
         visited.set(self.start, true);
-        queue.push(self.start);
+        queue.push_back(self.start);
 
         // Visit the connected component
         while !queue.is_empty() {
-            let nodes = queue;
-            queue = Vec::new();
-            for node in nodes {
-                pl.light_update();
-                result.push_node(node);
-                for succ in self.graph.successors(node) {
-                    if !visited[succ] {
-                        visited.set(succ, true);
-                        queue.push(succ);
-                    }
+            let current_node = queue.pop_front().unwrap();
+            for succ in self.graph.successors(current_node) {
+                if !visited[succ] {
+                    visited.set(succ, true);
+                    queue.push_back(succ);
                 }
             }
-            result.cut();
+            pl.light_update();
         }
 
         // Visit the remaining nodes
         for index in 0..self.graph.num_nodes() {
             if !visited[index] {
                 pl.light_update();
-                result.push_node(index);
             }
         }
 
         pl.done();
 
-        Ok(result.build())
+        Ok(())
     }
 }
 

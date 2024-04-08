@@ -13,12 +13,21 @@ fn test_bfv_cnr_2000_setup() -> usize {
 }
 
 #[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_cnr_2000_sequential() -> Vec<usize> {
+fn test_bfv_cnr_2000_sequential() {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
     let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap().order
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_cnr_2000_parallel() {
+    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        .load()
+        .unwrap();
+    let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
 }
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -30,12 +39,21 @@ fn test_bfv_in_2004_setup() -> usize {
 }
 
 #[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_in_2004_sequential() -> Vec<usize> {
+fn test_bfv_in_2004_sequential() {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
     let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap().order
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+fn test_bfv_in_2004_parallel() {
+    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+        .load()
+        .unwrap();
+    let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
+    visit.visit(Option::<ProgressLogger>::None).unwrap()
 }
 
 #[cfg(windows)]
@@ -50,6 +68,8 @@ use iai::main;
 main!(
     test_bfv_cnr_2000_setup,
     test_bfv_cnr_2000_sequential,
+    test_bfv_cnr_2000_parallel,
     test_bfv_in_2004_setup,
     test_bfv_in_2004_sequential,
+    test_bfv_in_2004_parallel,
 );

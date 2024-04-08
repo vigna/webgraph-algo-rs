@@ -10,8 +10,9 @@ anyhow = { version = "1.0.79", features=["backtrace"]}
 dsi-progress-logger = "0.2.3"
 rayon = "1.8.1"
 stderrlog = "0.6.0"
-sux = "0.3.1"
+sux = {git = "https://github.com/vigna/sux-rs"}
 webgraph = {git = "https://github.com/vigna/webgraph-rs"}
+parallel_frontier = {git = "https://github.com/zommiommy/parallel_frontier"}
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

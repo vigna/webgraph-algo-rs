@@ -1,7 +1,9 @@
 use crate::prelude::*;
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
-use rayon::ThreadPool;
+use parallel_frontier::prelude::{Frontier, ParallelIterator};
+use rayon::iter::IntoParallelIterator;
+use std::sync::atomic::Ordering;
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -11,11 +13,10 @@ use webgraph::traits::RandomAccessGraph;
 pub struct ParallelBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
-    threads: Option<ThreadPool>,
 }
 
 impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
-    /// Constructs a sequential BFV for the specified graph using the provided node factory.
+    /// Constructs a sequential BFV for the specified graph.
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
@@ -24,47 +25,55 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
     }
 
     /// Constructs a sequential BFV starting from the node with the specified index in the
-    /// provided graph using the provided node factory.
+    /// provided graph.
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
-    /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
-    /// from their index.
+    /// - `start`: The starting node.
     pub fn with_start(graph: &'a G, start: usize) -> ParallelBreadthFirstVisit<'a, G> {
-        ParallelBreadthFirstVisit {
-            graph,
-            start,
-            threads: None,
-        }
+        ParallelBreadthFirstVisit { graph, start }
     }
 }
 
-impl<'a, G: RandomAccessGraph> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
-    fn visit(self, mut pl: impl ProgressLog) -> Result<BreadthFirstVisitTree> {
-        let threads = self.threads.unwrap();
-
+impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
+    fn visit(self, mut pl: impl ProgressLog) -> Result<()> {
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph with a parallel BFV...");
 
-        let mut result = BreadthFirstVisitTreeBuilder::new();
-
         let visited = AtomicBitVec::new(self.graph.num_nodes());
-        let mut next_frontier = Vec::new();
+        let mut next_frontier = Frontier::new();
+        let mut remaining_nodes = self.graph.num_nodes();
 
         next_frontier.push(self.start);
+        visited.set(self.start, true, Ordering::Relaxed);
 
+        // Visit the connected component
         while !next_frontier.is_empty() {
-            let mut current_frontier = next_frontier;
-            if current_frontier.len() == 1 {
-            } else {
-            }
-            // End visit for current distance
-            result.cut();
+            let current_frontier = next_frontier;
+            let current_len = current_frontier.len();
+            next_frontier = Frontier::new();
+            current_frontier.par_iter().for_each(|&element| {
+                self.graph.successors(element).into_iter().for_each(|succ| {
+                    if !visited.swap(succ, true, Ordering::Relaxed) {
+                        next_frontier.push(succ);
+                    }
+                })
+            });
+            remaining_nodes -= current_len;
+            pl.update_with_count(current_len);
         }
+
+        // Visit the remaining nodes
+        (0..self.graph.num_nodes())
+            .into_par_iter()
+            .filter(|&element| !visited.get(element, Ordering::Relaxed))
+            .for_each(|_| {});
+
+        pl.update_with_count(remaining_nodes);
 
         pl.done();
 
-        Ok(result.build())
+        Ok(())
     }
 }
 
@@ -82,7 +91,6 @@ mod test {
         let visit = ParallelBreadthFirstVisit::with_start(&graph, 10);
 
         assert_eq!(visit.start, 10);
-        assert!(visit.threads.is_none());
 
         Ok(())
     }
@@ -95,7 +103,6 @@ mod test {
         let visit = ParallelBreadthFirstVisit::new(&graph);
 
         assert_eq!(visit.start, 0);
-        assert!(visit.threads.is_none());
 
         Ok(())
     }
