@@ -14,13 +14,20 @@ fn main() -> Result<()> {
         .unwrap_or("0".to_string())
         .parse()
         .expect("No valid index provided");
+    let sequential = std::env::args()
+        .nth(3)
+        .unwrap_or("true".to_string())
+        .parse()
+        .expect("No valid bool provided");
     let main_pl = ProgressLogger::default();
     main_pl.info(format_args!("Starting test..."));
 
-    let sequential_visit = SingleThreadedBreadthFirstVisit::with_start(&graph, start);
-    let mut sequential_pl = ProgressLogger::default();
-    sequential_pl.display_memory(true).local_speed(true);
-    sequential_visit.visit(sequential_pl)?;
+    if sequential {
+        let sequential_visit = SingleThreadedBreadthFirstVisit::with_start(&graph, start);
+        let mut sequential_pl = ProgressLogger::default();
+        sequential_pl.display_memory(true).local_speed(true);
+        sequential_visit.visit(sequential_pl)?;
+    }
 
     let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 1);
     let mut parallel_pl = ProgressLogger::default();
