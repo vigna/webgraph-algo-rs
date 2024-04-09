@@ -22,7 +22,17 @@ fn main() -> Result<()> {
     sequential_pl.display_memory(true).local_speed(true);
     sequential_visit.visit(sequential_pl)?;
 
-    let parallel_visit = ParallelBreadthFirstVisit::with_start(&graph, start);
+    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 1);
+    let mut parallel_pl = ProgressLogger::default();
+    parallel_pl.display_memory(true).local_speed(true);
+    parallel_visit.visit(parallel_pl)?;
+
+    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 2);
+    let mut parallel_pl = ProgressLogger::default();
+    parallel_pl.display_memory(true).local_speed(true);
+    parallel_visit.visit(parallel_pl)?;
+
+    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 3);
     let mut parallel_pl = ProgressLogger::default();
     parallel_pl.display_memory(true).local_speed(true);
     parallel_visit.visit(parallel_pl)?;

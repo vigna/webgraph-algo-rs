@@ -33,13 +33,41 @@ pub fn bench_bfv(c: &mut Criterion) {
             },
         );
 
-        group.bench_with_input(BenchmarkId::new("Parallel", &parameter), &input, |b, i| {
-            b.iter_with_large_drop(|| {
-                ParallelBreadthFirstVisit::with_start(i, start)
-                    .visit(Option::<ProgressLogger>::None)
-                    .unwrap()
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("Parallel (Granularity 1)", &parameter),
+            &input,
+            |b, i| {
+                b.iter_with_large_drop(|| {
+                    ParallelBreadthFirstVisit::with_parameters(i, start, 1)
+                        .visit(Option::<ProgressLogger>::None)
+                        .unwrap()
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("Parallel (Granularity 2)", &parameter),
+            &input,
+            |b, i| {
+                b.iter_with_large_drop(|| {
+                    ParallelBreadthFirstVisit::with_parameters(i, start, 2)
+                        .visit(Option::<ProgressLogger>::None)
+                        .unwrap()
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("Parallel (Granularity 3)", &parameter),
+            &input,
+            |b, i| {
+                b.iter_with_large_drop(|| {
+                    ParallelBreadthFirstVisit::with_parameters(i, start, 3)
+                        .visit(Option::<ProgressLogger>::None)
+                        .unwrap()
+                });
+            },
+        );
     }
     group.finish();
 }
