@@ -7,16 +7,14 @@ use std::sync::atomic::Ordering;
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A simple sequential Breadth First visit on a graph.
-///
-/// It also implements [`IntoIterator`], so it can be used in `for ... in Visit`.
+/// A simple parallel Breadth First visit on a graph.
 pub struct ParallelBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
 }
 
 impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
-    /// Constructs a sequential BFV for the specified graph.
+    /// Constructs a parallel BFV for the specified graph.
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
@@ -24,7 +22,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
         Self::with_start(graph, 0)
     }
 
-    /// Constructs a sequential BFV starting from the node with the specified index in the
+    /// Constructs a parallel BFV starting from the node with the specified index in the
     /// provided graph.
     ///
     /// # Arguments:
