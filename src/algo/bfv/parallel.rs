@@ -72,7 +72,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
         let mut next_frontier = Frontier::new();
         let mut remaining_nodes = self.graph.num_nodes();
 
-        pl.expected_updates(Some(self.graph.num_nodes()));
+        pl.expected_updates(Some(remaining_nodes));
         pl.start("Visiting graph with a parallel BFV...");
         pl.info(format_args!(
             "Using {} threads with {} fragments per thread...",
@@ -84,13 +84,15 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         // Visit the connected component
         while !next_frontier.is_empty() {
-            let current_frontier: Vec<Vec<_>> = next_frontier.into();
+            let current_frontier = next_frontier;
             let current_len = current_frontier.len();
+            let chunk_size = std::cmp::max(current_len / scaled_threads, 1);
             next_frontier = Frontier::new();
-            current_frontier.par_iter().for_each(|v| {
-                let chunk_size = std::cmp::max(v.len() / scaled_threads, 1);
-                v.par_chunks(chunk_size).for_each(|chunk| {
-                    chunk.par_iter().for_each(|&node_index| {
+            current_frontier
+                .par_iter()
+                .chunks(chunk_size)
+                .for_each(|chunk| {
+                    chunk.into_par_iter().for_each(|&node_index| {
                         self.graph
                             .successors(node_index)
                             .into_iter()
@@ -101,7 +103,6 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
                             })
                     })
                 });
-            });
             remaining_nodes -= current_len;
             pl.update_with_count(current_len);
         }
