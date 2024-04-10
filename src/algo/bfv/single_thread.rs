@@ -9,6 +9,8 @@ use webgraph::traits::RandomAccessGraph;
 pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
+    visited: BitVec,
+    queue: VecDeque<usize>,
 }
 
 impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
@@ -28,38 +30,44 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
     /// - `node_factory`: An immutable reference to the node factory that produces nodes to visit
     /// from their index.
     pub fn with_start(graph: &'a G, start: usize) -> SingleThreadedBreadthFirstVisit<'a, G> {
-        SingleThreadedBreadthFirstVisit { graph, start }
+        SingleThreadedBreadthFirstVisit {
+            graph,
+            start,
+            visited: BitVec::new(graph.num_nodes()),
+            queue: VecDeque::new(),
+        }
     }
 }
 
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
-    fn visit(self, mut pl: impl ProgressLog) -> Result<()> {
-        pl.expected_updates(Some(self.graph.num_nodes()));
-        pl.start("Visiting graph with a sequential BFV...");
-
-        let mut visited = BitVec::new(self.graph.num_nodes());
-        let mut queue = VecDeque::new();
-
-        visited.set(self.start, true);
-        queue.push_back(self.start);
+    fn visit_node(&mut self, node_index: usize, pl: &mut impl ProgressLog) -> Result<()> {
+        if self.visited[node_index] {
+            return Ok(());
+        }
+        self.queue.push_back(node_index);
 
         // Visit the connected component
-        while !queue.is_empty() {
-            let current_node = queue.pop_front().unwrap();
+        while !self.queue.is_empty() {
+            let current_node = self.queue.pop_front().unwrap();
             for succ in self.graph.successors(current_node) {
-                if !visited[succ] {
-                    visited.set(succ, true);
-                    queue.push_back(succ);
+                if !self.visited[succ] {
+                    self.visited.set(succ, true);
+                    self.queue.push_back(succ);
                 }
             }
             pl.light_update();
         }
 
-        // Visit the remaining nodes
-        for index in 0..self.graph.num_nodes() {
-            if !visited[index] {
-                pl.light_update();
-            }
+        Ok(())
+    }
+
+    fn visit(mut self, mut pl: impl ProgressLog) -> Result<()> {
+        pl.expected_updates(Some(self.graph.num_nodes()));
+        pl.start("Visiting graph with a sequential BFV...");
+
+        for i in 0..self.graph.num_nodes() {
+            let index = (i + self.start) % self.graph.num_nodes();
+            self.visit_node(index, &mut pl)?;
         }
 
         pl.done();

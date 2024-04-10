@@ -13,6 +13,7 @@ pub struct ParallelBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
     granularity: usize,
+    visited: AtomicBitVec,
 }
 
 impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
@@ -60,27 +61,23 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
             graph,
             start,
             granularity,
+            visited: AtomicBitVec::new(graph.num_nodes()),
         }
     }
 }
 
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
-    fn visit(self, mut pl: impl ProgressLog) -> Result<()> {
-        let visited = AtomicBitVec::new(self.graph.num_nodes());
+    fn visit_node(&mut self, node_index: usize, pl: &mut impl ProgressLog) -> Result<()> {
+        if self.visited.get(node_index, Ordering::Relaxed) {
+            return Ok(());
+        }
+
         let num_threads = rayon::current_num_threads();
         let scaled_threads = num_threads * self.granularity;
         let mut next_frontier = Frontier::new();
-        let mut remaining_nodes = self.graph.num_nodes();
-
-        pl.expected_updates(Some(remaining_nodes));
-        pl.start("Visiting graph with a parallel BFV...");
-        pl.info(format_args!(
-            "Using {} threads with {} fragments per thread...",
-            num_threads, self.granularity
-        ));
 
         next_frontier.push(self.start);
-        visited.set(self.start, true, Ordering::Relaxed);
+        self.visited.set(self.start, true, Ordering::Relaxed);
 
         // Visit the connected component
         while !next_frontier.is_empty() {
@@ -97,23 +94,32 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
                             .successors(node_index)
                             .into_iter()
                             .for_each(|succ| {
-                                if !visited.swap(succ, true, Ordering::Relaxed) {
+                                if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                     next_frontier.push(succ);
                                 }
                             })
                     })
                 });
-            remaining_nodes -= current_len;
             pl.update_with_count(current_len);
         }
 
-        // Visit the remaining nodes
-        (0..self.graph.num_nodes())
-            .into_par_iter()
-            .filter(|&element| !visited.get(element, Ordering::Relaxed))
-            .for_each(|_| {});
+        Ok(())
+    }
 
-        pl.update_with_count(remaining_nodes);
+    fn visit(mut self, mut pl: impl ProgressLog) -> Result<()> {
+        let num_threads = rayon::current_num_threads();
+
+        pl.expected_updates(Some(self.graph.num_nodes()));
+        pl.start("Visiting graph with a parallel BFV...");
+        pl.info(format_args!(
+            "Using {} threads with {} fragments per thread...",
+            num_threads, self.granularity
+        ));
+
+        for i in 0..self.graph.num_nodes() {
+            let index = (i + self.start) % self.graph.num_nodes();
+            self.visit_node(index, &mut pl)?;
+        }
 
         pl.done();
 
