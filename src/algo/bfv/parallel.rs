@@ -76,8 +76,8 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
         let scaled_threads = num_threads * self.granularity;
         let mut next_frontier = Frontier::new();
 
-        next_frontier.push(self.start);
-        self.visited.set(self.start, true, Ordering::Relaxed);
+        next_frontier.push(node_index);
+        self.visited.set(node_index, true, Ordering::Relaxed);
 
         // Visit the connected component
         while !next_frontier.is_empty() {
