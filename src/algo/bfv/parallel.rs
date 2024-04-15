@@ -2,7 +2,6 @@ use crate::prelude::*;
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
-use rayon::iter::IntoParallelIterator;
 use rayon::prelude::*;
 use std::sync::atomic::Ordering;
 use sux::bits::AtomicBitVec;
@@ -67,7 +66,12 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
-    fn visit_node(&mut self, node_index: usize, pl: &mut impl ProgressLog) -> Result<()> {
+    fn visit_component<F: Fn(usize, usize) + Sync>(
+        &mut self,
+        node_index: usize,
+        pl: &mut impl ProgressLog,
+        callback: F,
+    ) -> Result<()> {
         if self.visited.get(node_index, Ordering::Relaxed) {
             return Ok(());
         }
@@ -76,6 +80,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         next_frontier.push(node_index);
         self.visited.set(node_index, true, Ordering::Relaxed);
+        let mut distance = 0;
 
         // Visit the connected component
         while !next_frontier.is_empty() {
@@ -86,24 +91,27 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
                 .par_iter()
                 .chunks(self.granularity)
                 .for_each(|chunk| {
-                    chunk.into_par_iter().for_each(|&node_index| {
-                        self.graph
-                            .successors(node_index)
-                            .into_iter()
-                            .for_each(|succ| {
-                                if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                    next_frontier.push(succ);
-                                }
-                            })
+                    chunk.into_iter().for_each(|&node| {
+                        callback(node, distance);
+                        self.graph.successors(node).into_iter().for_each(|succ| {
+                            if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                next_frontier.push(succ);
+                            }
+                        })
                     })
                 });
             pl.update_with_count(current_len);
+            distance += 1;
         }
 
         Ok(())
     }
 
-    fn visit(mut self, mut pl: impl ProgressLog) -> Result<()> {
+    fn visit<F: Fn(usize, usize) + Sync>(
+        mut self,
+        mut pl: impl ProgressLog,
+        callback: F,
+    ) -> Result<()> {
         let num_threads = rayon::current_num_threads();
 
         pl.expected_updates(Some(self.graph.num_nodes()));
@@ -115,7 +123,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_node(index, &mut pl)?;
+            self.visit_component(index, &mut pl, &callback)?;
         }
 
         pl.done();

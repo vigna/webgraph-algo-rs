@@ -27,7 +27,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     SingleThreadedBreadthFirstVisit::with_start(i, start)
-                        .visit(Option::<ProgressLogger>::None)
+                        .visit(Option::<ProgressLogger>::None, |_, _| {})
                         .unwrap()
                 });
             },
@@ -39,7 +39,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     ParallelBreadthFirstVisit::with_parameters(i, start, 1)
-                        .visit(Option::<ProgressLogger>::None)
+                        .visit(Option::<ProgressLogger>::None, |_, _| {})
                         .unwrap()
                 });
             },
@@ -50,20 +50,8 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    ParallelBreadthFirstVisit::with_parameters(i, start, 2)
-                        .visit(Option::<ProgressLogger>::None)
-                        .unwrap()
-                });
-            },
-        );
-
-        group.bench_with_input(
-            BenchmarkId::new("Parallel (Granularity 3)", &parameter),
-            &input,
-            |b, i| {
-                b.iter_with_large_drop(|| {
-                    ParallelBreadthFirstVisit::with_parameters(i, start, 3)
-                        .visit(Option::<ProgressLogger>::None)
+                    ParallelBreadthFirstVisit::with_parameters(i, start, 64)
+                        .visit(Option::<ProgressLogger>::None, |_, _| {})
                         .unwrap()
                 });
             },

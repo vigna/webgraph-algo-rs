@@ -18,7 +18,9 @@ fn test_bfv_cnr_2000_sequential() {
         .load()
         .unwrap();
     let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
+    visit
+        .visit(Option::<ProgressLogger>::None, |_, _| {})
+        .unwrap()
 }
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -27,7 +29,9 @@ fn test_bfv_cnr_2000_parallel() {
         .load()
         .unwrap();
     let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
+    visit
+        .visit(Option::<ProgressLogger>::None, |_, _| {})
+        .unwrap()
 }
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -44,7 +48,9 @@ fn test_bfv_in_2004_sequential() {
         .load()
         .unwrap();
     let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
+    visit
+        .visit(Option::<ProgressLogger>::None, |_, _| {})
+        .unwrap()
 }
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -53,7 +59,9 @@ fn test_bfv_in_2004_parallel() {
         .load()
         .unwrap();
     let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
-    visit.visit(Option::<ProgressLogger>::None).unwrap()
+    visit
+        .visit(Option::<ProgressLogger>::None, |_, _| {})
+        .unwrap()
 }
 
 #[cfg(windows)]

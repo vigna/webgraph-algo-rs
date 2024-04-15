@@ -10,7 +10,7 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
     visited: BitVec,
-    queue: VecDeque<usize>,
+    queue: VecDeque<Option<usize>>,
 }
 
 impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
@@ -40,34 +40,54 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
-    fn visit_node(&mut self, node_index: usize, pl: &mut impl ProgressLog) -> Result<()> {
+    fn visit_component<F: Fn(usize, usize) + Sync>(
+        &mut self,
+        node_index: usize,
+        pl: &mut impl ProgressLog,
+        callback: F,
+    ) -> Result<()> {
         if self.visited[node_index] {
             return Ok(());
         }
-        self.queue.push_back(node_index);
+        self.queue.push_back(Some(node_index));
+
+        let mut distance = 0;
 
         // Visit the connected component
         while !self.queue.is_empty() {
             let current_node = self.queue.pop_front().unwrap();
-            for succ in self.graph.successors(current_node) {
-                if !self.visited[succ] {
-                    self.visited.set(succ, true);
-                    self.queue.push_back(succ);
+            match current_node {
+                Some(node) => {
+                    callback(node, distance);
+                    for succ in self.graph.successors(node) {
+                        if !self.visited[succ] {
+                            self.visited.set(succ, true);
+                            self.queue.push_back(Some(succ))
+                        }
+                    }
+                    pl.light_update();
+                }
+                None => {
+                    distance += 1;
+                    self.queue.push_back(None);
                 }
             }
-            pl.light_update();
         }
 
         Ok(())
     }
 
-    fn visit(mut self, mut pl: impl ProgressLog) -> Result<()> {
+    fn visit<F: Fn(usize, usize) + Sync>(
+        mut self,
+        mut pl: impl ProgressLog,
+        callback: F,
+    ) -> Result<()> {
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph with a sequential BFV...");
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_node(index, &mut pl)?;
+            self.visit_component(index, &mut pl, &callback)?;
         }
 
         pl.done();
