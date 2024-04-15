@@ -46,7 +46,7 @@ pub fn bench_bfv(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("Parallel (Granularity 2)", &parameter),
+            BenchmarkId::new("Parallel (Granularity 64)", &parameter),
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {

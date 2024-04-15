@@ -34,12 +34,12 @@ fn main() -> Result<()> {
     parallel_pl.display_memory(true).local_speed(true);
     parallel_visit.visit(parallel_pl)?;
 
-    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 2);
+    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 16);
     let mut parallel_pl = ProgressLogger::default();
     parallel_pl.display_memory(true).local_speed(true);
     parallel_visit.visit(parallel_pl)?;
 
-    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 3);
+    let parallel_visit = ParallelBreadthFirstVisit::with_parameters(&graph, start, 32);
     let mut parallel_pl = ProgressLogger::default();
     parallel_pl.display_memory(true).local_speed(true);
     parallel_visit.visit(parallel_pl)?;

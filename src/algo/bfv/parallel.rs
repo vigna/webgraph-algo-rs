@@ -40,7 +40,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
-    /// - `granularity`: How many fragments per thread to generate.
+    /// - `granularity`: How many nodes per fragment.
     pub fn with_granularity(graph: &'a G, granularity: usize) -> ParallelBreadthFirstVisit<'a, G> {
         Self::with_parameters(graph, 0, granularity)
     }
@@ -51,7 +51,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
     /// - `start`: The starting node.
-    /// - `granularity`: How many fragments per thread to generate.
+    /// - `granularity`: How many nodes per fragment.
     pub fn with_parameters(
         graph: &'a G,
         start: usize,
@@ -72,8 +72,6 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
             return Ok(());
         }
 
-        let num_threads = rayon::current_num_threads();
-        let scaled_threads = num_threads * self.granularity;
         let mut next_frontier = Frontier::new();
 
         next_frontier.push(node_index);
@@ -83,11 +81,10 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
         while !next_frontier.is_empty() {
             let current_frontier = next_frontier;
             let current_len = current_frontier.len();
-            let chunk_size = std::cmp::max(current_len / scaled_threads, 1);
             next_frontier = Frontier::new();
             current_frontier
                 .par_iter()
-                .chunks(chunk_size)
+                .chunks(self.granularity)
                 .for_each(|chunk| {
                     chunk.into_par_iter().for_each(|&node_index| {
                         self.graph
@@ -112,7 +109,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph with a parallel BFV...");
         pl.info(format_args!(
-            "Using {} threads with {} fragments per thread...",
+            "Using {} threads with block size {}...",
             num_threads, self.granularity
         ));
 
