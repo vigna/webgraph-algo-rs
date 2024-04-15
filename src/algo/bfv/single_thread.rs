@@ -42,9 +42,9 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
     fn visit_component<F: Fn(usize, usize) + Sync>(
         &mut self,
+        callback: F,
         node_index: usize,
         pl: &mut impl ProgressLog,
-        callback: F,
     ) -> Result<()> {
         if self.visited[node_index] {
             return Ok(());
@@ -79,15 +79,15 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
 
     fn visit<F: Fn(usize, usize) + Sync>(
         mut self,
-        mut pl: impl ProgressLog,
         callback: F,
+        mut pl: impl ProgressLog,
     ) -> Result<()> {
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph with a sequential BFV...");
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_component(index, &mut pl, &callback)?;
+            self.visit_component(&callback, index, &mut pl)?;
         }
 
         pl.done();

@@ -68,9 +68,9 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
     fn visit_component<F: Fn(usize, usize) + Sync>(
         &mut self,
+        callback: F,
         node_index: usize,
         pl: &mut impl ProgressLog,
-        callback: F,
     ) -> Result<()> {
         if self.visited.get(node_index, Ordering::Relaxed) {
             return Ok(());
@@ -109,8 +109,8 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
     fn visit<F: Fn(usize, usize) + Sync>(
         mut self,
-        mut pl: impl ProgressLog,
         callback: F,
+        mut pl: impl ProgressLog,
     ) -> Result<()> {
         let num_threads = rayon::current_num_threads();
 
@@ -123,7 +123,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_component(index, &mut pl, &callback)?;
+            self.visit_component(&callback, index, &mut pl)?;
         }
 
         pl.done();
