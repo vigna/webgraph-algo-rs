@@ -50,6 +50,7 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
             return Ok(());
         }
         self.queue.push_back(Some(node_index));
+        self.queue.push_back(None);
 
         let mut distance = 0;
 
@@ -68,8 +69,10 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
                     pl.light_update();
                 }
                 None => {
-                    distance += 1;
-                    self.queue.push_back(None);
+                    if !self.queue.is_empty() {
+                        distance += 1;
+                        self.queue.push_back(None);
+                    }
                 }
             }
         }
