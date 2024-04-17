@@ -1,15 +1,18 @@
+use std::marker::PhantomData;
+
 use super::traits::StronglyConnectedComponents;
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
 use webgraph::traits::RandomAccessGraph;
 
-pub struct TarjanStronglyConnectedComponents {
+pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
     component: Vec<isize>,
     buckets: Option<Vec<bool>>,
+    _phantom: PhantomData<G>,
 }
 
-impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConnectedComponents {
+impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConnectedComponents<G> {
     fn number_of_components(&self) -> usize {
         self.n_of_components
     }
@@ -36,6 +39,7 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
             buckets: visit.buckets,
             component: visit.status,
             n_of_components: visit.number_of_components,
+            _phantom: PhantomData,
         }
     }
 }
@@ -99,7 +103,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
         self.status[start_node] = self.clock;
         self.component_stack.push(start_node);
         node_stack.push(start_node);
-        successors_stack.push(self.graph.successors(start_node));
+        successors_stack.push(start_node);
         older_node_found.push(false);
         if let Some(b) = self.buckets.as_mut() {
             if self.graph.outdegree(start_node) == 0 {
@@ -108,8 +112,10 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
         }
 
         'main: while !node_stack.is_empty() {
-            let current_node = node_stack.pop().unwrap();
-            let successors = successors_stack.pop().unwrap();
+            let current_node = node_stack[node_stack.len() - 1];
+            let successors = self
+                .graph
+                .successors(successors_stack[successors_stack.len() - 1]);
 
             for succ in successors {
                 let successor_status = self.status[succ];
@@ -118,7 +124,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                     self.status[succ] = self.clock;
                     node_stack.push(succ);
                     self.component_stack.push(succ);
-                    successors_stack.push(self.graph.successors(succ));
+                    successors_stack.push(succ);
                     older_node_found.push(false);
                     if let Some(b) = self.buckets.as_mut() {
                         if self.graph.outdegree(succ) == 0 {
@@ -174,6 +180,9 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                         let b = self.buckets.as_mut().unwrap();
                         b[z] = true;
                     }
+                    if z == current_node {
+                        break;
+                    }
                 }
             }
         }
@@ -184,7 +193,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
 mod test {
     use super::*;
     use dsi_progress_logger::ProgressLogger;
-    use webgraph::graphs::vec_graph::VecGraph;
+    use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 
     #[test]
     fn test_buckets() {
@@ -205,18 +214,30 @@ mod test {
             (6, 7),
             (8, 7),
         ];
-        let mut graph: VecGraph<()> = VecGraph::new();
+        let mut g: VecGraph<()> = VecGraph::new();
         for i in 0..9 {
-            graph.add_node(i);
+            g.add_node(i);
         }
         for arc in arcs {
-            graph.add_arc(arc.0, arc.1);
+            g.add_arc(arc.0, arc.1);
         }
+        let graph = Left(g);
 
-        let components = TarjanStronglyConnectedComponents::compute(
+        let mut components = TarjanStronglyConnectedComponents::compute(
             &graph,
             true,
             Option::<ProgressLogger>::None,
         );
+
+        let mut buckets = vec![false; graph.num_nodes()];
+        buckets[0] = true;
+        buckets[3] = true;
+        buckets[4] = true;
+        assert_eq!(buckets, components.buckets.clone().unwrap());
+
+        let sizes = components.compute_sizes();
+        components.sort_by_size();
+
+        assert_eq!(vec![2, 2, 1, 1, 1, 1, 1], sizes);
     }
 }
