@@ -45,11 +45,16 @@ pub trait StronglyConnectedComponents<G: RandomAccessGraph> {
         let sizes = self.compute_sizes();
         let new_order = {
             let mut tmp = Vec::from_iter(0isize..sizes.len().try_into().unwrap());
-            tmp.sort_unstable_by_key(|&index| {
-                let size = sizes[index as usize] as isize;
-                -size
-            });
-            tmp
+            tmp.sort_unstable_by_key(|&element| -(sizes[element as usize] as isize));
+            let mut perm = Vec::new();
+            for i in 0isize..sizes.len().try_into().unwrap() {
+                let mut new_index = 0;
+                while tmp[new_index] != i {
+                    new_index += 1;
+                }
+                perm.push(new_index as isize);
+            }
+            perm
         };
         self.component_mut()
             .par_iter_mut()
