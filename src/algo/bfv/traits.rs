@@ -3,7 +3,7 @@ use dsi_progress_logger::ProgressLog;
 
 /// A visitable graph that allows to compute Breadth First Visit trees.
 pub trait GraphVisit {
-    /// Computes a Breadth First Visit tree and applies `callback` to every visited node.
+    /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
