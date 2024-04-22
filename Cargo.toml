@@ -11,7 +11,7 @@ common_traits = "0.10.0"
 dsi-progress-logger = "0.2.3"
 rayon = "1.8.1"
 stderrlog = "0.6.0"
-sux = {git = "https://github.com/vigna/sux-rs"}
+sux = {git = "https://github.com/MatteoH2O1999/sux-rs", branch = "init-bitvec"}
 webgraph = {git = "https://github.com/vigna/webgraph-rs"}
 parallel_frontier = {git = "https://github.com/zommiommy/parallel_frontier"}
 
