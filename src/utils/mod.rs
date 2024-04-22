@@ -1,2 +1,3 @@
-mod argmax;
-pub use argmax::argmax;
+pub mod argmax;
+
+pub mod argmin;
