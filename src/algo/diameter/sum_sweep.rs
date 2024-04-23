@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
+#[derive(PartialEq)]
 pub enum SumSweepOutputLevel {
     All,
     AllForward,
@@ -153,7 +154,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `start`: The starting vertex.
     /// - `iterations`: The number of iterations.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     pub fn sum_sweep_heuristic(
         &self,
@@ -171,7 +172,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     pub fn compute(&self, mut pl: impl ProgressLog) -> Result<()> {
         pl.start("Staring visits...");
@@ -199,11 +200,130 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())?;
 
-        let points = [self.graph.num_nodes(); 6];
+        let mut points = [self.graph.num_nodes() as f64; 6];
         let mut missing_nodes = self.find_missing_nodes();
-        let mut old_missing_nodes = missing_nodes;
+        let mut old_missing_nodes;
 
-        todo!();
+        while missing_nodes > 0 {
+            let step_to_perform = argmax::argmax(&points).try_into()?;
+
+            match step_to_perform {
+                0 => {
+                    pl.info(format_args!("Performing all_cc_upper_bound."));
+                    self.all_cc_upper_bound(pl.clone())?
+                }
+                1 => {
+                    pl.info(format_args!(
+                        "Performing a forward BFS, from a vertex maximizing the upper bound."
+                    ));
+                    self.step_sum_sweep(
+                        argmax::filtered_argmax(
+                            &self.upper_bound_forward_eccentricities,
+                            &self.total_forward_distance,
+                            &self.incomplete_forward_vertex,
+                        )
+                        .try_into()?,
+                        true,
+                        pl.clone(),
+                    )?
+                }
+                2 => {
+                    pl.info(format_args!(
+                        "Performing a forward BFS, from a vertex minimizing the lower bound."
+                    ));
+                    self.step_sum_sweep(
+                        argmin::filtered_argmin(
+                            &self.lower_bound_forward_eccentricities,
+                            &self.total_forward_distance,
+                            &self.radial_vertices,
+                        )
+                        .try_into()?,
+                        true,
+                        pl.clone(),
+                    )?
+                }
+                3 => {
+                    pl.info(format_args!(
+                        "Performing a backward BFS from a vertex maximizing the lower bound."
+                    ));
+                    self.step_sum_sweep(
+                        argmax::filtered_argmax(
+                            &self.upper_bound_backward_eccentricities,
+                            &self.total_backward_distance,
+                            &self.incomplete_backward_vertex,
+                        )
+                        .try_into()?,
+                        false,
+                        pl.clone(),
+                    )?
+                }
+                4 => {
+                    pl.info(format_args!(
+                        "Performing a backward BFS, from a vertex maximizing the distance sum."
+                    ));
+                    self.step_sum_sweep(
+                        argmax::filtered_argmax(
+                            &self.total_backward_distance,
+                            &self.upper_bound_backward_eccentricities,
+                            &self.incomplete_backward_vertex,
+                        )
+                        .try_into()?,
+                        false,
+                        pl.clone(),
+                    )?
+                }
+                5 => {
+                    pl.info(format_args!(
+                        "Performing a forward BFS, from a vertex maximizing the distance sum."
+                    ));
+                    self.step_sum_sweep(
+                        argmax::filtered_argmax(
+                            &self.total_forward_distance,
+                            &self.upper_bound_forward_eccentricities,
+                            &self.incomplete_forward_vertex,
+                        )
+                        .try_into()?,
+                        false, // ???????????????????????????????????????????????????????????????????????????
+                        pl.clone(),
+                    )?
+                }
+                6.. => panic!(),
+            }
+
+            old_missing_nodes = missing_nodes;
+            missing_nodes = self.find_missing_nodes();
+            points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
+
+            for i in 0..points.len() {
+                if i != step_to_perform && points[i] >= 0.0 {
+                    points[i] = points[i] + 2.0 / self.iterations as f64;
+                }
+            }
+
+            pl.info(format_args!(
+                "Missing nodes: {}/{}.",
+                missing_nodes,
+                self.number_of_nodes * 2
+            ));
+        }
+
+        if self.output == SumSweepOutputLevel::Radius
+            || self.output == SumSweepOutputLevel::RadiusDiameter
+        {
+            pl.info(format_args!(
+                "Radius: {} ({} iterations).",
+                self.radius_upper_bound, self.radius_iterations
+            ));
+        }
+        if self.output == SumSweepOutputLevel::Diameter
+            || self.output == SumSweepOutputLevel::RadiusDiameter
+        {
+            pl.info(format_args!(
+                "Diameter: {} ({} iterations).",
+                self.diameter_lower_bound, self.diameter_iterations,
+            ));
+        }
+        pl.done();
 
         Ok(())
     }
@@ -409,7 +529,10 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `start`: The starting vertex of the BFS.
     /// - `forward`: Whether the BFS is performed following the direction of edges or
     /// in the opposite direction.
-    fn step_sum_sweep(&self, start: usize, forward: bool) -> Result<()> {
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn step_sum_sweep(&self, start: usize, forward: bool, pl: impl ProgressLog) -> Result<()> {
         todo!()
     }
 
@@ -442,7 +565,12 @@ impl<'a, G: RandomAccessGraph + Sync>
     }
 
     /// Performs a step of the ExactSumSweep algorithm.
-    fn all_cc_upper_bound(&self) -> Result<()> {
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn all_cc_upper_bound(&self, pl: impl ProgressLog) -> Result<()> {
         todo!()
     }
 
