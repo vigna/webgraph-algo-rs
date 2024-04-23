@@ -139,7 +139,7 @@ mod test {
     use webgraph::graphs::BVGraph;
 
     #[test]
-    fn test_sequential_bfv_with_parameters() -> Result<()> {
+    fn test_parallel_bfv_with_parameters() -> Result<()> {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
@@ -152,7 +152,7 @@ mod test {
     }
 
     #[test]
-    fn test_sequential_bfv_with_start() -> Result<()> {
+    fn test_parallel_bfv_with_start() -> Result<()> {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
@@ -165,7 +165,7 @@ mod test {
     }
 
     #[test]
-    fn test_sequential_bfv_with_granularity() -> Result<()> {
+    fn test_parallel_bfv_with_granularity() -> Result<()> {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
@@ -178,7 +178,7 @@ mod test {
     }
 
     #[test]
-    fn test_sequential_bfv_new() -> Result<()> {
+    fn test_parallel_bfv_new() -> Result<()> {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
