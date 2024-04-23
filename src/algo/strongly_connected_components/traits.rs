@@ -1,9 +1,8 @@
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
-use webgraph::traits::RandomAccessGraph;
 
 /// The strongly connected components on a graph.
-pub trait StronglyConnectedComponents<G: RandomAccessGraph> {
+pub trait StronglyConnectedComponents<G> {
     /// The number of strongly connected components.
     fn number_of_components(&self) -> usize;
 
@@ -71,6 +70,7 @@ mod test {
     use super::*;
     use anyhow::Result;
     use webgraph::graphs::BVGraph;
+    use webgraph::traits::RandomAccessGraph;
 
     struct MockStronglyConnectedComponent<G: RandomAccessGraph> {
         component: Vec<isize>,
