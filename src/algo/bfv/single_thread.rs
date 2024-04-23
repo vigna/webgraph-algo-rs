@@ -51,6 +51,7 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
         }
         self.queue.push_back(Some(node_index));
         self.queue.push_back(None);
+        self.visited.set(node_index, true);
 
         let mut distance = 0;
 
