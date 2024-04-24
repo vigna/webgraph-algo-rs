@@ -477,9 +477,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             .try_into()
             .with_context(|| "Could not convert number of scc into isize")?;
 
-        for v in 0..self.number_of_nodes {
-            let component = components[v];
-
+        for (v, &component) in components.iter().enumerate() {
             if let Some(p) = pivot[component] {
                 let current = self.lower_bound_backward_eccentricities[v]
                     + self.lower_bound_forward_eccentricities[v]
@@ -625,32 +623,28 @@ impl<'a, G: RandomAccessGraph + Sync>
                 unsafe {
                     *other_total_distance_ptr.add(node) += signed_distance;
                 }
-                if other_incomplete[node] {
-                    if other_lower_bound[node] < signed_distance {
-                        let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut isize;
+                if other_incomplete[node] && other_lower_bound[node] < signed_distance {
+                    let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut isize;
+                    unsafe {
+                        *other_lower_bound_ptr.add(node) = signed_distance;
+                    }
+
+                    if signed_distance == other_upper_bound[node] {
+                        let other_eccentricities_ptr = other_eccentricities.as_ptr() as *mut isize;
                         unsafe {
-                            *other_lower_bound_ptr.add(node) = signed_distance;
+                            *other_eccentricities_ptr.add(node) = signed_distance;
                         }
 
-                        if signed_distance == other_upper_bound[node] {
-                            let other_eccentricities_ptr =
-                                other_eccentricities.as_ptr() as *mut isize;
-                            unsafe {
-                                *other_eccentricities_ptr.add(node) = signed_distance;
-                            }
+                        other_incomplete.set(node, false, Ordering::Relaxed);
 
-                            other_incomplete.set(node, false, Ordering::Relaxed);
-
-                            if !forward && self.radial_vertices[node] {
-                                if distance < current_radius_upper_bound.load(Ordering::Relaxed) {
-                                    let _l = lock.lock().unwrap();
-                                    if distance < current_radius_upper_bound.load(Ordering::Relaxed)
-                                    {
-                                        current_radius_upper_bound
-                                            .store(distance, Ordering::Relaxed);
-                                        current_radius_vertex.store(node, Ordering::Relaxed);
-                                    }
-                                }
+                        if !forward
+                            && self.radial_vertices[node]
+                            && distance < current_radius_upper_bound.load(Ordering::Relaxed)
+                        {
+                            let _l = lock.lock().unwrap();
+                            if distance < current_radius_upper_bound.load(Ordering::Relaxed) {
+                                current_radius_upper_bound.store(distance, Ordering::Relaxed);
+                                current_radius_vertex.store(node, Ordering::Relaxed);
                             }
                         }
                     }
@@ -678,11 +672,9 @@ impl<'a, G: RandomAccessGraph + Sync>
             self.diameter_lower_bound = ecc_start;
             self.diameter_vertex = start;
         }
-        if forward {
-            if self.radial_vertices[start] && self.radius_upper_bound > ecc_start {
-                self.radius_upper_bound = ecc_start;
-                self.radius_vertex = start;
-            }
+        if forward && self.radial_vertices[start] && self.radius_upper_bound > ecc_start {
+            self.radius_upper_bound = ecc_start;
+            self.radius_vertex = start;
         }
 
         self.iterations += 1;
