@@ -612,16 +612,50 @@ impl<'a, G: RandomAccessGraph + Sync>
         }
 
         let max_dist = AtomicUsize::new(0);
+        let current_radius_upper_bound = AtomicUsize::new(self.radius_upper_bound);
+        let current_radius_vertex = AtomicUsize::new(self.radius_vertex);
+        let lock = std::sync::Mutex::new(());
 
         let mut bfs = ParallelBreadthFirstVisit::new(graph);
 
         bfs.visit_component(
             |node, distance| {
+                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 let signed_distance = distance.try_into().unwrap();
                 max_dist.fetch_max(distance, Ordering::Relaxed);
+
+                let other_total_distance_ptr = other_total_distance.as_ptr() as *mut isize;
+                unsafe {
+                    *other_total_distance_ptr.add(node) += signed_distance;
+                }
                 if other_incomplete[node] {
                     if other_lower_bound[node] < signed_distance {
-                        todo!();
+                        let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut isize;
+                        unsafe {
+                            *other_lower_bound_ptr.add(node) = signed_distance;
+                        }
+
+                        if signed_distance == other_upper_bound[node] {
+                            let other_eccentricities_ptr =
+                                other_eccentricities.as_ptr() as *mut isize;
+                            unsafe {
+                                *other_eccentricities_ptr.add(node) = signed_distance;
+                            }
+
+                            other_incomplete.set(node, false, Ordering::Relaxed);
+
+                            if !forward && self.radial_vertices[node] {
+                                if distance < current_radius_upper_bound.load(Ordering::Relaxed) {
+                                    let _l = lock.lock().unwrap();
+                                    if distance < current_radius_upper_bound.load(Ordering::Relaxed)
+                                    {
+                                        current_radius_upper_bound
+                                            .store(distance, Ordering::Relaxed);
+                                        current_radius_vertex.store(node, Ordering::Relaxed);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -636,6 +670,9 @@ impl<'a, G: RandomAccessGraph + Sync>
         upper_bound[start] = signed_ecc_start;
         eccentricities[start] = signed_ecc_start;
         incomplete.set(start, false, Ordering::Relaxed);
+
+        self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
+        self.radius_vertex = current_radius_vertex.load(Ordering::Relaxed);
 
         if self.diameter_lower_bound < ecc_start {
             self.diameter_lower_bound = ecc_start;
