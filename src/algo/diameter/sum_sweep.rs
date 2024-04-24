@@ -20,6 +20,8 @@ pub enum SumSweepOutputLevel {
     RadiusDiameter,
 }
 
+type Int = isize;
+
 pub struct SumSweepDirectedDiameterRadius<
     'a,
     G: RandomAccessGraph + Sync,
@@ -29,8 +31,8 @@ pub struct SumSweepDirectedDiameterRadius<
     reversed_graph: &'a G,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
-    forward_eccentricities: Vec<isize>,
-    backward_eccentricities: Vec<isize>,
+    forward_eccentricities: Vec<Int>,
+    backward_eccentricities: Vec<Int>,
     incomplete_forward_vertex: AtomicBitVec,
     incomplete_backward_vertex: AtomicBitVec,
     radial_vertices: AtomicBitVec,
@@ -42,18 +44,18 @@ pub struct SumSweepDirectedDiameterRadius<
     radius_vertex: usize,
     /// Number of iterations performed until now.
     iterations: usize,
-    lower_bound_forward_eccentricities: Vec<isize>,
-    upper_bound_forward_eccentricities: Vec<isize>,
-    lower_bound_backward_eccentricities: Vec<isize>,
-    upper_bound_backward_eccentricities: Vec<isize>,
+    lower_bound_forward_eccentricities: Vec<Int>,
+    upper_bound_forward_eccentricities: Vec<Int>,
+    lower_bound_backward_eccentricities: Vec<Int>,
+    upper_bound_backward_eccentricities: Vec<Int>,
     /// Number of iterations before the radius is found.
-    radius_iterations: isize,
+    radius_iterations: Int,
     /// Number of iterations before the diameter is found.
-    diameter_iterations: isize,
+    diameter_iterations: Int,
     /// Number of iterations before all forward eccentricities are found.
-    forward_eccentricities_iterations: isize,
+    forward_eccentricities_iterations: Int,
     /// Number of iterations before all eccentricities are found.
-    all_eccentricities_iterations: isize,
+    all_eccentricities_iterations: Int,
     strongly_connected_components: C,
     /// The strongly connected components diagram.
     strongly_connected_components_graph: Vec<Vec<usize>>,
@@ -65,10 +67,10 @@ pub struct SumSweepDirectedDiameterRadius<
     end_bridges: Vec<Vec<usize>>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_forward_distance: Vec<isize>,
+    total_forward_distance: Vec<Int>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_backward_distance: Vec<isize>,
+    total_backward_distance: Vec<Int>,
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
@@ -619,18 +621,18 @@ impl<'a, G: RandomAccessGraph + Sync>
                 let signed_distance = distance.try_into().unwrap();
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                let other_total_distance_ptr = other_total_distance.as_ptr() as *mut isize;
+                let other_total_distance_ptr = other_total_distance.as_ptr() as *mut Int;
                 unsafe {
                     *other_total_distance_ptr.add(node) += signed_distance;
                 }
                 if other_incomplete[node] && other_lower_bound[node] < signed_distance {
-                    let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut isize;
+                    let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut Int;
                     unsafe {
                         *other_lower_bound_ptr.add(node) = signed_distance;
                     }
 
                     if signed_distance == other_upper_bound[node] {
-                        let other_eccentricities_ptr = other_eccentricities.as_ptr() as *mut isize;
+                        let other_eccentricities_ptr = other_eccentricities.as_ptr() as *mut Int;
                         unsafe {
                             *other_eccentricities_ptr.add(node) = signed_distance;
                         }
