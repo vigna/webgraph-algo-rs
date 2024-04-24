@@ -123,9 +123,9 @@ impl<'a, G: RandomAccessGraph + Sync>
             upper_bound_backward_eccentricities: vec![isize_nn + 1; nn],
             incomplete_forward_vertex: AtomicBitVec::with_value(nn, true),
             incomplete_backward_vertex: AtomicBitVec::with_value(nn, true),
-            start_bridges: vec![Vec::new(); scc.number_of_components()],
-            end_bridges: vec![Vec::new(); scc.number_of_components()],
-            strongly_connected_components_graph: vec![Vec::new(); scc.number_of_components()],
+            start_bridges: Vec::new(),
+            end_bridges: Vec::new(),
+            strongly_connected_components_graph: Vec::new(),
             strongly_connected_components: scc,
             diameter_lower_bound: 0,
             radius_upper_bound: usize::MAX,
@@ -244,7 +244,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             match step_to_perform {
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
-                    self.all_cc_upper_bound(pl.clone())?
+                    self.all_cc_upper_bound(self.find_best_pivot()?, pl.clone())?
                 }
                 1 => {
                     pl.info(format_args!(
@@ -464,17 +464,12 @@ impl<'a, G: RandomAccessGraph + Sync>
         let mut pivot = vec![-1; self.strongly_connected_components.number_of_components()];
         let components = self.strongly_connected_components.component();
         let isize_number_of_nodes = self.number_of_nodes.try_into()?;
-        let mut p;
-        let mut best;
-        let mut current;
-        let mut v = self.number_of_nodes;
 
-        while v > 0 {
-            v -= 1;
+        for v in 0..self.number_of_nodes {
             let isize_vertex: isize = v.try_into()?;
             let usize_component: usize = components[v].try_into()?;
 
-            p = pivot[usize_component];
+            let p = pivot[usize_component];
             let usize_p: usize = p.try_into()?;
 
             if p == -1 {
@@ -482,7 +477,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 continue;
             }
 
-            current = self.lower_bound_backward_eccentricities[v]
+            let current = self.lower_bound_backward_eccentricities[v]
                 + self.lower_bound_forward_eccentricities[v]
                 + if self.incomplete_forward_vertex.get(v, Ordering::Relaxed) {
                     0
@@ -495,7 +490,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     isize_number_of_nodes
                 };
 
-            best = self.lower_bound_backward_eccentricities[usize_p]
+            let best = self.lower_bound_backward_eccentricities[usize_p]
                 + self.lower_bound_backward_eccentricities[usize_p]
                 + if self
                     .incomplete_forward_vertex
@@ -693,8 +688,58 @@ impl<'a, G: RandomAccessGraph + Sync>
 
     /// For each edge in the DAG of strongly connected components, finds a corresponding edge
     /// in the graph. This edge is used in the [`Self::all_cc_upper_bound`] method.
-    fn find_edges_through_scc(&self) -> Result<()> {
-        todo!()
+    fn find_edges_through_scc(&mut self) -> Result<()> {
+        let node_components = self.strongly_connected_components.component();
+        let number_of_scc = self.strongly_connected_components.number_of_components();
+        let mut best_start = vec![None; number_of_scc];
+        let mut best_end = vec![None; number_of_scc];
+        let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
+
+        for (vertex, &component) in node_components.iter().enumerate() {
+            let usize_component: usize = component.try_into()?;
+            vertices_in_scc[usize_component].push(vertex);
+        }
+
+        for component in vertices_in_scc {
+            let mut child_components = Vec::new();
+            for v in component {
+                for succ in self.graph.successors(v) {
+                    let succ_component: usize = node_components[succ].try_into()?;
+                    if node_components[v] != node_components[succ] {
+                        if best_start[succ_component].is_none() {
+                            best_start[succ_component] = Some(v);
+                            best_end[succ_component] = Some(succ);
+                            child_components.push(succ_component);
+                        } else {
+                            let succ_component_best_start = best_start[succ_component].unwrap();
+                            let succ_component_best_end = best_end[succ_component].unwrap();
+                            if self.graph.outdegree(v) + self.reversed_graph.outdegree(succ)
+                                > self.graph.outdegree(succ_component_best_end)
+                                    + self.reversed_graph.outdegree(succ_component_best_start)
+                            {
+                                best_start[succ_component] = Some(v);
+                                best_end[succ_component] = Some(succ);
+                            }
+                        }
+                    }
+                }
+            }
+            let number_of_children = child_components.len();
+            let mut scc_vec = Vec::with_capacity(number_of_children);
+            let mut start_vec = Vec::with_capacity(number_of_children);
+            let mut end_vec = Vec::with_capacity(number_of_children);
+            for c in child_components {
+                scc_vec.push(c);
+                start_vec.push(best_start[c].unwrap());
+                end_vec.push(best_end[c].unwrap());
+                best_start[c] = None;
+            }
+            self.strongly_connected_components_graph.push(scc_vec);
+            self.start_bridges.push(start_vec);
+            self.end_bridges.push(end_vec)
+        }
+
+        Ok(())
     }
 
     /// Performs a (forward or backward) BFS inside each strongly connected component, starting
@@ -722,10 +767,11 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// Performs a step of the ExactSumSweep algorithm.
     ///
     /// # Arguments
+    /// - `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn all_cc_upper_bound(&self, pl: impl ProgressLog) -> Result<()> {
+    fn all_cc_upper_bound(&self, pivot: Vec<isize>, pl: impl ProgressLog) -> Result<()> {
         todo!()
     }
 
