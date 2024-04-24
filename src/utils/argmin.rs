@@ -1,18 +1,18 @@
 use std::ops::Index;
 
-pub fn argmin<T: common_traits::FiniteRangeNumber, A: Index<usize, Output = T>>(vec: &A) -> isize
+pub fn argmin<T: common_traits::FiniteRangeNumber, A: Index<usize, Output = T>>(
+    vec: &A,
+) -> Option<usize>
 where
     for<'a> &'a A: IntoIterator,
 {
     let mut min = T::MAX;
-    let mut argmin = -1;
-    let mut i = 0;
-    for _ in vec {
+    let mut argmin = None;
+    for (i, _) in vec.into_iter().enumerate() {
         if vec[i] < min {
-            argmin = i.try_into().unwrap();
+            argmin = Some(i);
             min = vec[i];
         }
-        i += 1;
     }
     argmin
 }
@@ -27,22 +27,20 @@ pub fn filtered_argmin<
     vec: &A,
     tie_break: &V,
     filter: &F,
-) -> isize
+) -> Option<usize>
 where
     for<'a> &'a A: IntoIterator,
 {
     let mut min = T::MAX;
     let mut min_tie_break = N::MAX;
-    let mut argmin = -1;
-    let mut i = 0;
+    let mut argmin = None;
 
-    for _ in vec {
+    for (i, _) in vec.into_iter().enumerate() {
         if filter[i] && (vec[i] < min || (vec[i] == min && tie_break[i] < min_tie_break)) {
-            argmin = i.try_into().unwrap();
+            argmin = Some(i);
             min = vec[i];
             min_tie_break = tie_break[i];
         }
-        i += 1;
     }
 
     argmin

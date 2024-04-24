@@ -1,18 +1,18 @@
 use std::ops::Index;
 
-pub fn argmax<T: common_traits::FiniteRangeNumber, A: Index<usize, Output = T>>(vec: &A) -> isize
+pub fn argmax<T: common_traits::FiniteRangeNumber, A: Index<usize, Output = T>>(
+    vec: &A,
+) -> Option<usize>
 where
     for<'a> &'a A: IntoIterator,
 {
     let mut max = T::MIN;
-    let mut argmax = -1;
-    let mut i = 0;
-    for _ in vec {
+    let mut argmax = None;
+    for (i, _) in vec.into_iter().enumerate() {
         if vec[i] > max {
-            argmax = i.try_into().unwrap();
+            argmax = Some(i);
             max = vec[i];
         }
-        i += 1;
     }
     argmax
 }
@@ -27,22 +27,20 @@ pub fn filtered_argmax<
     vec: &A,
     tie_break: &V,
     filter: &F,
-) -> isize
+) -> Option<usize>
 where
     for<'a> &'a A: IntoIterator,
 {
     let mut max = T::MIN;
     let mut max_tie_break = N::MIN;
-    let mut argmax = -1;
-    let mut i = 0;
+    let mut argmax = None;
 
-    for _ in vec {
+    for (i, _) in vec.into_iter().enumerate() {
         if filter[i] && (vec[i] > max || (vec[i] == max && tie_break[i] > max_tie_break)) {
-            argmax = i.try_into().unwrap();
+            argmax = Some(i);
             max = vec[i];
             max_tie_break = tie_break[i];
         }
-        i += 1;
     }
 
     argmax

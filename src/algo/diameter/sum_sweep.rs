@@ -4,7 +4,7 @@ use crate::{
     prelude::*,
     utils::{argmax, argmin},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use dsi_progress_logger::*;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -90,7 +90,9 @@ impl<'a, G: RandomAccessGraph + Sync>
         radial_vertices: Option<AtomicBitVec>,
     ) -> Result<Self> {
         let nn = graph.num_nodes();
-        let isize_nn: isize = nn.try_into()?;
+        let isize_nn: isize = nn
+            .try_into()
+            .with_context(|| "Could not convert num_nodes to isize")?;
         let compute_radial_vertices = radial_vertices.is_none();
         let scc = TarjanStronglyConnectedComponents::compute(
             graph,
@@ -141,9 +143,11 @@ impl<'a, G: RandomAccessGraph + Sync>
         };
 
         if compute_radial_vertices {
-            ret.compute_radial_vertices()?;
+            ret.compute_radial_vertices()
+                .with_context(|| "Could not compute radial vertices")?;
         }
-        ret.find_edges_through_scc()?;
+        ret.find_edges_through_scc()
+            .with_context(|| "Could not build scc graph")?;
 
         Ok(ret)
     }
@@ -166,7 +170,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             "Performing initial SumSweep visit from {}.",
             start
         ));
-        self.step_sum_sweep(start, true, pl.clone())?;
+        self.step_sum_sweep(start, true, pl.clone())
+            .with_context(|| "Could not perform initial SumSweep visit")?;
 
         for i in 2..iterations {
             if i % 2 == 0 {
@@ -175,24 +180,26 @@ impl<'a, G: RandomAccessGraph + Sync>
                     &self.lower_bound_backward_eccentricities,
                     &self.incomplete_backward_vertex,
                 )
-                .try_into()?;
+                .with_context(|| "Could not find starting vertex for backwards visit")?;
                 pl.info(format_args!(
-                    "Performing backwards SumSweep visit from {}.",
+                    "Performing backwards SumSweep visit from {}",
                     v
                 ));
-                self.step_sum_sweep(v, false, pl.clone())?;
+                self.step_sum_sweep(v, false, pl.clone())
+                    .with_context(|| format!("Could not perform backwards visit from {}", v))?;
             } else {
                 let v = argmax::filtered_argmax(
                     &self.total_forward_distance,
                     &self.lower_bound_forward_eccentricities,
                     &self.incomplete_forward_vertex,
                 )
-                .try_into()?;
+                .with_context(|| "Could not find starting vertex for forward visit")?;
                 pl.info(format_args!(
                     "Performing forward SumSweep visit from {}.",
                     v
                 ));
-                self.step_sum_sweep(v, true, pl.clone())?;
+                self.step_sum_sweep(v, true, pl.clone())
+                    .with_context(|| format!("Could not perform forward visit from {}", v))?;
             }
         }
 
@@ -232,94 +239,96 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         pl.done();
 
-        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())?;
+        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())
+            .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
 
         let mut points = [self.graph.num_nodes() as f64; 6];
         let mut missing_nodes = self.find_missing_nodes();
         let mut old_missing_nodes;
 
         while missing_nodes > 0 {
-            let step_to_perform = argmax::argmax(&points).try_into()?;
+            let step_to_perform =
+                argmax::argmax(&points).with_context(|| "Could not find step to perform")?;
 
             match step_to_perform {
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
-                    self.all_cc_upper_bound(self.find_best_pivot()?, pl.clone())?
+                    let pivot = self
+                        .find_best_pivot()
+                        .with_context(|| "Could not find best pivot for allCCUpperBound")?;
+                    self.all_cc_upper_bound(pivot, pl.clone())
+                        .with_context(|| "Could not perform allCCUpperBound")?
                 }
                 1 => {
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex maximizing the upper bound."
                     ));
-                    self.step_sum_sweep(
-                        argmax::filtered_argmax(
-                            &self.upper_bound_forward_eccentricities,
-                            &self.total_forward_distance,
-                            &self.incomplete_forward_vertex,
-                        )
-                        .try_into()?,
-                        true,
-                        pl.clone(),
-                    )?
+                    let v = argmax::filtered_argmax(
+                        &self.upper_bound_forward_eccentricities,
+                        &self.total_forward_distance,
+                        &self.incomplete_forward_vertex,
+                    )
+                    .with_context(|| "Could not find vertex maximizing the forward upper bound")?;
+                    self.step_sum_sweep(v, true, pl.clone())
+                        .with_context(|| format!("Could not perform forward visit from {}", v))?
                 }
                 2 => {
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex minimizing the lower bound."
                     ));
-                    self.step_sum_sweep(
-                        argmin::filtered_argmin(
-                            &self.lower_bound_forward_eccentricities,
-                            &self.total_forward_distance,
-                            &self.radial_vertices,
-                        )
-                        .try_into()?,
-                        true,
-                        pl.clone(),
-                    )?
+                    let v = argmin::filtered_argmin(
+                        &self.lower_bound_forward_eccentricities,
+                        &self.total_forward_distance,
+                        &self.radial_vertices,
+                    )
+                    .with_context(|| "Could not find vertex minimizing the forward lower bound")?;
+                    self.step_sum_sweep(v, true, pl.clone())
+                        .with_context(|| format!("Could not perform forward visit from {}", v))?
                 }
                 3 => {
                     pl.info(format_args!(
                         "Performing a backward BFS from a vertex maximizing the lower bound."
                     ));
-                    self.step_sum_sweep(
-                        argmax::filtered_argmax(
-                            &self.upper_bound_backward_eccentricities,
-                            &self.total_backward_distance,
-                            &self.incomplete_backward_vertex,
-                        )
-                        .try_into()?,
-                        false,
-                        pl.clone(),
-                    )?
+                    let v = argmax::filtered_argmax(
+                        &self.upper_bound_backward_eccentricities,
+                        &self.total_backward_distance,
+                        &self.incomplete_backward_vertex,
+                    )
+                    .with_context(|| "Could not find vertex maximizing the backward lower bound")?;
+                    self.step_sum_sweep(v, false, pl.clone())
+                        .with_context(|| format!("Could not perform backwards visit from {}", v))?
                 }
                 4 => {
                     pl.info(format_args!(
                         "Performing a backward BFS, from a vertex maximizing the distance sum."
                     ));
-                    self.step_sum_sweep(
-                        argmax::filtered_argmax(
-                            &self.total_backward_distance,
-                            &self.upper_bound_backward_eccentricities,
-                            &self.incomplete_backward_vertex,
-                        )
-                        .try_into()?,
-                        false,
-                        pl.clone(),
-                    )?
+                    let v = argmax::filtered_argmax(
+                        &self.total_backward_distance,
+                        &self.upper_bound_backward_eccentricities,
+                        &self.incomplete_backward_vertex,
+                    )
+                    .with_context(|| {
+                        "Could not find vertex maximizing the backward distance sum"
+                    })?;
+                    self.step_sum_sweep(v, false, pl.clone())
+                        .with_context(|| format!("Could not perform backwards visit from {}", v))?
                 }
                 5 => {
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex maximizing the distance sum."
                     ));
+                    let v = argmax::filtered_argmax(
+                        &self.total_forward_distance,
+                        &self.upper_bound_forward_eccentricities,
+                        &self.incomplete_forward_vertex,
+                    )
+                    .with_context(|| "Could not find vertex maximixing the forward distance sum")?;
                     self.step_sum_sweep(
-                        argmax::filtered_argmax(
-                            &self.total_forward_distance,
-                            &self.upper_bound_forward_eccentricities,
-                            &self.incomplete_forward_vertex,
-                        )
-                        .try_into()?,
+                        v,
                         false, // ???????????????????????????????????????????????????????????????????????????
                         pl.clone(),
-                    )?
+                    )
+                    .with_context(|| format!("Could not perform forward visit from {}", v))?
                 }
                 6.. => panic!(),
             }
@@ -330,7 +339,7 @@ impl<'a, G: RandomAccessGraph + Sync>
 
             for i in 0..points.len() {
                 if i != step_to_perform && points[i] >= 0.0 {
-                    points[i] = points[i] + 2.0 / self.iterations as f64;
+                    points[i] += 2.0 / self.iterations as f64;
                 }
             }
 
@@ -460,66 +469,57 @@ impl<'a, G: RandomAccessGraph + Sync>
 
     /// Uses a heuristic to decide which is the best pivot to choose in each strongly connected
     /// component, in order to perform the [`Self::all_cc_upper_bound`] method.
-    fn find_best_pivot(&self) -> Result<Vec<isize>> {
-        let mut pivot = vec![-1; self.strongly_connected_components.number_of_components()];
+    fn find_best_pivot(&self) -> Result<Vec<usize>> {
+        let mut pivot = vec![None; self.strongly_connected_components.number_of_components()];
         let components = self.strongly_connected_components.component();
-        let isize_number_of_nodes = self.number_of_nodes.try_into()?;
+        let isize_number_of_nodes = self
+            .number_of_nodes
+            .try_into()
+            .with_context(|| "Could not convert number of scc into isize")?;
 
         for v in 0..self.number_of_nodes {
-            let isize_vertex: isize = v.try_into()?;
-            let usize_component: usize = components[v].try_into()?;
+            let component = components[v];
 
-            let p = pivot[usize_component];
-            let usize_p: usize = p.try_into()?;
+            if let Some(p) = pivot[component] {
+                let current = self.lower_bound_backward_eccentricities[v]
+                    + self.lower_bound_forward_eccentricities[v]
+                    + if self.incomplete_forward_vertex.get(v, Ordering::Relaxed) {
+                        0
+                    } else {
+                        isize_number_of_nodes
+                    }
+                    + if self.incomplete_backward_vertex.get(v, Ordering::Relaxed) {
+                        0
+                    } else {
+                        isize_number_of_nodes
+                    };
 
-            if p == -1 {
-                pivot[usize_component] = isize_vertex;
-                continue;
-            }
+                let best = self.lower_bound_backward_eccentricities[p]
+                    + self.lower_bound_backward_eccentricities[p]
+                    + if self.incomplete_forward_vertex.get(p, Ordering::Relaxed) {
+                        0
+                    } else {
+                        isize_number_of_nodes
+                    }
+                    + if self.incomplete_backward_vertex.get(p, Ordering::Relaxed) {
+                        0
+                    } else {
+                        isize_number_of_nodes
+                    };
 
-            let current = self.lower_bound_backward_eccentricities[v]
-                + self.lower_bound_forward_eccentricities[v]
-                + if self.incomplete_forward_vertex.get(v, Ordering::Relaxed) {
-                    0
-                } else {
-                    isize_number_of_nodes
-                }
-                + if self.incomplete_backward_vertex.get(v, Ordering::Relaxed) {
-                    0
-                } else {
-                    isize_number_of_nodes
-                };
-
-            let best = self.lower_bound_backward_eccentricities[usize_p]
-                + self.lower_bound_backward_eccentricities[usize_p]
-                + if self
-                    .incomplete_forward_vertex
-                    .get(usize_p, Ordering::Relaxed)
+                if current < best
+                    || (current == best
+                        && self.total_forward_distance[v] + self.total_backward_distance[v]
+                            <= self.total_forward_distance[p] + self.total_forward_distance[p])
                 {
-                    0
-                } else {
-                    isize_number_of_nodes
+                    pivot[component] = Some(v);
                 }
-                + if self
-                    .incomplete_backward_vertex
-                    .get(usize_p, Ordering::Relaxed)
-                {
-                    0
-                } else {
-                    isize_number_of_nodes
-                };
-
-            if current < best
-                || (current == best
-                    && self.total_forward_distance[v] + self.total_backward_distance[v]
-                        <= self.total_forward_distance[usize_p]
-                            + self.total_forward_distance[usize_p])
-            {
-                pivot[usize_component] = isize_vertex;
+            } else {
+                pivot[component] = Some(v);
             }
         }
 
-        Ok(pivot)
+        Ok(pivot.into_iter().map(|x| x.unwrap()).collect())
     }
 
     /// Computes and stores in variable [`Self::radial_vertices`] the set of vertices that are
@@ -531,7 +531,8 @@ impl<'a, G: RandomAccessGraph + Sync>
         }
         let component = self.strongly_connected_components.component();
         let scc_sizes = self.strongly_connected_components.compute_sizes();
-        let max_size_scc = argmax::argmax(&scc_sizes);
+        let max_size_scc =
+            argmax::argmax(&scc_sizes).with_context(|| "Could not find max size scc.")?;
 
         let mut v = self.number_of_nodes;
 
@@ -546,7 +547,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             |node, _distance| self.radial_vertices.set(node, true, Ordering::Relaxed),
             v,
             &mut Option::<ProgressLogger>::None,
-        )?;
+        )
+        .with_context(|| format!("Could not perform BFS from {}", v))?;
 
         Ok(())
     }
@@ -656,10 +658,13 @@ impl<'a, G: RandomAccessGraph + Sync>
             },
             start,
             &mut pl,
-        )?;
+        )
+        .with_context(|| format!("Could not perform BFS from {}", start))?;
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
-        let signed_ecc_start = ecc_start.try_into()?;
+        let signed_ecc_start = ecc_start
+            .try_into()
+            .with_context(|| "Could not convert max_dist into isize")?;
 
         lower_bound[start] = signed_ecc_start;
         upper_bound[start] = signed_ecc_start;
@@ -696,15 +701,14 @@ impl<'a, G: RandomAccessGraph + Sync>
         let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
 
         for (vertex, &component) in node_components.iter().enumerate() {
-            let usize_component: usize = component.try_into()?;
-            vertices_in_scc[usize_component].push(vertex);
+            vertices_in_scc[component].push(vertex);
         }
 
         for component in vertices_in_scc {
             let mut child_components = Vec::new();
             for v in component {
                 for succ in self.graph.successors(v) {
-                    let succ_component: usize = node_components[succ].try_into()?;
+                    let succ_component: usize = node_components[succ];
                     if node_components[v] != node_components[succ] {
                         if best_start[succ_component].is_none() {
                             best_start[succ_component] = Some(v);
@@ -771,7 +775,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn all_cc_upper_bound(&self, pivot: Vec<isize>, pl: impl ProgressLog) -> Result<()> {
+    fn all_cc_upper_bound(&self, pivot: Vec<usize>, pl: impl ProgressLog) -> Result<()> {
         todo!()
     }
 

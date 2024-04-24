@@ -7,7 +7,7 @@ use webgraph::traits::RandomAccessGraph;
 
 pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
-    component: Vec<isize>,
+    component: Vec<usize>,
     buckets: Option<Vec<bool>>,
     _phantom: PhantomData<G>,
 }
@@ -17,11 +17,11 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
         self.n_of_components
     }
 
-    fn component(&self) -> &[isize] {
+    fn component(&self) -> &[usize] {
         &self.component
     }
 
-    fn component_mut(&mut self) -> &mut [isize] {
+    fn component_mut(&mut self) -> &mut [usize] {
         &mut self.component
     }
 
@@ -37,7 +37,7 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
         visit.run(&mut pl);
         TarjanStronglyConnectedComponents {
             buckets: visit.buckets,
-            component: visit.status,
+            component: visit.components,
             n_of_components: visit.number_of_components,
             _phantom: PhantomData,
         }
@@ -49,7 +49,8 @@ struct Visit<'a, G: RandomAccessGraph> {
     number_of_nodes: usize,
     /// For non-visited nodes, 0. For visited non emitted nodes the visit time. For emitted node
     /// *-c-1* where *c* is the component number.
-    pub status: Vec<isize>,
+    status: Vec<isize>,
+    pub components: Vec<usize>,
     pub buckets: Option<Vec<bool>>,
     component_stack: Vec<usize>,
     /// The first-visit clock (incremented at each visited node).
@@ -71,6 +72,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
             number_of_nodes: graph.num_nodes(),
             component_stack: vec![0; graph.num_nodes()],
             status: vec![0; graph.num_nodes()],
+            components: vec![0; graph.num_nodes()],
         }
     }
 
@@ -92,6 +94,14 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
         if let Some(b) = self.buckets.as_mut() {
             b.par_iter_mut().for_each(|node| *node = !*node);
         }
+
+        self.components
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(i, c)| {
+                debug_assert!(self.status[i] >= 0);
+                *c = self.status[i].try_into().unwrap();
+            })
     }
 
     fn visit(&mut self, start_node: usize, pl: &mut impl ProgressLog) {

@@ -7,10 +7,10 @@ pub trait StronglyConnectedComponents<G> {
     fn number_of_components(&self) -> usize;
 
     /// The component index of each node.
-    fn component(&self) -> &[isize];
+    fn component(&self) -> &[usize];
 
     /// The mutable reference to the component index of each node.
-    fn component_mut(&mut self) -> &mut [isize];
+    fn component_mut(&mut self) -> &mut [usize];
 
     /// The bit vector for buckets, or `None`, in which case buckets have not been computed.
     fn buckets(&self) -> Option<&[bool]>;
@@ -29,9 +29,7 @@ pub trait StronglyConnectedComponents<G> {
     fn compute_sizes(&self) -> Vec<usize> {
         let mut sizes = vec![0; self.number_of_components()];
         for &node_component in self.component() {
-            if node_component >= 0 {
-                sizes[node_component as usize] += 1;
-            }
+            sizes[node_component] += 1;
         }
         sizes
     }
@@ -43,25 +41,21 @@ pub trait StronglyConnectedComponents<G> {
     fn sort_by_size(&mut self) {
         let sizes = self.compute_sizes();
         let new_order = {
-            let mut tmp = Vec::from_iter(0isize..sizes.len().try_into().unwrap());
-            tmp.sort_unstable_by_key(|&element| -(sizes[element as usize] as isize));
+            let mut tmp = Vec::from_iter(0..sizes.len());
+            tmp.sort_unstable_by_key(|&element| -(sizes[element] as isize));
             let mut perm = Vec::new();
-            for i in 0isize..sizes.len().try_into().unwrap() {
+            for i in 0..sizes.len() {
                 let mut new_index = 0;
                 while tmp[new_index] != i {
                     new_index += 1;
                 }
-                perm.push(new_index as isize);
+                perm.push(new_index);
             }
             perm
         };
         self.component_mut()
             .par_iter_mut()
-            .for_each(|node_component| {
-                if *node_component >= 0 {
-                    *node_component = new_order[*node_component as usize]
-                }
-            });
+            .for_each(|node_component| *node_component = new_order[*node_component]);
     }
 }
 
@@ -73,13 +67,13 @@ mod test {
     use webgraph::traits::RandomAccessGraph;
 
     struct MockStronglyConnectedComponent<G: RandomAccessGraph> {
-        component: Vec<isize>,
+        component: Vec<usize>,
         num: usize,
         _g: G,
     }
 
     impl<G: RandomAccessGraph> MockStronglyConnectedComponent<G> {
-        fn mock(component: Vec<isize>, num: usize, g: G) -> MockStronglyConnectedComponent<G> {
+        fn mock(component: Vec<usize>, num: usize, g: G) -> MockStronglyConnectedComponent<G> {
             MockStronglyConnectedComponent {
                 component,
                 num,
@@ -95,10 +89,10 @@ mod test {
         fn compute(_graph: &G, _compute_buckets: bool, _pl: impl ProgressLog) -> Self {
             panic!()
         }
-        fn component(&self) -> &[isize] {
+        fn component(&self) -> &[usize] {
             self.component.as_slice()
         }
-        fn component_mut(&mut self) -> &mut [isize] {
+        fn component_mut(&mut self) -> &mut [usize] {
             self.component.as_mut_slice()
         }
         fn number_of_components(&self) -> usize {
