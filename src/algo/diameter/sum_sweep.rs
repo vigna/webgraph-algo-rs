@@ -157,12 +157,46 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     pub fn sum_sweep_heuristic(
-        &self,
+        &mut self,
         start: usize,
         iterations: usize,
         pl: impl ProgressLog,
     ) -> Result<()> {
-        todo!()
+        pl.info(format_args!(
+            "Performing initial SumSweep visit from {}.",
+            start
+        ));
+        self.step_sum_sweep(start, true, pl.clone())?;
+
+        for i in 2..iterations {
+            if i % 2 == 0 {
+                let v = argmax::filtered_argmax(
+                    &self.total_backward_distance,
+                    &self.lower_bound_backward_eccentricities,
+                    &self.incomplete_backward_vertex,
+                )
+                .try_into()?;
+                pl.info(format_args!(
+                    "Performing backwards SumSweep visit from {}.",
+                    v
+                ));
+                self.step_sum_sweep(v, false, pl.clone())?;
+            } else {
+                let v = argmax::filtered_argmax(
+                    &self.total_forward_distance,
+                    &self.lower_bound_forward_eccentricities,
+                    &self.incomplete_forward_vertex,
+                )
+                .try_into()?;
+                pl.info(format_args!(
+                    "Performing forward SumSweep visit from {}.",
+                    v
+                ));
+                self.step_sum_sweep(v, true, pl.clone())?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Computes diameter, radius, and/or all eccentricities.
@@ -174,7 +208,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    pub fn compute(&self, mut pl: impl ProgressLog) -> Result<()> {
+    pub fn compute(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         pl.start("Staring visits...");
 
         let max_outdegree_vertex = AtomicUsize::new(0);
@@ -532,8 +566,92 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn step_sum_sweep(&self, start: usize, forward: bool, pl: impl ProgressLog) -> Result<()> {
-        todo!()
+    fn step_sum_sweep(
+        &mut self,
+        start: usize,
+        forward: bool,
+        mut pl: impl ProgressLog,
+    ) -> Result<()> {
+        pl.item_name("nodes");
+        pl.expected_updates(Some(self.number_of_nodes));
+        pl.start(format!("Performing BFS starting from {}.", start));
+
+        let lower_bound;
+        let other_lower_bound;
+        let upper_bound;
+        let other_upper_bound;
+        let other_total_distance;
+        let graph;
+        let eccentricities;
+        let other_eccentricities;
+        let incomplete;
+        let other_incomplete;
+
+        if forward {
+            lower_bound = &mut self.lower_bound_forward_eccentricities;
+            other_lower_bound = &self.lower_bound_backward_eccentricities;
+            upper_bound = &mut self.upper_bound_forward_eccentricities;
+            other_upper_bound = &self.upper_bound_backward_eccentricities;
+            other_total_distance = &self.total_backward_distance;
+            graph = self.graph;
+            eccentricities = &mut self.forward_eccentricities;
+            other_eccentricities = &self.backward_eccentricities;
+            incomplete = &self.incomplete_forward_vertex;
+            other_incomplete = &self.incomplete_backward_vertex;
+        } else {
+            lower_bound = &mut self.lower_bound_backward_eccentricities;
+            other_lower_bound = &self.lower_bound_forward_eccentricities;
+            upper_bound = &mut self.upper_bound_backward_eccentricities;
+            other_upper_bound = &self.upper_bound_forward_eccentricities;
+            other_total_distance = &self.total_forward_distance;
+            graph = self.reversed_graph;
+            eccentricities = &mut self.backward_eccentricities;
+            other_eccentricities = &self.forward_eccentricities;
+            incomplete = &self.incomplete_backward_vertex;
+            other_incomplete = &self.incomplete_forward_vertex;
+        }
+
+        let max_dist = AtomicUsize::new(0);
+
+        let mut bfs = ParallelBreadthFirstVisit::new(graph);
+
+        bfs.visit_component(
+            |node, distance| {
+                let signed_distance = distance.try_into().unwrap();
+                max_dist.fetch_max(distance, Ordering::Relaxed);
+                if other_incomplete[node] {
+                    if other_lower_bound[node] < signed_distance {
+                        todo!();
+                    }
+                }
+            },
+            start,
+            &mut pl,
+        )?;
+
+        let ecc_start = max_dist.load(Ordering::Relaxed);
+        let signed_ecc_start = ecc_start.try_into()?;
+
+        lower_bound[start] = signed_ecc_start;
+        upper_bound[start] = signed_ecc_start;
+        eccentricities[start] = signed_ecc_start;
+        incomplete.set(start, false, Ordering::Relaxed);
+
+        if self.diameter_lower_bound < ecc_start {
+            self.diameter_lower_bound = ecc_start;
+            self.diameter_vertex = start;
+        }
+        if forward {
+            if self.radial_vertices[start] && self.radius_upper_bound > ecc_start {
+                self.radius_upper_bound = ecc_start;
+                self.radius_vertex = start;
+            }
+        }
+
+        self.iterations += 1;
+        pl.done();
+
+        Ok(())
     }
 
     /// For each edge in the DAG of strongly connected components, finds a corresponding edge
