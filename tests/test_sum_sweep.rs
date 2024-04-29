@@ -329,7 +329,7 @@ fn test_no_radial_vertices() -> Result<()> {
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
-    assert_eq!(sum_sweep.radius(), Some(usize::MAX));
+    assert_eq!(sum_sweep.radius(), Some(isize::MAX as usize));
 
     Ok(())
 }
@@ -347,8 +347,8 @@ fn test_empty_graph() -> Result<()> {
         SumSweepDirectedDiameterRadius::new(&graph, &transposed, SumSweepOutputLevel::All, None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
-    assert_eq!(sum_sweep.radius(), Some(usize::MAX));
-    assert_eq!(sum_sweep.diameter(), Some(0));
+    assert_eq!(sum_sweep.radius(), None);
+    assert_eq!(sum_sweep.diameter(), None);
 
     Ok(())
 }

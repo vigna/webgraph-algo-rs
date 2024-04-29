@@ -136,7 +136,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             strongly_connected_components_graph: Vec::new(),
             strongly_connected_components: scc,
             diameter_lower_bound: 0,
-            radius_upper_bound: usize::MAX,
+            radius_upper_bound: Int::MAX as usize,
             output,
             radius_iterations: -1,
             diameter_iterations: -1,
