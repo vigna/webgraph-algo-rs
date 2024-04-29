@@ -2,12 +2,15 @@ use crate::{
     algo::bfv::*,
     algo::strongly_connected_components::TarjanStronglyConnectedComponents,
     prelude::*,
-    utils::{argmax, argmin},
+    utils::{argmax, argmin, closure_vec},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
 use rayon::prelude::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    atomic::{AtomicIsize, AtomicUsize, Ordering},
+    Mutex,
+};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -21,6 +24,7 @@ pub enum SumSweepOutputLevel {
 }
 
 type Int = isize;
+const VISIT_GRANULARITY: usize = 32;
 
 pub struct SumSweepDirectedDiameterRadius<
     'a,
@@ -245,7 +249,9 @@ impl<'a, G: RandomAccessGraph + Sync>
             .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
 
         let mut points = [self.graph.num_nodes() as f64; 6];
-        let mut missing_nodes = self.find_missing_nodes();
+        let mut missing_nodes = self
+            .find_missing_nodes()
+            .with_context(|| format!("Could not compute missing nodes"))?;
         let mut old_missing_nodes;
 
         while missing_nodes > 0 {
@@ -336,7 +342,9 @@ impl<'a, G: RandomAccessGraph + Sync>
             }
 
             old_missing_nodes = missing_nodes;
-            missing_nodes = self.find_missing_nodes();
+            missing_nodes = self
+                .find_missing_nodes()
+                .with_context(|| format!("Could not compute missing nodes"))?;
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             for i in 0..points.len() {
@@ -542,7 +550,8 @@ impl<'a, G: RandomAccessGraph + Sync>
                 break;
             }
         }
-        let mut bfs = ParallelBreadthFirstVisit::with_parameters(self.reversed_graph, v, 32);
+        let mut bfs =
+            ParallelBreadthFirstVisit::with_granularity(self.reversed_graph, VISIT_GRANULARITY);
         bfs.visit_component(
             |node, _distance| self.radial_vertices.set(node, true, Ordering::Relaxed),
             v,
@@ -613,7 +622,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         let current_radius_vertex = AtomicUsize::new(self.radius_vertex);
         let lock = std::sync::Mutex::new(());
 
-        let mut bfs = ParallelBreadthFirstVisit::new(graph);
+        let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
 
         bfs.visit_component(
             |node, distance| {
@@ -748,6 +757,9 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// component.
     /// - `forward`: Whether the BFS is performed following the direction of edges or
     /// in the opposite direction.
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
     ///
     /// # Return
     /// Two arrays.
@@ -756,10 +768,70 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// `i`-th strongly connected component.
     fn compute_dist_pivot(
         &self,
-        pivot: Vec<usize>,
+        pivot: &[usize],
         forward: bool,
-    ) -> Result<(Vec<usize>, Vec<usize>)> {
-        todo!()
+        mut pl: impl ProgressLog,
+    ) -> Result<(Vec<isize>, Vec<isize>)> {
+        let components = self.strongly_connected_components.component();
+        let ecc_pivot = closure_vec(
+            || AtomicIsize::new(0),
+            self.strongly_connected_components.number_of_components(),
+        );
+        let dist_pivot = closure_vec(|| AtomicIsize::new(-1), self.number_of_nodes);
+        let graph = if forward {
+            self.graph
+        } else {
+            self.reversed_graph
+        };
+        let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
+
+        pl.item_name("nodes");
+        pl.expected_updates(Some(self.number_of_nodes));
+        if forward {
+            pl.start("Computing forward dist pivots");
+        } else {
+            pl.start("Computing backwards dist pivots");
+        }
+
+        for &p in pivot {
+            dist_pivot[p].store(0, Ordering::Relaxed);
+
+            bfs.visit_component(
+                |node, distance| {
+                    let signed_distance = distance.try_into().unwrap();
+                    if components[node] == components[p]
+                        && dist_pivot[node].load(Ordering::Relaxed) == -1
+                    {
+                        dist_pivot[node].store(signed_distance, Ordering::Relaxed);
+                        ecc_pivot[components[p]].store(signed_distance, Ordering::Relaxed);
+                    }
+                },
+                p,
+                &mut pl,
+            )
+            .with_context(|| format!("Could not perform visit from {}", p))?;
+        }
+
+        pl.done();
+
+        let usize_dist_pivot = unsafe {
+            let mut clone = std::mem::ManuallyDrop::new(dist_pivot);
+            Vec::from_raw_parts(
+                clone.as_mut_ptr() as *mut isize,
+                clone.len(),
+                clone.capacity(),
+            )
+        };
+        let usize_ecc_pivot = unsafe {
+            let mut clone = std::mem::ManuallyDrop::new(ecc_pivot);
+            Vec::from_raw_parts(
+                clone.as_mut_ptr() as *mut isize,
+                clone.len(),
+                clone.capacity(),
+            )
+        };
+
+        Ok((usize_dist_pivot, usize_ecc_pivot))
     }
 
     /// Performs a step of the ExactSumSweep algorithm.
@@ -769,12 +841,205 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn all_cc_upper_bound(&self, pivot: Vec<usize>, pl: impl ProgressLog) -> Result<()> {
-        todo!()
+    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: impl ProgressLog) -> Result<()> {
+        let dist_ecc_f = self
+            .compute_dist_pivot(&pivot, true, pl.clone())
+            .with_context(|| format!("Could not compute forward dist pivot"))?;
+        let dist_ecc_b = self
+            .compute_dist_pivot(&pivot, false, pl.clone())
+            .with_context(|| format!("Could not compute backward dist pivot"))?;
+        let dist_pivot_f = dist_ecc_f.0;
+        let mut ecc_pivot_f = dist_ecc_f.1;
+        let dist_pivot_b = dist_ecc_b.0;
+        let mut ecc_pivot_b = dist_ecc_b.1;
+        let components = self.strongly_connected_components.component();
+
+        pl.info(format_args!("Computing forward eccentricities for pivots"));
+
+        for (c, &p) in pivot.iter().enumerate() {
+            for i in 0..self.strongly_connected_components_graph[c].len() {
+                let next_c = self.strongly_connected_components_graph[c][i];
+                let start = self.start_bridges[c][i];
+                let end = self.end_bridges[c][i];
+
+                ecc_pivot_f[c] = std::cmp::max(
+                    ecc_pivot_f[c],
+                    dist_pivot_f[start] + 1 + dist_pivot_b[end] + ecc_pivot_f[next_c],
+                );
+
+                if ecc_pivot_f[c] >= self.upper_bound_forward_eccentricities[p] {
+                    ecc_pivot_f[c] = self.upper_bound_forward_eccentricities[p];
+                    break;
+                }
+            }
+        }
+
+        pl.info(format_args!(
+            "Coumputing backwards eccentricities for pivots"
+        ));
+
+        for c in 0..self.strongly_connected_components.number_of_components() {
+            for i in 0..self.strongly_connected_components_graph[c].len() {
+                let next_c = self.strongly_connected_components_graph[c][i];
+                let start = self.start_bridges[c][i];
+                let end = self.end_bridges[c][i];
+
+                ecc_pivot_b[next_c] = std::cmp::max(
+                    ecc_pivot_b[next_c],
+                    dist_pivot_f[start] + 1 + dist_pivot_b[end] + ecc_pivot_b[c],
+                );
+
+                if ecc_pivot_b[next_c] >= self.upper_bound_forward_eccentricities[pivot[next_c]] {
+                    ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
+                }
+            }
+        }
+
+        let lock = Mutex::new(());
+        let current_radius_upper_bound =
+            AtomicIsize::new(self.radius_upper_bound.try_into().with_context(|| {
+                format!("Could not convert self.radius_upper_bound into isize")
+            })?);
+        let current_radial_vertex = AtomicUsize::new(self.radius_vertex);
+
+        (0..self.number_of_nodes).into_par_iter().for_each(|node| {
+            // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+            let f_ecc_upper_bound_ptr =
+                self.upper_bound_forward_eccentricities.as_ptr() as *mut Int;
+            let f_ecc_ptr = self.forward_eccentricities.as_ptr() as *mut Int;
+            let b_ecc_upper_bound_ptr =
+                self.upper_bound_backward_eccentricities.as_ptr() as *mut Int;
+            let b_ecc_ptr = self.backward_eccentricities.as_ptr() as *mut Int;
+
+            unsafe {
+                *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
+                    self.upper_bound_forward_eccentricities[node],
+                    dist_pivot_b[node] + ecc_pivot_f[components[node]],
+                )
+            }
+
+            if self.upper_bound_forward_eccentricities[node]
+                == self.lower_bound_forward_eccentricities[node]
+            {
+                // We do not have to check whether self.forward_eccentricities[node]=D, because
+                // self.lower_bound_forward_eccentricities[node] = d(w, v) for some w from which
+                // we have already performed a BFS.
+                let new_ecc = self.upper_bound_forward_eccentricities[node];
+                self.incomplete_forward_vertex
+                    .set(node, false, Ordering::Relaxed);
+
+                unsafe {
+                    *f_ecc_ptr.add(node) = new_ecc;
+                }
+
+                if self.radial_vertices[node]
+                    && new_ecc < current_radius_upper_bound.load(Ordering::Relaxed)
+                {
+                    let _l = lock.lock().unwrap();
+                    if new_ecc < current_radius_upper_bound.load(Ordering::Relaxed) {
+                        current_radius_upper_bound.store(new_ecc, Ordering::Relaxed);
+                        current_radial_vertex.store(node, Ordering::Relaxed);
+                    }
+                }
+            }
+
+            unsafe {
+                *b_ecc_upper_bound_ptr.add(node) = std::cmp::min(
+                    self.upper_bound_backward_eccentricities[node],
+                    dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                )
+            }
+
+            if self.upper_bound_backward_eccentricities[node]
+                == self.lower_bound_backward_eccentricities[node]
+            {
+                self.incomplete_backward_vertex
+                    .set(node, false, Ordering::Relaxed);
+
+                unsafe {
+                    *b_ecc_ptr.add(node) = self.upper_bound_backward_eccentricities[node];
+                }
+            }
+        });
+
+        self.radius_vertex = current_radial_vertex.load(Ordering::Relaxed);
+        self.radius_upper_bound = current_radius_upper_bound
+            .load(Ordering::Relaxed)
+            .try_into()
+            .with_context(|| format!("Could not convert AtomisIsize into usize"))?;
+
+        self.iterations += 3;
+
+        Ok(())
     }
 
     /// Computes how many nodes are still to be processed. before outputting the result.
-    fn find_missing_nodes(&self) -> usize {
-        todo!()
+    fn find_missing_nodes(&mut self) -> Result<usize> {
+        let missing_r = AtomicUsize::new(0);
+        let missing_df = AtomicUsize::new(0);
+        let missing_db = AtomicUsize::new(0);
+        let missing_all_forward = AtomicUsize::new(0);
+        let missing_all_backward = AtomicUsize::new(0);
+        let signed_radius_upper_bound = self
+            .radius_upper_bound
+            .try_into()
+            .with_context(|| format!("Could not convert self.radius_upper_bound into isize"))?;
+        let signed_diameter_lower_bound = self
+            .diameter_lower_bound
+            .try_into()
+            .with_context(|| format!("Could not convert self.diameter_lower_bound into isize"))?;
+
+        (0..self.number_of_nodes).into_par_iter().for_each(|node| {
+            if self.incomplete_forward_vertex[node] {
+                missing_all_forward.fetch_add(1, Ordering::Relaxed);
+                if self.upper_bound_forward_eccentricities[node] > signed_diameter_lower_bound {
+                    missing_df.fetch_add(1, Ordering::Relaxed);
+                }
+                if self.radial_vertices[node]
+                    && self.lower_bound_forward_eccentricities[node] < signed_radius_upper_bound
+                {
+                    missing_r.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            if self.incomplete_backward_vertex[node] {
+                missing_all_backward.fetch_add(1, Ordering::Relaxed);
+                if self.upper_bound_backward_eccentricities[node] > signed_diameter_lower_bound {
+                    missing_db.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        });
+
+        let signed_iterations = self
+            .iterations
+            .try_into()
+            .with_context(|| format!("Could not convert iterations to isize"))?;
+        let missing_r = missing_r.load(Ordering::Relaxed);
+        let missing_df = missing_df.load(Ordering::Relaxed);
+        let missing_db = missing_db.load(Ordering::Relaxed);
+        let missing_all_forward = missing_all_forward.load(Ordering::Relaxed);
+        let missing_all_backward = missing_all_backward.load(Ordering::Relaxed);
+
+        if missing_r == 0 && self.radius_iterations == -1 {
+            self.radius_iterations = signed_iterations;
+        }
+        if (missing_df == 0 || missing_db == 0) && self.diameter_iterations == -1 {
+            self.diameter_iterations = signed_iterations;
+        }
+        if missing_all_forward == 0 && self.forward_eccentricities_iterations == -1 {
+            self.forward_eccentricities_iterations = signed_iterations;
+        }
+        if missing_all_forward == 0 && missing_all_backward == 0 {
+            self.all_eccentricities_iterations = signed_iterations;
+        }
+
+        match self.output {
+            SumSweepOutputLevel::Radius => Ok(missing_r),
+            SumSweepOutputLevel::Diameter => Ok(std::cmp::min(missing_df, missing_db)),
+            SumSweepOutputLevel::RadiusDiameter => {
+                Ok(missing_r + std::cmp::min(missing_df, missing_db))
+            }
+            SumSweepOutputLevel::AllForward => Ok(missing_all_forward),
+            SumSweepOutputLevel::All => Ok(missing_all_backward + missing_all_forward),
+        }
     }
 }
