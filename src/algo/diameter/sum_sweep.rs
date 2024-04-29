@@ -711,7 +711,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             let mut child_components = Vec::new();
             for v in component {
                 for succ in self.graph.successors(v) {
-                    let succ_component: usize = node_components[succ];
+                    let succ_component = node_components[succ];
                     if node_components[v] != node_components[succ] {
                         if best_start[succ_component].is_none() {
                             best_start[succ_component] = Some(v);
