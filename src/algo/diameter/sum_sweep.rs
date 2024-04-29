@@ -176,7 +176,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             "Performing initial SumSweep visit from {}.",
             start
         ));
-        self.step_sum_sweep(start, true, pl.clone())
+        self.step_sum_sweep(Some(start), true, pl.clone())
             .with_context(|| "Could not perform initial SumSweep visit")?;
 
         for i in 2..iterations {
@@ -185,27 +185,25 @@ impl<'a, G: RandomAccessGraph + Sync>
                     &self.total_backward_distance,
                     &self.lower_bound_backward_eccentricities,
                     &self.incomplete_backward_vertex,
-                )
-                .with_context(|| "Could not find starting vertex for backwards visit")?;
+                );
                 pl.info(format_args!(
-                    "Performing backwards SumSweep visit from {}",
+                    "Performing backwards SumSweep visit from {:?}",
                     v
                 ));
                 self.step_sum_sweep(v, false, pl.clone())
-                    .with_context(|| format!("Could not perform backwards visit from {}", v))?;
+                    .with_context(|| format!("Could not perform backwards visit from {:?}", v))?;
             } else {
                 let v = argmax::filtered_argmax(
                     &self.total_forward_distance,
                     &self.lower_bound_forward_eccentricities,
                     &self.incomplete_forward_vertex,
-                )
-                .with_context(|| "Could not find starting vertex for forward visit")?;
+                );
                 pl.info(format_args!(
-                    "Performing forward SumSweep visit from {}.",
+                    "Performing forward SumSweep visit from {:?}.",
                     v
                 ));
                 self.step_sum_sweep(v, true, pl.clone())
-                    .with_context(|| format!("Could not perform forward visit from {}", v))?;
+                    .with_context(|| format!("Could not perform forward visit from {:?}", v))?;
             }
         }
 
@@ -222,6 +220,9 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     pub fn compute(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+        if self.number_of_nodes == 0 {
+            return Ok(());
+        }
         pl.start("Staring visits...");
 
         let max_outdegree_vertex = AtomicUsize::new(0);
@@ -275,10 +276,9 @@ impl<'a, G: RandomAccessGraph + Sync>
                         &self.upper_bound_forward_eccentricities,
                         &self.total_forward_distance,
                         &self.incomplete_forward_vertex,
-                    )
-                    .with_context(|| "Could not find vertex maximizing the forward upper bound")?;
+                    );
                     self.step_sum_sweep(v, true, pl.clone())
-                        .with_context(|| format!("Could not perform forward visit from {}", v))?
+                        .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 2 => {
                     pl.info(format_args!(
@@ -288,10 +288,9 @@ impl<'a, G: RandomAccessGraph + Sync>
                         &self.lower_bound_forward_eccentricities,
                         &self.total_forward_distance,
                         &self.radial_vertices,
-                    )
-                    .with_context(|| "Could not find vertex minimizing the forward lower bound")?;
+                    );
                     self.step_sum_sweep(v, true, pl.clone())
-                        .with_context(|| format!("Could not perform forward visit from {}", v))?
+                        .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 3 => {
                     pl.info(format_args!(
@@ -301,10 +300,10 @@ impl<'a, G: RandomAccessGraph + Sync>
                         &self.upper_bound_backward_eccentricities,
                         &self.total_backward_distance,
                         &self.incomplete_backward_vertex,
-                    )
-                    .with_context(|| "Could not find vertex maximizing the backward lower bound")?;
-                    self.step_sum_sweep(v, false, pl.clone())
-                        .with_context(|| format!("Could not perform backwards visit from {}", v))?
+                    );
+                    self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
+                        format!("Could not perform backwards visit from {:?}", v)
+                    })?
                 }
                 4 => {
                     pl.info(format_args!(
@@ -314,12 +313,10 @@ impl<'a, G: RandomAccessGraph + Sync>
                         &self.total_backward_distance,
                         &self.upper_bound_backward_eccentricities,
                         &self.incomplete_backward_vertex,
-                    )
-                    .with_context(|| {
-                        "Could not find vertex maximizing the backward distance sum"
-                    })?;
-                    self.step_sum_sweep(v, false, pl.clone())
-                        .with_context(|| format!("Could not perform backwards visit from {}", v))?
+                    );
+                    self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
+                        format!("Could not perform backwards visit from {:?}", v)
+                    })?
                 }
                 5 => {
                     pl.info(format_args!(
@@ -329,14 +326,13 @@ impl<'a, G: RandomAccessGraph + Sync>
                         &self.total_forward_distance,
                         &self.upper_bound_forward_eccentricities,
                         &self.incomplete_forward_vertex,
-                    )
-                    .with_context(|| "Could not find vertex maximixing the forward distance sum")?;
+                    );
                     self.step_sum_sweep(
                         v,
                         false, // ???????????????????????????????????????????????????????????????????????????
                         pl.clone(),
                     )
-                    .with_context(|| format!("Could not perform forward visit from {}", v))?
+                    .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 6.. => panic!(),
             }
@@ -566,7 +562,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// of all visited vertices.
     ///
     /// # Arguments
-    /// - `start`: The starting vertex of the BFS.
+    /// - `start`: The starting vertex of the BFS. If [`None`], no visit happens.
     /// - `forward`: Whether the BFS is performed following the direction of edges or
     /// in the opposite direction.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
@@ -574,10 +570,14 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// passed, logging code should be optimized away by the compiler.
     fn step_sum_sweep(
         &mut self,
-        start: usize,
+        start: Option<usize>,
         forward: bool,
         mut pl: impl ProgressLog,
     ) -> Result<()> {
+        if start.is_none() {
+            return Ok(());
+        }
+        let start = start.unwrap();
         pl.item_name("nodes");
         pl.expected_updates(Some(self.number_of_nodes));
         pl.start(format!("Performing BFS starting from {}.", start));
