@@ -983,11 +983,11 @@ impl<'a, G: RandomAccessGraph + Sync>
         let signed_radius_upper_bound = self
             .radius_upper_bound
             .try_into()
-            .with_context(|| format!("Could not convert self.radius_upper_bound into isize"))?;
-        let signed_diameter_lower_bound = self
-            .diameter_lower_bound
-            .try_into()
-            .with_context(|| format!("Could not convert self.diameter_lower_bound into isize"))?;
+            .with_context(|| format!("Could not convert {} into isize", self.radius_upper_bound))?;
+        let signed_diameter_lower_bound =
+            self.diameter_lower_bound.try_into().with_context(|| {
+                format!("Could not convert {} into isize", self.diameter_lower_bound)
+            })?;
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             if self.incomplete_forward_vertex[node] {
