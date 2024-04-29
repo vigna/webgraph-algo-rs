@@ -499,7 +499,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     };
 
                 let best = self.lower_bound_backward_eccentricities[p]
-                    + self.lower_bound_backward_eccentricities[p]
+                    + self.lower_bound_forward_eccentricities[p]
                     + if self.incomplete_forward_vertex.get(p, Ordering::Relaxed) {
                         0
                     } else {
