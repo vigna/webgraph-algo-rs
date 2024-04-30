@@ -150,9 +150,16 @@ fn test_many_dir_path() -> Result<()> {
     let transposed = Left(VecGraph::from_labeled_lender(
         transpose(&graph, 32)?.0.iter(),
     ));
+    let radial_vertices = AtomicBitVec::new(19);
+    radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
+    radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
 
-    let mut sum_sweep =
-        SumSweepDirectedDiameterRadius::new(&graph, &transposed, SumSweepOutputLevel::All, None)?;
+    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+        &graph,
+        &transposed,
+        SumSweepOutputLevel::All,
+        Some(radial_vertices),
+    )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.diameter(), Some(6));
