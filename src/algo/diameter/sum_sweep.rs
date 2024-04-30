@@ -75,6 +75,7 @@ pub struct SumSweepDirectedDiameterRadius<
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
     total_backward_distance: Vec<Int>,
+    compute_radial_vertices: bool,
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
@@ -106,9 +107,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             Option::<ProgressLogger>::None,
         );
         let acc_radial = if let Some(r) = radial_vertices {
-            if r.len() != nn {
-                panic!("The size of the array of acceptable vertices must be equal to the number of nodes in the graph");
-            }
+            debug_assert_eq!(r.len(), nn);
             r
         } else {
             AtomicBitVec::new(nn)
@@ -117,7 +116,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
         debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
 
-        let mut ret = SumSweepDirectedDiameterRadius {
+        Ok(SumSweepDirectedDiameterRadius {
             graph,
             reversed_graph,
             number_of_nodes: nn,
@@ -146,16 +145,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             radial_vertices: acc_radial,
             radius_vertex: 0,
             diameter_vertex: 0,
-        };
-
-        if compute_radial_vertices {
-            ret.compute_radial_vertices()
-                .with_context(|| "Could not compute radial vertices")?;
-        }
-        ret.find_edges_through_scc()
-            .with_context(|| "Could not build scc graph")?;
-
-        Ok(ret)
+            compute_radial_vertices,
+        })
     }
 
     /// Performs `iterations` steps of the SumSweep heuristic, starting from vertex `start`.
@@ -166,7 +157,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    pub fn sum_sweep_heuristic(
+    fn sum_sweep_heuristic(
         &mut self,
         start: usize,
         iterations: usize,
@@ -223,7 +214,18 @@ impl<'a, G: RandomAccessGraph + Sync>
         if self.number_of_nodes == 0 {
             return Ok(());
         }
+        pl.item_name("nodes");
+        pl.expected_updates(Some(self.number_of_nodes * 2));
         pl.start("Staring visits...");
+
+        if self.compute_radial_vertices {
+            pl.info(format_args!("Computing radial vertices"));
+            self.compute_radial_vertices()
+                .with_context(|| "Could not compute radial vertices")?;
+        }
+        pl.info(format_args!("Computing scc graph"));
+        self.find_edges_through_scc()
+            .with_context(|| "Could not build scc graph")?;
 
         let max_outdegree_vertex = AtomicUsize::new(0);
 
@@ -244,8 +246,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             }
         });
 
-        pl.done();
-
         self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())
             .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
 
@@ -254,6 +254,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             .find_missing_nodes()
             .with_context(|| "Could not compute missing nodes")?;
         let mut old_missing_nodes;
+        pl.update_with_count((self.number_of_nodes * 2) - missing_nodes);
 
         while missing_nodes > 0 {
             let step_to_perform =
@@ -341,6 +342,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             missing_nodes = self
                 .find_missing_nodes()
                 .with_context(|| "Could not compute missing nodes")?;
+            pl.update_with_count(old_missing_nodes - missing_nodes);
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             for (i, points_ref) in points.iter_mut().enumerate() {
@@ -348,12 +350,6 @@ impl<'a, G: RandomAccessGraph + Sync>
                     *points_ref += 2.0 / self.iterations as f64;
                 }
             }
-
-            pl.info(format_args!(
-                "Missing nodes: {}/{}.",
-                missing_nodes,
-                self.number_of_nodes * 2
-            ));
         }
 
         if self.output == SumSweepOutputLevel::Radius
@@ -572,15 +568,13 @@ impl<'a, G: RandomAccessGraph + Sync>
         &mut self,
         start: Option<usize>,
         forward: bool,
-        mut pl: impl ProgressLog,
+        pl: impl ProgressLog,
     ) -> Result<()> {
         if start.is_none() {
             return Ok(());
         }
         let start = start.unwrap();
-        pl.item_name("nodes");
-        pl.expected_updates(Some(self.number_of_nodes));
-        pl.start(format!("Performing BFS starting from {}.", start));
+        pl.info(format_args!("Performing BFS starting from {}.", start));
 
         let lower_bound;
         let other_lower_bound;
@@ -662,7 +656,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 }
             },
             start,
-            &mut pl,
+            &mut Option::<ProgressLogger>::None,
         )
         .with_context(|| format!("Could not perform BFS from {}", start))?;
 
@@ -689,7 +683,6 @@ impl<'a, G: RandomAccessGraph + Sync>
         }
 
         self.iterations += 1;
-        pl.done();
 
         Ok(())
     }
@@ -770,7 +763,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         &self,
         pivot: &[usize],
         forward: bool,
-        mut pl: impl ProgressLog,
+        pl: impl ProgressLog,
     ) -> Result<(Vec<isize>, Vec<isize>)> {
         let components = self.strongly_connected_components.component();
         let ecc_pivot = closure_vec(
@@ -785,12 +778,10 @@ impl<'a, G: RandomAccessGraph + Sync>
         };
         let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
 
-        pl.item_name("nodes");
-        pl.expected_updates(Some(self.number_of_nodes));
         if forward {
-            pl.start("Computing forward dist pivots");
+            pl.info(format_args!("Computing forward dist pivots"));
         } else {
-            pl.start("Computing backwards dist pivots");
+            pl.info(format_args!("Computing backwards dist pivots"));
         }
 
         for &p in pivot {
@@ -807,12 +798,10 @@ impl<'a, G: RandomAccessGraph + Sync>
                     }
                 },
                 p,
-                &mut pl,
+                &mut Option::<ProgressLogger>::None,
             )
             .with_context(|| format!("Could not perform visit from {}", p))?;
         }
-
-        pl.done();
 
         let usize_dist_pivot = unsafe {
             let mut clone = std::mem::ManuallyDrop::new(dist_pivot);
@@ -854,8 +843,6 @@ impl<'a, G: RandomAccessGraph + Sync>
         let mut ecc_pivot_b = dist_ecc_b.1;
         let components = self.strongly_connected_components.component();
 
-        pl.info(format_args!("Computing forward eccentricities for pivots"));
-
         for (c, &p) in pivot.iter().enumerate() {
             for i in 0..self.strongly_connected_components_graph[c].len() {
                 let next_c = self.strongly_connected_components_graph[c][i];
@@ -873,10 +860,6 @@ impl<'a, G: RandomAccessGraph + Sync>
                 }
             }
         }
-
-        pl.info(format_args!(
-            "Coumputing backwards eccentricities for pivots"
-        ));
 
         for c in 0..self.strongly_connected_components.number_of_components() {
             for i in 0..self.strongly_connected_components_graph[c].len() {
