@@ -343,9 +343,9 @@ impl<'a, G: RandomAccessGraph + Sync>
                 .with_context(|| "Could not compute missing nodes")?;
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
-            for i in 0..points.len() {
-                if i != step_to_perform && points[i] >= 0.0 {
-                    points[i] += 2.0 / self.iterations as f64;
+            for (i, points_ref) in points.iter_mut().enumerate() {
+                if i != step_to_perform && *points_ref >= 0.0 {
+                    *points_ref += 2.0 / self.iterations as f64;
                 }
             }
 
