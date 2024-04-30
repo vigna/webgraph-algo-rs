@@ -252,7 +252,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         let mut points = [self.graph.num_nodes() as f64; 6];
         let mut missing_nodes = self
             .find_missing_nodes()
-            .with_context(|| format!("Could not compute missing nodes"))?;
+            .with_context(|| "Could not compute missing nodes")?;
         let mut old_missing_nodes;
 
         while missing_nodes > 0 {
@@ -340,7 +340,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             old_missing_nodes = missing_nodes;
             missing_nodes = self
                 .find_missing_nodes()
-                .with_context(|| format!("Could not compute missing nodes"))?;
+                .with_context(|| "Could not compute missing nodes")?;
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             for i in 0..points.len() {
@@ -844,10 +844,10 @@ impl<'a, G: RandomAccessGraph + Sync>
     fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: impl ProgressLog) -> Result<()> {
         let dist_ecc_f = self
             .compute_dist_pivot(&pivot, true, pl.clone())
-            .with_context(|| format!("Could not compute forward dist pivot"))?;
+            .with_context(|| "Could not compute forward dist pivot")?;
         let dist_ecc_b = self
             .compute_dist_pivot(&pivot, false, pl.clone())
-            .with_context(|| format!("Could not compute backward dist pivot"))?;
+            .with_context(|| "Could not compute backward dist pivot")?;
         let dist_pivot_f = dist_ecc_f.0;
         let mut ecc_pivot_f = dist_ecc_f.1;
         let dist_pivot_b = dist_ecc_b.0;
@@ -898,7 +898,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         let lock = Mutex::new(());
         let current_radius_upper_bound =
             AtomicIsize::new(self.radius_upper_bound.try_into().with_context(|| {
-                format!("Could not convert self.radius_upper_bound into isize")
+                format!("Could not convert {} into isize", self.radius_upper_bound)
             })?);
         let current_radial_vertex = AtomicUsize::new(self.radius_vertex);
 
@@ -966,7 +966,12 @@ impl<'a, G: RandomAccessGraph + Sync>
         self.radius_upper_bound = current_radius_upper_bound
             .load(Ordering::Relaxed)
             .try_into()
-            .with_context(|| format!("Could not convert AtomisIsize into usize"))?;
+            .with_context(|| {
+                format!(
+                    "Could not convert {} into usize",
+                    current_radius_upper_bound.load(Ordering::Relaxed)
+                )
+            })?;
 
         self.iterations += 3;
 
@@ -1012,7 +1017,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         let signed_iterations = self
             .iterations
             .try_into()
-            .with_context(|| format!("Could not convert iterations to isize"))?;
+            .with_context(|| format!("Could not convert {} to isize", self.iterations))?;
         let missing_r = missing_r.load(Ordering::Relaxed);
         let missing_df = missing_df.load(Ordering::Relaxed);
         let missing_db = missing_db.load(Ordering::Relaxed);
