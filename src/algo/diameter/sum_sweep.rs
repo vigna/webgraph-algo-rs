@@ -90,22 +90,22 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `radial_verticies`: The set of radial vertices. If [`None`], the set is automatically chosen
     /// as the set of vertices that are in the biggest strongly connected component, or that are able
     /// to reach the biggest strongly connected component.
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
     pub fn new(
         graph: &'a G,
         reversed_graph: &'a G,
         output: SumSweepOutputLevel,
         radial_vertices: Option<AtomicBitVec>,
+        pl: impl ProgressLog,
     ) -> Result<Self> {
         let nn = graph.num_nodes();
         let isize_nn: isize = nn
             .try_into()
             .with_context(|| "Could not convert num_nodes to isize")?;
         let compute_radial_vertices = radial_vertices.is_none();
-        let scc = TarjanStronglyConnectedComponents::compute(
-            graph,
-            false,
-            Option::<ProgressLogger>::None,
-        );
+        let scc = TarjanStronglyConnectedComponents::compute(graph, false, pl.clone());
         let acc_radial = if let Some(r) = radial_vertices {
             debug_assert_eq!(r.len(), nn);
             r
@@ -115,6 +115,8 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
         debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
+
+        pl.info(format_args!("Initializing data structure"));
 
         Ok(SumSweepDirectedDiameterRadius {
             graph,

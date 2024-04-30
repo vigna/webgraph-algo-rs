@@ -23,8 +23,13 @@ fn test_path() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        SumSweepDirectedDiameterRadius::new(&graph, &transposed, SumSweepOutputLevel::All, None)?;
+    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+        &graph,
+        &transposed,
+        SumSweepOutputLevel::All,
+        None,
+        Option::<ProgressLogger>::None,
+    )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.eccentricity(0, true), Some(2));
@@ -77,6 +82,7 @@ fn test_many_scc() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -108,6 +114,7 @@ fn test_lozenge() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -159,6 +166,7 @@ fn test_many_dir_path() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         Some(radial_vertices),
+        Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -195,6 +203,7 @@ fn test_cycle() -> Result<()> {
             &transposed,
             SumSweepOutputLevel::RadiusDiameter,
             None,
+            Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -246,6 +255,7 @@ fn test_clique() -> Result<()> {
             &transposed,
             SumSweepOutputLevel::All,
             Some(radial_vertices),
+            Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -269,8 +279,13 @@ fn test_empty() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        SumSweepDirectedDiameterRadius::new(&graph, &transposed, SumSweepOutputLevel::All, None)?;
+    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+        &graph,
+        &transposed,
+        SumSweepOutputLevel::All,
+        None,
+        Option::<ProgressLogger>::None,
+    )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(0));
@@ -301,6 +316,7 @@ fn test_sparse() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -333,6 +349,7 @@ fn test_no_radial_vertices() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         Some(radial_vertices),
+        Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
@@ -350,8 +367,13 @@ fn test_empty_graph() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        SumSweepDirectedDiameterRadius::new(&graph, &transposed, SumSweepOutputLevel::All, None)?;
+    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+        &graph,
+        &transposed,
+        SumSweepOutputLevel::All,
+        None,
+        Option::<ProgressLogger>::None,
+    )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), None);
@@ -377,6 +399,7 @@ fn test_graph_no_edges() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
