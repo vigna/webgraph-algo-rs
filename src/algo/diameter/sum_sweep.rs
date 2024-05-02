@@ -216,17 +216,13 @@ impl<'a, G: RandomAccessGraph + Sync>
         if self.number_of_nodes == 0 {
             return Ok(());
         }
-        pl.item_name("nodes");
-        pl.expected_updates(Some(self.number_of_nodes * 2));
-        pl.start("Staring visits...");
+        pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
-            pl.info(format_args!("Computing radial vertices"));
-            self.compute_radial_vertices()
+            self.compute_radial_vertices(pl.clone())
                 .with_context(|| "Could not compute radial vertices")?;
         }
-        pl.info(format_args!("Computing scc graph"));
-        self.find_edges_through_scc()
+        self.find_edges_through_scc(pl.clone())
             .with_context(|| "Could not build scc graph")?;
 
         let max_outdegree_vertex = AtomicUsize::new(0);
@@ -253,10 +249,9 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         let mut points = [self.graph.num_nodes() as f64; 6];
         let mut missing_nodes = self
-            .find_missing_nodes()
+            .find_missing_nodes(pl.clone())
             .with_context(|| "Could not compute missing nodes")?;
         let mut old_missing_nodes;
-        pl.update_with_count((self.number_of_nodes * 2) - missing_nodes);
 
         while missing_nodes > 0 {
             let step_to_perform =
@@ -266,7 +261,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
                     let pivot = self
-                        .find_best_pivot()
+                        .find_best_pivot(pl.clone())
                         .with_context(|| "Could not find best pivot for allCCUpperBound")?;
                     self.all_cc_upper_bound(pivot, pl.clone())
                         .with_context(|| "Could not perform allCCUpperBound")?
@@ -342,9 +337,8 @@ impl<'a, G: RandomAccessGraph + Sync>
 
             old_missing_nodes = missing_nodes;
             missing_nodes = self
-                .find_missing_nodes()
+                .find_missing_nodes(pl.clone())
                 .with_context(|| "Could not compute missing nodes")?;
-            pl.update_with_count(old_missing_nodes - missing_nodes);
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             for (i, points_ref) in points.iter_mut().enumerate() {
@@ -352,6 +346,12 @@ impl<'a, G: RandomAccessGraph + Sync>
                     *points_ref += 2.0 / self.iterations as f64;
                 }
             }
+
+            pl.info(format_args!(
+                "Missing nodes: {} out of {}",
+                missing_nodes,
+                self.number_of_nodes * 2
+            ));
         }
 
         if self.output == SumSweepOutputLevel::Radius
@@ -473,13 +473,22 @@ impl<'a, G: RandomAccessGraph + Sync>
 
     /// Uses a heuristic to decide which is the best pivot to choose in each strongly connected
     /// component, in order to perform the [`Self::all_cc_upper_bound`] method.
-    fn find_best_pivot(&self) -> Result<Vec<usize>> {
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn find_best_pivot(&self, mut pl: impl ProgressLog) -> Result<Vec<usize>> {
         let mut pivot = vec![None; self.strongly_connected_components.number_of_components()];
         let components = self.strongly_connected_components.component();
         let isize_number_of_nodes = self
             .number_of_nodes
             .try_into()
             .with_context(|| "Could not convert number of scc into isize")?;
+        pl.expected_updates(Some(components.len()));
+        pl.item_name("nodes");
+        pl.display_memory(false);
+        pl.start("Computing best pivot");
 
         for (v, &component) in components.iter().enumerate() {
             if let Some(p) = pivot[component] {
@@ -519,7 +528,10 @@ impl<'a, G: RandomAccessGraph + Sync>
             } else {
                 pivot[component] = Some(v);
             }
+            pl.light_update();
         }
+
+        pl.done();
 
         Ok(pivot.into_iter().map(|x| x.unwrap()).collect())
     }
@@ -527,14 +539,29 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// Computes and stores in variable [`Self::radial_vertices`] the set of vertices that are
     /// either in the biggest strongly connected component or that are able to reach vertices in
     /// the biggest strongly connected component.
-    fn compute_radial_vertices(&mut self) -> Result<()> {
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn compute_radial_vertices(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         if self.number_of_nodes == 0 {
             return Ok(());
         }
+
+        pl.expected_updates(None);
+        pl.item_name("nodes");
+        pl.display_memory(false);
+        pl.start("Computing radial vertices...");
+
         let component = self.strongly_connected_components.component();
         let scc_sizes = self.strongly_connected_components.compute_sizes();
         let max_size_scc =
             argmax::argmax(&scc_sizes).with_context(|| "Could not find max size scc.")?;
+
+        pl.info(format_args!(
+            "Searching for biggest strongly connected component"
+        ));
 
         let mut v = self.number_of_nodes;
 
@@ -544,14 +571,19 @@ impl<'a, G: RandomAccessGraph + Sync>
                 break;
             }
         }
+
+        pl.info(format_args!("Computing radial vertices set"));
+
         let mut bfs =
             ParallelBreadthFirstVisit::with_granularity(self.reversed_graph, VISIT_GRANULARITY);
         bfs.visit_component(
             |node, _distance| self.radial_vertices.set(node, true, Ordering::Relaxed),
             v,
-            &mut Option::<ProgressLogger>::None,
+            &mut pl,
         )
         .with_context(|| format!("Could not perform BFS from {}", v))?;
+
+        pl.done();
 
         Ok(())
     }
@@ -570,13 +602,22 @@ impl<'a, G: RandomAccessGraph + Sync>
         &mut self,
         start: Option<usize>,
         forward: bool,
-        pl: impl ProgressLog,
+        mut pl: impl ProgressLog,
     ) -> Result<()> {
         if start.is_none() {
             return Ok(());
         }
         let start = start.unwrap();
-        pl.info(format_args!("Performing BFS starting from {}.", start));
+
+        pl.item_name("nodes");
+        pl.display_memory(false);
+        pl.expected_updates(None);
+
+        if forward {
+            pl.start(format!("Performing forward BFS starting from {}", start));
+        } else {
+            pl.start(format!("Performing backwards BFS starting from {}", start));
+        }
 
         let lower_bound;
         let other_lower_bound;
@@ -658,7 +699,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 }
             },
             start,
-            &mut Option::<ProgressLogger>::None,
+            &mut pl,
         )
         .with_context(|| format!("Could not perform BFS from {}", start))?;
 
@@ -686,12 +727,26 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         self.iterations += 1;
 
+        pl.done();
+
         Ok(())
     }
 
     /// For each edge in the DAG of strongly connected components, finds a corresponding edge
     /// in the graph. This edge is used in the [`Self::all_cc_upper_bound`] method.
-    fn find_edges_through_scc(&mut self) -> Result<()> {
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn find_edges_through_scc(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+        pl.item_name("strongly connected components");
+        pl.display_memory(false);
+        pl.expected_updates(Some(
+            self.strongly_connected_components.number_of_components(),
+        ));
+        pl.start("Computing strongly connected component graph");
+
         let node_components = self.strongly_connected_components.component();
         let number_of_scc = self.strongly_connected_components.number_of_components();
         let mut best_start = vec![None; number_of_scc];
@@ -738,8 +793,11 @@ impl<'a, G: RandomAccessGraph + Sync>
             }
             self.strongly_connected_components_graph.push(scc_vec);
             self.start_bridges.push(start_vec);
-            self.end_bridges.push(end_vec)
+            self.end_bridges.push(end_vec);
+            pl.light_update();
         }
+
+        pl.done();
 
         Ok(())
     }
@@ -765,8 +823,18 @@ impl<'a, G: RandomAccessGraph + Sync>
         &self,
         pivot: &[usize],
         forward: bool,
-        pl: impl ProgressLog,
+        mut pl: impl ProgressLog,
     ) -> Result<(Vec<isize>, Vec<isize>)> {
+        pl.expected_updates(None);
+        pl.display_memory(false);
+        pl.item_name("nodes");
+
+        if forward {
+            pl.start("Computing forward dist pivots");
+        } else {
+            pl.start("Computing backwards dist pivots");
+        }
+
         let components = self.strongly_connected_components.component();
         let ecc_pivot = closure_vec(
             || AtomicIsize::new(0),
@@ -779,12 +847,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             self.reversed_graph
         };
         let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
-
-        if forward {
-            pl.info(format_args!("Computing forward dist pivots"));
-        } else {
-            pl.info(format_args!("Computing backwards dist pivots"));
-        }
 
         for &p in pivot {
             dist_pivot[p].store(0, Ordering::Relaxed);
@@ -800,7 +862,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     }
                 },
                 p,
-                &mut Option::<ProgressLogger>::None,
+                &mut pl,
             )
             .with_context(|| format!("Could not perform visit from {}", p))?;
         }
@@ -822,6 +884,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             )
         };
 
+        pl.done();
+
         Ok((usize_dist_pivot, usize_ecc_pivot))
     }
 
@@ -832,7 +896,16 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: impl ProgressLog) -> Result<()> {
+    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, mut pl: impl ProgressLog) -> Result<()> {
+        pl.item_name("elements");
+        pl.display_memory(false);
+        pl.expected_updates(Some(
+            pivot.len()
+                + self.strongly_connected_components.number_of_components()
+                + self.number_of_nodes,
+        ));
+        pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
+
         let dist_ecc_f = self
             .compute_dist_pivot(&pivot, true, pl.clone())
             .with_context(|| "Could not compute forward dist pivot")?;
@@ -861,6 +934,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     break;
                 }
             }
+            pl.light_update();
         }
 
         for c in 0..self.strongly_connected_components.number_of_components() {
@@ -878,6 +952,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
                 }
             }
+            pl.light_update();
         }
 
         let lock = Mutex::new(());
@@ -947,6 +1022,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             }
         });
 
+        pl.update_with_count(self.number_of_nodes);
+
         self.radius_vertex = current_radial_vertex.load(Ordering::Relaxed);
         self.radius_upper_bound = current_radius_upper_bound
             .load(Ordering::Relaxed)
@@ -960,11 +1037,23 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         self.iterations += 3;
 
+        pl.done();
+
         Ok(())
     }
 
     /// Computes how many nodes are still to be processed. before outputting the result.
-    fn find_missing_nodes(&mut self) -> Result<usize> {
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn find_missing_nodes(&mut self, mut pl: impl ProgressLog) -> Result<usize> {
+        pl.item_name("nodes");
+        pl.display_memory(false);
+        pl.expected_updates(Some(self.number_of_nodes));
+        pl.start("Computing missing nodes");
+
         let missing_r = AtomicUsize::new(0);
         let missing_df = AtomicUsize::new(0);
         let missing_db = AtomicUsize::new(0);
@@ -999,6 +1088,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             }
         });
 
+        pl.update_with_count(self.number_of_nodes);
+
         let signed_iterations = self
             .iterations
             .try_into()
@@ -1021,6 +1112,8 @@ impl<'a, G: RandomAccessGraph + Sync>
         if missing_all_forward == 0 && missing_all_backward == 0 {
             self.all_eccentricities_iterations = signed_iterations;
         }
+
+        pl.done();
 
         match self.output {
             SumSweepOutputLevel::Radius => Ok(missing_r),
