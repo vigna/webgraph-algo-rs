@@ -292,7 +292,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 }
                 3 => {
                     pl.info(format_args!(
-                        "Performing a backward BFS from a vertex maximizing the lower bound."
+                        "Performing a backward BFS from a vertex maximizing the upper bound."
                     ));
                     let v = argmax::filtered_argmax(
                         &self.upper_bound_backward_eccentricities,
