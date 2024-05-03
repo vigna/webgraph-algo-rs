@@ -13,6 +13,9 @@ pub trait StronglyConnectedComponents<G> {
     fn component_mut(&mut self) -> &mut [usize];
 
     /// The bit vector for buckets, or `None`, in which case buckets have not been computed.
+    ///
+    /// Buckets are defined as the nodes belonging to components that are terminal, but not dangling,
+    /// in the component DAG.
     fn buckets(&self) -> Option<&[bool]>;
 
     /// Computes the strongly connected components of a given graph.
