@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
-
 use super::traits::StronglyConnectedComponents;
 use dsi_progress_logger::ProgressLog;
-use rayon::prelude::*;
-use webgraph::traits::RandomAccessGraph;
+use std::marker::PhantomData;
+use sux::bits::BitVec;
+use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
@@ -11,6 +10,13 @@ pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     buckets: Option<Vec<bool>>,
     _phantom: PhantomData<G>,
 }
+
+type RecurseNode<'a, G> = (
+    usize,
+    Option<<<G as RandomAccessLabeling>::Labels<'a> as IntoIterator>::IntoIter>,
+    Option<usize>,
+    bool,
+);
 
 impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConnectedComponents<G> {
     fn number_of_components(&self) -> usize {
@@ -47,15 +53,17 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
 struct Visit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     number_of_nodes: usize,
-    /// For non-visited nodes, 0. For visited non emitted nodes the visit time. For emitted node
-    /// *-c-1* where *c* is the component number.
-    status: Vec<isize>,
     pub components: Vec<usize>,
     pub buckets: Option<Vec<bool>>,
-    component_stack: Vec<usize>,
+    indexes: Vec<Option<usize>>,
+    lowlinks: Vec<usize>,
+    on_stack: BitVec,
+    terminal: Option<BitVec>,
     /// The first-visit clock (incremented at each visited node).
-    clock: isize,
+    current_index: usize,
     pub number_of_components: usize,
+    stack: Vec<usize>,
+    iterative_stack: Vec<RecurseNode<'a, G>>,
 }
 
 impl<'a, G: RandomAccessGraph> Visit<'a, G> {
@@ -67,12 +75,20 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
             } else {
                 None
             },
-            clock: 0,
+            terminal: if compute_buckets {
+                Some(BitVec::with_value(graph.num_nodes(), true))
+            } else {
+                None
+            },
+            current_index: 0,
+            indexes: vec![None; graph.num_nodes()],
+            lowlinks: vec![usize::MAX; graph.num_nodes()],
+            on_stack: BitVec::new(graph.num_nodes()),
             number_of_components: 0,
             number_of_nodes: graph.num_nodes(),
-            component_stack: vec![0; graph.num_nodes()],
-            status: vec![0; graph.num_nodes()],
             components: vec![0; graph.num_nodes()],
+            stack: Vec::new(),
+            iterative_stack: Vec::new(),
         }
     }
 
@@ -82,118 +98,96 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
         pl.start("Computing strongly connected components");
 
         for i in 0..self.number_of_nodes {
-            if self.status[i] == 0 {
+            if self.indexes[i].is_none() {
                 self.visit(i, pl);
             }
         }
 
         pl.done();
-
-        self.status.par_iter_mut().for_each(|s| *s = -(*s) - 1);
-
-        if let Some(b) = self.buckets.as_mut() {
-            b.par_iter_mut().for_each(|node| *node = !*node);
-        }
-
-        self.components
-            .par_iter_mut()
-            .enumerate()
-            .for_each(|(i, c)| {
-                debug_assert!(self.status[i] >= 0);
-                *c = self.status[i].try_into().unwrap();
-            })
     }
 
     fn visit(&mut self, start_node: usize, pl: &mut impl ProgressLog) {
-        let mut older_node_found = Vec::new();
-        let mut node_stack = Vec::new();
-        let mut successors_stack = Vec::new();
+        debug_assert!(self.stack.is_empty());
+        debug_assert!(self.iterative_stack.is_empty());
+        self.iterative_stack.push((start_node, None, None, true));
 
-        self.clock += 1;
-        self.status[start_node] = self.clock;
-        self.component_stack.push(start_node);
-        node_stack.push(start_node);
-        successors_stack.push(start_node);
-        older_node_found.push(false);
-        if let Some(b) = self.buckets.as_mut() {
-            if self.graph.outdegree(start_node) == 0 {
-                b[start_node] = true;
-            }
-        }
+        'recurse: while let Some((v, iter, resume, mut terminal)) = self.iterative_stack.pop() {
+            if let Some(w) = resume {
+                // Finish recurse
+                debug_assert!(self.indexes[w].is_some());
 
-        'main: while !node_stack.is_empty() {
-            let current_node = node_stack[node_stack.len() - 1];
-            let successors = self
-                .graph
-                .successors(successors_stack[successors_stack.len() - 1]);
-
-            for succ in successors {
-                let successor_status = self.status[succ];
-                if successor_status == 0 {
-                    self.clock += 1;
-                    self.status[succ] = self.clock;
-                    node_stack.push(succ);
-                    self.component_stack.push(succ);
-                    successors_stack.push(succ);
-                    older_node_found.push(false);
-                    if let Some(b) = self.buckets.as_mut() {
-                        if self.graph.outdegree(succ) == 0 {
-                            b[succ] = true;
-                        }
-                    }
-                    continue 'main;
-                } else if successor_status > 0 {
-                    if successor_status < self.status[current_node] {
-                        self.status[current_node] = successor_status;
-                        older_node_found.pop();
-                        older_node_found.push(true);
-                    }
-                } else if let Some(b) = self.buckets.as_mut() {
-                    b[current_node] = true;
-                }
-            }
-
-            node_stack.pop();
-            successors_stack.pop();
-            pl.light_update();
-
-            if older_node_found.pop().unwrap_or(false) {
-                let parent_node = node_stack[node_stack.len() - 1];
-                let current_node_status = self.status[current_node];
-                if current_node_status > self.status[parent_node] {
-                    self.status[parent_node] = current_node_status;
-                    older_node_found.pop();
-                    older_node_found.push(true);
-                }
-
-                if let Some(b) = self.buckets.as_mut() {
-                    if b[current_node] {
-                        b[parent_node] = true;
+                self.lowlinks[v] = std::cmp::min(self.lowlinks[v], self.lowlinks[w]);
+                if let Some(t) = self.terminal.as_mut() {
+                    if !t[w] {
+                        t.set(v, false);
+                        terminal = false;
                     }
                 }
             } else {
+                // Set the depth index for v to the smallest unused index
+                debug_assert!(self.lowlinks[v] == usize::MAX);
+                debug_assert!(!self.on_stack[v]);
+                debug_assert!(!self.stack.contains(&v));
+                debug_assert!(self.indexes[v].is_none());
+
+                self.indexes[v] = Some(self.current_index);
+                self.lowlinks[v] = self.current_index;
+                self.current_index += 1;
+                self.stack.push(v);
+                self.on_stack.set(v, true);
+            }
+
+            let mut iterator = match iter {
+                Some(i) => i,
+                None => self.graph.successors(v).into_iter(),
+            };
+
+            while let Some(w) = iterator.next() {
+                if let Some(i) = self.indexes[w] {
+                    if self.on_stack[w] {
+                        // Successor w is in stack self.stack and hence in the current SCC
+                        // If w is not on stack, then (v, w) is an edge pointing to an SCC already found and must be ignored
+                        self.lowlinks[v] = std::cmp::min(self.lowlinks[v], i);
+                    } else if let Some(t) = self.terminal.as_mut() {
+                        terminal = false;
+                        t.set(v, false);
+                    }
+                } else {
+                    // Successor w has not yet been visited; recurse on it
+                    self.iterative_stack
+                        .push((v, Some(iterator), Some(w), terminal));
+                    self.iterative_stack.push((w, None, None, true));
+                    continue 'recurse;
+                }
+            }
+
+            // If v is a root node, pop the stack and generate an SCC
+            if self.lowlinks[v] == self.indexes[v].unwrap() {
                 if let Some(b) = self.buckets.as_mut() {
-                    if !node_stack.is_empty() {
-                        b[node_stack[node_stack.len() - 1]] = true;
+                    let t = self.terminal.as_mut().unwrap();
+                    while let Some(node) = self.stack.pop() {
+                        self.components[node] = self.number_of_components;
+                        self.on_stack.set(node, false);
+                        t.set(node, false);
+                        if terminal && self.graph.outdegree(node) != 0 {
+                            b[node] = true;
+                        }
+                        pl.light_update();
+                        if node == v {
+                            break;
+                        }
+                    }
+                } else {
+                    while let Some(node) = self.stack.pop() {
+                        self.components[node] = self.number_of_components;
+                        self.on_stack.set(node, false);
+                        pl.light_update();
+                        if node == v {
+                            break;
+                        }
                     }
                 }
-                let not_a_bucket = match &self.buckets {
-                    Some(b) => b[current_node],
-                    None => false,
-                };
                 self.number_of_components += 1;
-                let mut z;
-                loop {
-                    z = self.component_stack.pop().unwrap();
-                    self.status[z] = -(self.number_of_components as isize);
-                    if not_a_bucket {
-                        let b = self.buckets.as_mut().unwrap();
-                        b[z] = true;
-                    }
-                    if z == current_node {
-                        break;
-                    }
-                }
             }
         }
     }
