@@ -42,12 +42,12 @@ macro_rules! test_scc_algo {
                 buckets[0] = true;
                 buckets[3] = true;
                 buckets[4] = true;
-                assert_eq!(buckets, components.buckets().clone().unwrap());
+                assert_eq!(components.buckets().clone().unwrap(), buckets);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
 
-                assert_eq!(vec![2, 2, 1, 1, 1, 1, 1], sizes);
+                assert_eq!(sizes, vec![2, 2, 1, 1, 1, 1, 1]);
             }
 
             #[test]
@@ -66,12 +66,12 @@ macro_rules! test_scc_algo {
 
                 let mut buckets = vec![false; graph.num_nodes()];
                 buckets[3] = true;
-                assert_eq!(buckets, components.buckets().clone().unwrap());
+                assert_eq!(components.buckets().clone().unwrap(), buckets);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
 
-                assert_eq!(vec![3, 1], sizes);
+                assert_eq!(sizes, vec![3, 1]);
             }
 
             #[test]
@@ -94,14 +94,14 @@ macro_rules! test_scc_algo {
                 components.sort_by_size();
 
                 assert_eq!(
-                    vec![true; graph.num_nodes()],
-                    components.buckets().clone().unwrap()
+                    components.buckets().clone().unwrap(),
+                    vec![true; graph.num_nodes()]
                 );
 
                 for i in 0..5 {
-                    assert_eq!(0, components.component()[i]);
+                    assert_eq!(components.component()[i], 0);
                 }
-                assert_eq!(vec![5], components.compute_sizes());
+                assert_eq!(components.compute_sizes(), vec![5]);
             }
 
             #[test]
@@ -121,11 +121,11 @@ macro_rules! test_scc_algo {
                 components.sort_by_size();
 
                 assert_eq!(
-                    vec![false; graph.num_nodes()],
-                    components.buckets().clone().unwrap()
+                    components.buckets().clone().unwrap(),
+                    vec![false; graph.num_nodes()]
                 );
 
-                assert_eq!(7, components.number_of_components());
+                assert_eq!(components.number_of_components(), 7);
             }
         }
     };
