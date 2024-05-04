@@ -38,6 +38,8 @@ macro_rules! test_scc_algo {
 
                 let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None);
 
+                assert_eq!(components.component()[3], components.component()[4]);
+
                 let mut buckets = vec![false; graph.num_nodes()];
                 buckets[0] = true;
                 buckets[3] = true;
