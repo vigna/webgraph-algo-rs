@@ -253,6 +253,12 @@ impl<'a, G: RandomAccessGraph + Sync>
             .with_context(|| "Could not compute missing nodes")?;
         let mut old_missing_nodes;
 
+        pl.info(format_args!(
+            "Missing nodes: {} out of {}",
+            missing_nodes,
+            self.number_of_nodes * 2
+        ));
+
         while missing_nodes > 0 {
             let step_to_perform =
                 argmax::argmax(&points).with_context(|| "Could not find step to perform")?;
