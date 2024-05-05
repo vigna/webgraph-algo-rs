@@ -161,6 +161,8 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                 }
             }
 
+            pl.light_update();
+
             // If v is a root node, pop the stack and generate an SCC
             if self.lowlinks[v] == self.indexes[v].unwrap() {
                 if let Some(b) = self.buckets.as_mut() {
@@ -172,7 +174,6 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                         if terminal && self.graph.outdegree(node) != 0 {
                             b[node] = true;
                         }
-                        pl.light_update();
                         if node == v {
                             break;
                         }
@@ -181,7 +182,6 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                     while let Some(node) = self.stack.pop() {
                         self.components[node] = self.number_of_components;
                         self.on_stack.set(node, false);
-                        pl.light_update();
                         if node == v {
                             break;
                         }
