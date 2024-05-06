@@ -35,8 +35,6 @@ pub struct SumSweepDirectedDiameterRadius<
     reversed_graph: &'a G,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
-    forward_eccentricities: Vec<Int>,
-    backward_eccentricities: Vec<Int>,
     incomplete_forward_vertex: AtomicBitVec,
     incomplete_backward_vertex: AtomicBitVec,
     radial_vertices: AtomicBitVec,
@@ -122,8 +120,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             graph,
             reversed_graph,
             number_of_nodes: nn,
-            forward_eccentricities: vec![-1; nn],
-            backward_eccentricities: vec![-1; nn],
             total_forward_distance: vec![0; nn],
             total_backward_distance: vec![0; nn],
             lower_bound_forward_eccentricities: vec![0; nn],
@@ -149,6 +145,34 @@ impl<'a, G: RandomAccessGraph + Sync>
             diameter_vertex: 0,
             compute_radial_vertices,
         })
+    }
+
+    /// Returns the forward eccentricity of a vertex if it has already been computed, [`None`] otherwise.
+    ///
+    /// # Arguments
+    /// - `vertex`: The vertex.
+    fn forward_eccentricity(&self, index: usize) -> Option<Int> {
+        if self.incomplete_forward_vertex[index] {
+            None
+        } else {
+            debug_assert_eq!(
+                self.lower_bound_forward_eccentricities[index],
+                self.upper_bound_forward_eccentricities[index]
+            );
+            Some(self.lower_bound_forward_eccentricities[index])
+        }
+    }
+
+    fn backward_eccentricity(&self, index: usize) -> Option<Int> {
+        if self.incomplete_backward_vertex[index] {
+            None
+        } else {
+            debug_assert_eq!(
+                self.lower_bound_backward_eccentricities[index],
+                self.upper_bound_backward_eccentricities[index]
+            );
+            Some(self.lower_bound_backward_eccentricities[index])
+        }
     }
 
     /// Performs `iterations` steps of the SumSweep heuristic, starting from vertex `start`.
@@ -347,9 +371,9 @@ impl<'a, G: RandomAccessGraph + Sync>
                 .with_context(|| "Could not compute missing nodes")?;
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
-            for (i, points_ref) in points.iter_mut().enumerate() {
-                if i != step_to_perform && *points_ref >= 0.0 {
-                    *points_ref += 2.0 / self.iterations as f64;
+            for i in 0..points.len() {
+                if i != step_to_perform && points[i] >= 0.0 {
+                    points[i] += 2.0 / self.iterations as f64;
                 }
             }
 
@@ -425,16 +449,12 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// eccentricity (if `false`).
     pub fn eccentricity(&self, vertex: usize, forward: bool) -> Option<usize> {
         let ecc = if forward {
-            self.forward_eccentricities[vertex]
+            self.forward_eccentricity(vertex)
         } else {
-            self.backward_eccentricities[vertex]
+            self.backward_eccentricity(vertex)
         };
 
-        if ecc == -1 {
-            return None;
-        }
-
-        Some(ecc.try_into().unwrap())
+        ecc.map(|e| e.try_into().unwrap())
     }
 
     /// Returns the number of iterations needed to compute the radius if it has already
@@ -631,8 +651,6 @@ impl<'a, G: RandomAccessGraph + Sync>
         let other_upper_bound;
         let other_total_distance;
         let graph;
-        let eccentricities;
-        let other_eccentricities;
         let incomplete;
         let other_incomplete;
 
@@ -643,8 +661,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             other_upper_bound = &self.upper_bound_backward_eccentricities;
             other_total_distance = &self.total_backward_distance;
             graph = self.graph;
-            eccentricities = &mut self.forward_eccentricities;
-            other_eccentricities = &self.backward_eccentricities;
             incomplete = &self.incomplete_forward_vertex;
             other_incomplete = &self.incomplete_backward_vertex;
         } else {
@@ -654,8 +670,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             other_upper_bound = &self.upper_bound_forward_eccentricities;
             other_total_distance = &self.total_forward_distance;
             graph = self.reversed_graph;
-            eccentricities = &mut self.backward_eccentricities;
-            other_eccentricities = &self.forward_eccentricities;
             incomplete = &self.incomplete_backward_vertex;
             other_incomplete = &self.incomplete_forward_vertex;
         }
@@ -684,11 +698,6 @@ impl<'a, G: RandomAccessGraph + Sync>
                     }
 
                     if signed_distance == other_upper_bound[node] {
-                        let other_eccentricities_ptr = other_eccentricities.as_ptr() as *mut Int;
-                        unsafe {
-                            *other_eccentricities_ptr.add(node) = signed_distance;
-                        }
-
                         other_incomplete.set(node, false, Ordering::Relaxed);
 
                         if !forward
@@ -716,7 +725,6 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         lower_bound[start] = signed_ecc_start;
         upper_bound[start] = signed_ecc_start;
-        eccentricities[start] = signed_ecc_start;
         incomplete.set(start, false, Ordering::Relaxed);
 
         self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
@@ -954,7 +962,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     dist_pivot_f[start] + 1 + dist_pivot_b[end] + ecc_pivot_b[c],
                 );
 
-                if ecc_pivot_b[next_c] >= self.upper_bound_forward_eccentricities[pivot[next_c]] {
+                if ecc_pivot_b[next_c] >= self.upper_bound_backward_eccentricities[pivot[next_c]] {
                     ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
                 }
             }
@@ -972,10 +980,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
             let f_ecc_upper_bound_ptr =
                 self.upper_bound_forward_eccentricities.as_ptr() as *mut Int;
-            let f_ecc_ptr = self.forward_eccentricities.as_ptr() as *mut Int;
             let b_ecc_upper_bound_ptr =
                 self.upper_bound_backward_eccentricities.as_ptr() as *mut Int;
-            let b_ecc_ptr = self.backward_eccentricities.as_ptr() as *mut Int;
 
             unsafe {
                 *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
@@ -993,10 +999,6 @@ impl<'a, G: RandomAccessGraph + Sync>
                 let new_ecc = self.upper_bound_forward_eccentricities[node];
                 self.incomplete_forward_vertex
                     .set(node, false, Ordering::Relaxed);
-
-                unsafe {
-                    *f_ecc_ptr.add(node) = new_ecc;
-                }
 
                 if self.radial_vertices[node]
                     && new_ecc < current_radius_upper_bound.load(Ordering::Relaxed)
@@ -1021,10 +1023,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             {
                 self.incomplete_backward_vertex
                     .set(node, false, Ordering::Relaxed);
-
-                unsafe {
-                    *b_ecc_ptr.add(node) = self.upper_bound_backward_eccentricities[node];
-                }
             }
         });
 
