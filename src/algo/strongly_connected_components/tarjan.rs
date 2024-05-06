@@ -15,7 +15,6 @@ type RecurseNode<'a, G> = (
     usize,
     Option<<<G as RandomAccessLabeling>::Labels<'a> as IntoIterator>::IntoIter>,
     Option<usize>,
-    bool,
 );
 
 impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConnectedComponents<G> {
@@ -109,9 +108,9 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
     fn visit(&mut self, start_node: usize, pl: &mut impl ProgressLog) {
         debug_assert!(self.stack.is_empty());
         debug_assert!(self.iterative_stack.is_empty());
-        self.iterative_stack.push((start_node, None, None, true));
+        self.iterative_stack.push((start_node, None, None));
 
-        'recurse: while let Some((v, iter, resume, mut terminal)) = self.iterative_stack.pop() {
+        'recurse: while let Some((v, iter, resume)) = self.iterative_stack.pop() {
             if let Some(w) = resume {
                 // Finish recurse
                 debug_assert!(self.indexes[w].is_some());
@@ -120,7 +119,6 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                 if let Some(t) = self.terminal.as_mut() {
                     if !t[w] {
                         t.set(v, false);
-                        terminal = false;
                     }
                 }
             } else {
@@ -149,14 +147,12 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                         // If w is not on stack, then (v, w) is an edge pointing to an SCC already found and must be ignored
                         self.lowlinks[v] = std::cmp::min(self.lowlinks[v], i);
                     } else if let Some(t) = self.terminal.as_mut() {
-                        terminal = false;
                         t.set(v, false);
                     }
                 } else {
                     // Successor w has not yet been visited; recurse on it
-                    self.iterative_stack
-                        .push((v, Some(iterator), Some(w), terminal));
-                    self.iterative_stack.push((w, None, None, true));
+                    self.iterative_stack.push((v, Some(iterator), Some(w)));
+                    self.iterative_stack.push((w, None, None));
                     continue 'recurse;
                 }
             }
@@ -167,6 +163,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
             if self.lowlinks[v] == self.indexes[v].unwrap() {
                 if let Some(b) = self.buckets.as_mut() {
                     let t = self.terminal.as_mut().unwrap();
+                    let terminal = t[v];
                     while let Some(node) = self.stack.pop() {
                         self.components[node] = self.number_of_components;
                         self.on_stack.set(node, false);
