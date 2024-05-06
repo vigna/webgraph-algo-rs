@@ -132,9 +132,8 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
             }
 
             let mut count = iter_count.unwrap_or(0);
-            let mut iterator = self.graph.successors(v).into_iter().skip(count);
 
-            while let Some(w) = iterator.next() {
+            for w in self.graph.successors(v).into_iter().skip(count) {
                 count += 1;
                 if let Some(i) = self.indexes[w] {
                     if self.on_stack[w] {

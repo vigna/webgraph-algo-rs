@@ -371,6 +371,8 @@ impl<'a, G: RandomAccessGraph + Sync>
                 .with_context(|| "Could not compute missing nodes")?;
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
+            // This is to make rust-analyzer happy as it cannot recognize mut reference
+            #[allow(clippy::needless_range_loop)]
             for i in 0..points.len() {
                 if i != step_to_perform && points[i] >= 0.0 {
                     points[i] += 2.0 / self.iterations as f64;
