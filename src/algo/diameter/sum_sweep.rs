@@ -277,7 +277,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())
             .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
 
-        let mut points = [self.graph.num_nodes() as f64; 6];
+        let mut points = [self.graph.num_nodes() as f64; 5];
         let mut missing_nodes = self
             .find_missing_nodes(pl.clone())
             .with_context(|| "Could not compute missing nodes")?;
@@ -352,23 +352,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                         format!("Could not perform backwards visit from {:?}", v)
                     })?
                 }
-                5 => {
-                    pl.info(format_args!(
-                        "Performing a forward BFS, from a vertex maximizing the distance sum."
-                    ));
-                    let v = argmax::filtered_argmax(
-                        &self.total_forward_distance,
-                        &self.upper_bound_forward_eccentricities,
-                        |i| self.incomplete_forward_vertex(i),
-                    );
-                    self.step_sum_sweep(
-                        v,
-                        false, // ???????????????????????????????????????????????????????????????????????????
-                        pl.clone(),
-                    )
-                    .with_context(|| format!("Could not perform forward visit from {:?}", v))?
-                }
-                6.. => panic!(),
+                5.. => panic!(),
             }
 
             old_missing_nodes = missing_nodes;
