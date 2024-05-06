@@ -22,11 +22,11 @@ pub fn filtered_argmax<
     N: common_traits::FiniteRangeNumber,
     A: Index<usize, Output = T>,
     V: Index<usize, Output = N>,
-    F: Index<usize, Output = bool>,
+    F: Fn(usize) -> bool,
 >(
     vec: &A,
     tie_break: &V,
-    filter: &F,
+    filter: F,
 ) -> Option<usize>
 where
     for<'a> &'a A: IntoIterator,
@@ -36,7 +36,7 @@ where
     let mut argmax = None;
 
     for (i, _) in vec.into_iter().enumerate() {
-        if filter[i] && (vec[i] > max || (vec[i] == max && tie_break[i] > max_tie_break)) {
+        if filter(i) && (vec[i] > max || (vec[i] == max && tie_break[i] > max_tie_break)) {
             argmax = Some(i);
             max = vec[i];
             max_tie_break = tie_break[i];

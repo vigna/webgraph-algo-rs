@@ -35,8 +35,6 @@ pub struct SumSweepDirectedDiameterRadius<
     reversed_graph: &'a G,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
-    incomplete_forward_vertex: AtomicBitVec,
-    incomplete_backward_vertex: AtomicBitVec,
     radial_vertices: AtomicBitVec,
     diameter_lower_bound: usize,
     radius_upper_bound: usize,
@@ -126,8 +124,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             upper_bound_forward_eccentricities: vec![isize_nn + 1; nn],
             lower_bound_backward_eccentricities: vec![0; nn],
             upper_bound_backward_eccentricities: vec![isize_nn + 1; nn],
-            incomplete_forward_vertex: AtomicBitVec::with_value(nn, true),
-            incomplete_backward_vertex: AtomicBitVec::with_value(nn, true),
             start_bridges: Vec::new(),
             end_bridges: Vec::new(),
             strongly_connected_components_graph: Vec::new(),
@@ -147,12 +143,22 @@ impl<'a, G: RandomAccessGraph + Sync>
         })
     }
 
+    fn incomplete_forward_vertex(&self, index: usize) -> bool {
+        self.lower_bound_forward_eccentricities[index]
+            != self.upper_bound_forward_eccentricities[index]
+    }
+
+    fn incomplete_backward_vertex(&self, index: usize) -> bool {
+        self.lower_bound_backward_eccentricities[index]
+            != self.upper_bound_backward_eccentricities[index]
+    }
+
     /// Returns the forward eccentricity of a vertex if it has already been computed, [`None`] otherwise.
     ///
     /// # Arguments
     /// - `vertex`: The vertex.
     fn forward_eccentricity(&self, index: usize) -> Option<Int> {
-        if self.incomplete_forward_vertex[index] {
+        if self.incomplete_forward_vertex(index) {
             None
         } else {
             debug_assert_eq!(
@@ -164,7 +170,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     }
 
     fn backward_eccentricity(&self, index: usize) -> Option<Int> {
-        if self.incomplete_backward_vertex[index] {
+        if self.incomplete_backward_vertex(index) {
             None
         } else {
             debug_assert_eq!(
@@ -201,7 +207,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 let v = argmax::filtered_argmax(
                     &self.total_backward_distance,
                     &self.lower_bound_backward_eccentricities,
-                    &self.incomplete_backward_vertex,
+                    |i| self.incomplete_backward_vertex(i),
                 );
                 pl.info(format_args!(
                     "Performing backwards SumSweep visit from {:?}",
@@ -213,7 +219,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                 let v = argmax::filtered_argmax(
                     &self.total_forward_distance,
                     &self.lower_bound_forward_eccentricities,
-                    &self.incomplete_forward_vertex,
+                    |i| self.incomplete_forward_vertex(i),
                 );
                 pl.info(format_args!(
                     "Performing forward SumSweep visit from {:?}.",
@@ -303,7 +309,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     let v = argmax::filtered_argmax(
                         &self.upper_bound_forward_eccentricities,
                         &self.total_forward_distance,
-                        &self.incomplete_forward_vertex,
+                        |i| self.incomplete_forward_vertex(i),
                     );
                     self.step_sum_sweep(v, true, pl.clone())
                         .with_context(|| format!("Could not perform forward visit from {:?}", v))?
@@ -315,7 +321,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     let v = argmin::filtered_argmin(
                         &self.lower_bound_forward_eccentricities,
                         &self.total_forward_distance,
-                        &self.radial_vertices,
+                        |i| self.radial_vertices[i],
                     );
                     self.step_sum_sweep(v, true, pl.clone())
                         .with_context(|| format!("Could not perform forward visit from {:?}", v))?
@@ -327,7 +333,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     let v = argmax::filtered_argmax(
                         &self.upper_bound_backward_eccentricities,
                         &self.total_backward_distance,
-                        &self.incomplete_backward_vertex,
+                        |i| self.incomplete_backward_vertex(i),
                     );
                     self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
                         format!("Could not perform backwards visit from {:?}", v)
@@ -340,7 +346,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     let v = argmax::filtered_argmax(
                         &self.total_backward_distance,
                         &self.upper_bound_backward_eccentricities,
-                        &self.incomplete_backward_vertex,
+                        |i| self.incomplete_backward_vertex(i),
                     );
                     self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
                         format!("Could not perform backwards visit from {:?}", v)
@@ -353,7 +359,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     let v = argmax::filtered_argmax(
                         &self.total_forward_distance,
                         &self.upper_bound_forward_eccentricities,
-                        &self.incomplete_forward_vertex,
+                        |i| self.incomplete_forward_vertex(i),
                     );
                     self.step_sum_sweep(
                         v,
@@ -522,12 +528,12 @@ impl<'a, G: RandomAccessGraph + Sync>
             if let Some(p) = pivot[component] {
                 let current = self.lower_bound_backward_eccentricities[v]
                     + self.lower_bound_forward_eccentricities[v]
-                    + if self.incomplete_forward_vertex.get(v, Ordering::Relaxed) {
+                    + if self.incomplete_forward_vertex(v) {
                         0
                     } else {
                         isize_number_of_nodes
                     }
-                    + if self.incomplete_backward_vertex.get(v, Ordering::Relaxed) {
+                    + if self.incomplete_backward_vertex(v) {
                         0
                     } else {
                         isize_number_of_nodes
@@ -535,12 +541,12 @@ impl<'a, G: RandomAccessGraph + Sync>
 
                 let best = self.lower_bound_backward_eccentricities[p]
                     + self.lower_bound_forward_eccentricities[p]
-                    + if self.incomplete_forward_vertex.get(p, Ordering::Relaxed) {
+                    + if self.incomplete_forward_vertex(p) {
                         0
                     } else {
                         isize_number_of_nodes
                     }
-                    + if self.incomplete_backward_vertex.get(p, Ordering::Relaxed) {
+                    + if self.incomplete_backward_vertex(p) {
                         0
                     } else {
                         isize_number_of_nodes
@@ -653,27 +659,17 @@ impl<'a, G: RandomAccessGraph + Sync>
         let other_upper_bound;
         let other_total_distance;
         let graph;
-        let incomplete;
-        let other_incomplete;
 
         if forward {
-            lower_bound = &mut self.lower_bound_forward_eccentricities;
             other_lower_bound = &self.lower_bound_backward_eccentricities;
-            upper_bound = &mut self.upper_bound_forward_eccentricities;
             other_upper_bound = &self.upper_bound_backward_eccentricities;
             other_total_distance = &self.total_backward_distance;
             graph = self.graph;
-            incomplete = &self.incomplete_forward_vertex;
-            other_incomplete = &self.incomplete_backward_vertex;
         } else {
-            lower_bound = &mut self.lower_bound_backward_eccentricities;
             other_lower_bound = &self.lower_bound_forward_eccentricities;
-            upper_bound = &mut self.upper_bound_backward_eccentricities;
             other_upper_bound = &self.upper_bound_forward_eccentricities;
             other_total_distance = &self.total_forward_distance;
             graph = self.reversed_graph;
-            incomplete = &self.incomplete_backward_vertex;
-            other_incomplete = &self.incomplete_forward_vertex;
         }
 
         let max_dist = AtomicUsize::new(0);
@@ -686,6 +682,11 @@ impl<'a, G: RandomAccessGraph + Sync>
         bfs.visit_component(
             |node, distance| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                let incomplete = if forward {
+                    self.incomplete_backward_vertex(node)
+                } else {
+                    self.incomplete_forward_vertex(node)
+                };
                 let signed_distance = distance.try_into().unwrap();
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -693,24 +694,21 @@ impl<'a, G: RandomAccessGraph + Sync>
                 unsafe {
                     *other_total_distance_ptr.add(node) += signed_distance;
                 }
-                if other_incomplete[node] && other_lower_bound[node] < signed_distance {
+                if incomplete && other_lower_bound[node] < signed_distance {
                     let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut Int;
                     unsafe {
                         *other_lower_bound_ptr.add(node) = signed_distance;
                     }
 
-                    if signed_distance == other_upper_bound[node] {
-                        other_incomplete.set(node, false, Ordering::Relaxed);
-
-                        if !forward
-                            && self.radial_vertices[node]
-                            && distance < current_radius_upper_bound.load(Ordering::Relaxed)
-                        {
-                            let _l = lock.lock().unwrap();
-                            if distance < current_radius_upper_bound.load(Ordering::Relaxed) {
-                                current_radius_upper_bound.store(distance, Ordering::Relaxed);
-                                current_radius_vertex.store(node, Ordering::Relaxed);
-                            }
+                    if signed_distance == other_upper_bound[node]
+                        && !forward
+                        && self.radial_vertices[node]
+                        && distance < current_radius_upper_bound.load(Ordering::Relaxed)
+                    {
+                        let _l = lock.lock().unwrap();
+                        if distance < current_radius_upper_bound.load(Ordering::Relaxed) {
+                            current_radius_upper_bound.store(distance, Ordering::Relaxed);
+                            current_radius_vertex.store(node, Ordering::Relaxed);
                         }
                     }
                 }
@@ -720,6 +718,14 @@ impl<'a, G: RandomAccessGraph + Sync>
         )
         .with_context(|| format!("Could not perform BFS from {}", start))?;
 
+        if forward {
+            lower_bound = &mut self.lower_bound_forward_eccentricities;
+            upper_bound = &mut self.upper_bound_forward_eccentricities;
+        } else {
+            lower_bound = &mut self.lower_bound_backward_eccentricities;
+            upper_bound = &mut self.upper_bound_backward_eccentricities;
+        }
+
         let ecc_start = max_dist.load(Ordering::Relaxed);
         let signed_ecc_start = ecc_start
             .try_into()
@@ -727,7 +733,6 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         lower_bound[start] = signed_ecc_start;
         upper_bound[start] = signed_ecc_start;
-        incomplete.set(start, false, Ordering::Relaxed);
 
         self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
         self.radius_vertex = current_radius_vertex.load(Ordering::Relaxed);
@@ -985,22 +990,20 @@ impl<'a, G: RandomAccessGraph + Sync>
             let b_ecc_upper_bound_ptr =
                 self.upper_bound_backward_eccentricities.as_ptr() as *mut Int;
 
-            unsafe {
-                *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
-                    self.upper_bound_forward_eccentricities[node],
-                    dist_pivot_b[node] + ecc_pivot_f[components[node]],
-                )
+            if self.incomplete_forward_vertex(node) {
+                unsafe {
+                    *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
+                        self.upper_bound_forward_eccentricities[node],
+                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
+                    )
+                }
             }
 
-            if self.upper_bound_forward_eccentricities[node]
-                == self.lower_bound_forward_eccentricities[node]
-            {
+            if !self.incomplete_forward_vertex(node) {
                 // We do not have to check whether self.forward_eccentricities[node]=D, because
                 // self.lower_bound_forward_eccentricities[node] = d(w, v) for some w from which
                 // we have already performed a BFS.
                 let new_ecc = self.upper_bound_forward_eccentricities[node];
-                self.incomplete_forward_vertex
-                    .set(node, false, Ordering::Relaxed);
 
                 if self.radial_vertices[node]
                     && new_ecc < current_radius_upper_bound.load(Ordering::Relaxed)
@@ -1013,18 +1016,13 @@ impl<'a, G: RandomAccessGraph + Sync>
                 }
             }
 
-            unsafe {
-                *b_ecc_upper_bound_ptr.add(node) = std::cmp::min(
-                    self.upper_bound_backward_eccentricities[node],
-                    dist_pivot_f[node] + ecc_pivot_b[components[node]],
-                )
-            }
-
-            if self.upper_bound_backward_eccentricities[node]
-                == self.lower_bound_backward_eccentricities[node]
-            {
-                self.incomplete_backward_vertex
-                    .set(node, false, Ordering::Relaxed);
+            if self.incomplete_backward_vertex(node) {
+                unsafe {
+                    *b_ecc_upper_bound_ptr.add(node) = std::cmp::min(
+                        self.upper_bound_backward_eccentricities[node],
+                        dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                    )
+                }
             }
         });
 
@@ -1075,7 +1073,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             })?;
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
-            if self.incomplete_forward_vertex[node] {
+            if self.incomplete_forward_vertex(node) {
                 missing_all_forward.fetch_add(1, Ordering::Relaxed);
                 if self.upper_bound_forward_eccentricities[node] > signed_diameter_lower_bound {
                     missing_df.fetch_add(1, Ordering::Relaxed);
@@ -1086,7 +1084,7 @@ impl<'a, G: RandomAccessGraph + Sync>
                     missing_r.fetch_add(1, Ordering::Relaxed);
                 }
             }
-            if self.incomplete_backward_vertex[node] {
+            if self.incomplete_backward_vertex(node) {
                 missing_all_backward.fetch_add(1, Ordering::Relaxed);
                 if self.upper_bound_backward_eccentricities[node] > signed_diameter_lower_bound {
                     missing_db.fetch_add(1, Ordering::Relaxed);
