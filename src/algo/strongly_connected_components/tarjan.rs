@@ -2,7 +2,7 @@ use super::traits::StronglyConnectedComponents;
 use dsi_progress_logger::ProgressLog;
 use std::marker::PhantomData;
 use sux::bits::BitVec;
-use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
+use webgraph::traits::RandomAccessGraph;
 
 pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
@@ -11,11 +11,7 @@ pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     _phantom: PhantomData<G>,
 }
 
-type RecurseNode<'a, G> = (
-    usize,
-    Option<<<G as RandomAccessLabeling>::Labels<'a> as IntoIterator>::IntoIter>,
-    Option<usize>,
-);
+type RecurseNode = (usize, Option<usize>, Option<usize>);
 
 impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConnectedComponents<G> {
     fn number_of_components(&self) -> usize {
@@ -62,7 +58,7 @@ struct Visit<'a, G: RandomAccessGraph> {
     current_index: usize,
     pub number_of_components: usize,
     stack: Vec<usize>,
-    iterative_stack: Vec<RecurseNode<'a, G>>,
+    iterative_stack: Vec<RecurseNode>,
 }
 
 impl<'a, G: RandomAccessGraph> Visit<'a, G> {
@@ -110,7 +106,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
         debug_assert!(self.iterative_stack.is_empty());
         self.iterative_stack.push((start_node, None, None));
 
-        'recurse: while let Some((v, iter, resume)) = self.iterative_stack.pop() {
+        'recurse: while let Some((v, iter_count, resume)) = self.iterative_stack.pop() {
             if let Some(w) = resume {
                 // Finish recurse
                 debug_assert!(self.indexes[w].is_some());
@@ -135,12 +131,11 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                 self.on_stack.set(v, true);
             }
 
-            let mut iterator = match iter {
-                Some(i) => i,
-                None => self.graph.successors(v).into_iter(),
-            };
+            let mut count = iter_count.unwrap_or(0);
+            let mut iterator = self.graph.successors(v).into_iter().skip(count);
 
             while let Some(w) = iterator.next() {
+                count += 1;
                 if let Some(i) = self.indexes[w] {
                     if self.on_stack[w] {
                         // Successor w is in stack self.stack and hence in the current SCC
@@ -151,7 +146,7 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
                     }
                 } else {
                     // Successor w has not yet been visited; recurse on it
-                    self.iterative_stack.push((v, Some(iterator), Some(w)));
+                    self.iterative_stack.push((v, Some(count), Some(w)));
                     self.iterative_stack.push((w, None, None));
                     continue 'recurse;
                 }
