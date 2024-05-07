@@ -1,3 +1,4 @@
+use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
 
@@ -26,7 +27,9 @@ pub trait StronglyConnectedComponents<G> {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn compute(graph: &G, compute_buckets: bool, pl: impl ProgressLog) -> Self;
+    fn compute(graph: &G, compute_buckets: bool, pl: impl ProgressLog) -> Result<Self>
+    where
+        Self: Sized;
 
     /// Returns the size array for this set of strongly connected components.
     fn compute_sizes(&self) -> Vec<usize> {
@@ -65,7 +68,6 @@ pub trait StronglyConnectedComponents<G> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use anyhow::Result;
     use webgraph::graphs::BVGraph;
     use webgraph::traits::RandomAccessGraph;
 
@@ -89,7 +91,7 @@ mod test {
         fn buckets(&self) -> Option<&[bool]> {
             panic!()
         }
-        fn compute(_graph: &G, _compute_buckets: bool, _pl: impl ProgressLog) -> Self {
+        fn compute(_graph: &G, _compute_buckets: bool, _pl: impl ProgressLog) -> Result<Self> {
             panic!()
         }
         fn component(&self) -> &[usize] {

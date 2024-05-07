@@ -1,12 +1,15 @@
 use super::traits::StronglyConnectedComponents;
+use crate::utils::mmap_slice::MmapSlice;
+use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
+use mmap_rs::MmapFlags;
 use std::marker::PhantomData;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
-    component: Vec<usize>,
+    component: MmapSlice<usize>,
     buckets: Option<Vec<bool>>,
     _phantom: PhantomData<G>,
 }
@@ -19,11 +22,11 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
     }
 
     fn component(&self) -> &[usize] {
-        &self.component
+        self.component.as_ref()
     }
 
     fn component_mut(&mut self) -> &mut [usize] {
-        &mut self.component
+        self.component.as_mut()
     }
 
     fn buckets(&self) -> Option<&[bool]> {
@@ -33,15 +36,28 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
         }
     }
 
-    fn compute(graph: &G, compute_buckets: bool, mut pl: impl ProgressLog) -> Self {
+    fn compute(graph: &G, compute_buckets: bool, mut pl: impl ProgressLog) -> Result<Self> {
         let mut visit = Visit::new(graph, compute_buckets);
+
         visit.run(&mut pl);
-        TarjanStronglyConnectedComponents {
+
+        let mut flags = MmapFlags::empty();
+        flags.set(MmapFlags::SHARED, true);
+        flags.set(MmapFlags::RANDOM_ACCESS, true);
+
+        pl.info(format_args!("Memory mapping components..."));
+
+        let component_mmap = MmapSlice::from_vec(visit.components, flags)
+            .with_context(|| "Cannot mmap components")?;
+
+        pl.info(format_args!("Components successfully memory mapped"));
+
+        Ok(TarjanStronglyConnectedComponents {
             buckets: visit.buckets,
-            component: visit.components,
+            component: component_mmap,
             n_of_components: visit.number_of_components,
             _phantom: PhantomData,
-        }
+        })
     }
 }
 

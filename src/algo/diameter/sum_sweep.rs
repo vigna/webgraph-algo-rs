@@ -101,7 +101,8 @@ impl<'a, G: RandomAccessGraph + Sync>
             .try_into()
             .with_context(|| "Could not convert num_nodes to isize")?;
         let compute_radial_vertices = radial_vertices.is_none();
-        let scc = TarjanStronglyConnectedComponents::compute(graph, false, pl.clone());
+        let scc = TarjanStronglyConnectedComponents::compute(graph, false, pl.clone())
+            .with_context(|| "Cannot compute strongly connected components")?;
         let acc_radial = if let Some(r) = radial_vertices {
             debug_assert_eq!(r.len(), nn);
             r

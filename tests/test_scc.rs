@@ -1,3 +1,4 @@
+use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 use webgraph_algo::algo::strongly_connected_components::*;
@@ -9,7 +10,7 @@ macro_rules! test_scc_algo {
             use super::*;
 
             #[test]
-            fn test_buckets() {
+            fn test_buckets() -> Result<()> {
                 let arcs = vec![
                     (0, 0),
                     (1, 0),
@@ -36,7 +37,7 @@ macro_rules! test_scc_algo {
                 }
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None);
+                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
 
                 assert_eq!(components.component()[3], components.component()[4]);
 
@@ -50,10 +51,12 @@ macro_rules! test_scc_algo {
                 let sizes = components.compute_sizes();
 
                 assert_eq!(sizes, vec![2, 2, 1, 1, 1, 1, 1]);
+
+                Ok(())
             }
 
             #[test]
-            fn test_buckets_2() {
+            fn test_buckets_2() -> Result<()> {
                 let arcs = vec![(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)];
                 let mut g = VecGraph::new();
                 for i in 0..4 {
@@ -64,7 +67,7 @@ macro_rules! test_scc_algo {
                 }
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None);
+                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
 
                 let mut buckets = vec![false; graph.num_nodes()];
                 buckets[3] = true;
@@ -74,10 +77,12 @@ macro_rules! test_scc_algo {
                 let sizes = components.compute_sizes();
 
                 assert_eq!(sizes, vec![3, 1]);
+
+                Ok(())
             }
 
             #[test]
-            fn test_complete_graph() {
+            fn test_complete_graph() -> Result<()> {
                 let mut g = VecGraph::new();
                 for i in 0..5 {
                     g.add_node(i);
@@ -92,7 +97,7 @@ macro_rules! test_scc_algo {
 
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None);
+                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
                 components.sort_by_size();
 
                 assert_eq!(
@@ -104,10 +109,12 @@ macro_rules! test_scc_algo {
                     assert_eq!(components.component()[i], 0);
                 }
                 assert_eq!(components.compute_sizes(), vec![5]);
+
+                Ok(())
             }
 
             #[test]
-            fn test_tree() {
+            fn test_tree() -> Result<()> {
                 let arcs = vec![(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6)];
                 let mut g = VecGraph::new();
                 for i in 0..7 {
@@ -119,7 +126,7 @@ macro_rules! test_scc_algo {
 
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None);
+                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
                 components.sort_by_size();
 
                 assert_eq!(
@@ -128,6 +135,8 @@ macro_rules! test_scc_algo {
                 );
 
                 assert_eq!(components.number_of_components(), 7);
+
+                Ok(())
             }
         }
     };
