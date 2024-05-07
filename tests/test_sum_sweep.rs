@@ -28,6 +28,7 @@ fn test_path() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -82,6 +83,7 @@ fn test_many_scc() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -114,6 +116,7 @@ fn test_lozenge() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -166,6 +169,7 @@ fn test_many_dir_path() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         Some(radial_vertices),
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -203,6 +207,7 @@ fn test_cycle() -> Result<()> {
             &transposed,
             SumSweepOutputLevel::RadiusDiameter,
             None,
+            Option::<std::path::PathBuf>::None,
             Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -255,6 +260,7 @@ fn test_clique() -> Result<()> {
             &transposed,
             SumSweepOutputLevel::All,
             Some(radial_vertices),
+            Option::<std::path::PathBuf>::None,
             Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -284,6 +290,7 @@ fn test_empty() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -316,6 +323,7 @@ fn test_sparse() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -349,6 +357,7 @@ fn test_no_radial_vertices() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         Some(radial_vertices),
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -372,6 +381,7 @@ fn test_empty_graph() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::All,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -399,6 +409,7 @@ fn test_graph_no_edges() -> Result<()> {
         &transposed,
         SumSweepOutputLevel::Radius,
         None,
+        Option::<std::path::PathBuf>::None,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;

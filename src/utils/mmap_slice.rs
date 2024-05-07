@@ -2,7 +2,7 @@ use anyhow::{ensure, Context, Result};
 use common_traits::UnsignedInt;
 use mmap_rs::{MmapFlags, MmapMut, MmapOptions};
 use std::{fs::File, marker::PhantomData, mem::size_of, path::Path};
-use tempfile::tempfile;
+use tempfile::{tempfile, tempfile_in};
 
 pub struct MmapSlice<T> {
     _file: File,
@@ -74,6 +74,26 @@ impl<T: Clone> MmapSlice<T> {
         let len = v.len();
         let mut mmap = Self::new_tempfile(len, flags)
             .with_context(|| format!("Cannot create tempfile mmap of len {}", len))?;
+        mmap.as_mut().clone_from_slice(&v);
+        Ok(mmap)
+    }
+
+    pub fn from_vec_with_path(v: Vec<T>, path: impl AsRef<Path>, flags: MmapFlags) -> Result<Self> {
+        let file = tempfile_in(path.as_ref()).with_context(|| {
+            format!(
+                "Cannot create temporary file in {}",
+                path.as_ref().display()
+            )
+        })?;
+        let len = v.len();
+        let file_len = len * size_of::<T>();
+        file.set_len(
+            file_len
+                .try_into()
+                .with_context(|| "Cannot convert file len")?,
+        )
+        .with_context(|| format!("Cannot set file len to {}", file_len))?;
+        let mut mmap = Self::new(file, flags).with_context(|| "Cannot mmap temporary file")?;
         mmap.as_mut().clone_from_slice(&v);
         Ok(mmap)
     }

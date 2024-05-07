@@ -24,10 +24,17 @@ pub trait StronglyConnectedComponents<G> {
     /// # Arguments:
     /// - `graph`: the graph whose strongly connected components are to be computed.
     /// - `compute_buckets`: if `true`, buckets will be computed.
+    /// - `temp_dir`: if [`Some`], the directory where to create temporary memory mappings, otherwise [`std::env::temp_dir`]
+    /// will be used.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn compute(graph: &G, compute_buckets: bool, pl: impl ProgressLog) -> Result<Self>
+    fn compute(
+        graph: &G,
+        compute_buckets: bool,
+        temp_dir: Option<impl AsRef<std::path::Path>>,
+        pl: impl ProgressLog,
+    ) -> Result<Self>
     where
         Self: Sized;
 
@@ -91,7 +98,12 @@ mod test {
         fn buckets(&self) -> Option<&[bool]> {
             panic!()
         }
-        fn compute(_graph: &G, _compute_buckets: bool, _pl: impl ProgressLog) -> Result<Self> {
+        fn compute(
+            _graph: &G,
+            _compute_buckets: bool,
+            _path: Option<impl AsRef<std::path::Path>>,
+            _pl: impl ProgressLog,
+        ) -> Result<Self> {
             panic!()
         }
         fn component(&self) -> &[usize] {

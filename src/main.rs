@@ -1,5 +1,6 @@
 use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
+use std::path::Path;
 use webgraph::graphs::BVGraph;
 use webgraph_algo::algo::diameter::*;
 
@@ -18,6 +19,7 @@ fn main() -> Result<()> {
         &reversed_graph,
         SumSweepOutputLevel::RadiusDiameter,
         None,
+        Some(Path::new("./graphs")),
         sum_sweep_pl.clone(),
     )?;
     sum_sweep.compute(sum_sweep_pl)?;

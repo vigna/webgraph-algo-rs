@@ -86,6 +86,8 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `radial_verticies`: The set of radial vertices. If [`None`], the set is automatically chosen
     /// as the set of vertices that are in the biggest strongly connected component, or that are able
     /// to reach the biggest strongly connected component.
+    /// - `temp_dir`: if [`Some`], the directory where to create temporary memory mappings, otherwise [`std::env::temp_dir`]
+    /// will be used.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
@@ -94,6 +96,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         reversed_graph: &'a G,
         output: SumSweepOutputLevel,
         radial_vertices: Option<AtomicBitVec>,
+        temp_path: Option<impl AsRef<std::path::Path>>,
         pl: impl ProgressLog,
     ) -> Result<Self> {
         let nn = graph.num_nodes();
@@ -101,7 +104,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             .try_into()
             .with_context(|| "Could not convert num_nodes to isize")?;
         let compute_radial_vertices = radial_vertices.is_none();
-        let scc = TarjanStronglyConnectedComponents::compute(graph, false, pl.clone())
+        let scc = TarjanStronglyConnectedComponents::compute(graph, false, temp_path, pl.clone())
             .with_context(|| "Cannot compute strongly connected components")?;
         let acc_radial = if let Some(r) = radial_vertices {
             debug_assert_eq!(r.len(), nn);

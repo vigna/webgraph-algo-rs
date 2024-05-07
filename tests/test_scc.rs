@@ -37,7 +37,12 @@ macro_rules! test_scc_algo {
                 }
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
+                let mut components = $scc::compute(
+                    &graph,
+                    true,
+                    Option::<std::path::PathBuf>::None,
+                    Option::<ProgressLogger>::None,
+                )?;
 
                 assert_eq!(components.component()[3], components.component()[4]);
 
@@ -67,7 +72,12 @@ macro_rules! test_scc_algo {
                 }
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
+                let mut components = $scc::compute(
+                    &graph,
+                    true,
+                    Option::<std::path::PathBuf>::None,
+                    Option::<ProgressLogger>::None,
+                )?;
 
                 let mut buckets = vec![false; graph.num_nodes()];
                 buckets[3] = true;
@@ -97,7 +107,12 @@ macro_rules! test_scc_algo {
 
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
+                let mut components = $scc::compute(
+                    &graph,
+                    true,
+                    Option::<std::path::PathBuf>::None,
+                    Option::<ProgressLogger>::None,
+                )?;
                 components.sort_by_size();
 
                 assert_eq!(
@@ -126,7 +141,12 @@ macro_rules! test_scc_algo {
 
                 let graph = Left(g);
 
-                let mut components = $scc::compute(&graph, true, Option::<ProgressLogger>::None)?;
+                let mut components = $scc::compute(
+                    &graph,
+                    true,
+                    Option::<std::path::PathBuf>::None,
+                    Option::<ProgressLogger>::None,
+                )?;
                 components.sort_by_size();
 
                 assert_eq!(
