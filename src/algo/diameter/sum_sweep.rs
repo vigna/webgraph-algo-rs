@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
+use parallel_frontier::prelude::Frontier;
 use rayon::prelude::*;
 use std::sync::{
     atomic::{AtomicIsize, AtomicUsize, Ordering},
@@ -765,67 +766,93 @@ impl<'a, G: RandomAccessGraph + Sync>
         scc: &TarjanStronglyConnectedComponents<G>,
         mut pl: impl ProgressLog,
     ) -> Result<SccGraph> {
-        let num_arcs: usize = graph
-            .num_arcs()
-            .try_into()
-            .with_context(|| "Cannot convert num arcs to usize")?;
-        pl.item_name("arcs");
+        pl.item_name("strongly connected components");
         pl.display_memory(false);
-        pl.expected_updates(Some(num_arcs));
+        pl.expected_updates(Some(scc.number_of_components()));
         pl.start("Computing strongly connected component graph");
 
         let number_of_scc = scc.number_of_components();
         let node_components = scc.component();
-        let mut best_start = vec![None; number_of_scc];
-        let mut best_end = vec![None; number_of_scc];
+        let mut best_start: Vec<Option<usize>> = vec![None; number_of_scc];
+        let best_end: Vec<Option<usize>> = vec![None; number_of_scc];
+        let locks = closure_vec(|| Mutex::new(()), number_of_scc);
+        let mut child_components = Frontier::new();
         let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
 
-        let mut scc_graph = Vec::new();
-        let mut start_bridges = Vec::new();
-        let mut end_bridges = Vec::new();
+        let mut scc_graph = vec![Vec::new(); number_of_scc];
+        let mut start_bridges = vec![Vec::new(); number_of_scc];
+        let mut end_bridges = vec![Vec::new(); number_of_scc];
 
         for (vertex, &component) in node_components.iter().enumerate() {
             vertices_in_scc[component].push(vertex);
         }
 
-        for component in vertices_in_scc {
-            let mut child_components = Vec::new();
-            for v in component {
+        for (c, component) in vertices_in_scc.iter().enumerate() {
+            component.into_par_iter().for_each(|&v| {
+                let best_start_ptr = best_start.as_ptr() as *mut Option<usize>;
+                let best_end_ptr = best_end.as_ptr() as *mut Option<usize>;
+
                 for succ in graph.successors(v) {
                     let succ_component = node_components[succ];
-                    if node_components[v] != node_components[succ] {
+                    if c != succ_component {
+                        let mut updated = false;
                         if best_start[succ_component].is_none() {
-                            best_start[succ_component] = Some(v);
-                            best_end[succ_component] = Some(succ);
-                            child_components.push(succ_component);
-                        } else {
-                            let succ_component_best_start = best_start[succ_component].unwrap();
-                            let succ_component_best_end = best_end[succ_component].unwrap();
-                            if graph.outdegree(v) + reversed_graph.outdegree(succ)
-                                > graph.outdegree(succ_component_best_end)
-                                    + reversed_graph.outdegree(succ_component_best_start)
+                            let _l = locks[succ_component].lock().unwrap();
+                            if best_start[succ_component].is_none() {
+                                // Safety: lock and best_end is updated before best_start
+                                unsafe {
+                                    *best_end_ptr.add(succ_component) = Some(succ);
+                                    *best_start_ptr.add(succ_component) = Some(v);
+                                }
+                                drop(_l);
+                                child_components.push(succ_component);
+                                updated = true;
+                            }
+                        }
+                        if updated {
+                            continue;
+                        }
+
+                        let current_value = graph.outdegree(v) + reversed_graph.outdegree(succ);
+
+                        // This if could use incompletly changed pairs of start-end, but it does not influence correctness
+                        // as it is only used as a preliminary filter to reduce lock access (at worst the computed best
+                        // is < than the actual value, but after lock acquisition this gets fixed with the seconf if).
+                        if current_value
+                            > graph.outdegree(best_end[succ_component].unwrap())
+                                + reversed_graph.outdegree(best_start[succ_component].unwrap())
+                        {
+                            let _l = locks[succ_component].lock().unwrap();
+                            if current_value
+                                > graph.outdegree(best_end[succ_component].unwrap())
+                                    + reversed_graph.outdegree(best_start[succ_component].unwrap())
                             {
-                                best_start[succ_component] = Some(v);
-                                best_end[succ_component] = Some(succ);
+                                // Safety: lock
+                                unsafe {
+                                    *best_end_ptr.add(succ_component) = Some(succ);
+                                    *best_start_ptr.add(succ_component) = Some(v);
+                                }
                             }
                         }
                     }
-                    pl.light_update();
                 }
-            }
+            });
+
             let number_of_children = child_components.len();
             let mut scc_vec = Vec::with_capacity(number_of_children);
             let mut start_vec = Vec::with_capacity(number_of_children);
             let mut end_vec = Vec::with_capacity(number_of_children);
-            for c in child_components {
-                scc_vec.push(c);
-                start_vec.push(best_start[c].unwrap());
-                end_vec.push(best_end[c].unwrap());
+            for &child in child_components.iter() {
+                scc_vec.push(child);
+                start_vec.push(best_start[child].unwrap());
+                end_vec.push(best_end[child].unwrap());
                 best_start[c] = None;
             }
-            scc_graph.push(scc_vec);
-            start_bridges.push(start_vec);
-            end_bridges.push(end_vec);
+            scc_graph[c] = scc_vec;
+            start_bridges[c] = start_vec;
+            end_bridges[c] = end_vec;
+            child_components.clear();
+            pl.light_update();
         }
 
         pl.done();
