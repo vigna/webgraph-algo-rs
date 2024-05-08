@@ -31,7 +31,7 @@ type SccGraph = (Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>);
 
 pub struct SumSweepDirectedDiameterRadius<
     'a,
-    G: RandomAccessGraph + Sync,
+    G: RandomAccessGraph,
     C: StronglyConnectedComponents<G>,
 > {
     graph: &'a G,
@@ -152,7 +152,11 @@ impl<'a, G: RandomAccessGraph + Sync>
             compute_radial_vertices,
         })
     }
+}
 
+impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
+    SumSweepDirectedDiameterRadius<'a, G, C>
+{
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
         self.lower_bound_forward_eccentricities[index]
             != self.upper_bound_forward_eccentricities[index]
@@ -763,7 +767,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     fn find_edges_through_scc(
         graph: &G,
         reversed_graph: &G,
-        scc: &TarjanStronglyConnectedComponents<G>,
+        scc: &C,
         mut pl: impl ProgressLog,
     ) -> Result<SccGraph> {
         pl.item_name("strongly connected components");
