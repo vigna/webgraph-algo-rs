@@ -1,7 +1,6 @@
 use anyhow::{ensure, Context, Result};
-use common_traits::UnsignedInt;
 use mmap_rs::{MmapFlags, MmapMut, MmapOptions};
-use std::{fs::File, marker::PhantomData, mem::size_of, path::Path};
+use std::{fs::File, marker::PhantomData, mem::size_of, ops::Deref, path::Path};
 use tempfile::{tempfile, tempfile_in};
 
 pub struct MmapSlice<T> {
@@ -12,6 +11,8 @@ pub struct MmapSlice<T> {
 }
 
 impl<T: Clone> MmapSlice<T> {
+    const BLOCK_SIZE: usize = size_of::<T>();
+
     pub fn new(file: File, flags: MmapFlags) -> Result<Self> {
         let file_len: usize = file
             .metadata()
@@ -19,7 +20,8 @@ impl<T: Clone> MmapSlice<T> {
             .len()
             .try_into()
             .with_context(|| "Cannot convert to usize")?;
-        let mmap_len = file_len.align_to(size_of::<T>());
+        let mmap_len =
+            file_len + (Self::BLOCK_SIZE - (file_len % Self::BLOCK_SIZE)) % Self::BLOCK_SIZE;
 
         if mmap_len == 0 {
             return Ok(MmapSlice {
@@ -116,5 +118,13 @@ impl<T> AsMut<[T]> for MmapSlice<T> {
         } else {
             &mut []
         }
+    }
+}
+
+impl<T> Deref for MmapSlice<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
     }
 }

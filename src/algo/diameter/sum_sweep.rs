@@ -1,12 +1,11 @@
+use super::scc_graph::SccGraph;
 use crate::{
-    algo::bfv::*,
-    algo::strongly_connected_components::TarjanStronglyConnectedComponents,
+    algo::{bfv::*, strongly_connected_components::TarjanStronglyConnectedComponents},
     prelude::*,
     utils::{argmax, argmin, closure_vec},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
-use parallel_frontier::prelude::Frontier;
 use rayon::prelude::*;
 use std::sync::{
     atomic::{AtomicIsize, AtomicUsize, Ordering},
@@ -27,11 +26,9 @@ pub enum SumSweepOutputLevel {
 type Int = isize;
 const VISIT_GRANULARITY: usize = 32;
 
-type SccGraph = (Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>);
-
 pub struct SumSweepDirectedDiameterRadius<
     'a,
-    G: RandomAccessGraph,
+    G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents<G>,
 > {
     graph: &'a G,
@@ -61,13 +58,9 @@ pub struct SumSweepDirectedDiameterRadius<
     all_eccentricities_iterations: Int,
     strongly_connected_components: C,
     /// The strongly connected components diagram.
-    strongly_connected_components_graph: Vec<Vec<usize>>,
+    strongly_connected_components_graph: SccGraph<G, C>,
     /// For each edge in [`Self::strongly_connected_components_graph`], the start vertex of a
     /// corresponding edge in the graph.
-    start_bridges: Vec<Vec<usize>>,
-    /// For each edge in [`Self::strongly_connected_components_graph`], the end vertex of a
-    /// corresponding edge in the graph.
-    end_bridges: Vec<Vec<usize>>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
     total_forward_distance: Vec<Int>,
@@ -106,18 +99,25 @@ impl<'a, G: RandomAccessGraph + Sync>
         let isize_nn: isize = nn
             .try_into()
             .with_context(|| "Could not convert num_nodes to isize")?;
+
+        let scc = TarjanStronglyConnectedComponents::compute(
+            graph,
+            false,
+            temp_path.as_ref(),
+            pl.clone(),
+        )
+        .with_context(|| "Cannot compute strongly connected components")?;
+
         let compute_radial_vertices = radial_vertices.is_none();
-        let scc = TarjanStronglyConnectedComponents::compute(graph, false, temp_path, pl.clone())
-            .with_context(|| "Cannot compute strongly connected components")?;
         let acc_radial = if let Some(r) = radial_vertices {
             debug_assert_eq!(r.len(), nn);
             r
         } else {
             AtomicBitVec::new(nn)
         };
-        let (scc_graph, start_bridges, end_bridges) =
-            Self::find_edges_through_scc(graph, reversed_graph, &scc, pl.clone())
-                .with_context(|| "Could not build scc graph")?;
+
+        let scc_graph = SccGraph::new(graph, reversed_graph, &scc, temp_path.as_ref(), pl.clone())
+            .with_context(|| "Cannot create strongly connected components graph")?;
 
         debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
         debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
@@ -134,8 +134,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             upper_bound_forward_eccentricities: vec![isize_nn + 1; nn],
             lower_bound_backward_eccentricities: vec![0; nn],
             upper_bound_backward_eccentricities: vec![isize_nn + 1; nn],
-            start_bridges,
-            end_bridges,
             strongly_connected_components_graph: scc_graph,
             strongly_connected_components: scc,
             diameter_lower_bound: 0,
@@ -749,121 +747,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         Ok(())
     }
 
-    /// For each edge in the DAG of strongly connected components, finds a corresponding edge
-    /// in the graph. This edge is used in the [`Self::all_cc_upper_bound`] method.
-    ///
-    /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
-    ///
-    /// # Returns
-    /// The scc graph as a tuple where
-    /// - `0` is the vec of vecs containing in position `i` the components that are reachable from component `i`.
-    /// - `1` is the vec of vecs containing in position (`i`, `j`) the start vertex of the edge selected to connect
-    /// component `i` to component `0[i][j]`.
-    /// - `2` is the vec of vecs containing in position (`i`, `j`) the end vertex of the edge selected to connect
-    /// component `i` to component `0[i][j]`.
-    fn find_edges_through_scc(
-        graph: &G,
-        reversed_graph: &G,
-        scc: &C,
-        mut pl: impl ProgressLog,
-    ) -> Result<SccGraph> {
-        pl.item_name("strongly connected components");
-        pl.display_memory(false);
-        pl.expected_updates(Some(scc.number_of_components()));
-        pl.start("Computing strongly connected component graph");
-
-        let number_of_scc = scc.number_of_components();
-        let node_components = scc.component();
-        let mut best_start: Vec<Option<usize>> = vec![None; number_of_scc];
-        let best_end: Vec<Option<usize>> = vec![None; number_of_scc];
-        let locks = closure_vec(|| Mutex::new(()), number_of_scc);
-        let mut child_components = Frontier::new();
-        let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
-
-        let mut scc_graph = vec![Vec::new(); number_of_scc];
-        let mut start_bridges = vec![Vec::new(); number_of_scc];
-        let mut end_bridges = vec![Vec::new(); number_of_scc];
-
-        for (vertex, &component) in node_components.iter().enumerate() {
-            vertices_in_scc[component].push(vertex);
-        }
-
-        for (c, component) in vertices_in_scc.iter().enumerate() {
-            component.into_par_iter().for_each(|&v| {
-                let best_start_ptr = best_start.as_ptr() as *mut Option<usize>;
-                let best_end_ptr = best_end.as_ptr() as *mut Option<usize>;
-
-                for succ in graph.successors(v) {
-                    let succ_component = node_components[succ];
-                    if c != succ_component {
-                        let mut updated = false;
-                        if best_start[succ_component].is_none() {
-                            let _l = locks[succ_component].lock().unwrap();
-                            if best_start[succ_component].is_none() {
-                                // Safety: lock and best_end is updated before best_start
-                                unsafe {
-                                    *best_end_ptr.add(succ_component) = Some(succ);
-                                    *best_start_ptr.add(succ_component) = Some(v);
-                                }
-                                drop(_l);
-                                child_components.push(succ_component);
-                                updated = true;
-                            }
-                        }
-                        if updated {
-                            continue;
-                        }
-
-                        let current_value = graph.outdegree(v) + reversed_graph.outdegree(succ);
-
-                        // This if could use incompletly changed pairs of start-end, but it does not influence correctness
-                        // as it is only used as a preliminary filter to reduce lock access (at worst the computed best
-                        // is < than the actual value, but after lock acquisition this gets fixed with the seconf if).
-                        if current_value
-                            > graph.outdegree(best_end[succ_component].unwrap())
-                                + reversed_graph.outdegree(best_start[succ_component].unwrap())
-                        {
-                            let _l = locks[succ_component].lock().unwrap();
-                            if current_value
-                                > graph.outdegree(best_end[succ_component].unwrap())
-                                    + reversed_graph.outdegree(best_start[succ_component].unwrap())
-                            {
-                                // Safety: lock
-                                unsafe {
-                                    *best_end_ptr.add(succ_component) = Some(succ);
-                                    *best_start_ptr.add(succ_component) = Some(v);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            let number_of_children = child_components.len();
-            let mut scc_vec = Vec::with_capacity(number_of_children);
-            let mut start_vec = Vec::with_capacity(number_of_children);
-            let mut end_vec = Vec::with_capacity(number_of_children);
-            for &child in child_components.iter() {
-                scc_vec.push(child);
-                start_vec.push(best_start[child].unwrap());
-                end_vec.push(best_end[child].unwrap());
-                best_start[c] = None;
-            }
-            scc_graph[c] = scc_vec;
-            start_bridges[c] = start_vec;
-            end_bridges[c] = end_vec;
-            child_components.clear();
-            pl.light_update();
-        }
-
-        pl.done();
-
-        Ok((scc_graph, start_bridges, end_bridges))
-    }
-
     /// Performs a (forward or backward) BFS inside each strongly connected component, starting
     /// from the pivot.
     ///
@@ -981,10 +864,10 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let components = self.strongly_connected_components.component();
 
         for (c, &p) in pivot.iter().enumerate() {
-            for i in 0..self.strongly_connected_components_graph[c].len() {
-                let next_c = self.strongly_connected_components_graph[c][i];
-                let start = self.start_bridges[c][i];
-                let end = self.end_bridges[c][i];
+            for connection in self.strongly_connected_components_graph.children(c) {
+                let next_c = connection.target;
+                let start = connection.start;
+                let end = connection.end;
 
                 ecc_pivot_f[c] = std::cmp::max(
                     ecc_pivot_f[c],
@@ -1000,10 +883,10 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         }
 
         for c in 0..self.strongly_connected_components.number_of_components() {
-            for i in 0..self.strongly_connected_components_graph[c].len() {
-                let next_c = self.strongly_connected_components_graph[c][i];
-                let start = self.start_bridges[c][i];
-                let end = self.end_bridges[c][i];
+            for component in self.strongly_connected_components_graph.children(c) {
+                let next_c = component.target;
+                let start = component.start;
+                let end = component.end;
 
                 ecc_pivot_b[next_c] = std::cmp::max(
                     ecc_pivot_b[next_c],
