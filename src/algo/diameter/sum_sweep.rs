@@ -59,8 +59,6 @@ pub struct SumSweepDirectedDiameterRadius<
     strongly_connected_components: C,
     /// The strongly connected components diagram.
     strongly_connected_components_graph: SccGraph<G, C>,
-    /// For each edge in [`Self::strongly_connected_components_graph`], the start vertex of a
-    /// corresponding edge in the graph.
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
     total_forward_distance: Vec<Int>,
