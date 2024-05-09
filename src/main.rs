@@ -5,7 +5,10 @@ use webgraph::graphs::BVGraph;
 use webgraph_algo::algo::diameter::*;
 
 fn main() -> Result<()> {
-    stderrlog::new().verbosity(2).init()?;
+    stderrlog::new()
+        .verbosity(2)
+        .timestamp(stderrlog::Timestamp::Second)
+        .init()?;
     let basename = std::env::args().nth(1).expect("No graph basename provided");
     let graph = BVGraph::with_basename(&basename).load()?;
     let reversed_graph = BVGraph::with_basename(basename + "-t").load()?;
