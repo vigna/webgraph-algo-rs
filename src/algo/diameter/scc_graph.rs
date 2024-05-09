@@ -21,9 +21,9 @@ pub struct SccGraphConnection {
 }
 
 pub struct SccGraph<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> {
-    /// Slice of pairs (offset, len) where the `i`-th offset is how many elements to skip in [`Self::data`]
+    /// Slice of offsets where the `i`-th offset is how many elements to skip in [`Self::data`]
     /// in order to reach the first element relative to component `i`.
-    segments_len: MmapSlice<(usize, usize)>,
+    segments_offset: MmapSlice<usize>,
     data: MmapSlice<SccGraphConnection>,
     _phantom_graph: PhantomData<G>,
     _phantom_component: PhantomData<C>,
@@ -85,7 +85,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         pl.done();
 
         Ok(Self {
-            segments_len: mmap_lengths,
+            segments_offset: mmap_lengths,
             data: mmap_connections,
             _phantom_graph: PhantomData,
             _phantom_component: PhantomData,
@@ -100,20 +100,22 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
     /// # Panics
     /// Panics if a non existant component index is passed.
     pub fn children(&self, component: usize) -> &[SccGraphConnection] {
-        if component > self.segments_len.len() {
+        if component >= self.segments_offset.len() {
             panic!(
                 "{}",
                 format!(
                     "Requested component {}. Graph contains {} components",
                     component,
-                    self.segments_len.len()
+                    self.segments_offset.len()
                 )
             );
         }
-        let segment_data = self.segments_len[component];
-        let offset = segment_data.0;
-        let end_index = offset + segment_data.1;
-        &self.data[offset..end_index]
+        let offset = self.segments_offset[component];
+        if component + 1 >= self.segments_offset.len() {
+            &self.data[offset..]
+        } else {
+            &self.data[offset..self.segments_offset[component + 1]]
+        }
     }
 
     /// For each edge in the DAG of strongly connected components, finds a corresponding edge
@@ -128,7 +130,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         reversed_graph: &G,
         scc: &C,
         mut pl: impl ProgressLog,
-    ) -> Result<(Vec<(usize, usize)>, Vec<SccGraphConnection>)> {
+    ) -> Result<(Vec<usize>, Vec<SccGraphConnection>)> {
         pl.item_name("strongly connected components");
         pl.display_memory(false);
         pl.expected_updates(Some(scc.number_of_components()));
@@ -237,7 +239,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
             .zip(start_bridges.into_iter())
             .zip(end_bridges.into_iter())
         {
-            lengths.push((offset, children.len()));
+            lengths.push(offset);
             for ((child, start), end) in children
                 .into_iter()
                 .zip(starts.into_iter())
