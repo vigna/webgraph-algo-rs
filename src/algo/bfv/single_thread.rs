@@ -40,9 +40,13 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
-    fn visit_component<F: Fn(usize, usize) + Sync>(
+    fn filtered_component_visit<
+        C: Fn(usize, usize) + Sync,
+        F: Fn(usize, usize, usize) -> bool + Sync,
+    >(
         &mut self,
-        callback: F,
+        callback: C,
+        filter: F,
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
@@ -62,7 +66,7 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
                 Some(node) => {
                     callback(node, distance);
                     for succ in self.graph.successors(node) {
-                        if !self.visited[succ] {
+                        if !self.visited[succ] && filter(succ, node_index, distance) {
                             self.visited.set(succ, true);
                             self.queue.push_back(Some(succ))
                         }
@@ -81,9 +85,10 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
         Ok(())
     }
 
-    fn visit<F: Fn(usize, usize) + Sync>(
+    fn filtered_visit<C: Fn(usize, usize) + Sync, F: Fn(usize, usize, usize) -> bool + Sync>(
         mut self,
-        callback: F,
+        callback: C,
+        filter: F,
         mut pl: impl ProgressLog,
     ) -> Result<()> {
         pl.expected_updates(Some(self.graph.num_nodes()));
@@ -91,7 +96,7 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_component(&callback, index, &mut pl)?;
+            self.filtered_component_visit(&callback, &filter, index, &mut pl)?;
         }
 
         pl.done();

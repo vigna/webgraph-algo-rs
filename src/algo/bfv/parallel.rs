@@ -66,9 +66,13 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
-    fn visit_component<F: Fn(usize, usize) + Sync>(
+    fn filtered_component_visit<
+        C: Fn(usize, usize) + Sync,
+        F: Fn(usize, usize, usize) -> bool + Sync,
+    >(
         &mut self,
-        callback: F,
+        callback: C,
+        filter: F,
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
@@ -94,7 +98,9 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
                     chunk.into_iter().for_each(|&node| {
                         callback(node, distance);
                         self.graph.successors(node).into_iter().for_each(|succ| {
-                            if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                            if filter(succ, node_index, distance)
+                                && !self.visited.swap(succ, true, Ordering::Relaxed)
+                            {
                                 next_frontier.push(succ);
                             }
                         })
@@ -107,9 +113,10 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
         Ok(())
     }
 
-    fn visit<F: Fn(usize, usize) + Sync>(
+    fn filtered_visit<C: Fn(usize, usize) + Sync, F: Fn(usize, usize, usize) -> bool + Sync>(
         mut self,
-        callback: F,
+        callback: C,
+        filter: F,
         mut pl: impl ProgressLog,
     ) -> Result<()> {
         let num_threads = rayon::current_num_threads();
@@ -123,7 +130,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_component(&callback, index, &mut pl)?;
+            self.filtered_component_visit(&callback, &filter, index, &mut pl)?;
         }
 
         pl.done();
