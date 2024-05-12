@@ -779,7 +779,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         forward: bool,
         mut pl: impl ProgressLog,
     ) -> Result<(Vec<isize>, Vec<isize>)> {
-        pl.expected_updates(None);
+        pl.expected_updates(Some(self.number_of_nodes));
         pl.display_memory(false);
         pl.item_name("nodes");
 
@@ -803,18 +803,16 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
 
         for &p in pivot {
+            let pivot_component = components[p];
             dist_pivot[p].store(0, Ordering::Relaxed);
 
-            bfs.visit_component(
+            bfs.filtered_component_visit(
                 |node, distance| {
                     let signed_distance = distance.try_into().unwrap();
-                    if components[node] == components[p]
-                        && dist_pivot[node].load(Ordering::Relaxed) == -1
-                    {
-                        dist_pivot[node].store(signed_distance, Ordering::Relaxed);
-                        ecc_pivot[components[p]].store(signed_distance, Ordering::Relaxed);
-                    }
+                    dist_pivot[node].store(signed_distance, Ordering::Relaxed);
+                    ecc_pivot[components[p]].store(signed_distance, Ordering::Relaxed);
                 },
+                |node, _, _| components[node] == pivot_component,
                 p,
                 &mut pl,
             )
