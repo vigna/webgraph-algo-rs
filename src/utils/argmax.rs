@@ -1,17 +1,10 @@
-use std::ops::Index;
-
-pub fn argmax<T: common_traits::FiniteRangeNumber, A: Index<usize, Output = T>>(
-    vec: &A,
-) -> Option<usize>
-where
-    for<'a> &'a A: IntoIterator,
-{
+pub fn argmax<T: common_traits::FiniteRangeNumber>(vec: &[T]) -> Option<usize> {
     let mut max = T::MIN;
     let mut argmax = None;
-    for (i, _) in vec.into_iter().enumerate() {
-        if vec[i] > max {
+    for (i, &elem) in vec.into_iter().enumerate() {
+        if elem > max {
             argmax = Some(i);
-            max = vec[i];
+            max = elem;
         }
     }
     argmax
@@ -20,26 +13,21 @@ where
 pub fn filtered_argmax<
     T: common_traits::FiniteRangeNumber,
     N: common_traits::FiniteRangeNumber,
-    A: Index<usize, Output = T>,
-    V: Index<usize, Output = N>,
-    F: Fn(usize) -> bool,
+    F: Fn(usize, T) -> bool,
 >(
-    vec: &A,
-    tie_break: &V,
+    vec: &[T],
+    tie_break: &[N],
     filter: F,
-) -> Option<usize>
-where
-    for<'a> &'a A: IntoIterator,
-{
+) -> Option<usize> {
     let mut max = T::MIN;
     let mut max_tie_break = N::MIN;
     let mut argmax = None;
 
-    for (i, _) in vec.into_iter().enumerate() {
-        if filter(i) && (vec[i] > max || (vec[i] == max && tie_break[i] > max_tie_break)) {
+    for (i, (&elem, &tie)) in vec.into_iter().zip(tie_break.into_iter()).enumerate() {
+        if filter(i, elem) && (elem > max || (elem == max && tie > max_tie_break)) {
             argmax = Some(i);
-            max = vec[i];
-            max_tie_break = tie_break[i];
+            max = elem;
+            max_tie_break = tie;
         }
     }
 

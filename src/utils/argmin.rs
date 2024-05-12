@@ -1,17 +1,10 @@
-use std::ops::Index;
-
-pub fn argmin<T: common_traits::FiniteRangeNumber, A: Index<usize, Output = T>>(
-    vec: &A,
-) -> Option<usize>
-where
-    for<'a> &'a A: IntoIterator,
-{
+pub fn argmin<T: common_traits::FiniteRangeNumber>(vec: &[T]) -> Option<usize> {
     let mut min = T::MAX;
     let mut argmin = None;
-    for (i, _) in vec.into_iter().enumerate() {
-        if vec[i] < min {
+    for (i, &elem) in vec.into_iter().enumerate() {
+        if elem < min {
             argmin = Some(i);
-            min = vec[i];
+            min = elem;
         }
     }
     argmin
@@ -20,26 +13,21 @@ where
 pub fn filtered_argmin<
     T: common_traits::FiniteRangeNumber,
     N: common_traits::FiniteRangeNumber,
-    A: Index<usize, Output = T>,
-    V: Index<usize, Output = N>,
-    F: Fn(usize) -> bool,
+    F: Fn(usize, T) -> bool,
 >(
-    vec: &A,
-    tie_break: &V,
+    vec: &[T],
+    tie_break: &[N],
     filter: F,
-) -> Option<usize>
-where
-    for<'a> &'a A: IntoIterator,
-{
+) -> Option<usize> {
     let mut min = T::MAX;
     let mut min_tie_break = N::MAX;
     let mut argmin = None;
 
-    for (i, _) in vec.into_iter().enumerate() {
-        if filter(i) && (vec[i] < min || (vec[i] == min && tie_break[i] < min_tie_break)) {
+    for (i, (&elem, &tie)) in vec.into_iter().zip(tie_break.into_iter()).enumerate() {
+        if filter(i, elem) && (elem < min || (elem == min && tie < min_tie_break)) {
             argmin = Some(i);
-            min = vec[i];
-            min_tie_break = tie_break[i];
+            min = elem;
+            min_tie_break = tie;
         }
     }
 

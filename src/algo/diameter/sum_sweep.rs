@@ -212,7 +212,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 let v = argmax::filtered_argmax(
                     &self.total_backward_distance,
                     &self.lower_bound_backward_eccentricities,
-                    |i| self.incomplete_backward_vertex(i),
+                    |i, _| self.incomplete_backward_vertex(i),
                 );
                 pl.info(format_args!(
                     "Performing backwards SumSweep visit from {:?}",
@@ -224,7 +224,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 let v = argmax::filtered_argmax(
                     &self.total_forward_distance,
                     &self.lower_bound_forward_eccentricities,
-                    |i| self.incomplete_forward_vertex(i),
+                    |i, _| self.incomplete_forward_vertex(i),
                 );
                 pl.info(format_args!(
                     "Performing forward SumSweep visit from {:?}.",
@@ -312,7 +312,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     let v = argmax::filtered_argmax(
                         &self.upper_bound_forward_eccentricities,
                         &self.total_forward_distance,
-                        |i| self.incomplete_forward_vertex(i),
+                        |i, _| self.incomplete_forward_vertex(i),
                     );
                     self.step_sum_sweep(v, true, pl.clone())
                         .with_context(|| format!("Could not perform forward visit from {:?}", v))?
@@ -324,7 +324,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     let v = argmin::filtered_argmin(
                         &self.lower_bound_forward_eccentricities,
                         &self.total_forward_distance,
-                        |i| self.radial_vertices[i],
+                        |i, _| self.radial_vertices[i],
                     );
                     self.step_sum_sweep(v, true, pl.clone())
                         .with_context(|| format!("Could not perform forward visit from {:?}", v))?
@@ -336,7 +336,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     let v = argmax::filtered_argmax(
                         &self.upper_bound_backward_eccentricities,
                         &self.total_backward_distance,
-                        |i| self.incomplete_backward_vertex(i),
+                        |i, _| self.incomplete_backward_vertex(i),
                     );
                     self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
                         format!("Could not perform backwards visit from {:?}", v)
@@ -349,7 +349,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     let v = argmax::filtered_argmax(
                         &self.total_backward_distance,
                         &self.upper_bound_backward_eccentricities,
-                        |i| self.incomplete_backward_vertex(i),
+                        |i, _| self.incomplete_backward_vertex(i),
                     );
                     self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
                         format!("Could not perform backwards visit from {:?}", v)
