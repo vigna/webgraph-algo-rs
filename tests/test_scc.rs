@@ -3,6 +3,7 @@ use dsi_progress_logger::ProgressLogger;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 use webgraph_algo::algo::strongly_connected_components::*;
 use webgraph_algo::prelude::*;
+use webgraph_algo::utils::mmap_slice::TempMmapOptions;
 
 macro_rules! test_scc_algo {
     ($scc:ident, $name:ident) => {
@@ -40,7 +41,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    Option::<std::path::PathBuf>::None,
+                    TempMmapOptions::None,
                     Option::<ProgressLogger>::None,
                 )?;
 
@@ -75,7 +76,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    Option::<std::path::PathBuf>::None,
+                    TempMmapOptions::None,
                     Option::<ProgressLogger>::None,
                 )?;
 
@@ -110,7 +111,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    Option::<std::path::PathBuf>::None,
+                    TempMmapOptions::None,
                     Option::<ProgressLogger>::None,
                 )?;
                 components.sort_by_size();
@@ -144,7 +145,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    Option::<std::path::PathBuf>::None,
+                    TempMmapOptions::None,
                     Option::<ProgressLogger>::None,
                 )?;
                 components.sort_by_size();

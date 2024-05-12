@@ -1,3 +1,4 @@
+use crate::utils::mmap_slice::TempMmapOptions;
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
@@ -24,15 +25,14 @@ pub trait StronglyConnectedComponents<G> {
     /// # Arguments:
     /// - `graph`: the graph whose strongly connected components are to be computed.
     /// - `compute_buckets`: if `true`, buckets will be computed.
-    /// - `temp_dir`: if [`Some`], the directory where to create temporary memory mappings, otherwise [`std::env::temp_dir`]
-    /// will be used.
+    /// - `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     fn compute(
         graph: &G,
         compute_buckets: bool,
-        temp_dir: Option<impl AsRef<std::path::Path>>,
+        options: TempMmapOptions,
         pl: impl ProgressLog,
     ) -> Result<Self>
     where
@@ -101,7 +101,7 @@ mod test {
         fn compute(
             _graph: &G,
             _compute_buckets: bool,
-            _path: Option<impl AsRef<std::path::Path>>,
+            _path: TempMmapOptions,
             _pl: impl ProgressLog,
         ) -> Result<Self> {
             panic!()

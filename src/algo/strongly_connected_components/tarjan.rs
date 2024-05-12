@@ -1,9 +1,8 @@
 use super::traits::StronglyConnectedComponents;
-use crate::utils::mmap_slice::MmapSlice;
+use crate::utils::mmap_slice::{MmapSlice, TempMmapOptions};
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
-use mmap_rs::MmapFlags;
-use std::{marker::PhantomData, path::Path};
+use std::marker::PhantomData;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -39,25 +38,17 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
     fn compute(
         graph: &G,
         compute_buckets: bool,
-        path: Option<impl AsRef<Path>>,
+        options: TempMmapOptions,
         mut pl: impl ProgressLog,
     ) -> Result<Self> {
         let mut visit = Visit::new(graph, compute_buckets);
 
         visit.run(&mut pl);
 
-        let mut flags = MmapFlags::empty();
-        flags.set(MmapFlags::SHARED, true);
-        flags.set(MmapFlags::RANDOM_ACCESS, true);
-
         pl.info(format_args!("Memory mapping components..."));
 
-        let component_mmap = match path {
-            Some(p) => MmapSlice::from_vec_with_path(visit.components, p, flags)
-                .with_context(|| "Cannot mmap components")?,
-            None => MmapSlice::from_vec(visit.components, flags)
-                .with_context(|| "Cannot mmap components")?,
-        };
+        let component_mmap = MmapSlice::from_vec(visit.components, options)
+            .with_context(|| format!("Cannot mmap components"))?;
 
         pl.info(format_args!("Components successfully memory mapped"));
 

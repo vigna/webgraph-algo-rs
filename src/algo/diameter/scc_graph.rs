@@ -1,6 +1,9 @@
 use crate::{
     prelude::StronglyConnectedComponents,
-    utils::{closure_vec, mmap_slice::MmapSlice},
+    utils::{
+        closure_vec,
+        mmap_slice::{MmapSlice, TempMmapOptions},
+    },
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
@@ -37,8 +40,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
     /// - `graph`: An immutable reference to the graph.
     /// - `reversed_graph`: An immutable reference to `graph` transposed.
     /// - `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
-    /// - `temp_dir`: if [`Some`], the directory where to create temporary memory mappings, otherwise [`std::env::temp_dir`]
-    /// will be used.
+    /// - `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
@@ -46,7 +48,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         graph: &G,
         reversed_graph: &G,
         scc: &C,
-        temp_path: Option<impl AsRef<std::path::Path>>,
+        options: TempMmapOptions,
         mut pl: impl ProgressLog,
     ) -> Result<Self> {
         pl.display_memory(false);
@@ -64,22 +66,14 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
 
         pl.info(format_args!("Memory mapping segment lengths..."));
 
-        let mmap_lengths = if let Some(p) = temp_path.as_ref() {
-            MmapSlice::from_vec_with_path(vec_lengths, p.as_ref(), flags)
-        } else {
-            MmapSlice::from_vec(vec_lengths, flags)
-        }
-        .with_context(|| "Cannot mmap segment lengths")?;
+        let mmap_lengths = MmapSlice::from_vec(vec_lengths, options.clone())
+            .with_context(|| "Cannot mmap segment lengths")?;
 
         pl.info(format_args!("Segment lengths successfully memory mapped"));
         pl.info(format_args!("Memory mapping connections..."));
 
-        let mmap_connections = if let Some(p) = temp_path.as_ref() {
-            MmapSlice::from_vec_with_path(vec_connections, p.as_ref(), flags)
-        } else {
-            MmapSlice::from_vec(vec_connections, flags)
-        }
-        .with_context(|| "Cannot mmap connections")?;
+        let mmap_connections = MmapSlice::from_vec(vec_connections, options.clone())
+            .with_context(|| "Cannot mmap connections")?;
 
         pl.info(format_args!("Connections successfully memory mapped"));
         pl.done();
