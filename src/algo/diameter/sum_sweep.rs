@@ -223,7 +223,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         self.step_sum_sweep(Some(start), true, pl.clone())
             .with_context(|| "Could not perform initial SumSweep visit")?;
 
-        for i in 2..iterations {
+        for i in 2..=iterations {
             if i % 2 == 0 {
                 let v = argmax::filtered_argmax(
                     &self.total_backward_distance,
