@@ -48,7 +48,7 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
         pl.info(format_args!("Memory mapping components..."));
 
         let component_mmap = MmapSlice::from_vec(visit.components, options)
-            .with_context(|| format!("Cannot mmap components"))?;
+            .with_context(|| "Cannot mmap components")?;
 
         pl.info(format_args!("Components successfully memory mapped"));
 
