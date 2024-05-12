@@ -2,7 +2,10 @@ use super::scc_graph::SccGraph;
 use crate::{
     algo::{bfv::*, strongly_connected_components::TarjanStronglyConnectedComponents},
     prelude::*,
-    utils::{argmax, argmin, closure_vec, mmap_slice::TempMmapOptions},
+    utils::{
+        argmax, argmin, closure_vec,
+        mmap_slice::{MmapSlice, TempMmapOptions},
+    },
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
@@ -44,10 +47,10 @@ pub struct SumSweepDirectedDiameterRadius<
     radius_vertex: usize,
     /// Number of iterations performed until now.
     iterations: usize,
-    lower_bound_forward_eccentricities: Vec<Int>,
-    upper_bound_forward_eccentricities: Vec<Int>,
-    lower_bound_backward_eccentricities: Vec<Int>,
-    upper_bound_backward_eccentricities: Vec<Int>,
+    lower_bound_forward_eccentricities: MmapSlice<Int>,
+    upper_bound_forward_eccentricities: MmapSlice<Int>,
+    lower_bound_backward_eccentricities: MmapSlice<Int>,
+    upper_bound_backward_eccentricities: MmapSlice<Int>,
     /// Number of iterations before the radius is found.
     radius_iterations: Int,
     /// Number of iterations before the diameter is found.
@@ -61,10 +64,10 @@ pub struct SumSweepDirectedDiameterRadius<
     strongly_connected_components_graph: SccGraph<G, C>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_forward_distance: Vec<Int>,
+    total_forward_distance: MmapSlice<Int>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_backward_distance: Vec<Int>,
+    total_backward_distance: MmapSlice<Int>,
     compute_radial_vertices: bool,
 }
 
@@ -117,16 +120,29 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         pl.info(format_args!("Initializing data structure"));
 
+        let lower_forward = MmapSlice::from_vec(vec![0; nn], options.clone())
+            .with_context(|| "Cannot create lower bound forward eccentricities slice")?;
+        let lower_backward = MmapSlice::from_vec(vec![0; nn], options.clone())
+            .with_context(|| "Cannot create lower bound backwards eccentricities slice")?;
+        let upper_forward = MmapSlice::from_vec(vec![isize_nn + 1; nn], options.clone())
+            .with_context(|| "Cannot create upper bound forward eccentricities slice")?;
+        let upper_backward = MmapSlice::from_vec(vec![isize_nn + 1; nn], options.clone())
+            .with_context(|| "Cannot create upper bound backwards eccentricities slice")?;
+        let total_forward = MmapSlice::from_vec(vec![0; nn], options.clone())
+            .with_context(|| "Cannot create total forward distances slice")?;
+        let total_backward = MmapSlice::from_vec(vec![0; nn], options.clone())
+            .with_context(|| "Cannot create total backards distances slice")?;
+
         Ok(SumSweepDirectedDiameterRadius {
             graph,
             reversed_graph,
             number_of_nodes: nn,
-            total_forward_distance: vec![0; nn],
-            total_backward_distance: vec![0; nn],
-            lower_bound_forward_eccentricities: vec![0; nn],
-            upper_bound_forward_eccentricities: vec![isize_nn + 1; nn],
-            lower_bound_backward_eccentricities: vec![0; nn],
-            upper_bound_backward_eccentricities: vec![isize_nn + 1; nn],
+            total_forward_distance: total_forward,
+            total_backward_distance: total_backward,
+            lower_bound_forward_eccentricities: lower_forward,
+            upper_bound_forward_eccentricities: upper_forward,
+            lower_bound_backward_eccentricities: lower_backward,
+            upper_bound_backward_eccentricities: upper_backward,
             strongly_connected_components_graph: scc_graph,
             strongly_connected_components: scc,
             diameter_lower_bound: 0,

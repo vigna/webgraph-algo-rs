@@ -1,6 +1,11 @@
 use anyhow::{ensure, Context, Result};
 use mmap_rs::{MmapFlags, MmapMut, MmapOptions};
-use std::{fs::File, mem::size_of, ops::Deref, path::PathBuf};
+use std::{
+    fs::File,
+    mem::size_of,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 use tempfile::{tempfile, tempfile_in};
 
 #[derive(Debug, Clone)]
@@ -122,5 +127,11 @@ impl<T> Deref for MmapSlice<T> {
 
     fn deref(&self) -> &Self::Target {
         self.as_ref()
+    }
+}
+
+impl<T> DerefMut for MmapSlice<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut()
     }
 }
