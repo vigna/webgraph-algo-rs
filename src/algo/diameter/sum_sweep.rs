@@ -804,13 +804,13 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         for &p in pivot {
             let pivot_component = components[p];
-            dist_pivot[p].store(0, Ordering::Relaxed);
+            let component_ecc_pivot = &ecc_pivot[pivot_component];
 
             bfs.filtered_component_visit(
                 |node, distance| {
                     let signed_distance = distance.try_into().unwrap();
                     dist_pivot[node].store(signed_distance, Ordering::Relaxed);
-                    ecc_pivot[components[p]].store(signed_distance, Ordering::Relaxed);
+                    component_ecc_pivot.store(signed_distance, Ordering::Relaxed);
                 },
                 |node, _, _| components[node] == pivot_component,
                 p,
