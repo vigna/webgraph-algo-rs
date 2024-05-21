@@ -4,7 +4,7 @@ use dsi_progress_logger::ProgressLog;
 /// A visitable graph that allows to compute Breadth First Visit trees.
 pub trait GraphVisit {
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
-    /// After this functions returns, the visit is invalid.
+    /// After this function returns, the visit is invalid.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
@@ -39,7 +39,7 @@ pub trait GraphVisit {
 
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
-    /// After this functions returns, the visit is invalid.
+    /// After this function returns, the visit is invalid.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
@@ -62,6 +62,8 @@ pub trait GraphVisit {
         self.visit_graph_filtered(callback, filter, &mut pl)
     }
 
+    /// **Internal method. You should not need to call this directly.**
+    ///
     /// Visits the connected component from the specified node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
     ///
@@ -86,6 +88,8 @@ pub trait GraphVisit {
         pl: &mut impl ProgressLog,
     ) -> Result<()>;
 
+    /// **Internal method. You should not need to call this directly.**
+    ///
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
     ///
@@ -106,14 +110,14 @@ pub trait GraphVisit {
     ) -> Result<()>;
 }
 
-// A reusable visitable graph to avoid reallocating the visit
+/// A reusable visitable graph to avoid reallocating the visit
 pub trait ReusableGraphVisit: GraphVisit {
     /// Resets the visit status.
     fn reset(&mut self) -> Result<()>;
 
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
-    /// After this functions returns, the visit is still valid and may be used again.
+    /// After this function returns, the visit is still valid and may be used again.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
@@ -139,7 +143,7 @@ pub trait ReusableGraphVisit: GraphVisit {
     }
 
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
-    /// After this functions returns, the visit is still valid and may be used again.
+    /// After this function returns, the visit is still valid and may be used again.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
