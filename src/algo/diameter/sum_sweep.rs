@@ -800,28 +800,35 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         } else {
             self.reversed_graph
         };
-        let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
+        let current_index = AtomicUsize::new(0);
 
-        for &p in pivot {
-            let pivot_component = components[p];
-            let component_ecc_pivot = &ecc_pivot[pivot_component];
+        rayon::broadcast(|_| {
+            let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
+            let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
-            bfs.visit_component_filtered(
-                |node, distance| {
-                    let signed_distance = distance.try_into().unwrap();
-                    let dist_pivot_ptr = dist_pivot.as_ptr() as *mut isize;
-                    // Safety: each node is accessed exaclty once
-                    unsafe {
-                        *dist_pivot_ptr.add(node) = signed_distance;
-                    }
-                    component_ecc_pivot.store(signed_distance, Ordering::Relaxed);
-                },
-                |node, _, _| components[node] == pivot_component,
-                p,
-                &mut pl,
-            )
-            .with_context(|| format!("Could not perform visit from {}", p))?;
-        }
+            while let Some(&p) = pivot.get(current_pivot_index) {
+                let pivot_component = components[p];
+                let component_ecc_pivot = &ecc_pivot[pivot_component];
+
+                bfs.visit_component_filtered(
+                    |node, distance| {
+                        let signed_distance = distance.try_into().unwrap();
+                        let dist_pivot_ptr = dist_pivot.as_ptr() as *mut isize;
+                        // Safety: each node is accessed exaclty once
+                        unsafe {
+                            *dist_pivot_ptr.add(node) = signed_distance;
+                        }
+                        component_ecc_pivot.store(signed_distance, Ordering::Relaxed);
+                    },
+                    |node, _, _| components[node] == pivot_component,
+                    p,
+                    &mut Option::<ProgressLogger>::None,
+                )
+                .unwrap_or_else(|_| panic!("Could not perform visit from {}", p));
+
+                current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
+            }
+        });
 
         let usize_ecc_pivot = unsafe {
             let mut clone = std::mem::ManuallyDrop::new(ecc_pivot);
