@@ -806,7 +806,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             let pivot_component = components[p];
             let component_ecc_pivot = &ecc_pivot[pivot_component];
 
-            bfs.filtered_component_visit(
+            bfs.visit_component_filtered(
                 |node, distance| {
                     let signed_distance = distance.try_into().unwrap();
                     dist_pivot[node].store(signed_distance, Ordering::Relaxed);

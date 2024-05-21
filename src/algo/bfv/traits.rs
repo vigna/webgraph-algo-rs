@@ -4,6 +4,7 @@ use dsi_progress_logger::ProgressLog;
 /// A visitable graph that allows to compute Breadth First Visit trees.
 pub trait GraphVisit {
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
+    /// After this functions returns, the visit is invalid.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
@@ -15,7 +16,7 @@ pub trait GraphVisit {
     where
         Self: Sized,
     {
-        self.filtered_visit(callback, |_, _, _| true, pl)
+        self.visit_filtered(callback, |_, _, _| true, pl)
     }
 
     /// Visits the connected component from the specified node and applies `callback` to every visited node.
@@ -33,11 +34,12 @@ pub trait GraphVisit {
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.filtered_component_visit(callback, |_, _, _| true, node_index, pl)
+        self.visit_component_filtered(callback, |_, _, _| true, node_index, pl)
     }
 
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
+    /// After this functions returns, the visit is invalid.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
@@ -48,12 +50,17 @@ pub trait GraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn filtered_visit<C: Fn(usize, usize) + Sync, F: Fn(usize, usize, usize) -> bool + Sync>(
-        self,
+    fn visit_filtered<C: Fn(usize, usize) + Sync, F: Fn(usize, usize, usize) -> bool + Sync>(
+        mut self,
         callback: C,
         filter: F,
-        pl: impl ProgressLog,
-    ) -> Result<()>;
+        mut pl: impl ProgressLog,
+    ) -> Result<()>
+    where
+        Self: Sized,
+    {
+        self.visit_graph_filtered(callback, filter, &mut pl)
+    }
 
     /// Visits the connected component from the specified node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
@@ -68,7 +75,7 @@ pub trait GraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn filtered_component_visit<
+    fn visit_component_filtered<
         C: Fn(usize, usize) + Sync,
         F: Fn(usize, usize, usize) -> bool + Sync,
     >(
@@ -78,4 +85,73 @@ pub trait GraphVisit {
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()>;
+
+    /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
+    /// Nodes are filtered with `filter` callable.
+    ///
+    /// # Arguments:
+    /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
+    /// starting node.
+    /// - `filter`: A function or closure that takes as arguments the node index, the index of the root of
+    /// the visit and the distance from the root to the node and returns `true` if the node should be visited,
+    /// `false` otherwise.
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn visit_graph_filtered<C: Fn(usize, usize) + Sync, F: Fn(usize, usize, usize) -> bool + Sync>(
+        &mut self,
+        callback: C,
+        filter: F,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()>;
+}
+
+// A reusable visitable graph to avoid reallocating the visit
+pub trait ReusableGraphVisit: GraphVisit {
+    /// Resets the visit status.
+    fn reset(&mut self) -> Result<()>;
+
+    /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
+    /// Nodes are filtered with `filter` callable.
+    /// After this functions returns, the visit is still valid and may be used again.
+    ///
+    /// # Arguments:
+    /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
+    /// starting node.
+    /// - `filter`: A function or closure that takes as arguments the node index, the index of the root of
+    /// the visit and the distance from the root to the node and returns `true` if the node should be visited,
+    /// `false` otherwise.
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn visit_filtered_and_reuse<
+        C: Fn(usize, usize) + Sync,
+        F: Fn(usize, usize, usize) -> bool + Sync,
+    >(
+        &mut self,
+        callback: C,
+        filter: F,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()> {
+        self.visit_graph_filtered(callback, filter, pl)?;
+        self.reset()?;
+        Ok(())
+    }
+
+    /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
+    /// After this functions returns, the visit is still valid and may be used again.
+    ///
+    /// # Arguments:
+    /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
+    /// starting node.
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    /// passed, logging code should be optimized away by the compiler.
+    fn visit_and_reuse<C: Fn(usize, usize) + Sync>(
+        &mut self,
+        callback: C,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()> {
+        self.visit_filtered_and_reuse(callback, |_, _, _| true, pl)
+    }
 }
