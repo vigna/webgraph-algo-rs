@@ -779,9 +779,8 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         forward: bool,
         mut pl: impl ProgressLog,
     ) -> Result<(Vec<isize>, Vec<isize>)> {
-        pl.expected_updates(Some(self.number_of_nodes));
+        pl.expected_updates(None);
         pl.display_memory(false);
-        pl.item_name("nodes");
 
         if forward {
             pl.start("Computing forward dist pivots");
