@@ -794,7 +794,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             || AtomicIsize::new(0),
             self.strongly_connected_components.number_of_components(),
         );
-        let dist_pivot = closure_vec(|| AtomicIsize::new(-1), self.number_of_nodes);
+        let dist_pivot: Vec<isize> = vec![-1; self.number_of_nodes];
         let graph = if forward {
             self.graph
         } else {
@@ -809,7 +809,11 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             bfs.visit_component_filtered(
                 |node, distance| {
                     let signed_distance = distance.try_into().unwrap();
-                    dist_pivot[node].store(signed_distance, Ordering::Relaxed);
+                    let dist_pivot_ptr = dist_pivot.as_ptr() as *mut isize;
+                    // Safety: each node is accessed exaclty once
+                    unsafe {
+                        *dist_pivot_ptr.add(node) = signed_distance;
+                    }
                     component_ecc_pivot.store(signed_distance, Ordering::Relaxed);
                 },
                 |node, _, _| components[node] == pivot_component,
@@ -819,14 +823,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             .with_context(|| format!("Could not perform visit from {}", p))?;
         }
 
-        let usize_dist_pivot = unsafe {
-            let mut clone = std::mem::ManuallyDrop::new(dist_pivot);
-            Vec::from_raw_parts(
-                clone.as_mut_ptr() as *mut isize,
-                clone.len(),
-                clone.capacity(),
-            )
-        };
         let usize_ecc_pivot = unsafe {
             let mut clone = std::mem::ManuallyDrop::new(ecc_pivot);
             Vec::from_raw_parts(
@@ -838,7 +834,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         pl.done();
 
-        Ok((usize_dist_pivot, usize_ecc_pivot))
+        Ok((dist_pivot, usize_ecc_pivot))
     }
 
     /// Performs a step of the ExactSumSweep algorithm.
@@ -889,7 +885,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             pl.light_update();
         }
 
-        for c in 0..self.strongly_connected_components.number_of_components() {
+        for c in (0..self.strongly_connected_components.number_of_components()).rev() {
             for component in self.strongly_connected_components_graph.children(c) {
                 let next_c = component.target;
                 let start = component.start;
@@ -902,6 +898,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
                 if ecc_pivot_b[next_c] >= self.upper_bound_backward_eccentricities[pivot[next_c]] {
                     ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
+                    break;
                 }
             }
             pl.light_update();
@@ -921,13 +918,11 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             let b_ecc_upper_bound_ptr =
                 self.upper_bound_backward_eccentricities.as_ptr() as *mut Int;
 
-            if self.incomplete_forward_vertex(node) {
-                unsafe {
-                    *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
-                        self.upper_bound_forward_eccentricities[node],
-                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
-                    )
-                }
+            unsafe {
+                *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
+                    self.upper_bound_forward_eccentricities[node],
+                    dist_pivot_b[node] + ecc_pivot_f[components[node]],
+                )
             }
 
             if !self.incomplete_forward_vertex(node) {
@@ -947,13 +942,11 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 }
             }
 
-            if self.incomplete_backward_vertex(node) {
-                unsafe {
-                    *b_ecc_upper_bound_ptr.add(node) = std::cmp::min(
-                        self.upper_bound_backward_eccentricities[node],
-                        dist_pivot_f[node] + ecc_pivot_b[components[node]],
-                    )
-                }
+            unsafe {
+                *b_ecc_upper_bound_ptr.add(node) = std::cmp::min(
+                    self.upper_bound_backward_eccentricities[node],
+                    dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                )
             }
         });
 
