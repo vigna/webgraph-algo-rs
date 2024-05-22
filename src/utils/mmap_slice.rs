@@ -20,10 +20,10 @@ pub struct MmapSlice<T> {
     in_memory_vec: Vec<T>,
 }
 
-impl<T: Clone> MmapSlice<T> {
+impl<T> MmapSlice<T> {
     const BLOCK_SIZE: usize = size_of::<T>();
 
-    pub fn new(file: File, flags: MmapFlags) -> Result<Self> {
+    fn mmap(file: File, flags: MmapFlags) -> Result<Self> {
         let file_len: usize = file
             .metadata()
             .with_context(|| "Cannot retrieve file metadata")?
@@ -61,6 +61,30 @@ impl<T: Clone> MmapSlice<T> {
         })
     }
 
+    fn from_tempfile_and_len(len: usize, file: File, flags: MmapFlags) -> Result<Self> {
+        let expected_len = len * Self::BLOCK_SIZE;
+        file.set_len(
+            expected_len
+                .try_into()
+                .with_context(|| "Cannot convert file len")?,
+        )
+        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
+
+        let mmap = Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
+
+        Ok(mmap)
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        self.as_ref()
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.as_mut()
+    }
+}
+
+impl<T: Clone> MmapSlice<T> {
     pub fn from_vec(v: Vec<T>, options: TempMmapOptions) -> Result<Self> {
         match options {
             TempMmapOptions::None => Ok(Self {
@@ -84,6 +108,51 @@ impl<T: Clone> MmapSlice<T> {
         }
     }
 
+    pub fn from_value(value: T, len: usize, options: TempMmapOptions) -> Result<Self> {
+        match options {
+            TempMmapOptions::None => Ok(Self {
+                mmap: None,
+                in_memory_vec: vec![value; len],
+            }),
+            TempMmapOptions::TempDir(flags) => {
+                let mut mmap_slice = Self::from_tempfile_and_len(
+                    len,
+                    tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
+                    flags,
+                )
+                .with_context(|| {
+                    format!("Cannot create mmap of len {} in temporary directory", len)
+                })?;
+                let mut_ref = mmap_slice.as_mut();
+                for v in mut_ref {
+                    *v = value.clone();
+                }
+                Ok(mmap_slice)
+            }
+            TempMmapOptions::CustomDir((dir, flags)) => {
+                let mut mmap_slice = Self::from_tempfile_and_len(
+                    len,
+                    tempfile_in(dir.as_path()).with_context(|| {
+                        format!("Cannot create tempfile in directory {}", dir.display())
+                    })?,
+                    flags,
+                )
+                .with_context(|| {
+                    format!(
+                        "Cannot create mmap of len {} in directory {}",
+                        len,
+                        dir.display()
+                    )
+                })?;
+                let mut_ref = mmap_slice.as_mut();
+                for v in mut_ref {
+                    *v = value.clone();
+                }
+                Ok(mmap_slice)
+            }
+        }
+    }
+
     fn from_tempfile_and_vec(v: Vec<T>, file: File, flags: MmapFlags) -> Result<Self> {
         let expected_len = v.len() * Self::BLOCK_SIZE;
         file.set_len(
@@ -94,11 +163,17 @@ impl<T: Clone> MmapSlice<T> {
         .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
 
         let mut mmap =
-            Self::new(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
+            Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
 
         mmap.as_mut().clone_from_slice(v.as_slice());
 
         Ok(mmap)
+    }
+}
+
+impl<T: Default + Clone> MmapSlice<T> {
+    pub fn new(len: usize, options: TempMmapOptions) -> Result<Self> {
+        Self::from_value(T::default(), len, options)
     }
 }
 
@@ -133,5 +208,103 @@ impl<T> Deref for MmapSlice<T> {
 impl<T> DerefMut for MmapSlice<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_from_vec_in_memory() -> Result<()> {
+        let v: Vec<usize> = (0..100).collect();
+        let mmap_slice = MmapSlice::from_vec(v.clone(), TempMmapOptions::None)?;
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_vec_tempfile() -> Result<()> {
+        let v: Vec<usize> = (0..100).collect();
+        let mmap_slice =
+            MmapSlice::from_vec(v.clone(), TempMmapOptions::TempDir(MmapFlags::empty()))?;
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_value_in_memory() -> Result<()> {
+        let value: usize = 42;
+        let v = vec![value; 100];
+        let mmap_slice = MmapSlice::from_value(value, 100, TempMmapOptions::None)?;
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_value_tempfile() -> Result<()> {
+        let value: usize = 42;
+        let v = vec![value; 100];
+        let mmap_slice =
+            MmapSlice::from_value(value, 100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_new_in_memory() -> Result<()> {
+        let v = vec![usize::default(); 100];
+        let mmap_slice = MmapSlice::<usize>::new(100, TempMmapOptions::None)?;
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_new_tempfile() -> Result<()> {
+        let v = vec![usize::default(); 100];
+        let mmap_slice =
+            MmapSlice::<usize>::new(100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mutability_in_memory() -> Result<()> {
+        let v: Vec<usize> = (0..100).collect();
+        let mut mmap_slice = MmapSlice::new(100, TempMmapOptions::None)?;
+
+        for (i, value) in mmap_slice.as_mut_slice().iter_mut().enumerate() {
+            *value = v[i];
+        }
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mutability_tempfile() -> Result<()> {
+        let v: Vec<usize> = (0..100).collect();
+        let mut mmap_slice = MmapSlice::new(100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
+
+        for (i, value) in mmap_slice.as_mut_slice().iter_mut().enumerate() {
+            *value = v[i];
+        }
+
+        assert_eq!(mmap_slice.as_slice(), v.as_slice());
+
+        Ok(())
     }
 }
