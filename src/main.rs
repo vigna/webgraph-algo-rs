@@ -1,6 +1,5 @@
 use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
-use mmap_rs::MmapFlags;
 use std::path::Path;
 use webgraph::graphs::BVGraph;
 use webgraph_algo::algo::diameter::*;
@@ -28,7 +27,7 @@ fn main() -> Result<()> {
         &reversed_graph,
         SumSweepOutputLevel::RadiusDiameter,
         None,
-        TempMmapOptions::CustomDir((Path::new("./graphs").to_owned(), flags)),
+        TempMmapOptions::CustomDir(Path::new("./graphs").to_owned(), flags),
         sum_sweep_pl.clone(),
     )?;
     sum_sweep.compute(sum_sweep_pl)?;
