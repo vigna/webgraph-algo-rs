@@ -74,74 +74,39 @@ pub struct MmapSlice<T> {
     in_memory_vec: Vec<T>,
 }
 
-impl<T> MmapSlice<T> {
-    /// The number of bytes required to store a single element of the slice.
-    const BLOCK_SIZE: usize = size_of::<T>();
-
-    fn mmap(file: File, flags: MmapFlags) -> Result<Self> {
-        let file_len: usize = file
-            .metadata()
-            .with_context(|| "Cannot retrieve file metadata")?
-            .len()
-            .try_into()
-            .with_context(|| "Cannot convert to usize")?;
-        let mmap_len =
-            file_len + (Self::BLOCK_SIZE - (file_len % Self::BLOCK_SIZE)) % Self::BLOCK_SIZE;
-
-        if mmap_len == 0 {
-            return Ok(MmapSlice {
-                mmap: None,
-                in_memory_vec: Vec::new(),
-            });
-        }
-
-        ensure!(
-            mmap_len == file_len,
-            "file len is not of the correct length for element of size {}",
-            Self::BLOCK_SIZE
-        );
-
-        let mmap = unsafe {
-            MmapOptions::new(mmap_len)
-                .with_context(|| format!("Cannot initialize mmap of size {}", mmap_len))?
-                .with_file(&file, 0)
-                .with_flags(flags)
-                .map_mut()
-                .with_context(|| "Cannot mutably mmap")?
-        };
-
-        Ok(Self {
-            mmap: Some((file, mmap, mmap_len / Self::BLOCK_SIZE)),
-            in_memory_vec: Vec::new(),
-        })
-    }
-
-    fn from_tempfile_and_len(len: usize, file: File, flags: MmapFlags) -> Result<Self> {
-        let expected_len = len * Self::BLOCK_SIZE;
-        file.set_len(
-            expected_len
-                .try_into()
-                .with_context(|| "Cannot convert file len")?,
-        )
-        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
-
-        let mmap = Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
-
-        Ok(mmap)
-    }
-
-    /// Extracts a slice containing the entire data.
+impl<T: Default + Clone> MmapSlice<T> {
+    /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
+    /// the elements initialized to the type's default value.
     ///
-    /// Equivalent to `&s[..]`
-    pub fn as_slice(&self) -> &[T] {
-        self.as_ref()
-    }
-
-    /// Extracts a mutable slice containing the entire data.
+    /// # Examples
     ///
-    /// Equivalent to `&mut s[..]`
-    pub fn as_mut_slice(&mut self) -> &mut [T] {
-        self.as_mut()
+    /// ```
+    /// use webgraph_algo::utils::mmap_slice::*;
+    ///
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let slice: MmapSlice<usize> = MmapSlice::new(100, TempMmapOptions::None)?;
+    /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Note how the type is not often inferred with this constructor.
+    ///
+    /// The type may also be specified with the turbofish syntax.
+    ///
+    /// ```
+    /// use webgraph_algo::utils::mmap_slice::*;
+    ///
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let slice = MmapSlice::<usize>::new(100, TempMmapOptions::None)?;
+    /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new(len: usize, options: TempMmapOptions) -> Result<Self> {
+        Self::from_value(T::default(), len, options)
     }
 }
 
@@ -277,39 +242,74 @@ impl<T: Clone> MmapSlice<T> {
     }
 }
 
-impl<T: Default + Clone> MmapSlice<T> {
-    /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
-    /// the elements initialized to the type's default value.
+impl<T> MmapSlice<T> {
+    /// The number of bytes required to store a single element of the slice.
+    const BLOCK_SIZE: usize = size_of::<T>();
+
+    fn mmap(file: File, flags: MmapFlags) -> Result<Self> {
+        let file_len: usize = file
+            .metadata()
+            .with_context(|| "Cannot retrieve file metadata")?
+            .len()
+            .try_into()
+            .with_context(|| "Cannot convert to usize")?;
+        let mmap_len =
+            file_len + (Self::BLOCK_SIZE - (file_len % Self::BLOCK_SIZE)) % Self::BLOCK_SIZE;
+
+        if mmap_len == 0 {
+            return Ok(MmapSlice {
+                mmap: None,
+                in_memory_vec: Vec::new(),
+            });
+        }
+
+        ensure!(
+            mmap_len == file_len,
+            "file len is not of the correct length for element of size {}",
+            Self::BLOCK_SIZE
+        );
+
+        let mmap = unsafe {
+            MmapOptions::new(mmap_len)
+                .with_context(|| format!("Cannot initialize mmap of size {}", mmap_len))?
+                .with_file(&file, 0)
+                .with_flags(flags)
+                .map_mut()
+                .with_context(|| "Cannot mutably mmap")?
+        };
+
+        Ok(Self {
+            mmap: Some((file, mmap, mmap_len / Self::BLOCK_SIZE)),
+            in_memory_vec: Vec::new(),
+        })
+    }
+
+    fn from_tempfile_and_len(len: usize, file: File, flags: MmapFlags) -> Result<Self> {
+        let expected_len = len * Self::BLOCK_SIZE;
+        file.set_len(
+            expected_len
+                .try_into()
+                .with_context(|| "Cannot convert file len")?,
+        )
+        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
+
+        let mmap = Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
+
+        Ok(mmap)
+    }
+
+    /// Extracts a slice containing the entire data.
     ///
-    /// # Examples
+    /// Equivalent to `&s[..]`
+    pub fn as_slice(&self) -> &[T] {
+        self.as_ref()
+    }
+
+    /// Extracts a mutable slice containing the entire data.
     ///
-    /// ```
-    /// use webgraph_algo::utils::mmap_slice::*;
-    ///
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
-    /// let slice: MmapSlice<usize> = MmapSlice::new(100, TempMmapOptions::None)?;
-    /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Note how the type is not often inferred with this constructor.
-    ///
-    /// The type may also be specified with the turbofish syntax.
-    ///
-    /// ```
-    /// use webgraph_algo::utils::mmap_slice::*;
-    ///
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
-    /// let slice = MmapSlice::<usize>::new(100, TempMmapOptions::None)?;
-    /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn new(len: usize, options: TempMmapOptions) -> Result<Self> {
-        Self::from_value(T::default(), len, options)
+    /// Equivalent to `&mut s[..]`
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.as_mut()
     }
 }
 
@@ -446,10 +446,13 @@ mod test {
 
     #[test]
     fn test_slice_tempfile() -> Result<()> {
-        let v: Vec<usize> = (0..100).collect();
-        let mmap_slice = MmapSlice::from_vec(v, TempMmapOptions::TempDir(MmapFlags::empty()))?;
+        let mut v: Vec<usize> = (0..100).collect();
+        let mut mmap_slice =
+            MmapSlice::from_vec(v.clone(), TempMmapOptions::TempDir(MmapFlags::empty()))?;
 
         assert_eq!(mmap_slice.as_slice(), &mmap_slice[..]);
+        assert_eq!(mmap_slice.as_mut_slice(), &mut v[..]);
+        assert_eq!(&mut mmap_slice[..], &mut v[..]);
 
         Ok(())
     }
