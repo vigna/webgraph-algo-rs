@@ -932,9 +932,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             }
 
             if !self.incomplete_forward_vertex(node) {
-                // We do not have to check whether self.forward_eccentricities[node]=D, because
-                // self.lower_bound_forward_eccentricities[node] = d(w, v) for some w from which
-                // we have already performed a BFS.
                 let new_ecc = self.upper_bound_forward_eccentricities[node];
 
                 if self.radial_vertices[node]
