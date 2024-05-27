@@ -66,7 +66,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
 }
 
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
-    fn visit_component_filtered<
+    fn visit_from_node_filtered<
         C: Fn(usize, usize) + Sync,
         F: Fn(usize, usize, usize) -> bool + Sync,
     >(
@@ -133,7 +133,7 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         for i in 0..self.graph.num_nodes() {
             let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_component_filtered(&callback, &filter, index, pl)?;
+            self.visit_from_node_filtered(&callback, &filter, index, pl)?;
         }
 
         pl.done();

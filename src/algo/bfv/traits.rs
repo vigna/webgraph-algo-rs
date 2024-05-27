@@ -19,7 +19,7 @@ pub trait GraphVisit {
         self.visit_filtered(callback, |_, _, _| true, pl)
     }
 
-    /// Visits the connected component from the specified node and applies `callback` to every visited node.
+    /// Visits the graph from the specified node and applies `callback` to every visited node.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index and its distance from the
@@ -28,13 +28,13 @@ pub trait GraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn visit_component<C: Fn(usize, usize) + Sync>(
+    fn visit_from_node<C: Fn(usize, usize) + Sync>(
         &mut self,
         callback: C,
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.visit_component_filtered(callback, |_, _, _| true, node_index, pl)
+        self.visit_from_node_filtered(callback, |_, _, _| true, node_index, pl)
     }
 
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
@@ -64,7 +64,7 @@ pub trait GraphVisit {
 
     /// **Internal method. You should not need to call this directly.**
     ///
-    /// Visits the connected component from the specified node and applies `callback` to every visited node.
+    /// Visits the graph from the specified node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
     ///
     /// # Arguments:
@@ -77,7 +77,7 @@ pub trait GraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
-    fn visit_component_filtered<
+    fn visit_from_node_filtered<
         C: Fn(usize, usize) + Sync,
         F: Fn(usize, usize, usize) -> bool + Sync,
     >(
