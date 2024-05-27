@@ -9,9 +9,10 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
+use nonmax::NonMaxUsize;
 use rayon::prelude::*;
 use std::sync::{
-    atomic::{AtomicIsize, AtomicUsize, Ordering},
+    atomic::{AtomicUsize, Ordering},
     Mutex,
 };
 use sux::bits::AtomicBitVec;
@@ -26,7 +27,6 @@ pub enum SumSweepOutputLevel {
     RadiusDiameter,
 }
 
-type Int = isize;
 const VISIT_GRANULARITY: usize = 32;
 
 pub struct SumSweepDirectedDiameterRadius<
@@ -47,27 +47,27 @@ pub struct SumSweepDirectedDiameterRadius<
     radius_vertex: usize,
     /// Number of iterations performed until now.
     iterations: usize,
-    lower_bound_forward_eccentricities: MmapSlice<Int>,
-    upper_bound_forward_eccentricities: MmapSlice<Int>,
-    lower_bound_backward_eccentricities: MmapSlice<Int>,
-    upper_bound_backward_eccentricities: MmapSlice<Int>,
+    lower_bound_forward_eccentricities: MmapSlice<usize>,
+    upper_bound_forward_eccentricities: MmapSlice<usize>,
+    lower_bound_backward_eccentricities: MmapSlice<usize>,
+    upper_bound_backward_eccentricities: MmapSlice<usize>,
     /// Number of iterations before the radius is found.
-    radius_iterations: Int,
+    radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter is found.
-    diameter_iterations: Int,
+    diameter_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all forward eccentricities are found.
-    forward_eccentricities_iterations: Int,
+    forward_eccentricities_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all eccentricities are found.
-    all_eccentricities_iterations: Int,
+    all_eccentricities_iterations: Option<NonMaxUsize>,
     strongly_connected_components: C,
     /// The strongly connected components diagram.
     strongly_connected_components_graph: SccGraph<G, C>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_forward_distance: MmapSlice<Int>,
+    total_forward_distance: MmapSlice<usize>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_backward_distance: MmapSlice<Int>,
+    total_backward_distance: MmapSlice<usize>,
     compute_radial_vertices: bool,
 }
 
@@ -96,9 +96,6 @@ impl<'a, G: RandomAccessGraph + Sync>
         pl: impl ProgressLog,
     ) -> Result<Self> {
         let nn = graph.num_nodes();
-        let isize_nn: isize = nn
-            .try_into()
-            .with_context(|| "Could not convert num_nodes to isize")?;
 
         let scc =
             TarjanStronglyConnectedComponents::compute(graph, false, options.clone(), pl.clone())
@@ -124,9 +121,9 @@ impl<'a, G: RandomAccessGraph + Sync>
             .with_context(|| "Cannot create lower bound forward eccentricities slice")?;
         let lower_backward = MmapSlice::from_vec(vec![0; nn], options.clone())
             .with_context(|| "Cannot create lower bound backwards eccentricities slice")?;
-        let upper_forward = MmapSlice::from_vec(vec![isize_nn + 1; nn], options.clone())
+        let upper_forward = MmapSlice::from_vec(vec![nn + 1; nn], options.clone())
             .with_context(|| "Cannot create upper bound forward eccentricities slice")?;
-        let upper_backward = MmapSlice::from_vec(vec![isize_nn + 1; nn], options.clone())
+        let upper_backward = MmapSlice::from_vec(vec![nn + 1; nn], options.clone())
             .with_context(|| "Cannot create upper bound backwards eccentricities slice")?;
         let total_forward = MmapSlice::from_vec(vec![0; nn], options.clone())
             .with_context(|| "Cannot create total forward distances slice")?;
@@ -146,12 +143,12 @@ impl<'a, G: RandomAccessGraph + Sync>
             strongly_connected_components_graph: scc_graph,
             strongly_connected_components: scc,
             diameter_lower_bound: 0,
-            radius_upper_bound: Int::MAX as usize,
+            radius_upper_bound: usize::MAX,
             output,
-            radius_iterations: -1,
-            diameter_iterations: -1,
-            all_eccentricities_iterations: -1,
-            forward_eccentricities_iterations: -1,
+            radius_iterations: None,
+            diameter_iterations: None,
+            all_eccentricities_iterations: None,
+            forward_eccentricities_iterations: None,
             iterations: 0,
             radial_vertices: acc_radial,
             radius_vertex: 0,
@@ -178,7 +175,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
     ///
     /// # Arguments
     /// - `vertex`: The vertex.
-    fn forward_eccentricity(&self, index: usize) -> Option<Int> {
+    fn forward_eccentricity(&self, index: usize) -> Option<usize> {
         if self.incomplete_forward_vertex(index) {
             None
         } else {
@@ -190,7 +187,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         }
     }
 
-    fn backward_eccentricity(&self, index: usize) -> Option<Int> {
+    fn backward_eccentricity(&self, index: usize) -> Option<usize> {
         if self.incomplete_backward_vertex(index) {
             None
         } else {
@@ -400,7 +397,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         {
             pl.info(format_args!(
                 "Radius: {} ({} iterations).",
-                self.radius_upper_bound, self.radius_iterations
+                self.radius_upper_bound,
+                self.radius_iterations
+                    .expect("radius iterations should not be None")
             ));
         }
         if self.output == SumSweepOutputLevel::Diameter
@@ -408,7 +407,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         {
             pl.info(format_args!(
                 "Diameter: {} ({} iterations).",
-                self.diameter_lower_bound, self.diameter_iterations,
+                self.diameter_lower_bound,
+                self.diameter_iterations
+                    .expect("radius iterations should not be None"),
             ));
         }
         pl.done();
@@ -418,7 +419,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.
     pub fn radius(&self) -> Option<usize> {
-        if self.radius_iterations == -1 {
+        if self.radius_iterations.is_none() {
             None
         } else {
             Some(self.radius_upper_bound)
@@ -427,7 +428,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
     /// Returns the diameter of the graph if is has already been computed, [`None`] otherwise.
     pub fn diameter(&self) -> Option<usize> {
-        if self.diameter_iterations == -1 {
+        if self.diameter_iterations.is_none() {
             None
         } else {
             Some(self.diameter_lower_bound)
@@ -436,7 +437,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
     /// Returns a radial vertex if it has already been computed, [`None`] otherwise.
     pub fn radial_vertex(&self) -> Option<usize> {
-        if self.radius_iterations == -1 {
+        if self.radius_iterations.is_none() {
             None
         } else {
             Some(self.radius_vertex)
@@ -445,7 +446,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
     /// Returns a diametral vertex if it has already been computed, [`None`] otherwise.
     pub fn diametral_vertex(&self) -> Option<usize> {
-        if self.diameter_iterations == -1 {
+        if self.diameter_iterations.is_none() {
             None
         } else {
             Some(self.diameter_vertex)
@@ -459,53 +460,35 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
     /// - `forward`: Whether to return the forward eccentricity (if `true`) or the backward
     /// eccentricity (if `false`).
     pub fn eccentricity(&self, vertex: usize, forward: bool) -> Option<usize> {
-        let ecc = if forward {
+        if forward {
             self.forward_eccentricity(vertex)
         } else {
             self.backward_eccentricity(vertex)
-        };
-
-        ecc.map(|e| e.try_into().unwrap())
+        }
     }
 
     /// Returns the number of iterations needed to compute the radius if it has already
     /// been computed, [`None`] otherwise.
     pub fn radius_iterations(&self) -> Option<usize> {
-        if self.radius_iterations == -1 {
-            None
-        } else {
-            Some(self.radius_iterations.try_into().unwrap())
-        }
+        self.radius_iterations.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute the diameter if it has already
     /// been computed, [`None`] otherwise.
     pub fn diameter_iterations(&self) -> Option<usize> {
-        if self.diameter_iterations == -1 {
-            None
-        } else {
-            Some(self.diameter_iterations.try_into().unwrap())
-        }
+        self.diameter_iterations.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute all forward eccentricities
     /// if they have already been computed, [`None`] otherwise.
     pub fn all_forward_iterations(&self) -> Option<usize> {
-        if self.forward_eccentricities_iterations == -1 {
-            None
-        } else {
-            Some(self.forward_eccentricities_iterations.try_into().unwrap())
-        }
+        self.forward_eccentricities_iterations.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute all eccentricities if they
     /// have already been computed, [`None`] otherwise.
     pub fn all_iterations(&self) -> Option<usize> {
-        if self.all_eccentricities_iterations == -1 {
-            None
-        } else {
-            Some(self.all_eccentricities_iterations.try_into().unwrap())
-        }
+        self.all_eccentricities_iterations.map(|v| v.into())
     }
 
     /// Uses a heuristic to decide which is the best pivot to choose in each strongly connected
@@ -518,10 +501,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
     fn find_best_pivot(&self, mut pl: impl ProgressLog) -> Result<Vec<usize>> {
         let mut pivot = vec![None; self.strongly_connected_components.number_of_components()];
         let components = self.strongly_connected_components.component();
-        let isize_number_of_nodes = self
-            .number_of_nodes
-            .try_into()
-            .with_context(|| "Could not convert number of scc into isize")?;
         pl.expected_updates(Some(components.len()));
         pl.item_name("nodes");
         pl.display_memory(false);
@@ -534,12 +513,12 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     + if self.incomplete_forward_vertex(v) {
                         0
                     } else {
-                        isize_number_of_nodes
+                        self.number_of_nodes
                     }
                     + if self.incomplete_backward_vertex(v) {
                         0
                     } else {
-                        isize_number_of_nodes
+                        self.number_of_nodes
                     };
 
                 let best = self.lower_bound_backward_eccentricities[p]
@@ -547,12 +526,12 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     + if self.incomplete_forward_vertex(p) {
                         0
                     } else {
-                        isize_number_of_nodes
+                        self.number_of_nodes
                     }
                     + if self.incomplete_backward_vertex(p) {
                         0
                     } else {
-                        isize_number_of_nodes
+                        self.number_of_nodes
                     };
 
                 if current < best
@@ -690,20 +669,19 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 } else {
                     self.incomplete_forward_vertex(node)
                 };
-                let signed_distance = distance.try_into().unwrap();
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                let other_total_distance_ptr = other_total_distance.as_ptr() as *mut Int;
+                let other_total_distance_ptr = other_total_distance.as_ptr() as *mut usize;
                 unsafe {
-                    *other_total_distance_ptr.add(node) += signed_distance;
+                    *other_total_distance_ptr.add(node) += distance;
                 }
-                if incomplete && other_lower_bound[node] < signed_distance {
-                    let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut Int;
+                if incomplete && other_lower_bound[node] < distance {
+                    let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut usize;
                     unsafe {
-                        *other_lower_bound_ptr.add(node) = signed_distance;
+                        *other_lower_bound_ptr.add(node) = distance;
                     }
 
-                    if signed_distance == other_upper_bound[node]
+                    if distance == other_upper_bound[node]
                         && !forward
                         && self.radial_vertices[node]
                         && distance < current_radius_upper_bound.load(Ordering::Relaxed)
@@ -730,12 +708,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         }
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
-        let signed_ecc_start = ecc_start
-            .try_into()
-            .with_context(|| "Could not convert max_dist into isize")?;
 
-        lower_bound[start] = signed_ecc_start;
-        upper_bound[start] = signed_ecc_start;
+        lower_bound[start] = ecc_start;
+        upper_bound[start] = ecc_start;
 
         self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
         self.radius_vertex = current_radius_vertex.load(Ordering::Relaxed);
@@ -778,7 +753,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         pivot: &[usize],
         forward: bool,
         mut pl: impl ProgressLog,
-    ) -> Result<(Vec<isize>, Vec<isize>)> {
+    ) -> Result<(Vec<usize>, Vec<usize>)> {
         pl.expected_updates(None);
         pl.display_memory(false);
 
@@ -790,10 +765,10 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         let components = self.strongly_connected_components.component();
         let ecc_pivot = closure_vec(
-            || AtomicIsize::new(0),
+            || AtomicUsize::new(0),
             self.strongly_connected_components.number_of_components(),
         );
-        let dist_pivot: Vec<isize> = vec![-1; self.number_of_nodes];
+        let dist_pivot: Vec<usize> = vec![0; self.number_of_nodes];
         let graph = if forward {
             self.graph
         } else {
@@ -811,13 +786,12 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
                 bfs.visit_from_node_filtered(
                     |node, distance| {
-                        let signed_distance = distance.try_into().unwrap();
-                        let dist_pivot_ptr = dist_pivot.as_ptr() as *mut isize;
+                        let dist_pivot_ptr = dist_pivot.as_ptr() as *mut usize;
                         // Safety: each node is accessed exaclty once
                         unsafe {
-                            *dist_pivot_ptr.add(node) = signed_distance;
+                            *dist_pivot_ptr.add(node) = distance;
                         }
-                        component_ecc_pivot.store(signed_distance, Ordering::Relaxed);
+                        component_ecc_pivot.store(distance, Ordering::Relaxed);
                     },
                     |node, _, _| components[node] == pivot_component,
                     p,
@@ -832,7 +806,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let usize_ecc_pivot = unsafe {
             let mut clone = std::mem::ManuallyDrop::new(ecc_pivot);
             Vec::from_raw_parts(
-                clone.as_mut_ptr() as *mut isize,
+                clone.as_mut_ptr() as *mut usize,
                 clone.len(),
                 clone.capacity(),
             )
@@ -911,18 +885,15 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         }
 
         let lock = Mutex::new(());
-        let current_radius_upper_bound =
-            AtomicIsize::new(self.radius_upper_bound.try_into().with_context(|| {
-                format!("Could not convert {} into isize", self.radius_upper_bound)
-            })?);
+        let current_radius_upper_bound = AtomicUsize::new(self.radius_upper_bound);
         let current_radial_vertex = AtomicUsize::new(self.radius_vertex);
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
             let f_ecc_upper_bound_ptr =
-                self.upper_bound_forward_eccentricities.as_ptr() as *mut Int;
+                self.upper_bound_forward_eccentricities.as_ptr() as *mut usize;
             let b_ecc_upper_bound_ptr =
-                self.upper_bound_backward_eccentricities.as_ptr() as *mut Int;
+                self.upper_bound_backward_eccentricities.as_ptr() as *mut usize;
 
             unsafe {
                 *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
@@ -956,15 +927,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         pl.update_with_count(self.number_of_nodes);
 
         self.radius_vertex = current_radial_vertex.load(Ordering::Relaxed);
-        self.radius_upper_bound = current_radius_upper_bound
-            .load(Ordering::Relaxed)
-            .try_into()
-            .with_context(|| {
-                format!(
-                    "Could not convert {} into usize",
-                    current_radius_upper_bound.load(Ordering::Relaxed)
-                )
-            })?;
+        self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
 
         self.iterations += 3;
 
@@ -990,30 +953,22 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let missing_db = AtomicUsize::new(0);
         let missing_all_forward = AtomicUsize::new(0);
         let missing_all_backward = AtomicUsize::new(0);
-        let signed_radius_upper_bound = self
-            .radius_upper_bound
-            .try_into()
-            .with_context(|| format!("Could not convert {} into isize", self.radius_upper_bound))?;
-        let signed_diameter_lower_bound =
-            self.diameter_lower_bound.try_into().with_context(|| {
-                format!("Could not convert {} into isize", self.diameter_lower_bound)
-            })?;
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             if self.incomplete_forward_vertex(node) {
                 missing_all_forward.fetch_add(1, Ordering::Relaxed);
-                if self.upper_bound_forward_eccentricities[node] > signed_diameter_lower_bound {
+                if self.upper_bound_forward_eccentricities[node] > self.diameter_lower_bound {
                     missing_df.fetch_add(1, Ordering::Relaxed);
                 }
                 if self.radial_vertices[node]
-                    && self.lower_bound_forward_eccentricities[node] < signed_radius_upper_bound
+                    && self.lower_bound_forward_eccentricities[node] < self.radius_upper_bound
                 {
                     missing_r.fetch_add(1, Ordering::Relaxed);
                 }
             }
             if self.incomplete_backward_vertex(node) {
                 missing_all_backward.fetch_add(1, Ordering::Relaxed);
-                if self.upper_bound_backward_eccentricities[node] > signed_diameter_lower_bound {
+                if self.upper_bound_backward_eccentricities[node] > self.diameter_lower_bound {
                     missing_db.fetch_add(1, Ordering::Relaxed);
                 }
             }
@@ -1021,28 +976,28 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         pl.update_with_count(self.number_of_nodes);
 
-        let signed_iterations = self
-            .iterations
-            .try_into()
-            .with_context(|| format!("Could not convert {} to isize", self.iterations))?;
+        let iterations =
+            NonMaxUsize::new(self.iterations).expect("Iterations should never be usize::MAX");
         let missing_r = missing_r.load(Ordering::Relaxed);
         let missing_df = missing_df.load(Ordering::Relaxed);
         let missing_db = missing_db.load(Ordering::Relaxed);
         let missing_all_forward = missing_all_forward.load(Ordering::Relaxed);
         let missing_all_backward = missing_all_backward.load(Ordering::Relaxed);
 
-        if missing_r == 0 && self.radius_iterations == -1 {
-            self.radius_iterations = signed_iterations;
+        if missing_r == 0 && self.radius_iterations.is_none() {
+            self.radius_iterations = Some(iterations);
         }
-        if (missing_df == 0 || missing_db == 0) && self.diameter_iterations == -1 {
-            self.diameter_iterations = signed_iterations;
+        if (missing_df == 0 || missing_db == 0) && self.diameter_iterations.is_none() {
+            self.diameter_iterations = Some(iterations);
         }
-        if missing_all_forward == 0 && self.forward_eccentricities_iterations == -1 {
-            self.forward_eccentricities_iterations = signed_iterations;
+        if missing_all_forward == 0 && self.forward_eccentricities_iterations.is_none() {
+            self.forward_eccentricities_iterations = Some(iterations);
         }
         if missing_all_forward == 0 && missing_all_backward == 0 {
-            self.all_eccentricities_iterations = signed_iterations;
+            self.all_eccentricities_iterations = Some(iterations);
         }
+
+        println!("{} {} {}", missing_r, missing_db, missing_df);
 
         pl.done();
 

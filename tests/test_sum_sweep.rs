@@ -322,7 +322,7 @@ fn test_sparse() -> Result<()> {
     let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
         &graph,
         &transposed,
-        SumSweepOutputLevel::Radius,
+        SumSweepOutputLevel::All,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -363,7 +363,7 @@ fn test_no_radial_vertices() -> Result<()> {
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
-    assert_eq!(sum_sweep.radius(), Some(isize::MAX as usize));
+    assert_eq!(sum_sweep.radius(), Some(usize::MAX));
 
     Ok(())
 }
@@ -408,7 +408,7 @@ fn test_graph_no_edges() -> Result<()> {
     let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
         &graph,
         &transposed,
-        SumSweepOutputLevel::Radius,
+        SumSweepOutputLevel::All,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
