@@ -41,8 +41,8 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
 
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
     fn visit_from_node_filtered<
-        C: Fn(usize, usize) + Sync,
-        F: Fn(usize, usize, usize) -> bool + Sync,
+        C: Fn(usize, usize, usize, usize) + Sync,
+        F: Fn(usize, usize, usize, usize) -> bool + Sync,
     >(
         &mut self,
         callback: C,
@@ -50,23 +50,24 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        if self.visited[node_index] {
+        if self.visited[node_index] || !filter(node_index, node_index, node_index, 0) {
             return Ok(());
         }
         self.queue.push_back(Some(node_index));
         self.queue.push_back(None);
         self.visited.set(node_index, true);
+        callback(node_index, node_index, node_index, 0);
 
-        let mut distance = 0;
+        let mut distance = 1;
 
         // Visit the connected component
         while !self.queue.is_empty() {
             let current_node = self.queue.pop_front().unwrap();
             match current_node {
                 Some(node) => {
-                    callback(node, distance);
                     for succ in self.graph.successors(node) {
-                        if !self.visited[succ] && filter(succ, node_index, distance) {
+                        if !self.visited[succ] && filter(succ, node, node_index, distance) {
+                            callback(succ, node, node_index, distance);
                             self.visited.set(succ, true);
                             self.queue.push_back(Some(succ))
                         }
@@ -86,8 +87,8 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
     }
 
     fn visit_graph_filtered<
-        C: Fn(usize, usize) + Sync,
-        F: Fn(usize, usize, usize) -> bool + Sync,
+        C: Fn(usize, usize, usize, usize) + Sync,
+        F: Fn(usize, usize, usize, usize) -> bool + Sync,
     >(
         &mut self,
         callback: C,

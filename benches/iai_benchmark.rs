@@ -19,7 +19,7 @@ fn test_bfv_cnr_2000_sequential() {
         .unwrap();
     let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
     visit
-        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
 }
 
@@ -30,7 +30,7 @@ fn test_bfv_cnr_2000_parallel() {
         .unwrap();
     let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
     visit
-        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
 }
 
@@ -49,7 +49,7 @@ fn test_bfv_in_2004_sequential() {
         .unwrap();
     let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
     visit
-        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
 }
 
@@ -60,7 +60,7 @@ fn test_bfv_in_2004_parallel() {
         .unwrap();
     let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
     visit
-        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
 }
 

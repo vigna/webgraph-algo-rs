@@ -67,8 +67,8 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
 
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
     fn visit_from_node_filtered<
-        C: Fn(usize, usize) + Sync,
-        F: Fn(usize, usize, usize) -> bool + Sync,
+        C: Fn(usize, usize, usize, usize) + Sync,
+        F: Fn(usize, usize, usize, usize) -> bool + Sync,
     >(
         &mut self,
         callback: C,
@@ -76,7 +76,9 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
         node_index: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        if self.visited.get(node_index, Ordering::Relaxed) {
+        if self.visited.get(node_index, Ordering::Relaxed)
+            || !filter(node_index, node_index, node_index, 0)
+        {
             return Ok(());
         }
 
@@ -84,7 +86,9 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
 
         next_frontier.push(node_index);
         self.visited.set(node_index, true, Ordering::Relaxed);
-        let mut distance = 0;
+        callback(node_index, node_index, node_index, 0);
+
+        let mut distance = 1;
 
         // Visit the connected component
         while !next_frontier.is_empty() {
@@ -96,11 +100,11 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
                 .chunks(self.granularity)
                 .for_each(|chunk| {
                     chunk.into_iter().for_each(|&node| {
-                        callback(node, distance);
                         self.graph.successors(node).into_iter().for_each(|succ| {
-                            if filter(succ, node_index, distance)
+                            if filter(succ, node, node_index, distance)
                                 && !self.visited.swap(succ, true, Ordering::Relaxed)
                             {
+                                callback(succ, node, node_index, distance);
                                 next_frontier.push(succ);
                             }
                         })
@@ -114,8 +118,8 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
     }
 
     fn visit_graph_filtered<
-        C: Fn(usize, usize) + Sync,
-        F: Fn(usize, usize, usize) -> bool + Sync,
+        C: Fn(usize, usize, usize, usize) + Sync,
+        F: Fn(usize, usize, usize, usize) -> bool + Sync,
     >(
         &mut self,
         callback: C,

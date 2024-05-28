@@ -593,7 +593,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let mut bfs =
             ParallelBreadthFirstVisit::with_granularity(self.reversed_graph, VISIT_GRANULARITY);
         bfs.visit_from_node(
-            |node, _distance| self.radial_vertices.set(node, true, Ordering::Relaxed),
+            |node, _, _, _| self.radial_vertices.set(node, true, Ordering::Relaxed),
             v,
             &mut pl,
         )
@@ -662,7 +662,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
 
         bfs.visit_from_node(
-            |node, distance| {
+            |node, _, _, distance| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 let incomplete = if forward {
                     self.incomplete_backward_vertex(node)
@@ -785,7 +785,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
                 bfs.visit_from_node_filtered(
-                    |node, distance| {
+                    |node, _, _, distance| {
                         let dist_pivot_ptr = dist_pivot.as_ptr() as *mut usize;
                         // Safety: each node is accessed exaclty once
                         unsafe {
@@ -793,7 +793,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                         }
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
                     },
-                    |node, _, _| components[node] == pivot_component,
+                    |node, _, _, _| components[node] == pivot_component,
                     p,
                     &mut Option::<ProgressLogger>::None,
                 )

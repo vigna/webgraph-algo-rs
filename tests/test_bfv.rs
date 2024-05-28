@@ -92,7 +92,7 @@ macro_rules! test_bfv_algo {
                 let expected_dists = correct_dists(&graph, 0);
 
                 visit.visit(
-                    |node, distance| dists[node].store(distance, Ordering::Relaxed),
+                    |node, _, _, distance| dists[node].store(distance, Ordering::Relaxed),
                     Option::<ProgressLogger>::None,
                 )?;
 
@@ -113,7 +113,7 @@ macro_rules! test_bfv_algo {
                 let expected_dists = correct_dists(&graph, 10000);
 
                 visit.visit(
-                    |node, distance| dists[node].store(distance, Ordering::Relaxed),
+                    |node, _, _, distance| dists[node].store(distance, Ordering::Relaxed),
                     Option::<ProgressLogger>::None,
                 )?;
 

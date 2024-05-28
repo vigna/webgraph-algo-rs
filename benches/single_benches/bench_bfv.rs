@@ -27,7 +27,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     SingleThreadedBreadthFirstVisit::with_start(i, start)
-                        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
                 });
             },
@@ -39,7 +39,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     ParallelBreadthFirstVisit::with_parameters(i, start, 1)
-                        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
                 });
             },
@@ -51,7 +51,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     ParallelBreadthFirstVisit::with_parameters(i, start, 64)
-                        .visit(|_, _| {}, Option::<ProgressLogger>::None)
+                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
                 });
             },
