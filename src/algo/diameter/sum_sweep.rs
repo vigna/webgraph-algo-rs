@@ -997,8 +997,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             self.all_eccentricities_iterations = Some(iterations);
         }
 
-        println!("{} {} {}", missing_r, missing_db, missing_df);
-
         pl.done();
 
         match self.output {

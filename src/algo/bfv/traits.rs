@@ -62,8 +62,6 @@ pub trait GraphVisit {
         self.visit_graph_filtered(callback, filter, &mut pl)
     }
 
-    /// **Internal method. You should not need to call this directly.**
-    ///
     /// Visits the graph from the specified node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
     ///
