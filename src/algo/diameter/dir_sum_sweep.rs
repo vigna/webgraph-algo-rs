@@ -1,11 +1,11 @@
-use super::scc_graph::SccGraph;
 use crate::{
-    algo::{bfv::*, strongly_connected_components::TarjanStronglyConnectedComponents},
-    prelude::*,
-    utils::{
-        argmax, argmin, closure_vec,
-        mmap_slice::{MmapSlice, TempMmapOptions},
+    algo::{
+        bfv::*,
+        diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
+        strongly_connected_components::TarjanStronglyConnectedComponents,
     },
+    prelude::*,
+    utils::{argmax, argmin, closure_vec, mmap_slice::MmapSlice},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
@@ -17,15 +17,6 @@ use std::sync::{
 };
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
-
-#[derive(PartialEq)]
-pub enum SumSweepOutputLevel {
-    All,
-    AllForward,
-    Diameter,
-    Radius,
-    RadiusDiameter,
-}
 
 const VISIT_GRANULARITY: usize = 32;
 
@@ -171,10 +162,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             != self.upper_bound_backward_eccentricities[index]
     }
 
-    /// Returns the forward eccentricity of a vertex if it has already been computed, [`None`] otherwise.
-    ///
-    /// # Arguments
-    /// - `vertex`: The vertex.
     fn forward_eccentricity(&self, index: usize) -> Option<usize> {
         if self.incomplete_forward_vertex(index) {
             None
@@ -936,7 +923,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         Ok(())
     }
 
-    /// Computes how many nodes are still to be processed. before outputting the result.
+    /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
@@ -999,14 +986,14 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         pl.done();
 
-        match self.output {
-            SumSweepOutputLevel::Radius => Ok(missing_r),
-            SumSweepOutputLevel::Diameter => Ok(std::cmp::min(missing_df, missing_db)),
+        Ok(match self.output {
+            SumSweepOutputLevel::Radius => missing_r,
+            SumSweepOutputLevel::Diameter => std::cmp::min(missing_df, missing_db),
             SumSweepOutputLevel::RadiusDiameter => {
-                Ok(missing_r + std::cmp::min(missing_df, missing_db))
+                missing_r + std::cmp::min(missing_df, missing_db)
             }
-            SumSweepOutputLevel::AllForward => Ok(missing_all_forward),
-            SumSweepOutputLevel::All => Ok(missing_all_backward + missing_all_forward),
-        }
+            SumSweepOutputLevel::AllForward => missing_all_forward,
+            SumSweepOutputLevel::All => missing_all_backward + missing_all_forward,
+        })
     }
 }
