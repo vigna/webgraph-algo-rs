@@ -327,20 +327,32 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
 
                     if !self.incomplete_vertex(node) {
                         let ecc = self.lower_bound_eccentricities[node];
+                        let mut update = false;
 
-                        let diameter_lock = diameter.read().unwrap();
-                        if diameter_lock.0 < ecc {
-                            drop(diameter_lock);
+                        {
+                            let diameter_lock = diameter.read().unwrap();
+                            if diameter_lock.0 < ecc {
+                                update = true
+                            }
+                        }
+
+                        if update {
                             let mut diameter_lock = diameter.write().unwrap();
                             if diameter_lock.0 < ecc {
                                 diameter_lock.0 = ecc;
                                 diameter_lock.1 = node;
                             }
                         }
+                        update = false;
 
-                        let radius_lock = radius.read().unwrap();
-                        if radius_lock.0 > ecc {
-                            drop(radius_lock);
+                        {
+                            let radius_lock = radius.read().unwrap();
+                            if radius_lock.0 > ecc {
+                                update = true;
+                            }
+                        }
+
+                        if update {
                             let mut radius_lock = radius.write().unwrap();
                             if radius_lock.0 > ecc {
                                 radius_lock.0 = ecc;
@@ -488,7 +500,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
         });
 
         self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 3, pl.clone())
-            .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
+            .with_context(|| "Could not perform first 3 iterations of SumSweep heuristic.")?;
 
         let mut points = [self.graph.num_nodes() as f64; 3];
         let mut missing_nodes = self
