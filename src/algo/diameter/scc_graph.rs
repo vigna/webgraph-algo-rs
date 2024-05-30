@@ -163,10 +163,14 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                                 if best_start[succ_component].is_none() {
                                     // Safety: lock and best_end is updated before best_start
                                     unsafe {
-                                        *best_end_ptr.add(succ_component) =
-                                            Some(NonMaxUsize::new_unchecked(succ));
-                                        *best_start_ptr.add(succ_component) =
-                                            Some(NonMaxUsize::new_unchecked(v));
+                                        *best_end_ptr.add(succ_component) = Some(
+                                            NonMaxUsize::new(succ)
+                                                .expect("node index should never be usize::MAX"),
+                                        );
+                                        *best_start_ptr.add(succ_component) = Some(
+                                            NonMaxUsize::new(v)
+                                                .expect("node index should never be usize::MAX"),
+                                        );
                                     }
                                     drop(_l);
                                     child_components.push(succ_component);
@@ -195,10 +199,14 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                                 {
                                     // Safety: lock
                                     unsafe {
-                                        *best_end_ptr.add(succ_component) =
-                                            Some(NonMaxUsize::new_unchecked(succ));
-                                        *best_start_ptr.add(succ_component) =
-                                            Some(NonMaxUsize::new_unchecked(v));
+                                        *best_end_ptr.add(succ_component) = Some(
+                                            NonMaxUsize::new(succ)
+                                                .expect("node index should never be usize::MAX"),
+                                        );
+                                        *best_start_ptr.add(succ_component) = Some(
+                                            NonMaxUsize::new(v)
+                                                .expect("node index should never be usize::MAX"),
+                                        );
                                     }
                                 }
                             }

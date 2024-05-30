@@ -189,7 +189,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
             w = v;
             v = self.graph.successors(start).into_iter().next().unwrap();
 
-            dist[v] = unsafe { Some(NonMaxUsize::new_unchecked(1)) };
+            dist[v] = Some(NonMaxUsize::ONE);
             start_len += 1;
 
             while self.graph.outdegree(v) == 2 {
@@ -207,7 +207,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
                 }
 
                 let dist_w: usize = dist[w].unwrap().into();
-                dist[v] = unsafe { Some(NonMaxUsize::new_unchecked(dist_w + 1)) };
+                dist[v] =
+                    Some(NonMaxUsize::new(dist_w + 1).expect("dist should never equal usize::MAX"));
                 start_len += 1;
             }
         }
@@ -247,7 +248,10 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
 
                         let parent_dist: usize = dist[parent].unwrap().into();
                         unsafe {
-                            *dist_ptr.add(node) = Some(NonMaxUsize::new_unchecked(parent_dist + 1));
+                            *dist_ptr.add(node) = Some(
+                                NonMaxUsize::new(parent_dist + 1)
+                                    .expect("dist should never equal usize::MAX"),
+                            );
                         }
                     }
 
