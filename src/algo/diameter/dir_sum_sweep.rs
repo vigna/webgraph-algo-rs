@@ -13,7 +13,7 @@ use nonmax::NonMaxUsize;
 use rayon::prelude::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Mutex,
+    RwLock,
 };
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
@@ -642,9 +642,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         }
 
         let max_dist = AtomicUsize::new(0);
-        let current_radius_upper_bound = AtomicUsize::new(self.radius_upper_bound);
-        let current_radius_vertex = AtomicUsize::new(self.radius_vertex);
-        let lock = std::sync::Mutex::new(());
+        let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
         let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
 
@@ -668,15 +666,22 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                         *other_lower_bound_ptr.add(node) = distance;
                     }
 
-                    if distance == other_upper_bound[node]
-                        && !forward
-                        && self.radial_vertices[node]
-                        && distance < current_radius_upper_bound.load(Ordering::Relaxed)
+                    if distance == other_upper_bound[node] && !forward && self.radial_vertices[node]
                     {
-                        let _l = lock.lock().unwrap();
-                        if distance < current_radius_upper_bound.load(Ordering::Relaxed) {
-                            current_radius_upper_bound.store(distance, Ordering::Relaxed);
-                            current_radius_vertex.store(node, Ordering::Relaxed);
+                        let mut update_radius = false;
+                        {
+                            let radius_lock = radius.read().unwrap();
+                            if distance < radius_lock.0 {
+                                update_radius = true;
+                            }
+                        }
+
+                        if update_radius {
+                            let mut radius_lock = radius.write().unwrap();
+                            if distance < radius_lock.0 {
+                                radius_lock.0 = distance;
+                                radius_lock.1 = node;
+                            }
                         }
                     }
                 }
@@ -699,8 +704,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         lower_bound[start] = ecc_start;
         upper_bound[start] = ecc_start;
 
-        self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
-        self.radius_vertex = current_radius_vertex.load(Ordering::Relaxed);
+        (self.radius_upper_bound, self.radius_vertex) = radius.into_inner().unwrap();
 
         if self.diameter_lower_bound < ecc_start {
             self.diameter_lower_bound = ecc_start;
@@ -871,9 +875,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             pl.light_update();
         }
 
-        let lock = Mutex::new(());
-        let current_radius_upper_bound = AtomicUsize::new(self.radius_upper_bound);
-        let current_radial_vertex = AtomicUsize::new(self.radius_vertex);
+        let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
@@ -892,13 +894,21 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             if !self.incomplete_forward_vertex(node) {
                 let new_ecc = self.upper_bound_forward_eccentricities[node];
 
-                if self.radial_vertices[node]
-                    && new_ecc < current_radius_upper_bound.load(Ordering::Relaxed)
-                {
-                    let _l = lock.lock().unwrap();
-                    if new_ecc < current_radius_upper_bound.load(Ordering::Relaxed) {
-                        current_radius_upper_bound.store(new_ecc, Ordering::Relaxed);
-                        current_radial_vertex.store(node, Ordering::Relaxed);
+                if self.radial_vertices[node] {
+                    let mut update_radius = false;
+                    {
+                        let radius_lock = radius.read().unwrap();
+                        if new_ecc < radius_lock.0 {
+                            update_radius = true;
+                        }
+                    }
+
+                    if update_radius {
+                        let mut radius_lock = radius.write().unwrap();
+                        if new_ecc < radius_lock.0 {
+                            radius_lock.0 = new_ecc;
+                            radius_lock.1 = node;
+                        }
                     }
                 }
             }
@@ -913,8 +923,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         pl.update_with_count(self.number_of_nodes);
 
-        self.radius_vertex = current_radial_vertex.load(Ordering::Relaxed);
-        self.radius_upper_bound = current_radius_upper_bound.load(Ordering::Relaxed);
+        (self.radius_upper_bound, self.radius_vertex) = radius.into_inner().unwrap();
 
         self.iterations += 3;
 
