@@ -8,6 +8,7 @@ use crate::{
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
 use mmap_rs::MmapFlags;
+use nonmax::NonMaxUsize;
 use parallel_frontier::prelude::Frontier;
 use rayon::prelude::*;
 use std::{marker::PhantomData, sync::Mutex};
@@ -144,14 +145,14 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         }
 
         {
-            let mut best_start: Vec<Option<usize>> = vec![None; number_of_scc];
-            let best_end: Vec<Option<usize>> = vec![None; number_of_scc];
+            let mut best_start: Vec<Option<NonMaxUsize>> = vec![None; number_of_scc];
+            let best_end: Vec<Option<NonMaxUsize>> = vec![None; number_of_scc];
             let locks = closure_vec(|| Mutex::new(()), number_of_scc);
 
             for (c, component) in vertices_in_scc.into_iter().enumerate() {
                 component.into_par_iter().for_each(|v| {
-                    let best_start_ptr = best_start.as_ptr() as *mut Option<usize>;
-                    let best_end_ptr = best_end.as_ptr() as *mut Option<usize>;
+                    let best_start_ptr = best_start.as_ptr() as *mut Option<NonMaxUsize>;
+                    let best_end_ptr = best_end.as_ptr() as *mut Option<NonMaxUsize>;
 
                     for succ in graph.successors(v) {
                         let succ_component = node_components[succ];
@@ -162,8 +163,10 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                                 if best_start[succ_component].is_none() {
                                     // Safety: lock and best_end is updated before best_start
                                     unsafe {
-                                        *best_end_ptr.add(succ_component) = Some(succ);
-                                        *best_start_ptr.add(succ_component) = Some(v);
+                                        *best_end_ptr.add(succ_component) =
+                                            Some(NonMaxUsize::new_unchecked(succ));
+                                        *best_start_ptr.add(succ_component) =
+                                            Some(NonMaxUsize::new_unchecked(v));
                                     }
                                     drop(_l);
                                     child_components.push(succ_component);
@@ -180,19 +183,22 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                             // as it is only used as a preliminary filter to reduce lock access (at worst the computed best
                             // is < than the actual value, but after lock acquisition this gets fixed with the seconf if).
                             if current_value
-                                > graph.outdegree(best_end[succ_component].unwrap())
-                                    + reversed_graph.outdegree(best_start[succ_component].unwrap())
+                                > graph.outdegree(best_end[succ_component].unwrap().into())
+                                    + reversed_graph
+                                        .outdegree(best_start[succ_component].unwrap().into())
                             {
                                 let _l = locks[succ_component].lock().unwrap();
                                 if current_value
-                                    > graph.outdegree(best_end[succ_component].unwrap())
+                                    > graph.outdegree(best_end[succ_component].unwrap().into())
                                         + reversed_graph
-                                            .outdegree(best_start[succ_component].unwrap())
+                                            .outdegree(best_start[succ_component].unwrap().into())
                                 {
                                     // Safety: lock
                                     unsafe {
-                                        *best_end_ptr.add(succ_component) = Some(succ);
-                                        *best_start_ptr.add(succ_component) = Some(v);
+                                        *best_end_ptr.add(succ_component) =
+                                            Some(NonMaxUsize::new_unchecked(succ));
+                                        *best_start_ptr.add(succ_component) =
+                                            Some(NonMaxUsize::new_unchecked(v));
                                     }
                                 }
                             }
@@ -206,8 +212,8 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                 let mut end_vec = Vec::with_capacity(number_of_children);
                 for &child in child_components.iter() {
                     scc_vec.push(child);
-                    start_vec.push(best_start[child].unwrap());
-                    end_vec.push(best_end[child].unwrap());
+                    start_vec.push(best_start[child].unwrap().into());
+                    end_vec.push(best_end[child].unwrap().into());
                     best_start[c] = None;
                 }
                 scc_graph[c] = scc_vec;
