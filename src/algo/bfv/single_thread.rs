@@ -64,8 +64,8 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
         let mut distance = 1;
 
         // Visit the connected component
-        while !self.queue.is_empty() {
-            let current_node = self.queue.pop_front().unwrap().map(|n| n.into());
+        while let Some(current_node) = self.queue.pop_front() {
+            let current_node = current_node.map(|n| n.into());
             match current_node {
                 Some(node) => {
                     for succ in self.graph.successors(node) {
