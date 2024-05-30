@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
+use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
@@ -10,7 +11,7 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
     visited: BitVec,
-    queue: VecDeque<Option<usize>>,
+    queue: VecDeque<Option<NonMaxUsize>>,
 }
 
 impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
@@ -53,7 +54,9 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
         if self.visited[node_index] || !filter(node_index, node_index, node_index, 0) {
             return Ok(());
         }
-        self.queue.push_back(Some(node_index));
+        self.queue.push_back(Some(
+            NonMaxUsize::new(node_index).expect("node index should never be usize::MAX"),
+        ));
         self.queue.push_back(None);
         self.visited.set(node_index, true);
         callback(node_index, node_index, node_index, 0);
@@ -62,14 +65,17 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
 
         // Visit the connected component
         while !self.queue.is_empty() {
-            let current_node = self.queue.pop_front().unwrap();
+            let current_node = self.queue.pop_front().unwrap().map(|n| n.into());
             match current_node {
                 Some(node) => {
                     for succ in self.graph.successors(node) {
                         if !self.visited[succ] && filter(succ, node, node_index, distance) {
                             callback(succ, node, node_index, distance);
                             self.visited.set(succ, true);
-                            self.queue.push_back(Some(succ))
+                            self.queue.push_back(Some(
+                                NonMaxUsize::new(succ)
+                                    .expect("node index should never be usize::MAX"),
+                            ))
                         }
                     }
                     pl.light_update();
