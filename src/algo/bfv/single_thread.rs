@@ -14,6 +14,11 @@ pub struct SingleThreadedBreadthFirstVisitBuilder<'a, G: RandomAccessGraph> {
 }
 
 impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
+    /// Constructs a new builder with default parameters for specified graph.
+    pub fn new(graph: &'a G) -> Self {
+        Self { graph, start: 0 }
+    }
+
     /// Sets the starting node for full visits.
     /// It does nothing for single visits using [GraphVisit::visit_from_node].
     pub fn with_start(mut self, start: usize) -> Self {
@@ -38,16 +43,6 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     start: usize,
     visited: BitVec,
     queue: VecDeque<Option<NonMaxUsize>>,
-}
-
-impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
-    /// Constructs a sequential BFV builder for the specified graph with default parameters.
-    ///
-    /// # Arguments:
-    /// - `graph`: An immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
-        SingleThreadedBreadthFirstVisitBuilder { graph, start: 0 }
-    }
 }
 
 impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
@@ -144,7 +139,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = SingleThreadedBreadthFirstVisit::new(&graph)
+        let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph)
             .with_start(10)
             .build();
 
@@ -158,7 +153,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = SingleThreadedBreadthFirstVisit::new(&graph);
+        let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph).build();
 
         assert_eq!(visit.start, 0);
 

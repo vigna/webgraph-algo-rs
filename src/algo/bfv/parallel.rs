@@ -8,6 +8,7 @@ use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// Builder for [`ParallelBreadthFirstVisit`].
+#[derive(Clone)]
 pub struct ParallelBreadthFirstVisitBuilder<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
@@ -15,6 +16,15 @@ pub struct ParallelBreadthFirstVisitBuilder<'a, G: RandomAccessGraph> {
 }
 
 impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitBuilder<'a, G> {
+    /// Constructs a new builder with default parameters for specified graph.
+    pub fn new(graph: &'a G) -> Self {
+        Self {
+            graph,
+            start: 0,
+            granularity: 1,
+        }
+    }
+
     /// Sets the starting node for full visits.
     /// It does nothing for single visits using [GraphVisit::visit_from_node].
     pub fn with_start(mut self, start: usize) -> Self {
@@ -25,7 +35,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitBuilder<'a, G> {
     /// Sets the number of nodes in each chunk of the frontier to explore.
     ///
     /// High granularity reduces overhead, but may lead to decreased performance
-    /// for skewed graphs.
+    /// on graphs with skewed outdegrees.
     pub fn with_granularity(mut self, granularity: usize) -> Self {
         self.granularity = granularity;
         self
@@ -48,20 +58,6 @@ pub struct ParallelBreadthFirstVisit<'a, G: RandomAccessGraph> {
     start: usize,
     granularity: usize,
     visited: AtomicBitVec,
-}
-
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
-    /// Constructs a parallel BFV for the specified graph.
-    ///
-    /// # Arguments:
-    /// - `graph`: An immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> ParallelBreadthFirstVisitBuilder<'a, G> {
-        ParallelBreadthFirstVisitBuilder {
-            graph,
-            start: 0,
-            granularity: 1,
-        }
-    }
 }
 
 impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
@@ -163,7 +159,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::new(&graph)
+        let visit = ParallelBreadthFirstVisitBuilder::new(&graph)
             .with_start(10)
             .with_granularity(2)
             .build();
@@ -179,7 +175,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::new(&graph)
+        let visit = ParallelBreadthFirstVisitBuilder::new(&graph)
             .with_start(10)
             .build();
 
@@ -194,7 +190,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::new(&graph)
+        let visit = ParallelBreadthFirstVisitBuilder::new(&graph)
             .with_granularity(10)
             .build();
 
@@ -209,7 +205,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::new(&graph);
+        let visit = ParallelBreadthFirstVisitBuilder::new(&graph).build();
 
         assert_eq!(visit.start, 0);
         assert_eq!(visit.granularity, 1);

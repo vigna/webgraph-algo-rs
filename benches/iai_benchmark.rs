@@ -1,7 +1,7 @@
 use dsi_progress_logger::ProgressLogger;
 use webgraph::graphs::BVGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::bfv::*;
+use webgraph_algo::algo::bfv::BFV;
 use webgraph_algo::prelude::*;
 
 #[cfg_attr(windows, allow(dead_code))]
@@ -17,9 +17,7 @@ fn test_bfv_cnr_2000_sequential() {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let visit = SingleThreadedBreadthFirstVisit::new(&graph)
-        .with_start(10000)
-        .build();
+    let visit = BFV::new_sequential(&graph).with_start(10000).build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
@@ -30,8 +28,9 @@ fn test_bfv_cnr_2000_parallel() {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let visit = ParallelBreadthFirstVisit::new(&graph)
+    let visit = BFV::new_parallel(&graph)
         .with_start(10000)
+        .with_granularity(32)
         .build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
@@ -51,9 +50,7 @@ fn test_bfv_in_2004_sequential() {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let visit = SingleThreadedBreadthFirstVisit::new(&graph)
-        .with_start(10000)
-        .build();
+    let visit = BFV::new_sequential(&graph).with_start(10000).build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
@@ -64,8 +61,9 @@ fn test_bfv_in_2004_parallel() {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let visit = ParallelBreadthFirstVisit::new(&graph)
+    let visit = BFV::new_parallel(&graph)
         .with_start(10000)
+        .with_granularity(32)
         .build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
