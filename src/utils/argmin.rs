@@ -11,7 +11,7 @@
 /// assert_eq!(index, Some(3));
 /// ```
 pub fn argmin<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
-    if vec.len() == 0 {
+    if vec.is_empty() {
         return None;
     }
     let mut min = vec[0];
@@ -44,23 +44,30 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
 /// assert_eq!(index, Some(3));
 /// ```
 pub fn filtered_argmin<
-    T: common_traits::FiniteRangeNumber,
-    N: common_traits::FiniteRangeNumber,
+    T: std::cmp::PartialOrd + Copy,
+    N: std::cmp::PartialOrd + Copy,
     F: Fn(usize, T) -> bool,
 >(
     vec: &[T],
     tie_break: &[N],
     filter: F,
 ) -> Option<usize> {
-    let mut min = T::MAX;
-    let mut min_tie_break = N::MAX;
+    let mut iter = vec.iter().zip(tie_break.iter()).enumerate();
     let mut argmin = None;
 
-    for (i, (&elem, &tie)) in vec.iter().zip(tie_break.iter()).enumerate() {
-        if filter(i, elem) && (elem < min || (elem == min && tie < min_tie_break)) {
+    while let Some((i, (&elem, &tie))) = iter.next() {
+        if filter(i, elem) {
             argmin = Some(i);
-            min = elem;
-            min_tie_break = tie;
+            let mut min = elem;
+            let mut min_tie_break = tie;
+
+            for (i, (&elem, &tie)) in iter.by_ref() {
+                if filter(i, elem) && (elem < min || (elem == min && tie < min_tie_break)) {
+                    argmin = Some(i);
+                    min = elem;
+                    min_tie_break = tie;
+                }
+            }
         }
     }
 

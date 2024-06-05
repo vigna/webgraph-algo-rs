@@ -11,7 +11,7 @@
 /// assert_eq!(index, Some(2));
 /// ```
 pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
-    if vec.len() == 0 {
+    if vec.is_empty() {
         return None;
     }
     let mut max = vec[0];
@@ -44,23 +44,30 @@ pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
 /// assert_eq!(index, Some(3));
 /// ```
 pub fn filtered_argmax<
-    T: common_traits::FiniteRangeNumber,
-    N: common_traits::FiniteRangeNumber,
+    T: std::cmp::PartialOrd + Copy,
+    N: std::cmp::PartialOrd + Copy,
     F: Fn(usize, T) -> bool,
 >(
     vec: &[T],
     tie_break: &[N],
     filter: F,
 ) -> Option<usize> {
-    let mut max = T::MIN;
-    let mut max_tie_break = N::MIN;
+    let mut iter = vec.iter().zip(tie_break.iter()).enumerate();
     let mut argmax = None;
 
-    for (i, (&elem, &tie)) in vec.iter().zip(tie_break.iter()).enumerate() {
-        if filter(i, elem) && (elem > max || (elem == max && tie > max_tie_break)) {
+    while let Some((i, (&elem, &tie))) = iter.next() {
+        if filter(i, elem) {
             argmax = Some(i);
-            max = elem;
-            max_tie_break = tie;
+            let mut max = elem;
+            let mut max_tie_break = tie;
+
+            for (i, (&elem, &tie)) in iter.by_ref() {
+                if filter(i, elem) && (elem > max || (elem == max && tie > max_tie_break)) {
+                    argmax = Some(i);
+                    max = elem;
+                    max_tie_break = tie;
+                }
+            }
         }
     }
 
