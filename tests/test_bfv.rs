@@ -85,7 +85,7 @@ macro_rules! test_bfv_algo {
                     g.add_arc(arc.0, arc.1);
                 }
                 let graph = Left(g);
-                let visit = $bfv::with_start(&graph, 0);
+                let visit = $bfv::new(&graph).with_start(0).build();
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();
@@ -106,7 +106,7 @@ macro_rules! test_bfv_algo {
             #[test]
             fn test_cnr_2000() -> Result<()> {
                 let graph = BVGraph::with_basename("tests/graphs/cnr-2000").load()?;
-                let visit = $bfv::with_start(&graph, 10000);
+                let visit = $bfv::new(&graph).with_start(10000).build();
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();

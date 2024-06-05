@@ -577,8 +577,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         pl.info(format_args!("Computing radial vertices set"));
 
-        let mut bfs =
-            ParallelBreadthFirstVisit::with_granularity(self.reversed_graph, VISIT_GRANULARITY);
+        let mut bfs = ParallelBreadthFirstVisit::new(self.reversed_graph)
+            .with_granularity(VISIT_GRANULARITY)
+            .build();
         bfs.visit_from_node(
             |node, _, _, _| self.radial_vertices.set(node, true, Ordering::Relaxed),
             v,
@@ -644,7 +645,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
-        let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
+        let mut bfs = ParallelBreadthFirstVisit::new(graph)
+            .with_granularity(VISIT_GRANULARITY)
+            .build();
 
         bfs.visit_from_node(
             |node, _, _, distance| {
@@ -768,7 +771,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let current_index = AtomicUsize::new(0);
 
         rayon::broadcast(|_| {
-            let mut bfs = ParallelBreadthFirstVisit::with_granularity(graph, VISIT_GRANULARITY);
+            let mut bfs = ParallelBreadthFirstVisit::new(graph)
+                .with_granularity(VISIT_GRANULARITY)
+                .build();
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {

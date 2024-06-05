@@ -7,6 +7,41 @@ use std::sync::atomic::Ordering;
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
+/// Builder for [`ParallelBreadthFirstVisit`].
+pub struct ParallelBreadthFirstVisitBuilder<'a, G: RandomAccessGraph> {
+    graph: &'a G,
+    start: usize,
+    granularity: usize,
+}
+
+impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitBuilder<'a, G> {
+    /// Sets the starting node for full visits.
+    /// It does nothing for single visits using [GraphVisit::visit_from_node].
+    pub fn with_start(mut self, start: usize) -> Self {
+        self.start = start;
+        self
+    }
+
+    /// Sets the number of nodes in each chunk of the frontier to explore.
+    ///
+    /// High granularity reduces overhead, but may lead to decreased performance
+    /// for skewed graphs.
+    pub fn with_granularity(mut self, granularity: usize) -> Self {
+        self.granularity = granularity;
+        self
+    }
+
+    /// Builds the sequential BFV with the builder parameters and consumes the builder.
+    pub fn build(self) -> ParallelBreadthFirstVisit<'a, G> {
+        ParallelBreadthFirstVisit {
+            graph: self.graph,
+            start: self.start,
+            granularity: self.granularity,
+            visited: AtomicBitVec::new(self.graph.num_nodes()),
+        }
+    }
+}
+
 /// A simple parallel Breadth First visit on a graph.
 pub struct ParallelBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
@@ -20,47 +55,11 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G> {
     ///
     /// # Arguments:
     /// - `graph`: An immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> ParallelBreadthFirstVisit<'a, G> {
-        Self::with_start(graph, 0)
-    }
-
-    /// Constructs a parallel BFV starting from the node with the specified index in the
-    /// provided graph.
-    ///
-    /// # Arguments:
-    /// - `graph`: An immutable reference to the graph to visit.
-    /// - `start`: The starting node.
-    pub fn with_start(graph: &'a G, start: usize) -> ParallelBreadthFirstVisit<'a, G> {
-        Self::with_parameters(graph, start, 1)
-    }
-
-    /// Constructs a parallel BFV using the specified parallelism split granularity with
-    /// respect to the number of threads in the provided graph.
-    ///
-    /// # Arguments:
-    /// - `graph`: An immutable reference to the graph to visit.
-    /// - `granularity`: How many nodes per fragment.
-    pub fn with_granularity(graph: &'a G, granularity: usize) -> ParallelBreadthFirstVisit<'a, G> {
-        Self::with_parameters(graph, 0, granularity)
-    }
-
-    /// Constructs a parallel BFV starting from the node with the specified index and using the
-    /// specified parallelism split granularity with respect to the number of threads in the provided graph.
-    ///
-    /// # Arguments:
-    /// - `graph`: An immutable reference to the graph to visit.
-    /// - `start`: The starting node.
-    /// - `granularity`: How many nodes per fragment.
-    pub fn with_parameters(
-        graph: &'a G,
-        start: usize,
-        granularity: usize,
-    ) -> ParallelBreadthFirstVisit<'a, G> {
-        ParallelBreadthFirstVisit {
+    pub fn new(graph: &'a G) -> ParallelBreadthFirstVisitBuilder<'a, G> {
+        ParallelBreadthFirstVisitBuilder {
             graph,
-            start,
-            granularity,
-            visited: AtomicBitVec::new(graph.num_nodes()),
+            start: 0,
+            granularity: 1,
         }
     }
 }
@@ -164,7 +163,10 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::with_parameters(&graph, 10, 2);
+        let visit = ParallelBreadthFirstVisit::new(&graph)
+            .with_start(10)
+            .with_granularity(2)
+            .build();
 
         assert_eq!(visit.start, 10);
         assert_eq!(visit.granularity, 2);
@@ -177,7 +179,9 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::with_start(&graph, 10);
+        let visit = ParallelBreadthFirstVisit::new(&graph)
+            .with_start(10)
+            .build();
 
         assert_eq!(visit.start, 10);
         assert_eq!(visit.granularity, 1);
@@ -190,7 +194,9 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisit::with_granularity(&graph, 10);
+        let visit = ParallelBreadthFirstVisit::new(&graph)
+            .with_granularity(10)
+            .build();
 
         assert_eq!(visit.start, 0);
         assert_eq!(visit.granularity, 10);

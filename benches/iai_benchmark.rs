@@ -17,7 +17,9 @@ fn test_bfv_cnr_2000_sequential() {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
+    let visit = SingleThreadedBreadthFirstVisit::new(&graph)
+        .with_start(10000)
+        .build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
@@ -28,7 +30,9 @@ fn test_bfv_cnr_2000_parallel() {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
+    let visit = ParallelBreadthFirstVisit::new(&graph)
+        .with_start(10000)
+        .build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
@@ -47,7 +51,9 @@ fn test_bfv_in_2004_sequential() {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let visit = SingleThreadedBreadthFirstVisit::with_start(&graph, 10000);
+    let visit = SingleThreadedBreadthFirstVisit::new(&graph)
+        .with_start(10000)
+        .build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
@@ -58,7 +64,9 @@ fn test_bfv_in_2004_parallel() {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let visit = ParallelBreadthFirstVisit::with_start(&graph, 10000);
+    let visit = ParallelBreadthFirstVisit::new(&graph)
+        .with_start(10000)
+        .build();
     visit
         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
         .unwrap()
