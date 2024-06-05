@@ -1,43 +1,3 @@
-//! A utility struct to reduce RAM consumption by allowing storing data in persistent memory and
-//! memory mapping it.
-//! This still allows to choose to keep everything in ram by using [`TempMmapOptions::None`]
-//!
-//! # Examples
-//!
-//! You can create a [`MmapSlice`] from a value.
-//! Note that all constructors return a [`Result`].
-//!
-//! ```
-//! use webgraph_algo::utils::*;
-//! # use anyhow::Result;
-//!
-//! #
-//! # fn main() -> Result<()> {
-//! // Create a slice of 100 elements initialized to 42 (type is usually inferred) stored in RAM
-//! let mmap_slice: MmapSlice<usize> = MmapSlice::from_value(42, 100, TempMmapOptions::None)?;
-//! # assert_eq!(mmap_slice.as_slice(), vec![42; 100].as_slice());
-//!
-//! // Create a slice of 100 elements initialized to the type's default (type can be inferred
-//! // but usually isn't) stored in RAM
-//! let mmap_slice: MmapSlice<usize> = MmapSlice::new(100, TempMmapOptions::None)?;
-//! # assert_eq!(mmap_slice.as_slice(), vec![0; 100].as_slice());
-//!
-//! // Create a slice from a vec stored in a temporary file created in the default temporary
-//! // directory with the SHARED and RANDOM_ACCESS flags (types are explicit only for clarity)
-//! let v: Vec<usize> = (0..100).collect();
-//! # let c = v.clone();
-//!
-//! let mut flags = MmapFlags::empty();
-//! flags.set(MmapFlags::SHARED, true);
-//! flags.set(MmapFlags::RANDOM_ACCESS, true);
-//!
-//! let mmap_slice: MmapSlice<usize> = MmapSlice::from_vec(v, TempMmapOptions::TempDir(flags))?;
-//! # assert_eq!(mmap_slice.as_slice(), c.as_slice());
-//! # Ok(())
-//! # }
-//!
-//! ```
-
 use anyhow::{ensure, Context, Result};
 use mmap_rs::{MmapMut, MmapOptions};
 use std::{
@@ -65,8 +25,46 @@ pub enum TempMmapOptions {
     CustomDir(PathBuf, MmapFlags),
 }
 
-/// Utility struct to reduce RAM usage by using memory maps to store data to persistent
-/// memory.
+/// A utility struct to reduce RAM consumption by allowing storing data in persistent memory and
+/// memory mapping it.
+///
+/// This still allows to choose to keep everything in ram by using [`TempMmapOptions::None`]
+///
+/// # Examples
+///
+/// You can create a [`MmapSlice`] from a value.
+/// Note that all constructors return a [`Result`].
+///
+/// ```
+/// use webgraph_algo::utils::*;
+/// # use anyhow::Result;
+///
+/// #
+/// # fn main() -> Result<()> {
+/// // Create a slice of 100 elements initialized to 42 (type is usually inferred) stored in RAM
+/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_value(42, 100, TempMmapOptions::None)?;
+/// # assert_eq!(mmap_slice.as_slice(), vec![42; 100].as_slice());
+///
+/// // Create a slice of 100 elements initialized to the type's default (type can be inferred
+/// // but usually isn't) stored in RAM
+/// let mmap_slice: MmapSlice<usize> = MmapSlice::new(100, TempMmapOptions::None)?;
+/// # assert_eq!(mmap_slice.as_slice(), vec![0; 100].as_slice());
+///
+/// // Create a slice from a vec stored in a temporary file created in the default temporary
+/// // directory with the SHARED and RANDOM_ACCESS flags (types are explicit only for clarity)
+/// let v: Vec<usize> = (0..100).collect();
+/// # let c = v.clone();
+///
+/// let mut flags = MmapFlags::empty();
+/// flags.set(MmapFlags::SHARED, true);
+/// flags.set(MmapFlags::RANDOM_ACCESS, true);
+///
+/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_vec(v, TempMmapOptions::TempDir(flags))?;
+/// # assert_eq!(mmap_slice.as_slice(), c.as_slice());
+/// # Ok(())
+/// # }
+///
+/// ```
 pub struct MmapSlice<T> {
     /// The memory map if used
     mmap: Option<(File, MmapMut, usize)>,
