@@ -5,16 +5,18 @@
 ///
 /// # Examples
 /// ```
-/// use webgraph_algo::utils::math::argmax;
-///
+/// # use webgraph_algo::utils::math::argmax;
 /// let v = vec![1, 2, 5, 2, 1];
 /// let index = argmax(&v);
 /// assert_eq!(index, Some(2));
 /// ```
-pub fn argmax<T: common_traits::FiniteRangeNumber>(vec: &[T]) -> Option<usize> {
-    let mut max = T::MIN;
-    let mut argmax = None;
-    for (i, &elem) in vec.iter().enumerate() {
+pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
+    if vec.len() == 0 {
+        return None;
+    }
+    let mut max = vec[0];
+    let mut argmax = Some(0);
+    for (i, &elem) in vec.iter().enumerate().skip(1) {
         if elem > max {
             argmax = Some(i);
             max = elem;
@@ -35,8 +37,7 @@ pub fn argmax<T: common_traits::FiniteRangeNumber>(vec: &[T]) -> Option<usize> {
 ///
 /// # Examples
 /// ```
-/// use webgraph_algo::utils::math::filtered_argmax;
-///
+/// # use webgraph_algo::utils::math::filtered_argmax;
 /// let v = vec![1, 2, 5, 2, 1];
 /// let tie = vec![1, 2, 3, 4, 5];
 /// let index = filtered_argmax(&v, &tie, |_, element| element < 4);
@@ -64,4 +65,68 @@ pub fn filtered_argmax<
     }
 
     argmax
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_empty() {
+        let v: Vec<usize> = Vec::new();
+        assert_eq!(argmax(&v), None);
+    }
+
+    #[test]
+    fn test_single_element_min() {
+        let v = vec![usize::MIN];
+        assert_eq!(argmax(&v), Some(0));
+    }
+
+    #[test]
+    fn test_normal() {
+        let v = vec![2, 1, 5, 3];
+        assert_eq!(argmax(&v), Some(2));
+    }
+
+    #[test]
+    fn test_duplicates() {
+        let v = vec![2, 5, 1, 3, 5];
+        assert_eq!(argmax(&v), Some(1));
+    }
+
+    #[test]
+    fn test_filtered_empty() {
+        let v: Vec<usize> = Vec::new();
+        let t: Vec<usize> = Vec::new();
+        assert_eq!(filtered_argmax(&v, &t, |_, _| true), None);
+    }
+
+    #[test]
+    fn test_all_filtered_away() {
+        let v = vec![2, 1, 5, 3, 1];
+        let t = vec![5, 4, 3, 2, 1];
+        assert_eq!(filtered_argmax(&v, &t, |_, _| false), None);
+    }
+
+    #[test]
+    fn test_filtered_single_element_min() {
+        let v = vec![usize::MIN];
+        let t = vec![usize::MIN];
+        assert_eq!(filtered_argmax(&v, &t, |_, _| true), Some(0));
+    }
+
+    #[test]
+    fn test_filtered_normal() {
+        let v = vec![1, 2, 3, 4, 5, 4, 3, 2, 1];
+        let t = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        assert_eq!(filtered_argmax(&v, &t, |_, e| e < 4), Some(6));
+    }
+
+    #[test]
+    fn test_filtered_duplicates() {
+        let v = vec![1, 2, 3, 2, 1];
+        let t = vec![1, 2, 3, 2, 1];
+        assert_eq!(filtered_argmax(&v, &t, |_, e| e < 3), Some(1));
+    }
 }
