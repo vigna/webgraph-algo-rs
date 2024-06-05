@@ -1,9 +1,6 @@
 use crate::{
     prelude::StronglyConnectedComponents,
-    utils::{
-        closure_vec,
-        mmap_slice::{MmapSlice, TempMmapOptions},
-    },
+    utils::{closure_vec, MmapSlice, TempMmapOptions},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;

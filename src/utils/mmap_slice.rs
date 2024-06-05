@@ -8,7 +8,7 @@
 //! Note that all constructors return a [`Result`].
 //!
 //! ```
-//! use webgraph_algo::utils::mmap_slice::*;
+//! use webgraph_algo::utils::*;
 //! # use anyhow::Result;
 //!
 //! #
@@ -81,7 +81,7 @@ impl<T: Default + Clone> MmapSlice<T> {
     /// # Examples
     ///
     /// ```
-    /// use webgraph_algo::utils::mmap_slice::*;
+    /// use webgraph_algo::utils::*;
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
@@ -96,7 +96,7 @@ impl<T: Default + Clone> MmapSlice<T> {
     /// The type may also be specified with the turbofish syntax.
     ///
     /// ```
-    /// use webgraph_algo::utils::mmap_slice::*;
+    /// use webgraph_algo::utils::*;
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
@@ -116,7 +116,7 @@ impl<T: Clone> MmapSlice<T> {
     /// # Examples
     ///
     /// ```
-    /// use webgraph_algo::utils::mmap_slice::*;
+    /// use webgraph_algo::utils::*;
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
@@ -131,7 +131,7 @@ impl<T: Clone> MmapSlice<T> {
     /// As such the following is illegal and should not compile.
     ///
     /// ```compile_fail
-    /// use webgraph_algo::utils::mmap_slice::*;
+    /// use webgraph_algo::utils::*;
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
@@ -170,7 +170,7 @@ impl<T: Clone> MmapSlice<T> {
     /// # Examples
     ///
     /// ```
-    /// use webgraph_algo::utils::mmap_slice::*;
+    /// use webgraph_algo::utils::*;
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {

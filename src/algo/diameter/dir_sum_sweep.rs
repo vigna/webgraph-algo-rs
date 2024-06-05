@@ -5,7 +5,7 @@ use crate::{
         strongly_connected_components::TarjanStronglyConnectedComponents,
     },
     prelude::*,
-    utils::{argmax, argmin, closure_vec, mmap_slice::MmapSlice},
+    utils::{closure_vec, math, MmapSlice},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::*;
@@ -74,7 +74,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// - `radial_verticies`: The set of radial vertices. If [`None`], the set is automatically chosen
     /// as the set of vertices that are in the biggest strongly connected component, or that are able
     /// to reach the biggest strongly connected component.
-    /// - `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
+    /// - `options`: the options for the [`crate::utils::MmapSlice`].
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
@@ -209,7 +209,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         for i in 2..=iterations {
             if i % 2 == 0 {
-                let v = argmax::filtered_argmax(
+                let v = math::filtered_argmax(
                     &self.total_backward_distance,
                     &self.lower_bound_backward_eccentricities,
                     |i, _| self.incomplete_backward_vertex(i),
@@ -221,7 +221,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 self.step_sum_sweep(v, false, pl.clone())
                     .with_context(|| format!("Could not perform backwards visit from {:?}", v))?;
             } else {
-                let v = argmax::filtered_argmax(
+                let v = math::filtered_argmax(
                     &self.total_forward_distance,
                     &self.lower_bound_forward_eccentricities,
                     |i, _| self.incomplete_forward_vertex(i),
@@ -294,7 +294,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         while missing_nodes > 0 {
             let step_to_perform =
-                argmax::argmax(&points).with_context(|| "Could not find step to perform")?;
+                math::argmax(&points).with_context(|| "Could not find step to perform")?;
 
             match step_to_perform {
                 0 => {
@@ -309,7 +309,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex maximizing the upper bound."
                     ));
-                    let v = argmax::filtered_argmax(
+                    let v = math::filtered_argmax(
                         &self.upper_bound_forward_eccentricities,
                         &self.total_forward_distance,
                         |i, _| self.incomplete_forward_vertex(i),
@@ -321,7 +321,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex minimizing the lower bound."
                     ));
-                    let v = argmin::filtered_argmin(
+                    let v = math::filtered_argmin(
                         &self.lower_bound_forward_eccentricities,
                         &self.total_forward_distance,
                         |i, _| self.radial_vertices[i],
@@ -333,7 +333,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     pl.info(format_args!(
                         "Performing a backward BFS from a vertex maximizing the upper bound."
                     ));
-                    let v = argmax::filtered_argmax(
+                    let v = math::filtered_argmax(
                         &self.upper_bound_backward_eccentricities,
                         &self.total_backward_distance,
                         |i, _| self.incomplete_backward_vertex(i),
@@ -346,7 +346,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                     pl.info(format_args!(
                         "Performing a backward BFS, from a vertex maximizing the distance sum."
                     ));
-                    let v = argmax::filtered_argmax(
+                    let v = math::filtered_argmax(
                         &self.total_backward_distance,
                         &self.upper_bound_backward_eccentricities,
                         |i, _| self.incomplete_backward_vertex(i),
@@ -560,7 +560,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let component = self.strongly_connected_components.component();
         let scc_sizes = self.strongly_connected_components.compute_sizes();
         let max_size_scc =
-            argmax::argmax(&scc_sizes).with_context(|| "Could not find max size scc.")?;
+            math::argmax(&scc_sizes).with_context(|| "Could not find max size scc.")?;
 
         pl.info(format_args!(
             "Searching for biggest strongly connected component"

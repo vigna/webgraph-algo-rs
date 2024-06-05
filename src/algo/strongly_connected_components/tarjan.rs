@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::utils::mmap_slice::{MmapSlice, TempMmapOptions};
+use crate::utils::{MmapSlice, TempMmapOptions};
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
 use std::marker::PhantomData;

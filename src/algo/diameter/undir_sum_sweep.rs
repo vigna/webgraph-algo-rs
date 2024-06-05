@@ -1,7 +1,7 @@
 use crate::{
     algo::{bfv::BFV, diameter::SumSweepOutputLevel},
     prelude::*,
-    utils::{argmax, mmap_slice::MmapSlice},
+    utils::{math, MmapSlice},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
@@ -407,7 +407,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
             .with_context(|| format!("Cannot perform BFS from {}", start))?;
 
         for _ in 1..iterations {
-            let v = argmax::filtered_argmax(
+            let v = math::filtered_argmax(
                 &self.total_distance,
                 &self.lower_bound_eccentricities,
                 |node, _| self.incomplete_vertex(node),
@@ -521,14 +521,14 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
 
         while missing_nodes > 0 {
             let step_to_perform =
-                argmax::argmax(&points).with_context(|| "Could not find step to perform")?;
+                math::argmax(&points).with_context(|| "Could not find step to perform")?;
 
             match step_to_perform {
                 0 => {
                     pl.info(format_args!(
                         "Performing a BFS from a vertex maximizing the upper bound."
                     ));
-                    let v = argmax::filtered_argmax(
+                    let v = math::filtered_argmax(
                         &self.upper_bound_eccentricities,
                         &self.total_distance,
                         |node, _| self.incomplete_vertex(node),
@@ -540,7 +540,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
                     pl.info(format_args!(
                         "Performing a BFS from a vertex minimizing the lower bound."
                     ));
-                    let v = argmax::filtered_argmax(
+                    let v = math::filtered_argmax(
                         &self.lower_bound_eccentricities,
                         &self.total_distance,
                         |node, _| self.incomplete_vertex(node),
@@ -552,7 +552,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
                     pl.info(format_args!(
                         "Performing a BFS from a vertex maximizing the distance sum."
                     ));
-                    let v = argmax::filtered_argmax(
+                    let v = math::filtered_argmax(
                         &self.total_distance,
                         &self.upper_bound_eccentricities,
                         |node, _| self.incomplete_vertex(node),

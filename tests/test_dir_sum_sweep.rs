@@ -5,7 +5,7 @@ use webgraph::traits::SequentialLabeling;
 use webgraph::transform::transpose;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::diameter::*;
-use webgraph_algo::utils::mmap_slice::TempMmapOptions;
+use webgraph_algo::utils::TempMmapOptions;
 
 #[test]
 fn test_path() -> Result<()> {
