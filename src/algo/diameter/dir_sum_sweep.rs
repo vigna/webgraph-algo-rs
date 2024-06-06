@@ -659,14 +659,12 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 };
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                let other_total_distance_ptr = other_total_distance.as_ptr() as *mut usize;
                 unsafe {
-                    *other_total_distance_ptr.add(node) += distance;
+                    *other_total_distance.get_mut_unsafe(node) += distance;
                 }
                 if incomplete && other_lower_bound[node] < distance {
-                    let other_lower_bound_ptr = other_lower_bound.as_ptr() as *mut usize;
                     unsafe {
-                        *other_lower_bound_ptr.add(node) = distance;
+                        other_lower_bound.write_once(node, distance);
                     }
 
                     if distance == other_upper_bound[node] && !forward && self.radial_vertices[node]
@@ -782,10 +780,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
                 bfs.visit_from_node_filtered(
                     |node, _, _, distance| {
-                        let dist_pivot_ptr = dist_pivot.as_ptr() as *mut usize;
                         // Safety: each node is accessed exaclty once
                         unsafe {
-                            *dist_pivot_ptr.add(node) = distance;
+                            dist_pivot.write_once(node, distance);
                         }
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
                     },
@@ -884,16 +881,14 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-            let f_ecc_upper_bound_ptr =
-                self.upper_bound_forward_eccentricities.as_ptr() as *mut usize;
-            let b_ecc_upper_bound_ptr =
-                self.upper_bound_backward_eccentricities.as_ptr() as *mut usize;
-
             unsafe {
-                *f_ecc_upper_bound_ptr.add(node) = std::cmp::min(
-                    self.upper_bound_forward_eccentricities[node],
-                    dist_pivot_b[node] + ecc_pivot_f[components[node]],
-                )
+                self.upper_bound_forward_eccentricities.write_once(
+                    node,
+                    std::cmp::min(
+                        self.upper_bound_forward_eccentricities[node],
+                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
+                    ),
+                );
             }
 
             if !self.incomplete_forward_vertex(node) {
@@ -919,10 +914,13 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             }
 
             unsafe {
-                *b_ecc_upper_bound_ptr.add(node) = std::cmp::min(
-                    self.upper_bound_backward_eccentricities[node],
-                    dist_pivot_f[node] + ecc_pivot_b[components[node]],
-                )
+                self.upper_bound_backward_eccentricities.write_once(
+                    node,
+                    std::cmp::min(
+                        self.upper_bound_backward_eccentricities[node],
+                        dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                    ),
+                );
             }
         });
 

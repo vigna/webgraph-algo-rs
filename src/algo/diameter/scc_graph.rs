@@ -1,5 +1,5 @@
 use crate::{
-    prelude::StronglyConnectedComponents,
+    prelude::*,
     utils::{closure_vec, MmapSlice, TempMmapOptions},
 };
 use anyhow::{Context, Result};
@@ -148,9 +148,6 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
 
             for (c, component) in vertices_in_scc.into_iter().enumerate() {
                 component.into_par_iter().for_each(|v| {
-                    let best_start_ptr = best_start.as_ptr() as *mut Option<NonMaxUsize>;
-                    let best_end_ptr = best_end.as_ptr() as *mut Option<NonMaxUsize>;
-
                     for succ in graph.successors(v) {
                         let succ_component = node_components[succ];
                         if c != succ_component {
@@ -160,13 +157,21 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                                 if best_start[succ_component].is_none() {
                                     // Safety: lock and best_end is updated before best_start
                                     unsafe {
-                                        *best_end_ptr.add(succ_component) = Some(
-                                            NonMaxUsize::new(succ)
-                                                .expect("node index should never be usize::MAX"),
+                                        best_end.write_once(
+                                            succ_component,
+                                            Some(
+                                                NonMaxUsize::new(succ).expect(
+                                                    "node index should never be usize::MAX",
+                                                ),
+                                            ),
                                         );
-                                        *best_start_ptr.add(succ_component) = Some(
-                                            NonMaxUsize::new(v)
-                                                .expect("node index should never be usize::MAX"),
+                                        best_start.write_once(
+                                            succ_component,
+                                            Some(
+                                                NonMaxUsize::new(v).expect(
+                                                    "node index should never be usize::MAX",
+                                                ),
+                                            ),
                                         );
                                     }
                                     drop(_l);
@@ -196,13 +201,21 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                                 {
                                     // Safety: lock
                                     unsafe {
-                                        *best_end_ptr.add(succ_component) = Some(
-                                            NonMaxUsize::new(succ)
-                                                .expect("node index should never be usize::MAX"),
+                                        best_end.write_once(
+                                            succ_component,
+                                            Some(
+                                                NonMaxUsize::new(succ).expect(
+                                                    "node index should never be usize::MAX",
+                                                ),
+                                            ),
                                         );
-                                        *best_start_ptr.add(succ_component) = Some(
-                                            NonMaxUsize::new(v)
-                                                .expect("node index should never be usize::MAX"),
+                                        best_start.write_once(
+                                            succ_component,
+                                            Some(
+                                                NonMaxUsize::new(v).expect(
+                                                    "node index should never be usize::MAX",
+                                                ),
+                                            ),
                                         );
                                     }
                                 }

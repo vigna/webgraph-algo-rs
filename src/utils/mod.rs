@@ -14,3 +14,5 @@ pub use mmap_slice::{MmapSlice, TempMmapOptions};
 
 mod closure_vec;
 pub use closure_vec::closure_vec;
+
+pub mod traits;
