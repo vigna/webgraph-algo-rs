@@ -123,7 +123,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         scc: &C,
         mut pl: impl ProgressLog,
     ) -> Result<(Vec<usize>, Vec<SccGraphConnection>)> {
-        pl.item_name("strongly connected components");
+        pl.item_name("scc");
         pl.display_memory(false);
         pl.expected_updates(Some(scc.number_of_components()));
         pl.start("Computing vec-based strongly connected components graph");
