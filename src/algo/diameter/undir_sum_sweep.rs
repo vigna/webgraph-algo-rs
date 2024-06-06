@@ -16,6 +16,15 @@ use webgraph::traits::RandomAccessGraph;
 
 const VISIT_GRANULARITY: usize = 32;
 
+#[inline(always)]
+fn get_first_two<T>(mut iter: impl Iterator<Item = T>) -> Option<(T, T)> {
+    if let Some(first) = iter.next() {
+        iter.next().map(|second| (first, second))
+    } else {
+        None
+    }
+}
+
 pub struct SumSweepUndirectedDiameterRadius<'a, G: RandomAccessGraph + Sync> {
     graph: &'a G,
     number_of_nodes: usize,
@@ -193,9 +202,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
             start_len += 1;
 
             while self.graph.outdegree(v) == 2 {
-                let mut successors = self.graph.successors(v).into_iter();
-                let first = successors.next().unwrap();
-                let second = successors.next().unwrap();
+                let (first, second) = get_first_two(self.graph.successors(v).into_iter())
+                    .expect("self.graph.successors(v) should yield at least two elements");
                 let old = w;
 
                 w = v;
@@ -213,14 +221,11 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
             }
         }
 
-        {
-            let successors = self.graph.successors(v).into_iter().collect::<Vec<_>>();
-            if self.graph.outdegree(v) != 1 {
-                if dist[successors[0]].is_none() {
-                    first_branch.set(successors[0], true, Ordering::Relaxed);
-                } else {
-                    first_branch.set(successors[1], true, Ordering::Relaxed);
-                }
+        if let Some((first, second)) = get_first_two(self.graph.successors(v).into_iter()) {
+            if dist[first].is_none() {
+                first_branch.set(first, true, Ordering::Relaxed);
+            } else {
+                first_branch.set(second, true, Ordering::Relaxed);
             }
         }
 
