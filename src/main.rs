@@ -21,7 +21,10 @@ fn main() -> Result<()> {
     flags.set(MmapFlags::RANDOM_ACCESS, true);
 
     let mut sum_sweep_pl = ProgressLogger::default();
-    sum_sweep_pl.display_memory(true).local_speed(true);
+    sum_sweep_pl
+        .display_memory(true)
+        .local_speed(true)
+        .log_interval(std::time::Duration::from_secs(180));
     let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
         &graph,
         &reversed_graph,
