@@ -493,7 +493,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         pl.display_memory(false);
         pl.start("Computing best pivot");
 
-        for (v, &component) in components.iter().enumerate() {
+        for (v, &component) in components.iter().enumerate().rev() {
             if let Some(p) = pivot[component] {
                 let current = self.lower_bound_backward_eccentricities[v]
                     + self.lower_bound_forward_eccentricities[v]
@@ -524,7 +524,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 if current < best
                     || (current == best
                         && self.total_forward_distance[v] + self.total_backward_distance[v]
-                            <= self.total_forward_distance[p] + self.total_forward_distance[p])
+                            <= self.total_forward_distance[p] + self.total_backward_distance[p])
                 {
                     pivot[component] = Some(v);
                 }
