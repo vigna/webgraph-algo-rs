@@ -146,6 +146,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
             let best_end: Vec<Option<NonMaxUsize>> = vec![None; number_of_scc];
             let locks = closure_vec(|| Mutex::new(()), number_of_scc);
 
+            // TODO: Maybe parallel iterator here?
             for (c, component) in vertices_in_scc.into_iter().enumerate() {
                 component.into_iter().for_each(|v| {
                     for succ in graph.successors(v) {
