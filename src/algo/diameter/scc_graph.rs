@@ -147,7 +147,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
             let locks = closure_vec(|| Mutex::new(()), number_of_scc);
 
             for (c, component) in vertices_in_scc.into_iter().enumerate() {
-                component.into_par_iter().for_each(|v| {
+                component.into_iter().for_each(|v| {
                     for succ in graph.successors(v) {
                         let succ_component = node_components[succ];
                         if c != succ_component {
@@ -232,7 +232,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                     scc_vec.push(child);
                     start_vec.push(best_start[child].unwrap().into());
                     end_vec.push(best_end[child].unwrap().into());
-                    best_start[c] = None;
+                    best_start[child] = None;
                 }
                 scc_graph[c] = scc_vec;
                 start_bridges[c] = start_vec;

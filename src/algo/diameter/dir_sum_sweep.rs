@@ -871,7 +871,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
                 if ecc_pivot_b[next_c] >= self.upper_bound_backward_eccentricities[pivot[next_c]] {
                     ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
-                    break;
                 }
             }
             pl.light_update();
