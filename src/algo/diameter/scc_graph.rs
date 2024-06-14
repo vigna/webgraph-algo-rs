@@ -1,14 +1,13 @@
 use crate::{
     prelude::*,
-    utils::{closure_vec, MmapSlice, TempMmapOptions},
+    utils::{MmapSlice, TempMmapOptions},
 };
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
 use mmap_rs::MmapFlags;
 use nonmax::NonMaxUsize;
-use parallel_frontier::prelude::Frontier;
 use rayon::prelude::*;
-use std::{marker::PhantomData, sync::Mutex};
+use std::marker::PhantomData;
 use webgraph::traits::RandomAccessGraph;
 
 #[derive(Clone, Debug)]
@@ -123,14 +122,13 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         scc: &C,
         mut pl: impl ProgressLog,
     ) -> Result<(Vec<usize>, Vec<SccGraphConnection>)> {
-        pl.item_name("scc");
+        pl.item_name("nodes");
         pl.display_memory(false);
-        pl.expected_updates(Some(scc.number_of_components()));
+        pl.expected_updates(Some(graph.num_nodes()));
         pl.start("Computing vec-based strongly connected components graph");
 
         let number_of_scc = scc.number_of_components();
         let node_components = scc.component();
-        let mut child_components = Frontier::new();
         let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
 
         let mut scc_graph = vec![Vec::new(); number_of_scc];
@@ -142,87 +140,45 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
         }
 
         {
-            let mut best_start: Vec<Option<NonMaxUsize>> = vec![None; number_of_scc];
-            let best_end: Vec<Option<NonMaxUsize>> = vec![None; number_of_scc];
-            let locks = closure_vec(|| Mutex::new(()), number_of_scc);
+            let mut child_components = Vec::new();
+            let mut best_start = vec![None; number_of_scc];
+            let mut best_end = vec![None; number_of_scc];
 
-            // TODO: Maybe parallel iterator here?
             for (c, component) in vertices_in_scc.into_iter().enumerate() {
                 component.into_iter().for_each(|v| {
                     for succ in graph.successors(v) {
                         let succ_component = node_components[succ];
                         if c != succ_component {
-                            let mut updated = false;
                             if best_start[succ_component].is_none() {
-                                let _l = locks[succ_component].lock().unwrap();
-                                if best_start[succ_component].is_none() {
-                                    // Safety: lock and best_end is updated before best_start
-                                    unsafe {
-                                        best_end.write_once(
-                                            succ_component,
-                                            Some(
-                                                NonMaxUsize::new(succ).expect(
-                                                    "node index should never be usize::MAX",
-                                                ),
-                                            ),
-                                        );
-                                        best_start.write_once(
-                                            succ_component,
-                                            Some(
-                                                NonMaxUsize::new(v).expect(
-                                                    "node index should never be usize::MAX",
-                                                ),
-                                            ),
-                                        );
-                                    }
-                                    drop(_l);
-                                    child_components.push(succ_component);
-                                    updated = true;
-                                }
-                            }
-                            if updated {
-                                continue;
+                                best_end[succ_component] = Some(
+                                    NonMaxUsize::new(succ)
+                                        .expect("node index should never be usize::MAX"),
+                                );
+                                best_start[succ_component] = Some(
+                                    NonMaxUsize::new(v)
+                                        .expect("node index should never be usize::MAX"),
+                                );
+                                child_components.push(succ_component);
                             }
 
                             let current_value = graph.outdegree(v) + reversed_graph.outdegree(succ);
-
-                            // This if could use incompletly changed pairs of start-end, but it does not influence correctness
-                            // as it is only used as a preliminary filter to reduce lock access (at worst the computed best
-                            // is < than the actual value, but after lock acquisition this gets fixed with the seconf if).
                             if current_value
                                 > graph.outdegree(best_end[succ_component].unwrap().into())
                                     + reversed_graph
                                         .outdegree(best_start[succ_component].unwrap().into())
                             {
-                                let _l = locks[succ_component].lock().unwrap();
-                                if current_value
-                                    > graph.outdegree(best_end[succ_component].unwrap().into())
-                                        + reversed_graph
-                                            .outdegree(best_start[succ_component].unwrap().into())
-                                {
-                                    // Safety: lock
-                                    unsafe {
-                                        best_end.write_once(
-                                            succ_component,
-                                            Some(
-                                                NonMaxUsize::new(succ).expect(
-                                                    "node index should never be usize::MAX",
-                                                ),
-                                            ),
-                                        );
-                                        best_start.write_once(
-                                            succ_component,
-                                            Some(
-                                                NonMaxUsize::new(v).expect(
-                                                    "node index should never be usize::MAX",
-                                                ),
-                                            ),
-                                        );
-                                    }
-                                }
+                                best_end[succ_component] = Some(
+                                    NonMaxUsize::new(succ)
+                                        .expect("node index should never be usize::MAX"),
+                                );
+                                best_start[succ_component] = Some(
+                                    NonMaxUsize::new(v)
+                                        .expect("node index should never be usize::MAX"),
+                                );
                             }
                         }
                     }
+                    pl.light_update();
                 });
 
                 let number_of_children = child_components.len();
@@ -239,7 +195,6 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
                 start_bridges[c] = start_vec;
                 end_bridges[c] = end_vec;
                 child_components.clear();
-                pl.light_update();
             }
         }
 
