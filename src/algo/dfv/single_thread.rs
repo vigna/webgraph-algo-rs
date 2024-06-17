@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use anyhow::Result;
+use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// Builder for [`SingleThreadedDepthFirstVisit`]
@@ -25,6 +27,8 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisitBuilder<'a, G> {
         SingleThreadedDepthFirstVisit {
             graph: self.graph,
             start: self.start,
+            stack: Vec::new(),
+            visited: BitVec::new(self.graph.num_nodes()),
         }
     }
 }
@@ -33,6 +37,8 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisitBuilder<'a, G> {
 pub struct SingleThreadedDepthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
+    stack: Vec<usize>,
+    visited: BitVec,
 }
 
 impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirstVisit<'a, G> {
@@ -45,7 +51,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
         filter: F,
         node_index: usize,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         todo!()
     }
 
@@ -57,7 +63,50 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
         callback: C,
         filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) -> anyhow::Result<()> {
-        todo!()
+    ) -> Result<()> {
+        pl.expected_updates(Some(self.graph.num_nodes()));
+        pl.start("Visiting graph with a sequential DFV...");
+
+        for i in 0..self.graph.num_nodes() {
+            let index = (i + self.start) % self.graph.num_nodes();
+            self.visit_from_node_filtered(&callback, &filter, index, pl)?;
+        }
+
+        pl.done();
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use anyhow::Context;
+    use webgraph::graphs::BVGraph;
+
+    #[test]
+    fn test_sequential_dfv_with_start() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let visit = SingleThreadedDepthFirstVisitBuilder::new(&graph)
+            .with_start(10)
+            .build();
+
+        assert_eq!(visit.start, 10);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sequential_dfv_new() -> Result<()> {
+        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+            .load()
+            .with_context(|| "Cannot load graph")?;
+        let visit = SingleThreadedDepthFirstVisitBuilder::new(&graph).build();
+
+        assert_eq!(visit.start, 0);
+
+        Ok(())
     }
 }
