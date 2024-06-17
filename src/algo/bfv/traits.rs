@@ -23,7 +23,7 @@ pub trait BreadthFirstGraphVisit {
         self.visit_filtered(callback, |_, _, _, _| true, pl)
     }
 
-    /// Visits the graph from the specified node and applies `callback` to every visited node.
+    /// Visits breadth-first the graph from the specified node and applies `callback` to every visited node.
     ///
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
@@ -69,7 +69,7 @@ pub trait BreadthFirstGraphVisit {
         self.visit_graph_filtered(callback, filter, &mut pl)
     }
 
-    /// Visits the graph from the specified node and applies `callback` to every visited node.
+    /// Visits breadth-first the graph from the specified node and applies `callback` to every visited node.
     /// Nodes are filtered with `filter` callable.
     ///
     /// # Arguments:
