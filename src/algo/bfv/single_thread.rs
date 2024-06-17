@@ -20,7 +20,7 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
     }
 
     /// Sets the starting node for full visits.
-    /// It does nothing for single visits using [GraphVisit::visit_from_node].
+    /// It does nothing for single visits using [`BreadthFirstGraphVisit::visit_from_node``].
     pub fn with_start(mut self, start: usize) -> Self {
         self.start = start;
         self
@@ -45,7 +45,7 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     queue: VecDeque<Option<NonMaxUsize>>,
 }
 
-impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
+impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
     fn visit_from_node_filtered<
         C: Fn(usize, usize, usize, usize) + Sync,
         F: Fn(usize, usize, usize, usize) -> bool + Sync,
@@ -120,7 +120,9 @@ impl<'a, G: RandomAccessGraph> GraphVisit for SingleThreadedBreadthFirstVisit<'a
     }
 }
 
-impl<'a, G: RandomAccessGraph> ReusableGraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
+impl<'a, G: RandomAccessGraph> ReusableBreadthFirstGraphVisit
+    for SingleThreadedBreadthFirstVisit<'a, G>
+{
     fn reset(&mut self) -> Result<()> {
         self.queue.clear();
         self.visited.fill(false);

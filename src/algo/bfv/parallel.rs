@@ -26,7 +26,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitBuilder<'a, G> {
     }
 
     /// Sets the starting node for full visits.
-    /// It does nothing for single visits using [GraphVisit::visit_from_node].
+    /// It does nothing for single visits using [`BreadthFirstGraphVisit::visit_from_node`].
     pub fn with_start(mut self, start: usize) -> Self {
         self.start = start;
         self
@@ -60,7 +60,7 @@ pub struct ParallelBreadthFirstVisit<'a, G: RandomAccessGraph> {
     visited: AtomicBitVec,
 }
 
-impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'a, G> {
+impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit for ParallelBreadthFirstVisit<'a, G> {
     fn visit_from_node_filtered<
         C: Fn(usize, usize, usize, usize) + Sync,
         F: Fn(usize, usize, usize, usize) -> bool + Sync,
@@ -141,7 +141,9 @@ impl<'a, G: RandomAccessGraph + Sync> GraphVisit for ParallelBreadthFirstVisit<'
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync> ReusableGraphVisit for ParallelBreadthFirstVisit<'a, G> {
+impl<'a, G: RandomAccessGraph + Sync> ReusableBreadthFirstGraphVisit
+    for ParallelBreadthFirstVisit<'a, G>
+{
     fn reset(&mut self) -> Result<()> {
         self.visited.fill(false, Ordering::Relaxed);
         Ok(())

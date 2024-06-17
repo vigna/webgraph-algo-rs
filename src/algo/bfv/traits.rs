@@ -2,7 +2,7 @@ use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 
 /// A visitable graph that allows to compute Breadth First Visit trees.
-pub trait GraphVisit {
+pub trait BreadthFirstGraphVisit {
     /// Starts a Breadth first visit from every node and applies `callback` to every visited node.
     /// After this function returns, the visit is invalid.
     ///
@@ -118,8 +118,8 @@ pub trait GraphVisit {
     ) -> Result<()>;
 }
 
-/// A reusable visitable graph to avoid reallocating the visit
-pub trait ReusableGraphVisit: GraphVisit {
+/// A reusable breadth-first visitable graph to avoid reallocating the visit
+pub trait ReusableBreadthFirstGraphVisit: BreadthFirstGraphVisit {
     /// Resets the visit status.
     fn reset(&mut self) -> Result<()>;
 

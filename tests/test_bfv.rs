@@ -6,7 +6,7 @@ use webgraph::{
     labels::Left,
     traits::{RandomAccessGraph, SequentialLabeling},
 };
-use webgraph_algo::algo::{bfv::BFV, traits::GraphVisit};
+use webgraph_algo::{algo::bfv::BFV, prelude::*};
 
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
