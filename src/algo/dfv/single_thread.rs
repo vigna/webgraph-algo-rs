@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use anyhow::Result;
 use sux::bits::BitVec;
-use webgraph::traits::RandomAccessGraph;
+use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// Builder for [`SingleThreadedDepthFirstVisit`]
 pub struct SingleThreadedDepthFirstVisitBuilder<'a, G: RandomAccessGraph> {
@@ -37,7 +37,10 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisitBuilder<'a, G> {
 pub struct SingleThreadedDepthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
-    stack: Vec<usize>,
+    stack: Vec<(
+        <<G as RandomAccessLabeling>::Labels<'a> as IntoIterator>::IntoIter,
+        usize,
+    )>,
     visited: BitVec,
 }
 
@@ -52,7 +55,70 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
         node_index: usize,
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Result<()> {
-        todo!()
+        if self.visited[node_index] {
+            return Ok(());
+        }
+
+        let mut current_node = node_index;
+        let mut parent = node_index;
+        let mut iter = self.graph.successors(current_node).into_iter();
+
+        'recurse: loop {
+            let depth = self.stack.len();
+            while let Some(succ) = iter.next() {
+                // Check if node should be visited
+                if filter(succ, current_node, node_index, depth + 1) {
+                    if self.visited[succ] {
+                        // Node has already been visited
+                        callback(
+                            succ,
+                            current_node,
+                            node_index,
+                            depth + 1,
+                            DepthFirstVisitEvent::AlreadyVisited,
+                        );
+                    } else {
+                        // First time seeing node
+                        callback(
+                            succ,
+                            current_node,
+                            node_index,
+                            depth + 1,
+                            DepthFirstVisitEvent::Discover,
+                        );
+
+                        self.visited.set(succ, true);
+                        self.stack.push((iter, parent));
+                        parent = current_node;
+                        current_node = succ;
+                        iter = self.graph.successors(current_node).into_iter();
+
+                        continue 'recurse;
+                    }
+                }
+            }
+
+            // Emit node
+            callback(
+                current_node,
+                parent,
+                node_index,
+                depth,
+                DepthFirstVisitEvent::Emit,
+            );
+
+            pl.light_update();
+
+            if let Some((iterator, parent_node)) = self.stack.pop() {
+                current_node = parent;
+                parent = parent_node;
+                iter = iterator;
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     fn visit_graph_filtered<
@@ -74,6 +140,16 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
 
         pl.done();
 
+        Ok(())
+    }
+}
+
+impl<'a, G: RandomAccessGraph> ReusableDepthFirstGraphVisit
+    for SingleThreadedDepthFirstVisit<'a, G>
+{
+    fn reset(&mut self) -> Result<()> {
+        self.stack.clear();
+        self.visited.fill(false);
         Ok(())
     }
 }
