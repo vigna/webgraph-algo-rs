@@ -951,41 +951,53 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         pl.expected_updates(Some(self.number_of_nodes));
         pl.start("Computing missing nodes");
 
-        let missing_r = AtomicUsize::new(0);
-        let missing_df = AtomicUsize::new(0);
-        let missing_db = AtomicUsize::new(0);
-        let missing_all_forward = AtomicUsize::new(0);
-        let missing_all_backward = AtomicUsize::new(0);
-
-        (0..self.number_of_nodes).into_par_iter().for_each(|node| {
-            if self.incomplete_forward_vertex(node) {
-                missing_all_forward.fetch_add(1, Ordering::Relaxed);
-                if self.upper_bound_forward_eccentricities[node] > self.diameter_lower_bound {
-                    missing_df.fetch_add(1, Ordering::Relaxed);
-                }
-                if self.radial_vertices[node]
-                    && self.lower_bound_forward_eccentricities[node] < self.radius_upper_bound
-                {
-                    missing_r.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-            if self.incomplete_backward_vertex(node) {
-                missing_all_backward.fetch_add(1, Ordering::Relaxed);
-                if self.upper_bound_backward_eccentricities[node] > self.diameter_lower_bound {
-                    missing_db.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-        });
+        let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) = (0
+            ..self.number_of_nodes)
+            .into_par_iter()
+            .fold(
+                || (0, 0, 0, 0, 0),
+                |mut acc, node| {
+                    if self.incomplete_forward_vertex(node) {
+                        acc.3 += 1;
+                        if self.upper_bound_forward_eccentricities[node] > self.diameter_lower_bound
+                        {
+                            acc.1 += 1;
+                        }
+                        if self.radial_vertices[node]
+                            && self.lower_bound_forward_eccentricities[node]
+                                < self.radius_upper_bound
+                        {
+                            acc.0 += 1;
+                        }
+                    }
+                    if self.incomplete_backward_vertex(node) {
+                        acc.4 += 1;
+                        if self.upper_bound_backward_eccentricities[node]
+                            > self.diameter_lower_bound
+                        {
+                            acc.2 += 1;
+                        }
+                    }
+                    acc
+                },
+            )
+            .reduce(
+                || (0, 0, 0, 0, 0),
+                |acc, elem| {
+                    (
+                        acc.0 + elem.0,
+                        acc.1 + elem.1,
+                        acc.2 + elem.2,
+                        acc.3 + elem.3,
+                        acc.4 + elem.4,
+                    )
+                },
+            );
 
         pl.update_with_count(self.number_of_nodes);
 
         let iterations =
             NonMaxUsize::new(self.iterations).expect("Iterations should never be usize::MAX");
-        let missing_r = missing_r.load(Ordering::Relaxed);
-        let missing_df = missing_df.load(Ordering::Relaxed);
-        let missing_db = missing_db.load(Ordering::Relaxed);
-        let missing_all_forward = missing_all_forward.load(Ordering::Relaxed);
-        let missing_all_backward = missing_all_backward.load(Ordering::Relaxed);
 
         if missing_r == 0 && self.radius_iterations.is_none() {
             self.radius_iterations = Some(iterations);
