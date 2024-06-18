@@ -1,7 +1,8 @@
 use super::traits::StronglyConnectedComponents;
-use crate::utils::{MmapSlice, TempMmapOptions};
+use crate::{algo::dfv::DFV, prelude::*, utils::MmapSlice};
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
+use nonmax::NonMaxUsize;
 use std::marker::PhantomData;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
@@ -13,9 +14,9 @@ pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     _phantom: PhantomData<G>,
 }
 
-type RecurseNode = (usize, Option<usize>, Option<usize>);
-
-impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConnectedComponents<G> {
+impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
+    for TarjanStronglyConnectedComponents<G>
+{
     fn number_of_components(&self) -> usize {
         self.n_of_components
     }
@@ -39,11 +40,13 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
         graph: &G,
         compute_buckets: bool,
         options: TempMmapOptions,
-        mut pl: impl ProgressLog,
+        pl: impl ProgressLog,
     ) -> Result<Self> {
         let mut visit = Visit::new(graph, compute_buckets);
 
-        visit.run(&mut pl);
+        visit
+            .run(pl.clone())
+            .with_context(|| "Cannot compute tarjan algorithm")?;
 
         pl.info(format_args!("Memory mapping components..."));
 
@@ -63,10 +66,9 @@ impl<G: RandomAccessGraph> StronglyConnectedComponents<G> for TarjanStronglyConn
 
 struct Visit<'a, G: RandomAccessGraph> {
     graph: &'a G,
-    number_of_nodes: usize,
     pub components: Vec<usize>,
     pub buckets: Option<Vec<bool>>,
-    indexes: Vec<Option<usize>>,
+    indexes: Vec<Option<NonMaxUsize>>,
     lowlinks: Vec<usize>,
     on_stack: BitVec,
     terminal: Option<BitVec>,
@@ -74,10 +76,9 @@ struct Visit<'a, G: RandomAccessGraph> {
     current_index: usize,
     pub number_of_components: usize,
     stack: Vec<usize>,
-    iterative_stack: Vec<RecurseNode>,
 }
 
-impl<'a, G: RandomAccessGraph> Visit<'a, G> {
+impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
     fn new(graph: &'a G, compute_buckets: bool) -> Visit<'a, G> {
         Visit {
             graph,
@@ -96,106 +97,92 @@ impl<'a, G: RandomAccessGraph> Visit<'a, G> {
             lowlinks: vec![usize::MAX; graph.num_nodes()],
             on_stack: BitVec::new(graph.num_nodes()),
             number_of_components: 0,
-            number_of_nodes: graph.num_nodes(),
             components: vec![0; graph.num_nodes()],
             stack: Vec::new(),
-            iterative_stack: Vec::new(),
         }
     }
 
-    fn run(&mut self, pl: &mut impl ProgressLog) {
-        pl.item_name("nodes");
-        pl.expected_updates(Some(self.number_of_nodes));
-        pl.start("Computing strongly connected components");
+    fn run(&mut self, pl: impl ProgressLog) -> Result<()> {
+        let visit = DFV::new_sequential(self.graph).build();
 
-        for i in 0..self.number_of_nodes {
-            if self.indexes[i].is_none() {
-                self.visit(i, pl);
-            }
-        }
-
-        pl.done();
-    }
-
-    fn visit(&mut self, start_node: usize, pl: &mut impl ProgressLog) {
-        debug_assert!(self.stack.is_empty());
-        debug_assert!(self.iterative_stack.is_empty());
-        self.iterative_stack.push((start_node, None, None));
-
-        'recurse: while let Some((v, iter_count, resume)) = self.iterative_stack.pop() {
-            if let Some(w) = resume {
-                // Finish recurse
-                debug_assert!(self.indexes[w].is_some());
-
-                self.lowlinks[v] = std::cmp::min(self.lowlinks[v], self.lowlinks[w]);
-                if let Some(t) = self.terminal.as_mut() {
-                    if !t[w] {
-                        t.set(v, false);
-                    }
-                }
-            } else {
-                // Set the depth index for v to the smallest unused index
-                debug_assert!(self.lowlinks[v] == usize::MAX);
-                debug_assert!(!self.on_stack[v]);
-                debug_assert!(!self.stack.contains(&v));
-                debug_assert!(self.indexes[v].is_none());
-
-                self.indexes[v] = Some(self.current_index);
-                self.lowlinks[v] = self.current_index;
-                self.current_index += 1;
-                self.stack.push(v);
-                self.on_stack.set(v, true);
-            }
-
-            let mut count = iter_count.unwrap_or(0);
-
-            for w in self.graph.successors(v).into_iter().skip(count) {
-                count += 1;
-                if let Some(i) = self.indexes[w] {
-                    if self.on_stack[w] {
-                        // Successor w is in stack self.stack and hence in the current SCC
-                        // If w is not on stack, then (v, w) is an edge pointing to an SCC already found and must be ignored
-                        self.lowlinks[v] = std::cmp::min(self.lowlinks[v], i);
-                    } else if let Some(t) = self.terminal.as_mut() {
-                        t.set(v, false);
-                    }
-                } else {
-                    // Successor w has not yet been visited; recurse on it
-                    self.iterative_stack.push((v, Some(count), Some(w)));
-                    self.iterative_stack.push((w, None, None));
-                    continue 'recurse;
-                }
-            }
-
-            pl.light_update();
-
-            // If v is a root node, pop the stack and generate an SCC
-            if self.lowlinks[v] == self.indexes[v].unwrap() {
-                if let Some(b) = self.buckets.as_mut() {
-                    let t = self.terminal.as_mut().unwrap();
-                    let terminal = t[v];
-                    while let Some(node) = self.stack.pop() {
-                        self.components[node] = self.number_of_components;
-                        self.on_stack.set(node, false);
-                        t.set(node, false);
-                        if terminal && self.graph.outdegree(node) != 0 {
-                            b[node] = true;
+        visit
+            .visit(
+                |node, parent, _, _, event| match event {
+                    // Safety: code is sequential: no concurrency and references are not left dangling
+                    // a &mut self is requested so compiler should not optimize memory with readonly
+                    DepthFirstVisitEvent::Discover => unsafe {
+                        self.indexes.write_once(
+                            node,
+                            Some(
+                                NonMaxUsize::new(self.current_index)
+                                    .expect("indexes should not exceed usize::MAX"),
+                            ),
+                        );
+                        self.lowlinks.write_once(node, self.current_index);
+                        *self.current_index.as_mut_unsafe() += 1;
+                        self.stack.as_mut_unsafe().push(node);
+                        self.on_stack.as_mut_unsafe().set(node, true);
+                    },
+                    DepthFirstVisitEvent::AlreadyVisited => unsafe {
+                        if self.on_stack[node] {
+                            self.lowlinks.write_once(
+                                parent,
+                                std::cmp::min(
+                                    self.lowlinks[parent],
+                                    self.indexes[node].unwrap().into(),
+                                ),
+                            );
+                        } else if let Some(t) = self.terminal.as_ref() {
+                            t.as_mut_unsafe().set(parent, false);
                         }
-                        if node == v {
-                            break;
+                    },
+                    DepthFirstVisitEvent::Emit => unsafe {
+                        if self.lowlinks[node] == self.indexes[node].unwrap().into() {
+                            if let Some(b) = self.buckets.as_mut_unsafe() {
+                                let t = self.terminal.as_ref().unwrap().as_mut_unsafe();
+                                let terminal = t[node];
+                                let stack = self.stack.as_mut_unsafe();
+                                while let Some(v) = stack.pop() {
+                                    self.components.write_once(v, self.number_of_components);
+                                    self.on_stack.as_mut_unsafe().set(v, false);
+                                    t.set(v, false);
+                                    if terminal && self.graph.outdegree(v) != 0 {
+                                        b[v] = true;
+                                    }
+                                    if v == node {
+                                        break;
+                                    }
+                                }
+                            } else {
+                                let stack = self.stack.as_mut_unsafe();
+                                while let Some(v) = stack.pop() {
+                                    self.components.write_once(v, self.number_of_components);
+                                    self.on_stack.as_mut_unsafe().set(v, false);
+                                    if v == node {
+                                        break;
+                                    }
+                                }
+                            }
+                            *self.number_of_components.as_mut_unsafe() += 1;
                         }
-                    }
-                } else {
-                    while let Some(node) = self.stack.pop() {
-                        self.components[node] = self.number_of_components;
-                        self.on_stack.set(node, false);
-                        if node == v {
-                            break;
+
+                        if node != parent {
+                            self.lowlinks.write_once(
+                                parent,
+                                std::cmp::min(self.lowlinks[parent], self.lowlinks[node]),
+                            );
+                            if let Some(t) = self.terminal.as_ref() {
+                                if !t[node] {
+                                    t.as_mut_unsafe().set(parent, false);
+                                }
+                            }
                         }
-                    }
-                }
-                self.number_of_components += 1;
-            }
-        }
+                    },
+                },
+                pl,
+            )
+            .with_context(|| "Cannot perform depth first visit")?;
+
+        Ok(())
     }
 }

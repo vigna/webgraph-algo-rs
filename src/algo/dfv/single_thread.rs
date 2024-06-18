@@ -63,6 +63,15 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
         let mut parent = node_index;
         let mut iter = self.graph.successors(current_node).into_iter();
 
+        self.visited.set(current_node, true);
+        callback(
+            current_node,
+            parent,
+            node_index,
+            0,
+            DepthFirstVisitEvent::Discover,
+        );
+
         'recurse: loop {
             let depth = self.stack.len();
             while let Some(succ) = iter.next() {
