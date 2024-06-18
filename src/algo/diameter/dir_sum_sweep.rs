@@ -486,7 +486,8 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     fn find_best_pivot(&self, mut pl: impl ProgressLog) -> Result<Vec<usize>> {
-        let mut pivot = vec![None; self.strongly_connected_components.number_of_components()];
+        let mut pivot: Vec<Option<NonMaxUsize>> =
+            vec![None; self.strongly_connected_components.number_of_components()];
         let components = self.strongly_connected_components.component();
         pl.expected_updates(Some(components.len()));
         pl.item_name("nodes");
@@ -495,6 +496,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         for (v, &component) in components.iter().enumerate().rev() {
             if let Some(p) = pivot[component] {
+                let p = p.into();
                 let current = self.lower_bound_backward_eccentricities[v]
                     + self.lower_bound_forward_eccentricities[v]
                     + if self.incomplete_forward_vertex(v) {
@@ -526,17 +528,19 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                         && self.total_forward_distance[v] + self.total_backward_distance[v]
                             <= self.total_forward_distance[p] + self.total_backward_distance[p])
                 {
-                    pivot[component] = Some(v);
+                    pivot[component] =
+                        Some(NonMaxUsize::new(v).expect("node index should not exceed usize::MAX"));
                 }
             } else {
-                pivot[component] = Some(v);
+                pivot[component] =
+                    Some(NonMaxUsize::new(v).expect("node index should not exceed usize::MAX"));
             }
             pl.light_update();
         }
 
         pl.done();
 
-        Ok(pivot.into_iter().map(|x| x.unwrap()).collect())
+        Ok(pivot.into_iter().map(|x| x.unwrap().into()).collect())
     }
 
     /// Computes and stores in variable [`Self::radial_vertices`] the set of vertices that are
