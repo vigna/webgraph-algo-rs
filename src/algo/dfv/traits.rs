@@ -41,17 +41,17 @@ pub trait DepthFirstGraphVisit {
     /// # Arguments:
     /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     /// of the visit, its distance from it and the event flag.
-    /// - `node_index`: The node to start the visit in.
+    /// - `visit_root`: The node to start the visit in.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     fn visit_from_node<C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync>(
         &mut self,
         callback: C,
-        node_index: usize,
+        visit_root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.visit_from_node_filtered(callback, |_, _, _, _| true, node_index, pl)
+        self.visit_from_node_filtered(callback, |_, _, _, _| true, visit_root, pl)
     }
 
     /// Starts a Depth first visit from every node and applies `callback` to every visited node with the
@@ -93,7 +93,7 @@ pub trait DepthFirstGraphVisit {
     /// - `filter`: A function or closure that takes as arguments the node index, its parent, the root
     /// of the visit and its distance from it and returns `true` if the node should be visited,
     /// `false` otherwise.
-    /// - `node_index`: The node to start the visit in.
+    /// - `visit_root`: The node to start the visit in.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
@@ -104,7 +104,7 @@ pub trait DepthFirstGraphVisit {
         &mut self,
         callback: C,
         filter: F,
-        node_index: usize,
+        visit_root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()>;
 

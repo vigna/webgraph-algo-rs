@@ -68,17 +68,19 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit for ParallelBreadth
         &mut self,
         callback: C,
         filter: F,
-        root: usize,
+        visit_root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        if self.visited.get(root, Ordering::Relaxed) || !filter(root, root, root, 0) {
+        if self.visited.get(visit_root, Ordering::Relaxed)
+            || !filter(visit_root, visit_root, visit_root, 0)
+        {
             return Ok(());
         }
 
         let mut next_frontier = Frontier::new();
 
-        next_frontier.push((root, root));
-        self.visited.set(root, true, Ordering::Relaxed);
+        next_frontier.push((visit_root, visit_root));
+        self.visited.set(visit_root, true, Ordering::Relaxed);
 
         let mut distance = 0;
 
@@ -92,9 +94,9 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit for ParallelBreadth
                 .chunks(self.granularity)
                 .for_each(|chunk| {
                     chunk.into_iter().for_each(|&(node, parent)| {
-                        callback(node, parent, root, distance);
+                        callback(node, parent, visit_root, distance);
                         self.graph.successors(node).into_iter().for_each(|succ| {
-                            if filter(succ, node, root, distance)
+                            if filter(succ, node, visit_root, distance)
                                 && !self.visited.swap(succ, true, Ordering::Relaxed)
                             {
                                 next_frontier.push((succ, node));

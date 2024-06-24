@@ -71,18 +71,20 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
         &mut self,
         callback: C,
         filter: F,
-        root: usize,
+        visit_root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        if self.visited.get(root, Ordering::Relaxed) || !filter(root, root, root, 0) {
+        if self.visited.get(visit_root, Ordering::Relaxed)
+            || !filter(visit_root, visit_root, visit_root, 0)
+        {
             return Ok(());
         }
 
         let mut next_frontier = Frontier::new();
 
-        next_frontier.push(root);
-        self.visited.set(root, true, Ordering::Relaxed);
-        callback(root, root, root, 0);
+        next_frontier.push(visit_root);
+        self.visited.set(visit_root, true, Ordering::Relaxed);
+        callback(visit_root, visit_root, visit_root, 0);
 
         let mut distance = 1;
 
@@ -97,10 +99,10 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
                 .for_each(|chunk| {
                     chunk.into_iter().for_each(|&node| {
                         self.graph.successors(node).into_iter().for_each(|succ| {
-                            if filter(succ, node, root, distance)
+                            if filter(succ, node, visit_root, distance)
                                 && !self.visited.swap(succ, true, Ordering::Relaxed)
                             {
-                                callback(succ, node, root, distance);
+                                callback(succ, node, visit_root, distance);
                                 next_frontier.push(succ);
                             }
                         })
