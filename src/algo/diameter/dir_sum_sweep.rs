@@ -581,7 +581,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 
         pl.info(format_args!("Computing radial vertices set"));
 
-        let mut bfs = BFV::new_parallel(self.reversed_graph)
+        let mut bfs = BFV::new_parallel_low_mem(self.reversed_graph)
             .with_granularity(VISIT_GRANULARITY)
             .build();
         bfs.visit_from_node(
@@ -649,7 +649,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
-        let mut bfs = BFV::new_parallel(graph)
+        let mut bfs = BFV::new_parallel_low_mem(graph)
             .with_granularity(VISIT_GRANULARITY)
             .build();
 
@@ -773,7 +773,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         let current_index = AtomicUsize::new(0);
 
         rayon::broadcast(|_| {
-            let mut bfs = BFV::new_parallel(graph)
+            let mut bfs = BFV::new_parallel_low_mem(graph)
                 .with_granularity(VISIT_GRANULARITY)
                 .build();
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
