@@ -64,6 +64,36 @@ pub fn bench_bfv(c: &mut Criterion) {
                 });
             },
         );
+
+        group.bench_with_input(
+            BenchmarkId::new("Parallel Low Memory (Granularity 1)", &parameter),
+            &input,
+            |b, i| {
+                b.iter_with_large_drop(|| {
+                    BFV::new_parallel_low_mem(i)
+                        .with_start(start)
+                        .with_granularity(1)
+                        .build()
+                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
+                        .unwrap()
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("Parallel Low Memory (Granularity 64)", &parameter),
+            &input,
+            |b, i| {
+                b.iter_with_large_drop(|| {
+                    BFV::new_parallel_low_mem(i)
+                        .with_start(start)
+                        .with_granularity(64)
+                        .build()
+                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
+                        .unwrap()
+                });
+            },
+        );
     }
     group.finish();
 }
