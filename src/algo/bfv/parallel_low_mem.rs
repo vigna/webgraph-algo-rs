@@ -41,7 +41,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitLowMemBuilder<'a, G> {
         self
     }
 
-    /// Builds the sequential BFV with the builder parameters and consumes the builder.
+    /// Builds the parallel BFV with the builder parameters and consumes the builder.
     pub fn build(self) -> ParallelBreadthFirstVisitLowMem<'a, G> {
         ParallelBreadthFirstVisitLowMem {
             graph: self.graph,

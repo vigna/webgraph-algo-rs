@@ -41,7 +41,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitBuilder<'a, G> {
         self
     }
 
-    /// Builds the sequential BFV with the builder parameters and consumes the builder.
+    /// Builds the parellel BFV with the builder parameters and consumes the builder.
     pub fn build(self) -> ParallelBreadthFirstVisit<'a, G> {
         ParallelBreadthFirstVisit {
             graph: self.graph,
