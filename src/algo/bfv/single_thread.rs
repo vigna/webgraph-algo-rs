@@ -53,18 +53,18 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
         &mut self,
         callback: C,
         filter: F,
-        node_index: usize,
+        root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        if self.visited[node_index] || !filter(node_index, node_index, node_index, 0) {
+        if self.visited[root] || !filter(root, root, root, 0) {
             return Ok(());
         }
         self.queue.push_back(Some(
-            NonMaxUsize::new(node_index).expect("node index should never be usize::MAX"),
+            NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
         ));
         self.queue.push_back(None);
-        self.visited.set(node_index, true);
-        callback(node_index, node_index, node_index, 0);
+        self.visited.set(root, true);
+        callback(root, root, root, 0);
 
         let mut distance = 1;
 
@@ -74,8 +74,8 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
             match current_node {
                 Some(node) => {
                     for succ in self.graph.successors(node) {
-                        if !self.visited[succ] && filter(succ, node, node_index, distance) {
-                            callback(succ, node, node_index, distance);
+                        if !self.visited[succ] && filter(succ, node, root, distance) {
+                            callback(succ, node, root, distance);
                             self.visited.set(succ, true);
                             self.queue.push_back(Some(
                                 NonMaxUsize::new(succ)

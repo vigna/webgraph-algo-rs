@@ -52,22 +52,22 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
         &mut self,
         callback: C,
         filter: F,
-        node_index: usize,
+        root: usize,
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Result<()> {
-        if self.visited[node_index] {
+        if self.visited[root] {
             return Ok(());
         }
 
-        let mut current_node = node_index;
-        let mut parent = node_index;
+        let mut current_node = root;
+        let mut parent = root;
         let mut iter = self.graph.successors(current_node).into_iter();
 
         self.visited.set(current_node, true);
         callback(
             current_node,
             parent,
-            node_index,
+            root,
             0,
             DepthFirstVisitEvent::Discover,
         );
@@ -76,13 +76,13 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
             let depth = self.stack.len();
             while let Some(succ) = iter.next() {
                 // Check if node should be visited
-                if filter(succ, current_node, node_index, depth + 1) {
+                if filter(succ, current_node, root, depth + 1) {
                     if self.visited[succ] {
                         // Node has already been visited
                         callback(
                             succ,
                             current_node,
-                            node_index,
+                            root,
                             depth + 1,
                             DepthFirstVisitEvent::AlreadyVisited,
                         );
@@ -91,7 +91,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
                         callback(
                             succ,
                             current_node,
-                            node_index,
+                            root,
                             depth + 1,
                             DepthFirstVisitEvent::Discover,
                         );
@@ -111,7 +111,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
             callback(
                 current_node,
                 parent,
-                node_index,
+                root,
                 depth,
                 DepthFirstVisitEvent::Emit,
             );
