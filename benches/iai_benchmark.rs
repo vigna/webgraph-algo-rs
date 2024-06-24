@@ -38,11 +38,11 @@ fn test_bfv_cnr_2000_parallel() {
 }
 
 #[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_cnr_2000_parallel_low_mem() {
+fn test_bfv_cnr_2000_parallel_fast_callback() {
     let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
-    let visit = BFV::new_parallel_low_mem(&graph)
+    let visit = BFV::new_parallel_fast_callback(&graph)
         .with_start(10000)
         .with_granularity(32)
         .build();
@@ -85,11 +85,11 @@ fn test_bfv_in_2004_parallel() {
 }
 
 #[cfg_attr(windows, allow(dead_code))]
-fn test_bfv_in_2004_parallel_low_mem() {
+fn test_bfv_in_2004_parallel_fast_callback() {
     let graph = BVGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
-    let visit = BFV::new_parallel_low_mem(&graph)
+    let visit = BFV::new_parallel_fast_callback(&graph)
         .with_start(10000)
         .with_granularity(32)
         .build();

@@ -1,4 +1,4 @@
-use crate::algo::bfv::{parallel::*, parallel_low_mem::*, single_thread::*};
+use crate::algo::bfv::{parallel::*, parallel_fast_cb::*, single_thread::*};
 use webgraph::traits::RandomAccessGraph;
 
 /// Utility struct to requests builders for Breadth-First visits of graphs.
@@ -24,13 +24,13 @@ impl BFV {
     }
 
     /// Creates a new builder for a parallel top-down visit that uses less memory
-    /// but is less efficient on graphs with skewed outdegrees.
+    /// but is less efficient with long callbacks.
     ///
     /// # Arguments
     /// - `graph`: an immutable reference to the graph to visit.
-    pub fn new_parallel_low_mem<G: RandomAccessGraph>(
+    pub fn new_parallel_fast_callback<G: RandomAccessGraph>(
         graph: &G,
-    ) -> ParallelBreadthFirstVisitLowMemBuilder<G> {
-        ParallelBreadthFirstVisitLowMemBuilder::new(graph)
+    ) -> ParallelBreadthFirstVisitFastCBBuilder<G> {
+        ParallelBreadthFirstVisitFastCBBuilder::new(graph)
     }
 }

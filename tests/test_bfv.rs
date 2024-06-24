@@ -129,4 +129,4 @@ macro_rules! test_bfv_algo {
 
 test_bfv_algo!(BFV::new_sequential, sequential);
 test_bfv_algo!(BFV::new_parallel, parallel);
-test_bfv_algo!(BFV::new_parallel_low_mem, parallel_low_mem);
+test_bfv_algo!(BFV::new_parallel_fast_callback, parallel_low_mem);

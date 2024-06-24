@@ -7,15 +7,15 @@ use std::sync::atomic::Ordering;
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// Builder for [`ParallelBreadthFirstVisitLowMem`].
+/// Builder for [`ParallelBreadthFirstVisitFastCB`].
 #[derive(Clone)]
-pub struct ParallelBreadthFirstVisitLowMemBuilder<'a, G: RandomAccessGraph> {
+pub struct ParallelBreadthFirstVisitFastCBBuilder<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
     granularity: usize,
 }
 
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitLowMemBuilder<'a, G> {
+impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
     /// Constructs a new builder with default parameters for specified graph.
     pub fn new(graph: &'a G) -> Self {
         Self {
@@ -42,8 +42,8 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitLowMemBuilder<'a, G> {
     }
 
     /// Builds the parallel BFV with the builder parameters and consumes the builder.
-    pub fn build(self) -> ParallelBreadthFirstVisitLowMem<'a, G> {
-        ParallelBreadthFirstVisitLowMem {
+    pub fn build(self) -> ParallelBreadthFirstVisitFastCB<'a, G> {
+        ParallelBreadthFirstVisitFastCB {
             graph: self.graph,
             start: self.start,
             granularity: self.granularity,
@@ -54,7 +54,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitLowMemBuilder<'a, G> {
 
 /// A simple parallel Breadth First visit on a graph with low memory consumption but with a smaller
 /// frontier.
-pub struct ParallelBreadthFirstVisitLowMem<'a, G: RandomAccessGraph> {
+pub struct ParallelBreadthFirstVisitFastCB<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
     granularity: usize,
@@ -62,7 +62,7 @@ pub struct ParallelBreadthFirstVisitLowMem<'a, G: RandomAccessGraph> {
 }
 
 impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
-    for ParallelBreadthFirstVisitLowMem<'a, G>
+    for ParallelBreadthFirstVisitFastCB<'a, G>
 {
     fn visit_from_node_filtered<
         C: Fn(usize, usize, usize, usize) + Sync,
@@ -145,7 +145,7 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
 }
 
 impl<'a, G: RandomAccessGraph + Sync> ReusableBreadthFirstGraphVisit
-    for ParallelBreadthFirstVisitLowMem<'a, G>
+    for ParallelBreadthFirstVisitFastCB<'a, G>
 {
     fn reset(&mut self) -> Result<()> {
         self.visited.fill(false, Ordering::Relaxed);
@@ -164,7 +164,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisitLowMemBuilder::new(&graph)
+        let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
             .with_start(10)
             .with_granularity(2)
             .build();
@@ -180,7 +180,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisitLowMemBuilder::new(&graph)
+        let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
             .with_start(10)
             .build();
 
@@ -195,7 +195,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisitLowMemBuilder::new(&graph)
+        let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
             .with_granularity(10)
             .build();
 
@@ -210,7 +210,7 @@ mod test {
         let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
-        let visit = ParallelBreadthFirstVisitLowMemBuilder::new(&graph).build();
+        let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph).build();
 
         assert_eq!(visit.start, 0);
         assert_eq!(visit.granularity, 1);

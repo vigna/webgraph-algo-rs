@@ -66,11 +66,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("Parallel Low Memory (Granularity 1)", &parameter),
+            BenchmarkId::new("Parallel Fast Callback (Granularity 1)", &parameter),
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFV::new_parallel_low_mem(i)
+                    BFV::new_parallel_fast_callback(i)
                         .with_start(start)
                         .with_granularity(1)
                         .build()
@@ -81,11 +81,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("Parallel Low Memory (Granularity 64)", &parameter),
+            BenchmarkId::new("Parallel Fast Callback (Granularity 64)", &parameter),
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFV::new_parallel_low_mem(i)
+                    BFV::new_parallel_fast_callback(i)
                         .with_start(start)
                         .with_granularity(64)
                         .build()
