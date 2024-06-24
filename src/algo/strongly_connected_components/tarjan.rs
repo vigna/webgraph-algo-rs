@@ -102,86 +102,98 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
         }
     }
 
-    fn run(&mut self, pl: impl ProgressLog) -> Result<()> {
-        let visit = DFV::new_sequential(self.graph).build();
+    fn run(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+        let mut visit = DFV::new_sequential(self.graph).build();
+        pl.item_name("nodes");
+        pl.expected_updates(Some(self.graph.num_nodes()));
+        pl.start("Computing strongly connected components");
 
-        visit
-            .visit(
-                |node, parent, _, _, event| match event {
-                    // Safety: code is sequential: no concurrency and references are not left dangling
-                    // a &mut self is requested so compiler should not optimize memory with readonly
-                    DepthFirstVisitEvent::Discover => unsafe {
-                        self.indexes.write_once(
-                            node,
-                            Some(
-                                NonMaxUsize::new(self.current_index)
-                                    .expect("indexes should not exceed usize::MAX"),
-                            ),
-                        );
-                        self.lowlinks.write_once(node, self.current_index);
-                        *self.current_index.as_mut_unsafe() += 1;
-                        self.stack.as_mut_unsafe().push(node);
-                        self.on_stack.as_mut_unsafe().set(node, true);
-                    },
-                    DepthFirstVisitEvent::AlreadyVisited => unsafe {
-                        if self.on_stack[node] {
-                            self.lowlinks.write_once(
-                                parent,
-                                std::cmp::min(
-                                    self.lowlinks[parent],
-                                    self.indexes[node].unwrap().into(),
-                                ),
-                            );
-                        } else if let Some(t) = self.terminal.as_ref() {
-                            t.as_mut_unsafe().set(parent, false);
-                        }
-                    },
-                    DepthFirstVisitEvent::Emit => unsafe {
-                        if self.lowlinks[node] == self.indexes[node].unwrap().into() {
-                            if let Some(b) = self.buckets.as_mut_unsafe() {
-                                let t = self.terminal.as_ref().unwrap().as_mut_unsafe();
-                                let terminal = t[node];
-                                let stack = self.stack.as_mut_unsafe();
-                                while let Some(v) = stack.pop() {
-                                    self.components.write_once(v, self.number_of_components);
-                                    self.on_stack.as_mut_unsafe().set(v, false);
-                                    t.set(v, false);
-                                    if terminal && self.graph.outdegree(v) != 0 {
-                                        b[v] = true;
-                                    }
-                                    if v == node {
-                                        break;
-                                    }
-                                }
-                            } else {
-                                let stack = self.stack.as_mut_unsafe();
-                                while let Some(v) = stack.pop() {
-                                    self.components.write_once(v, self.number_of_components);
-                                    self.on_stack.as_mut_unsafe().set(v, false);
-                                    if v == node {
-                                        break;
-                                    }
-                                }
-                            }
-                            *self.number_of_components.as_mut_unsafe() += 1;
-                        }
-
-                        if node != parent {
-                            self.lowlinks.write_once(
-                                parent,
-                                std::cmp::min(self.lowlinks[parent], self.lowlinks[node]),
-                            );
-                            if let Some(t) = self.terminal.as_ref() {
-                                if !t[node] {
+        for node_to_visit in 0..self.graph.num_nodes() {
+            if self.indexes[node_to_visit].is_none() {
+                visit
+                    .visit_from_node(
+                        |node, parent, _, _, event| match event {
+                            // Safety: code is sequential: no concurrency and references are not left dangling
+                            // a &mut self is requested so compiler should not optimize memory with readonly
+                            DepthFirstVisitEvent::Discover => unsafe {
+                                self.indexes.write_once(
+                                    node,
+                                    Some(
+                                        NonMaxUsize::new(self.current_index)
+                                            .expect("indexes should not exceed usize::MAX"),
+                                    ),
+                                );
+                                self.lowlinks.write_once(node, self.current_index);
+                                *self.current_index.as_mut_unsafe() += 1;
+                                self.stack.as_mut_unsafe().push(node);
+                                self.on_stack.as_mut_unsafe().set(node, true);
+                            },
+                            DepthFirstVisitEvent::AlreadyVisited => unsafe {
+                                if self.on_stack[node] {
+                                    self.lowlinks.write_once(
+                                        parent,
+                                        std::cmp::min(
+                                            self.lowlinks[parent],
+                                            self.indexes[node].unwrap().into(),
+                                        ),
+                                    );
+                                } else if let Some(t) = self.terminal.as_ref() {
                                     t.as_mut_unsafe().set(parent, false);
                                 }
-                            }
-                        }
-                    },
-                },
-                pl,
-            )
-            .with_context(|| "Cannot perform depth first visit")?;
+                            },
+                            DepthFirstVisitEvent::Emit => unsafe {
+                                if self.lowlinks[node] == self.indexes[node].unwrap().into() {
+                                    if let Some(b) = self.buckets.as_mut_unsafe() {
+                                        let t = self.terminal.as_ref().unwrap().as_mut_unsafe();
+                                        let terminal = t[node];
+                                        let stack = self.stack.as_mut_unsafe();
+                                        while let Some(v) = stack.pop() {
+                                            self.components
+                                                .write_once(v, self.number_of_components);
+                                            self.on_stack.as_mut_unsafe().set(v, false);
+                                            t.set(v, false);
+                                            if terminal && self.graph.outdegree(v) != 0 {
+                                                b[v] = true;
+                                            }
+                                            if v == node {
+                                                break;
+                                            }
+                                        }
+                                    } else {
+                                        let stack = self.stack.as_mut_unsafe();
+                                        while let Some(v) = stack.pop() {
+                                            self.components
+                                                .write_once(v, self.number_of_components);
+                                            self.on_stack.as_mut_unsafe().set(v, false);
+                                            if v == node {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    *self.number_of_components.as_mut_unsafe() += 1;
+                                }
+
+                                if node != parent {
+                                    self.lowlinks.write_once(
+                                        parent,
+                                        std::cmp::min(self.lowlinks[parent], self.lowlinks[node]),
+                                    );
+                                    if let Some(t) = self.terminal.as_ref() {
+                                        if !t[node] {
+                                            t.as_mut_unsafe().set(parent, false);
+                                        }
+                                    }
+                                }
+                            },
+                        },
+                        node_to_visit,
+                        &mut pl,
+                    )
+                    .with_context(|| "Cannot perform depth first visit")?;
+            }
+        }
+
+        pl.done();
 
         Ok(())
     }
