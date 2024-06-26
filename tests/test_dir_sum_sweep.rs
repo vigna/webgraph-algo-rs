@@ -276,7 +276,7 @@ fn test_clique() -> Result<()> {
 
 #[test]
 fn test_empty() -> Result<()> {
-    let mut vec_graph = VecGraph::new();
+    let mut vec_graph: VecGraph<()> = VecGraph::new();
     for i in 0..100 {
         vec_graph.add_node(i);
     }
@@ -370,7 +370,7 @@ fn test_no_radial_vertices() -> Result<()> {
 
 #[test]
 fn test_empty_graph() -> Result<()> {
-    let vec_graph = VecGraph::new();
+    let vec_graph: VecGraph<()> = VecGraph::new();
 
     let graph = Left(vec_graph);
     let transposed = Left(VecGraph::from_labeled_lender(
@@ -395,7 +395,7 @@ fn test_empty_graph() -> Result<()> {
 
 #[test]
 fn test_graph_no_edges() -> Result<()> {
-    let mut vec_graph = VecGraph::new();
+    let mut vec_graph: VecGraph<()> = VecGraph::new();
     for i in 0..2 {
         vec_graph.add_node(i);
     }

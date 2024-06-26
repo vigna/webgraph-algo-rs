@@ -20,16 +20,26 @@ pub struct SccGraphConnection {
     pub end: usize,
 }
 
-pub struct SccGraph<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> {
+pub struct SccGraph<
+    G1: RandomAccessGraph + Sync,
+    G2: RandomAccessGraph + Sync,
+    C: StronglyConnectedComponents<G1>,
+> {
     /// Slice of offsets where the `i`-th offset is how many elements to skip in [`Self::data`]
     /// in order to reach the first element relative to component `i`.
     segments_offset: MmapSlice<usize>,
     data: MmapSlice<SccGraphConnection>,
-    _phantom_graph: PhantomData<G>,
+    _phantom_graph: PhantomData<G1>,
+    _phantom_revgraph: PhantomData<G2>,
     _phantom_component: PhantomData<C>,
 }
 
-impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G, C> {
+impl<
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        C: StronglyConnectedComponents<G1>,
+    > SccGraph<G1, G2, C>
+{
     /// Creates a strongly connected components graph from provided graphs and strongly connected
     /// components.
     ///
@@ -42,8 +52,8 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     pub fn new(
-        graph: &G,
-        reversed_graph: &G,
+        graph: &G1,
+        reversed_graph: &G2,
         scc: &C,
         options: TempMmapOptions,
         mut pl: impl ProgressLog,
@@ -79,6 +89,7 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
             segments_offset: mmap_lengths,
             data: mmap_connections,
             _phantom_graph: PhantomData,
+            _phantom_revgraph: PhantomData,
             _phantom_component: PhantomData,
         })
     }
@@ -117,8 +128,8 @@ impl<G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>> SccGraph<G,
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     fn find_edges_through_scc(
-        graph: &G,
-        reversed_graph: &G,
+        graph: &G1,
+        reversed_graph: &G2,
         scc: &C,
         mut pl: impl ProgressLog,
     ) -> Result<(Vec<usize>, Vec<SccGraphConnection>)> {

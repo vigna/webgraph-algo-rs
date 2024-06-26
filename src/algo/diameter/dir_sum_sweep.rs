@@ -22,11 +22,12 @@ const VISIT_GRANULARITY: usize = 32;
 
 pub struct SumSweepDirectedDiameterRadius<
     'a,
-    G: RandomAccessGraph + Sync,
-    C: StronglyConnectedComponents<G>,
+    G1: RandomAccessGraph + Sync,
+    G2: RandomAccessGraph + Sync,
+    C: StronglyConnectedComponents<G1>,
 > {
-    graph: &'a G,
-    reversed_graph: &'a G,
+    graph: &'a G1,
+    reversed_graph: &'a G2,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
     radial_vertices: AtomicBitVec,
@@ -52,7 +53,7 @@ pub struct SumSweepDirectedDiameterRadius<
     all_eccentricities_iterations: Option<NonMaxUsize>,
     strongly_connected_components: C,
     /// The strongly connected components diagram.
-    strongly_connected_components_graph: SccGraph<G, C>,
+    strongly_connected_components_graph: SccGraph<G1, G2, C>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
     total_forward_distance: MmapSlice<usize>,
@@ -62,8 +63,8 @@ pub struct SumSweepDirectedDiameterRadius<
     compute_radial_vertices: bool,
 }
 
-impl<'a, G: RandomAccessGraph + Sync>
-    SumSweepDirectedDiameterRadius<'a, G, TarjanStronglyConnectedComponents<G>>
+impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+    SumSweepDirectedDiameterRadius<'a, G1, G2, TarjanStronglyConnectedComponents<G1>>
 {
     /// Creates a new instance for computing diameter and/or radius and/or all eccentricities.
     ///
@@ -79,8 +80,8 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     pub fn new(
-        graph: &'a G,
-        reversed_graph: &'a G,
+        graph: &'a G1,
+        reversed_graph: &'a G2,
         output: SumSweepOutputLevel,
         radial_vertices: Option<AtomicBitVec>,
         options: TempMmapOptions,
@@ -149,8 +150,12 @@ impl<'a, G: RandomAccessGraph + Sync>
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
-    SumSweepDirectedDiameterRadius<'a, G, C>
+impl<
+        'a,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        C: StronglyConnectedComponents<G1> + Sync,
+    > SumSweepDirectedDiameterRadius<'a, G1, G2, C>
 {
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
         self.lower_bound_forward_eccentricities[index]
@@ -610,41 +615,32 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         &mut self,
         start: Option<usize>,
         forward: bool,
-        mut pl: impl ProgressLog,
+        pl: impl ProgressLog,
     ) -> Result<()> {
-        if start.is_none() {
-            return Ok(());
+        if let Some(start) = start {
+            if forward {
+                self.forward_step_sum_sweep(start, pl)
+                    .with_context(|| format!("Cannot perform forward visit from {}", start))?;
+            } else {
+                self.backwards_step_sum_sweep(start, pl)
+                    .with_context(|| format!("Cannot perform backwards visit from {}", start))?;
+            }
+            self.iterations += 1;
         }
-        let start = start.unwrap();
+        Ok(())
+    }
 
+    #[inline(always)]
+    fn backwards_step_sum_sweep(&mut self, start: usize, mut pl: impl ProgressLog) -> Result<()> {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
+        pl.start(format!("Performing backwards BFS starting from {}", start));
 
-        if forward {
-            pl.start(format!("Performing forward BFS starting from {}", start));
-        } else {
-            pl.start(format!("Performing backwards BFS starting from {}", start));
-        }
-
-        let lower_bound;
-        let other_lower_bound;
-        let upper_bound;
-        let other_upper_bound;
-        let other_total_distance;
-        let graph;
-
-        if forward {
-            other_lower_bound = &self.lower_bound_backward_eccentricities;
-            other_upper_bound = &self.upper_bound_backward_eccentricities;
-            other_total_distance = &self.total_backward_distance;
-            graph = self.graph;
-        } else {
-            other_lower_bound = &self.lower_bound_forward_eccentricities;
-            other_upper_bound = &self.upper_bound_forward_eccentricities;
-            other_total_distance = &self.total_forward_distance;
-            graph = self.reversed_graph;
-        }
+        let other_lower_bound = &self.lower_bound_forward_eccentricities;
+        let other_upper_bound = &self.upper_bound_forward_eccentricities;
+        let other_total_distance = &self.total_forward_distance;
+        let graph = self.reversed_graph;
 
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
@@ -656,23 +652,17 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         bfs.visit_from_node(
             |node, _, _, distance| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                let incomplete = if forward {
-                    self.incomplete_backward_vertex(node)
-                } else {
-                    self.incomplete_forward_vertex(node)
-                };
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
                 unsafe {
                     *other_total_distance.get_mut_unsafe(node) += distance;
                 }
-                if incomplete && other_lower_bound[node] < distance {
+                if self.incomplete_forward_vertex(node) && other_lower_bound[node] < distance {
                     unsafe {
                         other_lower_bound.write_once(node, distance);
                     }
 
-                    if distance == other_upper_bound[node] && !forward && self.radial_vertices[node]
-                    {
+                    if distance == other_upper_bound[node] && self.radial_vertices[node] {
                         let mut update_radius = false;
                         {
                             let radius_lock = radius.read().unwrap();
@@ -696,13 +686,8 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         )
         .with_context(|| format!("Could not perform BFS from {}", start))?;
 
-        if forward {
-            lower_bound = &mut self.lower_bound_forward_eccentricities;
-            upper_bound = &mut self.upper_bound_forward_eccentricities;
-        } else {
-            lower_bound = &mut self.lower_bound_backward_eccentricities;
-            upper_bound = &mut self.upper_bound_backward_eccentricities;
-        }
+        let lower_bound = &mut self.lower_bound_backward_eccentricities;
+        let upper_bound = &mut self.upper_bound_backward_eccentricities;
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -715,12 +700,64 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
             self.diameter_lower_bound = ecc_start;
             self.diameter_vertex = start;
         }
-        if forward && self.radial_vertices[start] && self.radius_upper_bound > ecc_start {
+
+        pl.done();
+
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn forward_step_sum_sweep(&mut self, start: usize, mut pl: impl ProgressLog) -> Result<()> {
+        pl.item_name("nodes");
+        pl.display_memory(false);
+        pl.expected_updates(None);
+        pl.start(format!("Performing forward BFS starting from {}", start));
+
+        let other_lower_bound = &self.lower_bound_backward_eccentricities;
+        let other_total_distance = &self.total_backward_distance;
+        let graph = self.graph;
+
+        let max_dist = AtomicUsize::new(0);
+
+        let mut bfs = BFV::new_parallel_fast_callback(graph)
+            .with_granularity(VISIT_GRANULARITY)
+            .build();
+
+        bfs.visit_from_node(
+            |node, _, _, distance| {
+                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                max_dist.fetch_max(distance, Ordering::Relaxed);
+
+                unsafe {
+                    *other_total_distance.get_mut_unsafe(node) += distance;
+                }
+                if self.incomplete_backward_vertex(node) && other_lower_bound[node] < distance {
+                    unsafe {
+                        other_lower_bound.write_once(node, distance);
+                    }
+                }
+            },
+            start,
+            &mut pl,
+        )
+        .with_context(|| format!("Could not perform BFS from {}", start))?;
+
+        let lower_bound = &mut self.lower_bound_forward_eccentricities;
+        let upper_bound = &mut self.upper_bound_forward_eccentricities;
+
+        let ecc_start = max_dist.load(Ordering::Relaxed);
+
+        lower_bound[start] = ecc_start;
+        upper_bound[start] = ecc_start;
+
+        if self.diameter_lower_bound < ecc_start {
+            self.diameter_lower_bound = ecc_start;
+            self.diameter_vertex = start;
+        }
+        if self.radial_vertices[start] && self.radius_upper_bound > ecc_start {
             self.radius_upper_bound = ecc_start;
             self.radius_vertex = start;
         }
-
-        self.iterations += 1;
 
         pl.done();
 
@@ -753,23 +790,33 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         pl.expected_updates(None);
         pl.display_memory(false);
 
-        if forward {
+        let (dist_pivot, usize_ecc_pivot) = if forward {
             pl.start("Computing forward dist pivots");
+            self.compute_dist_pivot_from_graph(pivot, self.graph)
+                .with_context(|| "Could not compute forward dist pivots")?
         } else {
             pl.start("Computing backwards dist pivots");
-        }
+            self.compute_dist_pivot_from_graph(pivot, self.reversed_graph)
+                .with_context(|| "Could not compute backwards dist pivots")?
+        };
 
+        pl.done();
+
+        Ok((dist_pivot, usize_ecc_pivot))
+    }
+
+    #[inline(always)]
+    fn compute_dist_pivot_from_graph(
+        &self,
+        pivot: &[usize],
+        graph: &(impl RandomAccessGraph + Sync),
+    ) -> Result<(Vec<usize>, Vec<usize>)> {
         let components = self.strongly_connected_components.component();
         let ecc_pivot = closure_vec(
             || AtomicUsize::new(0),
             self.strongly_connected_components.number_of_components(),
         );
         let dist_pivot: Vec<usize> = vec![0; self.number_of_nodes];
-        let graph = if forward {
-            self.graph
-        } else {
-            self.reversed_graph
-        };
         let current_index = AtomicUsize::new(0);
 
         rayon::broadcast(|_| {
@@ -808,8 +855,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
                 clone.capacity(),
             )
         };
-
-        pl.done();
 
         Ok((dist_pivot, usize_ecc_pivot))
     }
