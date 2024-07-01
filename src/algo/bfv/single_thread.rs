@@ -123,6 +123,7 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
 impl<'a, G: RandomAccessGraph> ReusableBreadthFirstGraphVisit
     for SingleThreadedBreadthFirstVisit<'a, G>
 {
+    #[inline(always)]
     fn reset(&mut self) -> Result<()> {
         self.queue.clear();
         self.visited.fill(false);

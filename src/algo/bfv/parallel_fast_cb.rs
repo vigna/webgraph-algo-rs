@@ -147,6 +147,7 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
 impl<'a, G: RandomAccessGraph + Sync> ReusableBreadthFirstGraphVisit
     for ParallelBreadthFirstVisitFastCB<'a, G>
 {
+    #[inline(always)]
     fn reset(&mut self) -> Result<()> {
         self.visited.fill(false, Ordering::Relaxed);
         Ok(())

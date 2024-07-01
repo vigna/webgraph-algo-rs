@@ -156,6 +156,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
 impl<'a, G: RandomAccessGraph> ReusableDepthFirstGraphVisit
     for SingleThreadedDepthFirstVisit<'a, G>
 {
+    #[inline(always)]
     fn reset(&mut self) -> Result<()> {
         self.stack.clear();
         self.visited.fill(false);

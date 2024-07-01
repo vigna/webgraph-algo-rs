@@ -24,6 +24,7 @@ pub trait DepthFirstGraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
+    #[inline(always)]
     fn visit<C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync>(
         self,
         callback: C,
@@ -45,6 +46,7 @@ pub trait DepthFirstGraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
+    #[inline(always)]
     fn visit_from_node<C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync>(
         &mut self,
         callback: C,
@@ -68,6 +70,7 @@ pub trait DepthFirstGraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
+    #[inline(always)]
     fn visit_filtered<
         C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync,
         F: Fn(usize, usize, usize, usize) -> bool + Sync,
@@ -153,6 +156,7 @@ pub trait ReusableDepthFirstGraphVisit: DepthFirstGraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
+    #[inline(always)]
     fn visit_filtered_and_reuse<
         C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync,
         F: Fn(usize, usize, usize, usize) -> bool + Sync,
@@ -177,6 +181,7 @@ pub trait ReusableDepthFirstGraphVisit: DepthFirstGraphVisit {
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
+    #[inline(always)]
     fn visit_and_reuse<C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync>(
         &mut self,
         callback: C,
