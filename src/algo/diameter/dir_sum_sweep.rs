@@ -89,7 +89,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     ) -> Result<Self> {
         let nn = graph.num_nodes();
         ensure!(
-            nn != usize::MAX,
+            nn < usize::MAX,
             "Graph should have a number of nodes < usize::MAX"
         );
 
@@ -495,7 +495,7 @@ impl<
     /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     /// passed, logging code should be optimized away by the compiler.
     fn find_best_pivot(&self, mut pl: impl ProgressLog) -> Result<Vec<usize>> {
-        debug_assert_ne!(self.number_of_nodes, usize::MAX);
+        debug_assert!(self.number_of_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> =
             vec![None; self.strongly_connected_components.number_of_components()];
