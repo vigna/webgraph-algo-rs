@@ -37,9 +37,9 @@ pub trait UnsafeSliceWrite<T> {
     ///
     /// # Safety
     ///
-    /// Calling this method with an out-of-bounds `index` is [undefined behavior].
+    /// Dereferencing the pointer returned by this method with an out-of-bounds `index` is [undefined behavior].
     ///
-    /// Calling this method and using the returned reference in a concurrent context with the same
+    /// Dereferencig the pointer returned by this method in a concurrent context with the same
     /// index more than once is [undefined behavior].
     /// Mutual exclusion is to be guaranteed by the caller.
     ///
@@ -47,7 +47,7 @@ pub trait UnsafeSliceWrite<T> {
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     #[allow(clippy::mut_from_ref)]
-    unsafe fn get_mut_unsafe(&self, index: usize) -> *mut T;
+    fn get_mut_unsafe(&self, index: usize) -> *mut T;
 }
 
 impl<T> UnsafeSliceWrite<T> for [T] {
@@ -62,8 +62,8 @@ impl<T> UnsafeSliceWrite<T> for [T] {
     }
 
     #[inline(always)]
-    unsafe fn get_mut_unsafe(&self, index: usize) -> *mut T {
-        (self.as_ptr() as *mut T).add(index)
+    fn get_mut_unsafe(&self, index: usize) -> *mut T {
+        unsafe { (self.as_ptr() as *mut T).add(index) }
     }
 }
 
