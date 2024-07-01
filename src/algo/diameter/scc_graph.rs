@@ -2,7 +2,7 @@ use crate::{
     prelude::*,
     utils::{MmapSlice, TempMmapOptions},
 };
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use dsi_progress_logger::ProgressLog;
 use mmap_rs::MmapFlags;
 use nonmax::NonMaxUsize;
@@ -133,6 +133,11 @@ impl<
         scc: &C,
         mut pl: impl ProgressLog,
     ) -> Result<(Vec<usize>, Vec<SccGraphConnection>)> {
+        ensure!(
+            graph.num_nodes() < usize::MAX,
+            "Graph should have a number of nodes < usize::MAX"
+        );
+
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(Some(graph.num_nodes()));
@@ -161,14 +166,8 @@ impl<
                         let succ_component = node_components[succ];
                         if c != succ_component {
                             if best_start[succ_component].is_none() {
-                                best_end[succ_component] = Some(
-                                    NonMaxUsize::new(succ)
-                                        .expect("node index should never be usize::MAX"),
-                                );
-                                best_start[succ_component] = Some(
-                                    NonMaxUsize::new(v)
-                                        .expect("node index should never be usize::MAX"),
-                                );
+                                best_end[succ_component] = NonMaxUsize::new(succ);
+                                best_start[succ_component] = NonMaxUsize::new(v);
                                 child_components.push(succ_component);
                             }
 
@@ -178,14 +177,8 @@ impl<
                                     + reversed_graph
                                         .outdegree(best_start[succ_component].unwrap().into())
                             {
-                                best_end[succ_component] = Some(
-                                    NonMaxUsize::new(succ)
-                                        .expect("node index should never be usize::MAX"),
-                                );
-                                best_start[succ_component] = Some(
-                                    NonMaxUsize::new(v)
-                                        .expect("node index should never be usize::MAX"),
-                                );
+                                best_end[succ_component] = NonMaxUsize::new(succ);
+                                best_start[succ_component] = NonMaxUsize::new(v);
                             }
                         }
                     }
