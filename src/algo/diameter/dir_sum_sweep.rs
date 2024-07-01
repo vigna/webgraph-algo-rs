@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        bfv::BFV,
+        bfv::{ParallelBreadthFirstVisitFastCB, BFV},
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
     },
@@ -25,6 +25,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents<G1>,
+    V1: ReusableBreadthFirstGraphVisit,
+    V2: ReusableBreadthFirstGraphVisit,
 > {
     graph: &'a G1,
     reversed_graph: &'a G2,
@@ -61,10 +63,19 @@ pub struct SumSweepDirectedDiameterRadius<
     /// of the next vertex to process).
     total_backward_distance: MmapSlice<usize>,
     compute_radial_vertices: bool,
+    visit: V1,
+    transposed_visit: V2,
 }
 
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
-    SumSweepDirectedDiameterRadius<'a, G1, G2, TarjanStronglyConnectedComponents<G1>>
+    SumSweepDirectedDiameterRadius<
+        'a,
+        G1,
+        G2,
+        TarjanStronglyConnectedComponents<G1>,
+        ParallelBreadthFirstVisitFastCB<'a, G1>,
+        ParallelBreadthFirstVisitFastCB<'a, G2>,
+    >
 {
     /// Creates a new instance for computing diameter and/or radius and/or all eccentricities.
     ///
@@ -150,6 +161,12 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             radius_vertex: 0,
             diameter_vertex: 0,
             compute_radial_vertices,
+            visit: BFV::new_parallel_fast_callback(graph)
+                .with_granularity(VISIT_GRANULARITY)
+                .build(),
+            transposed_visit: BFV::new_parallel_fast_callback(reversed_graph)
+                .with_granularity(VISIT_GRANULARITY)
+                .build(),
         })
     }
 }
@@ -159,7 +176,9 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents<G1> + Sync,
-    > SumSweepDirectedDiameterRadius<'a, G1, G2, C>
+        V1: ReusableBreadthFirstGraphVisit + Sync,
+        V2: ReusableBreadthFirstGraphVisit + Sync,
+    > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2>
 {
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
         self.lower_bound_forward_eccentricities[index]
@@ -590,15 +609,16 @@ impl<
 
         pl.info(format_args!("Computing radial vertices set"));
 
-        let mut bfs = BFV::new_parallel_fast_callback(self.reversed_graph)
-            .with_granularity(VISIT_GRANULARITY)
-            .build();
-        bfs.visit_from_node(
-            |node, _, _, _| self.radial_vertices.set(node, true, Ordering::Relaxed),
-            v,
-            &mut pl,
-        )
-        .with_context(|| format!("Could not perform BFS from {}", v))?;
+        self.transposed_visit
+            .visit_from_node(
+                |node, _, _, _| self.radial_vertices.set(node, true, Ordering::Relaxed),
+                v,
+                &mut pl,
+            )
+            .with_context(|| format!("Could not perform BFS from {}", v))?;
+        self.transposed_visit
+            .reset()
+            .with_context(|| "Could not reset transposed visit")?;
 
         pl.done();
 
@@ -644,56 +664,56 @@ impl<
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
-        let mut bfs = BFV::new_parallel_fast_callback(self.reversed_graph)
-            .with_granularity(VISIT_GRANULARITY)
-            .build();
+        self.transposed_visit
+            .visit_from_node(
+                |node, _, _, distance| {
+                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                    max_dist.fetch_max(distance, Ordering::Relaxed);
 
-        bfs.visit_from_node(
-            |node, _, _, distance| {
-                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                max_dist.fetch_max(distance, Ordering::Relaxed);
+                    let node_forward_lower_bound_ptr =
+                        self.lower_bound_forward_eccentricities.get_mut_unsafe(node);
+                    let node_total_forward_distance_ptr =
+                        self.total_forward_distance.get_mut_unsafe(node);
 
-                let node_forward_lower_bound_ptr =
-                    self.lower_bound_forward_eccentricities.get_mut_unsafe(node);
-                let node_total_forward_distance_ptr =
-                    self.total_forward_distance.get_mut_unsafe(node);
+                    let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
+                    let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
 
-                let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
-                let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
-
-                unsafe {
-                    *node_total_forward_distance_ptr += distance;
-                }
-                if node_forward_lower_bound != node_forward_upper_bound
-                    && node_forward_lower_bound < distance
-                {
                     unsafe {
-                        *node_forward_lower_bound_ptr = distance;
+                        *node_total_forward_distance_ptr += distance;
                     }
-
-                    if distance == node_forward_upper_bound && self.radial_vertices[node] {
-                        let mut update_radius = false;
-                        {
-                            let radius_lock = radius.read().unwrap();
-                            if distance < radius_lock.0 {
-                                update_radius = true;
-                            }
+                    if node_forward_lower_bound != node_forward_upper_bound
+                        && node_forward_lower_bound < distance
+                    {
+                        unsafe {
+                            *node_forward_lower_bound_ptr = distance;
                         }
 
-                        if update_radius {
-                            let mut radius_lock = radius.write().unwrap();
-                            if distance < radius_lock.0 {
-                                radius_lock.0 = distance;
-                                radius_lock.1 = node;
+                        if distance == node_forward_upper_bound && self.radial_vertices[node] {
+                            let mut update_radius = false;
+                            {
+                                let radius_lock = radius.read().unwrap();
+                                if distance < radius_lock.0 {
+                                    update_radius = true;
+                                }
+                            }
+
+                            if update_radius {
+                                let mut radius_lock = radius.write().unwrap();
+                                if distance < radius_lock.0 {
+                                    radius_lock.0 = distance;
+                                    radius_lock.1 = node;
+                                }
                             }
                         }
                     }
-                }
-            },
-            start,
-            &mut pl,
-        )
-        .with_context(|| format!("Could not perform BFS from {}", start))?;
+                },
+                start,
+                &mut pl,
+            )
+            .with_context(|| format!("Could not perform BFS from {}", start))?;
+        self.transposed_visit
+            .reset()
+            .with_context(|| "Could not reset transposed visit")?;
 
         let lower_bound = &mut self.lower_bound_backward_eccentricities;
         let upper_bound = &mut self.upper_bound_backward_eccentricities;
@@ -724,39 +744,39 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
-        let mut bfs = BFV::new_parallel_fast_callback(self.graph)
-            .with_granularity(VISIT_GRANULARITY)
-            .build();
+        self.visit
+            .visit_from_node(
+                |node, _, _, distance| {
+                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                    max_dist.fetch_max(distance, Ordering::Relaxed);
 
-        bfs.visit_from_node(
-            |node, _, _, distance| {
-                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                max_dist.fetch_max(distance, Ordering::Relaxed);
+                    let node_backward_lower_bound_ptr = self
+                        .lower_bound_backward_eccentricities
+                        .get_mut_unsafe(node);
+                    let node_total_backward_distance_ptr =
+                        self.total_backward_distance.get_mut_unsafe(node);
 
-                let node_backward_lower_bound_ptr = self
-                    .lower_bound_backward_eccentricities
-                    .get_mut_unsafe(node);
-                let node_total_backward_distance_ptr =
-                    self.total_backward_distance.get_mut_unsafe(node);
+                    let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
+                    let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
 
-                let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
-                let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
-
-                unsafe {
-                    *node_total_backward_distance_ptr += distance;
-                }
-                if node_backward_lower_bound != node_backward_upper_bound
-                    && node_backward_lower_bound < distance
-                {
                     unsafe {
-                        *node_backward_lower_bound_ptr = distance;
+                        *node_total_backward_distance_ptr += distance;
                     }
-                }
-            },
-            start,
-            &mut pl,
-        )
-        .with_context(|| format!("Could not perform BFS from {}", start))?;
+                    if node_backward_lower_bound != node_backward_upper_bound
+                        && node_backward_lower_bound < distance
+                    {
+                        unsafe {
+                            *node_backward_lower_bound_ptr = distance;
+                        }
+                    }
+                },
+                start,
+                &mut pl,
+            )
+            .with_context(|| format!("Could not perform BFS from {}", start))?;
+        self.visit
+            .reset()
+            .with_context(|| "Could not reset visit")?;
 
         let lower_bound = &mut self.lower_bound_forward_eccentricities;
         let upper_bound = &mut self.upper_bound_forward_eccentricities;
