@@ -658,15 +658,21 @@ impl<
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
+                let node_lower_bound_ptr = other_lower_bound.get_mut_unsafe(node);
+                let node_total_distance_ptr = other_total_distance.get_mut_unsafe(node);
+
+                let node_lower_bound = unsafe { *node_lower_bound_ptr };
+                let node_upper_bound = other_upper_bound[node];
+
                 unsafe {
-                    *other_total_distance.get_mut_unsafe(node) += distance;
+                    *node_total_distance_ptr += distance;
                 }
-                if self.incomplete_forward_vertex(node) && other_lower_bound[node] < distance {
+                if node_lower_bound != node_upper_bound && node_lower_bound < distance {
                     unsafe {
-                        other_lower_bound.write_once(node, distance);
+                        *node_lower_bound_ptr = distance;
                     }
 
-                    if distance == other_upper_bound[node] && self.radial_vertices[node] {
+                    if distance == node_upper_bound && self.radial_vertices[node] {
                         let mut update_radius = false;
                         {
                             let radius_lock = radius.read().unwrap();
@@ -718,6 +724,7 @@ impl<
         pl.start(format!("Performing forward BFS starting from {}", start));
 
         let other_lower_bound = &self.lower_bound_backward_eccentricities;
+        let other_upper_bound = &self.upper_bound_backward_eccentricities;
         let other_total_distance = &self.total_backward_distance;
         let graph = self.graph;
 
@@ -732,12 +739,18 @@ impl<
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 max_dist.fetch_max(distance, Ordering::Relaxed);
 
+                let node_lower_bound_ptr = other_lower_bound.get_mut_unsafe(node);
+                let node_total_distance_ptr = other_total_distance.get_mut_unsafe(node);
+
+                let node_lower_bound = unsafe { *node_lower_bound_ptr };
+                let node_upper_bound = other_upper_bound[node];
+
                 unsafe {
-                    *other_total_distance.get_mut_unsafe(node) += distance;
+                    *node_total_distance_ptr += distance;
                 }
-                if self.incomplete_backward_vertex(node) && other_lower_bound[node] < distance {
+                if node_lower_bound != node_upper_bound && node_lower_bound < distance {
                     unsafe {
-                        other_lower_bound.write_once(node, distance);
+                        *node_lower_bound_ptr = distance;
                     }
                 }
             },
