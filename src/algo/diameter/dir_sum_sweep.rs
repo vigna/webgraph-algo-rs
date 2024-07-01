@@ -715,13 +715,10 @@ impl<
             .reset()
             .with_context(|| "Could not reset transposed visit")?;
 
-        let lower_bound = &mut self.lower_bound_backward_eccentricities;
-        let upper_bound = &mut self.upper_bound_backward_eccentricities;
-
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
-        lower_bound[start] = ecc_start;
-        upper_bound[start] = ecc_start;
+        self.lower_bound_backward_eccentricities[start] = ecc_start;
+        self.upper_bound_backward_eccentricities[start] = ecc_start;
 
         (self.radius_upper_bound, self.radius_vertex) = radius.into_inner().unwrap();
 
@@ -778,13 +775,10 @@ impl<
             .reset()
             .with_context(|| "Could not reset visit")?;
 
-        let lower_bound = &mut self.lower_bound_forward_eccentricities;
-        let upper_bound = &mut self.upper_bound_forward_eccentricities;
-
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
-        lower_bound[start] = ecc_start;
-        upper_bound[start] = ecc_start;
+        self.lower_bound_forward_eccentricities[start] = ecc_start;
+        self.upper_bound_forward_eccentricities[start] = ecc_start;
 
         if self.diameter_lower_bound < ecc_start {
             self.diameter_lower_bound = ecc_start;
