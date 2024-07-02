@@ -187,6 +187,12 @@ pub trait SliceInteriorMutability<T> {
     /// Wraps a mutable slice `&mut [T]` into an [`UnsafeSyncCell`] and returns a mutable reference
     /// `&mut UnsafeSyncCell<[T]>`.
     fn as_interior_mut_slice(&mut self) -> &mut UnsafeSyncCell<[T]>;
+
+    /// Wraps a mutable slice `&mut [T]` into a slice of `UnsafeSyncCell<T>`.
+    #[inline(always)]
+    fn as_mut_slice_of_cells(&mut self) -> &[UnsafeSyncCell<T>] {
+        self.as_interior_mut_slice().as_slice_of_cells()
+    }
 }
 
 impl<T> SliceInteriorMutability<T> for [T] {

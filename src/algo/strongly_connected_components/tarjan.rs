@@ -114,9 +114,9 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
         let on_stack = self.on_stack.as_interior_mut();
         let buckets = self.buckets.as_mut().map(|b| b.as_interior_mut());
         let terminal = self.terminal.as_mut().map(|t| t.as_interior_mut());
-        let indexes = self.indexes.as_interior_mut_slice().as_slice_of_cells();
-        let lowlinks = self.lowlinks.as_interior_mut_slice().as_slice_of_cells();
-        let components = self.components.as_interior_mut_slice().as_slice_of_cells();
+        let indexes = self.indexes.as_mut_slice_of_cells();
+        let lowlinks = self.lowlinks.as_mut_slice_of_cells();
+        let components = self.components.as_mut_slice_of_cells();
 
         for node_to_visit in 0..self.graph.num_nodes() {
             if indexes[node_to_visit].read().is_none() {

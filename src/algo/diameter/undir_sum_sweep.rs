@@ -239,7 +239,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
             .build();
         let ecc_not_first_branch = AtomicUsize::new(0);
         let max_dist = AtomicUsize::new(0);
-        let dist_mut = dist.as_interior_mut_slice().as_slice_of_cells();
+        let dist_mut = dist.as_mut_slice_of_cells();
 
         visit
             .visit_from_node(
@@ -298,18 +298,9 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
         let diameter = RwLock::new((self.diameter_lower_bound, self.diameter_vertex));
 
-        let total_distance = self
-            .total_distance
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
-        let lower_bound_eccentricities = self
-            .lower_bound_eccentricities
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
-        let upper_bound_eccentricities = self
-            .upper_bound_eccentricities
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
+        let total_distance = self.total_distance.as_mut_slice_of_cells();
+        let lower_bound_eccentricities = self.lower_bound_eccentricities.as_mut_slice_of_cells();
+        let upper_bound_eccentricities = self.upper_bound_eccentricities.as_mut_slice_of_cells();
 
         // Update bounds
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {

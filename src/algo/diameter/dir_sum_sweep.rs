@@ -666,12 +666,8 @@ impl<
 
         let lower_bound_forward_eccentricities = self
             .lower_bound_forward_eccentricities
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
-        let total_forward_distance = self
-            .total_forward_distance
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
+            .as_mut_slice_of_cells();
+        let total_forward_distance = self.total_forward_distance.as_mut_slice_of_cells();
 
         self.transposed_visit
             .visit_from_node(
@@ -752,12 +748,8 @@ impl<
 
         let lower_bound_backward_eccentricities = self
             .lower_bound_backward_eccentricities
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
-        let total_backward_distance = self
-            .total_backward_distance
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
+            .as_mut_slice_of_cells();
+        let total_backward_distance = self.total_backward_distance.as_mut_slice_of_cells();
 
         self.visit
             .visit_from_node(
@@ -864,7 +856,7 @@ impl<
             self.strongly_connected_components.number_of_components(),
         );
         let mut dist_pivot: Vec<usize> = vec![0; self.number_of_nodes];
-        let dist_pivot_mut = dist_pivot.as_interior_mut_slice().as_slice_of_cells();
+        let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
 
         rayon::broadcast(|_| {
@@ -978,12 +970,10 @@ impl<
 
         let upper_bound_forward_eccentricities = self
             .upper_bound_forward_eccentricities
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
+            .as_mut_slice_of_cells();
         let upper_bound_backward_eccentricities = self
             .upper_bound_backward_eccentricities
-            .as_interior_mut_slice()
-            .as_slice_of_cells();
+            .as_mut_slice_of_cells();
 
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
