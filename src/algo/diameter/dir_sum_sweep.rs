@@ -664,6 +664,15 @@ impl<
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
+        let lower_bound_forward_eccentricities = self
+            .lower_bound_forward_eccentricities
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+        let total_forward_distance = self
+            .total_forward_distance
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+
         self.transposed_visit
             .visit_from_node(
                 |node, _, _, distance| {
@@ -671,9 +680,9 @@ impl<
                     max_dist.fetch_max(distance, Ordering::Relaxed);
 
                     let node_forward_lower_bound_ptr =
-                        self.lower_bound_forward_eccentricities.get_mut_unsafe(node);
+                        unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
                     let node_total_forward_distance_ptr =
-                        self.total_forward_distance.get_mut_unsafe(node);
+                        unsafe { total_forward_distance.get_mut_unsafe(node) };
 
                     let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
                     let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
@@ -741,17 +750,25 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
+        let lower_bound_backward_eccentricities = self
+            .lower_bound_backward_eccentricities
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+        let total_backward_distance = self
+            .total_backward_distance
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+
         self.visit
             .visit_from_node(
                 |node, _, _, distance| {
                     // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                     max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                    let node_backward_lower_bound_ptr = self
-                        .lower_bound_backward_eccentricities
-                        .get_mut_unsafe(node);
+                    let node_backward_lower_bound_ptr =
+                        unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
                     let node_total_backward_distance_ptr =
-                        self.total_backward_distance.get_mut_unsafe(node);
+                        unsafe { total_backward_distance.get_mut_unsafe(node) };
 
                     let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
                     let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
@@ -846,7 +863,8 @@ impl<
             || AtomicUsize::new(0),
             self.strongly_connected_components.number_of_components(),
         );
-        let dist_pivot: Vec<usize> = vec![0; self.number_of_nodes];
+        let mut dist_pivot: Vec<usize> = vec![0; self.number_of_nodes];
+        let dist_pivot_mut = dist_pivot.as_interior_mut_slice().as_slice_of_cells();
         let current_index = AtomicUsize::new(0);
 
         rayon::broadcast(|_| {
@@ -863,7 +881,7 @@ impl<
                     |node, _, _, distance| {
                         // Safety: each node is accessed exaclty once
                         unsafe {
-                            dist_pivot.write_once(node, distance);
+                            dist_pivot_mut.write_once(node, distance);
                         }
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
                     },
@@ -958,20 +976,31 @@ impl<
 
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
 
+        let upper_bound_forward_eccentricities = self
+            .upper_bound_forward_eccentricities
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+        let upper_bound_backward_eccentricities = self
+            .upper_bound_backward_eccentricities
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
             unsafe {
-                self.upper_bound_forward_eccentricities.write_once(
+                upper_bound_forward_eccentricities.write_once(
                     node,
                     std::cmp::min(
-                        self.upper_bound_forward_eccentricities[node],
+                        upper_bound_forward_eccentricities[node].read(),
                         dist_pivot_b[node] + ecc_pivot_f[components[node]],
                     ),
                 );
             }
 
-            if !self.incomplete_forward_vertex(node) {
-                let new_ecc = self.upper_bound_forward_eccentricities[node];
+            if upper_bound_forward_eccentricities[node].read()
+                == self.lower_bound_forward_eccentricities[node]
+            {
+                let new_ecc = upper_bound_forward_eccentricities[node].read();
 
                 if self.radial_vertices[node] {
                     let mut update_radius = false;
@@ -993,10 +1022,10 @@ impl<
             }
 
             unsafe {
-                self.upper_bound_backward_eccentricities.write_once(
+                upper_bound_backward_eccentricities.write_once(
                     node,
                     std::cmp::min(
-                        self.upper_bound_backward_eccentricities[node],
+                        upper_bound_backward_eccentricities[node].read(),
                         dist_pivot_f[node] + ecc_pivot_b[components[node]],
                     ),
                 );

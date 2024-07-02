@@ -239,22 +239,23 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
             .build();
         let ecc_not_first_branch = AtomicUsize::new(0);
         let max_dist = AtomicUsize::new(0);
+        let dist_mut = dist.as_interior_mut_slice().as_slice_of_cells();
 
         visit
             .visit_from_node(
                 |node, parent, _, _| {
                     // Safety for unsafe blocks: each node is visited exactly once. Parents can never
                     // be out of sync.
-                    if dist[node].is_none() {
+                    if dist_mut[node].read().is_none() {
                         first_branch.set(
                             node,
                             first_branch[node] || first_branch[parent],
                             Ordering::Relaxed,
                         );
 
-                        let parent_dist: usize = dist[parent].unwrap().into();
+                        let parent_dist: usize = dist_mut[parent].read().unwrap().into();
                         unsafe {
-                            dist.write_once(
+                            dist_mut.write_once(
                                 node,
                                 Some(
                                     NonMaxUsize::new(parent_dist + 1)
@@ -268,7 +269,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
                         ecc_not_first_branch.fetch_add(1, Ordering::Relaxed);
                     }
 
-                    max_dist.fetch_max(dist[node].unwrap().into(), Ordering::Relaxed);
+                    max_dist.fetch_max(dist_mut[node].read().unwrap().into(), Ordering::Relaxed);
                 },
                 v,
                 &mut pl,
@@ -297,6 +298,19 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
         let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
         let diameter = RwLock::new((self.diameter_lower_bound, self.diameter_vertex));
 
+        let total_distance = self
+            .total_distance
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+        let lower_bound_eccentricities = self
+            .lower_bound_eccentricities
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+        let upper_bound_eccentricities = self
+            .upper_bound_eccentricities
+            .as_interior_mut_slice()
+            .as_slice_of_cells();
+
         // Update bounds
         (0..self.number_of_nodes).into_par_iter().for_each(|node| {
             // Safety for unsafe blocks: each node is accessed exactly once.
@@ -306,19 +320,21 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
                     .try_into()
                     .unwrap_or_else(|_| panic!("Cannot convert {} to isize", node_dist));
                 unsafe {
-                    *self.total_distance.get_mut_unsafe(node) += node_dist;
+                    *total_distance.get_mut_unsafe(node) += node_dist;
                 }
 
-                if self.incomplete_vertex(node) {
-                    let old_lower = self.lower_bound_eccentricities[node];
+                if lower_bound_eccentricities[node].read()
+                    != upper_bound_eccentricities[node].read()
+                {
+                    let old_lower = lower_bound_eccentricities[node].read();
                     let current_lower =
                         std::cmp::max(max_dist - signed_node_dist, signed_node_dist);
                     let new_lower = std::cmp::max(old_lower, current_lower as usize);
                     unsafe {
-                        self.lower_bound_eccentricities.write_once(node, new_lower);
+                        lower_bound_eccentricities.write_once(node, new_lower);
                     }
 
-                    let old_upper = self.upper_bound_eccentricities[node];
+                    let old_upper = upper_bound_eccentricities[node].read();
                     let current_upper = if first_branch[node] {
                         std::cmp::max(
                             max_dist - 2 - 2 * start_len + signed_node_dist,
@@ -332,11 +348,13 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
                     };
                     let new_upper = std::cmp::min(old_upper, current_upper as usize);
                     unsafe {
-                        self.upper_bound_eccentricities.write_once(node, new_upper);
+                        upper_bound_eccentricities.write_once(node, new_upper);
                     }
 
-                    if !self.incomplete_vertex(node) {
-                        let ecc = self.lower_bound_eccentricities[node];
+                    if lower_bound_eccentricities[node].read()
+                        == upper_bound_eccentricities[node].read()
+                    {
+                        let ecc = lower_bound_eccentricities[node].read();
                         let mut update = false;
 
                         {
