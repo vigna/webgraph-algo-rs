@@ -871,7 +871,7 @@ impl<
 
                 bfs.visit_from_node_filtered(
                     |node, _, _, distance| {
-                        // Safety: each node is accessed exaclty once
+                        // Safety: each node is accessed exactly once
                         unsafe {
                             dist_pivot_mut.write_once(node, distance);
                         }
