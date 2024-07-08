@@ -855,7 +855,7 @@ impl<
             || AtomicUsize::new(0),
             self.strongly_connected_components.number_of_components(),
         );
-        let mut dist_pivot: Vec<usize> = vec![0; self.number_of_nodes];
+        let mut dist_pivot = vec![0; self.number_of_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
 
