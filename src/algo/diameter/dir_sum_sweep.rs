@@ -928,6 +928,9 @@ impl<
         let mut ecc_pivot_b = dist_ecc_b.1;
         let components = self.strongly_connected_components.component();
 
+        // Tarjan's algorithm emits components in reverse topological order.
+        // In order to bound forward eccentricities in reverse topological order the components
+        // are traversed as is.
         for (c, &p) in pivot.iter().enumerate() {
             for connection in self.strongly_connected_components_graph.children(c) {
                 let next_c = connection.target;
@@ -947,6 +950,9 @@ impl<
             pl.light_update();
         }
 
+        // Tarjan's algorithm emits components in reverse topological order.
+        // In order to bound backward eccentricities in topological order the components order
+        // must be reversed.
         for c in (0..self.strongly_connected_components.number_of_components()).rev() {
             for component in self.strongly_connected_components_graph.children(c) {
                 let next_c = component.target;
@@ -960,7 +966,6 @@ impl<
 
                 if ecc_pivot_b[next_c] >= self.upper_bound_backward_eccentricities[pivot[next_c]] {
                     ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
-                    // TODO: maybe break here?
                 }
             }
             pl.light_update();
