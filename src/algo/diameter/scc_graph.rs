@@ -49,8 +49,8 @@ impl<
     /// - `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
     /// - `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     pub fn new(
         graph: &G1,
         reversed_graph: &G2,
@@ -125,8 +125,8 @@ impl<
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     fn find_edges_through_scc(
         graph: &G1,
         reversed_graph: &G2,

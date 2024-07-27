@@ -170,8 +170,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// # Arguments
     /// - `start`: The starting vertex of the BFS. If [`None`], no visit happens.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     fn step_sum_sweep(&mut self, start: Option<usize>, mut pl: impl ProgressLog) -> Result<()> {
         if start.is_none() {
             return Ok(());
@@ -408,8 +408,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// - `start`: The starting vertex.
     /// - `iterations`: The number of iterations.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     fn sum_sweep_heuristic(
         &mut self,
         start: usize,
@@ -436,8 +436,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     fn find_missing_nodes(&mut self, mut pl: impl ProgressLog) -> Result<usize> {
         pl.item_name("nodes");
         pl.display_memory(false);
@@ -491,8 +491,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     pub fn compute(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         if self.number_of_nodes == 0 {
             return Ok(());

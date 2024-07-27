@@ -27,8 +27,8 @@ pub trait StronglyConnectedComponents<G> {
     /// - `compute_buckets`: if `true`, buckets will be computed.
     /// - `options`: the options for the [`crate::utils::MmapSlice`].
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    /// method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    /// passed, logging code should be optimized away by the compiler.
+    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     fn compute(
         graph: &G,
         compute_buckets: bool,
