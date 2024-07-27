@@ -111,9 +111,9 @@ main!(
     test_bfv_cnr_2000_setup,
     test_bfv_cnr_2000_sequential,
     test_bfv_cnr_2000_parallel,
-    test_bfv_cnr_2000_parallel_low_mem
+    test_bfv_cnr_2000_parallel_fast_callback,
     test_bfv_in_2004_setup,
     test_bfv_in_2004_sequential,
     test_bfv_in_2004_parallel,
-    test_bfv_in_2004_parallel_low_mem
+    test_bfv_in_2004_parallel_fast_callback
 );
