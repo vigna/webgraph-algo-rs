@@ -1,7 +1,7 @@
 use super::params::*;
 use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::ProgressLogger;
-use webgraph::graphs::BVGraph;
+use webgraph::prelude::BVGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::bfv::BFV;
 use webgraph_algo::prelude::*;

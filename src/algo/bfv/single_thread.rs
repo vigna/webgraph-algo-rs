@@ -135,7 +135,7 @@ impl<'a, G: RandomAccessGraph> ReusableBreadthFirstGraphVisit
 mod test {
     use super::*;
     use anyhow::Context;
-    use webgraph::graphs::BVGraph;
+    use webgraph::prelude::BVGraph;
 
     #[test]
     fn test_sequential_bfv_with_start() -> Result<()> {

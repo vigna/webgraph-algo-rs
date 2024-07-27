@@ -168,7 +168,7 @@ impl<'a, G: RandomAccessGraph> ReusableDepthFirstGraphVisit
 mod test {
     use super::*;
     use anyhow::Context;
-    use webgraph::graphs::BVGraph;
+    use webgraph::prelude::BVGraph;
 
     #[test]
     fn test_sequential_dfv_with_start() -> Result<()> {

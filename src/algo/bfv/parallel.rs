@@ -154,7 +154,7 @@ impl<'a, G: RandomAccessGraph + Sync> ReusableBreadthFirstGraphVisit
 mod test {
     use super::*;
     use anyhow::Context;
-    use webgraph::graphs::BVGraph;
+    use webgraph::prelude::BVGraph;
 
     #[test]
     fn test_parallel_bfv_with_parameters() -> Result<()> {

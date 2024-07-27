@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
 use std::path::Path;
-use webgraph::graphs::BVGraph;
+use webgraph::prelude::BVGraph;
 use webgraph_algo::algo::diameter::*;
 use webgraph_algo::prelude::*;
 

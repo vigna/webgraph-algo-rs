@@ -75,7 +75,7 @@ pub trait StronglyConnectedComponents<G> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use webgraph::graphs::BVGraph;
+    use webgraph::prelude::BVGraph;
     use webgraph::traits::RandomAccessGraph;
 
     struct MockStronglyConnectedComponent<G: RandomAccessGraph> {

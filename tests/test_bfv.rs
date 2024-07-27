@@ -2,8 +2,8 @@ use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
-    graphs::{vec_graph::VecGraph, BVGraph},
     labels::Left,
+    prelude::{BVGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
 use webgraph_algo::{algo::bfv::BFV, prelude::*};
