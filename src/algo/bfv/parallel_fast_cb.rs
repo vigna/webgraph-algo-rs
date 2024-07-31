@@ -158,11 +158,11 @@ impl<'a, G: RandomAccessGraph + Sync> ReusableBreadthFirstGraphVisit
 mod test {
     use super::*;
     use anyhow::Context;
-    use webgraph::prelude::BVGraph;
+    use webgraph::prelude::BvGraph;
 
     #[test]
     fn test_parallel_low_mem_bfv_with_parameters() -> Result<()> {
-        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
@@ -178,7 +178,7 @@ mod test {
 
     #[test]
     fn test_parallel_bfv_low_mem_with_start() -> Result<()> {
-        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
@@ -193,7 +193,7 @@ mod test {
 
     #[test]
     fn test_parallel_bfv_low_mem_with_granularity() -> Result<()> {
-        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
@@ -208,7 +208,7 @@ mod test {
 
     #[test]
     fn test_parallel_low_mem_bfv_new() -> Result<()> {
-        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph).build();

@@ -75,7 +75,7 @@ pub trait StronglyConnectedComponents<G> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use webgraph::prelude::BVGraph;
+    use webgraph::prelude::BvGraph;
     use webgraph::traits::RandomAccessGraph;
 
     struct MockStronglyConnectedComponent<G: RandomAccessGraph> {
@@ -123,7 +123,7 @@ mod test {
         let mock_strongly_connected_components = MockStronglyConnectedComponent::mock(
             mock_component,
             3,
-            BVGraph::with_basename("tests/graphs/cnr-2000").load()?,
+            BvGraph::with_basename("tests/graphs/cnr-2000").load()?,
         );
 
         assert_eq!(
@@ -140,7 +140,7 @@ mod test {
         let mut mock_strongly_connected_components = MockStronglyConnectedComponent::mock(
             mock_component,
             3,
-            BVGraph::with_basename("tests/graphs/cnr-2000").load()?,
+            BvGraph::with_basename("tests/graphs/cnr-2000").load()?,
         );
 
         mock_strongly_connected_components.sort_by_size();

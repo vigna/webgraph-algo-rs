@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::{ProgressLog, ProgressLogger};
 use std::path::Path;
-use webgraph::prelude::BVGraph;
+use webgraph::prelude::BvGraph;
 use webgraph_algo::algo::diameter::*;
 use webgraph_algo::prelude::*;
 
@@ -11,8 +11,8 @@ fn main() -> Result<()> {
         .timestamp(stderrlog::Timestamp::Second)
         .init()?;
     let basename = std::env::args().nth(1).expect("No graph basename provided");
-    let graph = BVGraph::with_basename(&basename).load()?;
-    let reversed_graph = BVGraph::with_basename(basename + "-t").load()?;
+    let graph = BvGraph::with_basename(&basename).load()?;
+    let reversed_graph = BvGraph::with_basename(basename + "-t").load()?;
     let main_pl = ProgressLogger::default();
     main_pl.info(format_args!("Starting test..."));
 

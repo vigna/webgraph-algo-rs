@@ -1,12 +1,12 @@
 use dsi_progress_logger::ProgressLogger;
-use webgraph::prelude::BVGraph;
+use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::bfv::BFV;
 use webgraph_algo::prelude::*;
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_cnr_2000_setup() -> usize {
-    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+    let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
     graph.num_nodes()
@@ -14,7 +14,7 @@ fn test_bfv_cnr_2000_setup() -> usize {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_cnr_2000_sequential() {
-    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+    let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
     let visit = BFV::new_sequential(&graph).with_start(10000).build();
@@ -25,7 +25,7 @@ fn test_bfv_cnr_2000_sequential() {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_cnr_2000_parallel() {
-    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+    let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
     let visit = BFV::new_parallel(&graph)
@@ -39,7 +39,7 @@ fn test_bfv_cnr_2000_parallel() {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_cnr_2000_parallel_fast_callback() {
-    let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+    let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
         .load()
         .unwrap();
     let visit = BFV::new_parallel_fast_callback(&graph)
@@ -53,7 +53,7 @@ fn test_bfv_cnr_2000_parallel_fast_callback() {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_in_2004_setup() -> usize {
-    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+    let graph = BvGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
     graph.num_nodes()
@@ -61,7 +61,7 @@ fn test_bfv_in_2004_setup() -> usize {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_in_2004_sequential() {
-    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+    let graph = BvGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
     let visit = BFV::new_sequential(&graph).with_start(10000).build();
@@ -72,7 +72,7 @@ fn test_bfv_in_2004_sequential() {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_in_2004_parallel() {
-    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+    let graph = BvGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
     let visit = BFV::new_parallel(&graph)
@@ -86,7 +86,7 @@ fn test_bfv_in_2004_parallel() {
 
 #[cfg_attr(windows, allow(dead_code))]
 fn test_bfv_in_2004_parallel_fast_callback() {
-    let graph = BVGraph::with_basename("tests/graphs/in-2004")
+    let graph = BvGraph::with_basename("tests/graphs/in-2004")
         .load()
         .unwrap();
     let visit = BFV::new_parallel_fast_callback(&graph)

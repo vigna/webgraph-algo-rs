@@ -1,7 +1,7 @@
 use super::params::*;
 use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::ProgressLogger;
-use webgraph::prelude::BVGraph;
+use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::bfv::BFV;
 use webgraph_algo::prelude::*;
@@ -11,7 +11,7 @@ pub fn bench_bfv(c: &mut Criterion) {
     group.sampling_mode(criterion::SamplingMode::Flat);
     group.sample_size(NUM_SAMPLES);
     for (graph_basename, start) in BENCH_GRAPHS {
-        let graph = BVGraph::with_basename(graph_basename).load().unwrap();
+        let graph = BvGraph::with_basename(graph_basename).load().unwrap();
         let graph_name = std::path::Path::new(graph_basename)
             .file_name()
             .unwrap()

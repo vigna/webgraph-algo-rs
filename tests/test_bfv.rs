@@ -3,7 +3,7 @@ use dsi_progress_logger::ProgressLogger;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
     labels::Left,
-    prelude::{BVGraph, VecGraph},
+    prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
 use webgraph_algo::{algo::bfv::BFV, prelude::*};
@@ -105,7 +105,7 @@ macro_rules! test_bfv_algo {
 
             #[test]
             fn test_cnr_2000() -> Result<()> {
-                let graph = BVGraph::with_basename("tests/graphs/cnr-2000").load()?;
+                let graph = BvGraph::with_basename("tests/graphs/cnr-2000").load()?;
                 let visit = $bfv(&graph).with_start(10000).build();
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))

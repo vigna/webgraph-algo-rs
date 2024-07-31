@@ -135,11 +135,11 @@ impl<'a, G: RandomAccessGraph> ReusableBreadthFirstGraphVisit
 mod test {
     use super::*;
     use anyhow::Context;
-    use webgraph::prelude::BVGraph;
+    use webgraph::prelude::BvGraph;
 
     #[test]
     fn test_sequential_bfv_with_start() -> Result<()> {
-        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph)
@@ -153,7 +153,7 @@ mod test {
 
     #[test]
     fn test_sequential_bfv_new() -> Result<()> {
-        let graph = BVGraph::with_basename("tests/graphs/cnr-2000")
+        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph).build();
