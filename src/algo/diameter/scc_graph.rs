@@ -34,6 +34,18 @@ pub struct SccGraph<
     _phantom_component: PhantomData<C>,
 }
 
+#[inline(always)]
+fn arc_value<G1: RandomAccessGraph, G2: RandomAccessGraph>(
+    graph: &G1,
+    reversed_graph: &G2,
+    start: usize,
+    end: usize,
+) -> usize {
+    let start_value = reversed_graph.outdegree(start);
+    let end_value = graph.outdegree(end);
+    start_value + end_value
+}
+
 impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
@@ -171,11 +183,14 @@ impl<
                                 child_components.push(succ_component);
                             }
 
-                            let current_value = graph.outdegree(v) + reversed_graph.outdegree(succ);
+                            let current_value = arc_value(graph, reversed_graph, v, succ);
                             if current_value
-                                > graph.outdegree(best_end[succ_component].unwrap().into())
-                                    + reversed_graph
-                                        .outdegree(best_start[succ_component].unwrap().into())
+                                > arc_value(
+                                    graph,
+                                    reversed_graph,
+                                    best_start[succ_component].unwrap().into(),
+                                    best_end[succ_component].unwrap().into(),
+                                )
                             {
                                 best_end[succ_component] = NonMaxUsize::new(succ);
                                 best_start[succ_component] = NonMaxUsize::new(v);
