@@ -4,7 +4,6 @@ use crate::{
 };
 use anyhow::{ensure, Context, Result};
 use dsi_progress_logger::ProgressLog;
-use mmap_rs::MmapFlags;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
 use std::marker::PhantomData;
@@ -78,10 +77,6 @@ impl<
             Self::find_edges_through_scc(graph, reversed_graph, scc, pl.clone()).with_context(
                 || "Cannot create vector based strongly connected components graph",
             )?;
-
-        let mut flags = MmapFlags::empty();
-        flags.set(MmapFlags::SHARED, true);
-        flags.set(MmapFlags::RANDOM_ACCESS, true);
 
         pl.info(format_args!("Memory mapping segment lengths..."));
 
