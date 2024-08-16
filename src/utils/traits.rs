@@ -205,3 +205,20 @@ impl<T> SliceInteriorMutability<T> for [T] {
         unsafe { &mut *(self as *mut [T] as *mut UnsafeSyncCell<[T]>) }
     }
 }
+
+pub trait Counter<T> {
+    /// Adds the element to the counter
+    ///
+    /// # Arguments
+    /// - `element`: the element to add.
+    fn add(&mut self, element: T);
+
+    /// Returns the number of distinct elements that have been added to the counter
+    /// so far.
+    fn count(&self) -> u64;
+
+    /// Clears the counter.
+    fn clear(&mut self);
+}
+
+pub trait ApproximatedCounter<T>: Counter<T> {}
