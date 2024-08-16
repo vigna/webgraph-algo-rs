@@ -1,4 +1,4 @@
-pub const BENCH_GRAPHS: [(&str, usize); 2] = [
+pub const BENCH_GRAPHS: &[(&str, usize)] = &[
     ("tests/graphs/cnr-2000", 10000),
     ("tests/graphs/in-2004", 0),
 ];
