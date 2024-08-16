@@ -15,7 +15,7 @@ pub struct SccGraphConnection {
     pub target: usize,
     /// The start node of the connection
     pub start: usize,
-    /// The enc node of the connection
+    /// The end node of the connection
     pub end: usize,
 }
 
