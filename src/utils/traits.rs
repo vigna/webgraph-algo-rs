@@ -60,6 +60,14 @@ pub struct UnsafeSyncCell<T: ?Sized> {
     cell: UnsafeCell<T>,
 }
 
+impl<T> UnsafeSyncCell<T> {
+    pub fn new(v: T) -> Self {
+        Self {
+            cell: UnsafeCell::new(v),
+        }
+    }
+}
+
 unsafe impl<T> Sync for UnsafeSyncCell<T> {}
 
 impl<T: Copy> UnsafeSyncCell<T> {
@@ -220,5 +228,3 @@ pub trait Counter<T> {
     /// Clears the counter.
     fn clear(&mut self);
 }
-
-pub trait ApproximatedCounter<T>: Counter<T> {}
