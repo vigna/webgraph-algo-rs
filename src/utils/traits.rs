@@ -228,3 +228,9 @@ pub trait Counter<T> {
     /// Clears the counter.
     fn clear(&mut self);
 }
+
+pub trait ApproximatedCounter<T>: Counter<T> {
+    /// Returns the estimate of the number of distinct elements that have been added
+    /// to the counter so far.
+    fn estimate_count(&self) -> f64;
+}
