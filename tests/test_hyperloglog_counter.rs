@@ -1,8 +1,5 @@
 use anyhow::Result;
-use webgraph_algo::{
-    prelude::{ApproximatedCounter, Counter},
-    utils::HyperLogLogCounterArray,
-};
+use webgraph_algo::{prelude::*, utils::HyperLogLogCounterArray};
 
 #[test]
 fn test_single() -> Result<()> {
