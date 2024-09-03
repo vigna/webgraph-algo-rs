@@ -3,31 +3,34 @@ use common_traits::*;
 use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher, Hash, Hasher},
     marker::PhantomData,
+    sync::atomic::Ordering,
 };
 use sux::prelude::*;
 
+type HashResult = u64;
+
 pub struct HyperLogLogCounterArray<
     T,
-    W: Word = usize,
+    W: Word + IntoAtomic = usize,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
 > {
     /// The bits of the registers
-    bits: UnsafeSyncCell<BitFieldVec<W>>,
+    bits: AtomicBitFieldVec<W>,
     /// The number of registers per counter
-    num_registers: u64,
+    num_registers: HashResult,
     /// The number of registers per counter minus 1
-    num_registers_minus_1: u64,
+    num_registers_minus_1: HashResult,
     /// the *log<sub>2</sub>* of the number of registers per counter
-    log_2_num_registers: u64,
+    log_2_num_registers: HashResult,
     /// The size in bits of each register
-    register_size: u64,
+    register_size: HashResult,
     /// The size in bits of each counter
-    counter_size: u64,
+    counter_size: HashResult,
     /// The correct value for αm<sup>2</sup>
     alpha_m_m: f64,
     /// The mask OR'd with the output of the hash function so that the number of trailing zeroes is not
     /// too large of a value
-    sentinel_mask: u64,
+    sentinel_mask: HashResult,
     /// The builder of the hashers
     hasher_builder: H,
     _phantom_data: PhantomData<T>,
@@ -93,7 +96,10 @@ impl<T> HyperLogLogCounterArray<T> {
     }
 }
 
-impl<T, H: BuildHasher> HyperLogLogCounterArray<T, usize, H> {
+impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt,
+{
     pub fn from_hasher_builder(
         num_counters: usize,
         num_elements: usize,
@@ -112,16 +118,13 @@ impl<T, H: BuildHasher> HyperLogLogCounterArray<T, usize, H> {
         };
 
         Self {
-            bits: UnsafeSyncCell::new(BitFieldVec::new(
-                register_size,
-                number_of_registers * num_counters,
-            )),
+            bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
             num_registers: number_of_registers.try_into().unwrap(),
             num_registers_minus_1: (number_of_registers - 1).try_into().unwrap(),
             log_2_num_registers: log_2_num_registers.try_into().unwrap(),
             register_size: register_size.try_into().unwrap(),
             counter_size: (register_size * number_of_registers).try_into().unwrap(),
-            alpha_m_m: alpha * number_of_registers as f64 * number_of_registers as f64,
+            alpha_m_m: alpha * (number_of_registers as f64).pow(2.0),
             sentinel_mask,
             hasher_builder,
             _phantom_data: PhantomData,
@@ -129,26 +132,27 @@ impl<T, H: BuildHasher> HyperLogLogCounterArray<T, usize, H> {
     }
 }
 
-impl<T, W: Word, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
+impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     #[inline(always)]
     pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
         HyperLogLogCounter {
             counter_array: &self,
             offset: index * self.num_registers as usize,
-            _phantom_data: PhantomData,
         }
     }
 }
 
-pub struct HyperLogLogCounter<'a, T, W: Word, H: BuildHasher> {
+pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
     offset: usize,
-    _phantom_data: PhantomData<T>,
 }
 
-impl<'a, T: Hash, W: Word + UpcastableFrom<u32>, H: BuildHasher> Counter<T>
+impl<'a, T: Hash, W: Word + UpcastableFrom<HashResult> + IntoAtomic, H: BuildHasher> Counter<T>
     for HyperLogLogCounter<'a, T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
+    #[inline]
     fn add(&mut self, element: T) {
         let mut hasher = self.counter_array.hasher_builder.build_hasher();
         element.hash(&mut hasher);
@@ -156,34 +160,38 @@ impl<'a, T: Hash, W: Word + UpcastableFrom<u32>, H: BuildHasher> Counter<T>
         let x = hasher.finish();
         let j = x & self.counter_array.num_registers_minus_1;
         let r = (x >> self.counter_array.log_2_num_registers | self.counter_array.sentinel_mask)
-            .trailing_zeros();
+            .trailing_zeros() as HashResult;
         let register = self.offset + j as usize;
 
         debug_assert!(r < (1 << self.counter_array.register_size) - 1);
+        debug_assert!(register < self.offset + self.counter_array.num_registers as usize);
 
-        let current_value = unsafe { self.counter_array.bits.as_mut_unsafe().get(register) };
+        let current_value = self
+            .counter_array
+            .bits
+            .get_atomic(register, Ordering::Relaxed);
         let candidate_value = r + 1;
         let new_value = std::cmp::max(current_value, candidate_value.upcast());
-        unsafe {
+        if current_value != new_value {
             self.counter_array
                 .bits
-                .as_mut_unsafe()
-                .set(register, new_value)
+                .set_atomic(register, new_value, Ordering::Relaxed);
         }
     }
 
+    #[inline]
     fn count(&self) -> u64 {
         todo!()
     }
 
+    #[inline]
     fn clear(&mut self) {
         for i in 0..self.counter_array.num_registers {
-            unsafe {
-                self.counter_array
-                    .bits
-                    .as_mut_unsafe()
-                    .set(self.offset + i as usize, W::ZERO)
-            }
+            self.counter_array.bits.set_atomic(
+                self.offset + i as usize,
+                W::ZERO,
+                Ordering::Relaxed,
+            );
         }
     }
 }
