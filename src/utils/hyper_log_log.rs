@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use common_traits::*;
 use std::{
-    hash::{BuildHasher, BuildHasherDefault, DefaultHasher, Hash, Hasher},
+    hash::{BuildHasher, BuildHasherDefault, DefaultHasher, Hash},
     marker::PhantomData,
     sync::atomic::Ordering,
 };
@@ -56,7 +56,7 @@ impl HyperLogLogCounterArray<()> {
             7 => 1.046,
             _ => 1.04,
         };
-        tmp / ((1usize << log_2_num_registers) as f64).sqrt()
+        tmp / ((1 << log_2_num_registers) as f64).sqrt()
     }
 
     /// Returns the register size in bits, given an upper bound on the number of distinct elements.
@@ -107,7 +107,7 @@ where
         let number_of_registers = 1 << log_2_num_registers;
         let register_size =
             HyperLogLogCounterArray::register_size_from_number_of_elements(num_elements);
-        let sentinel_mask = 1 << (1 << register_size) - 2;
+        let sentinel_mask = 1 << ((1 << register_size) - 2);
         let alpha = match log_2_num_registers {
             4 => 0.673,
             5 => 0.697,
@@ -133,7 +133,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     #[inline(always)]
     pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
         HyperLogLogCounter {
-            counter_array: &self,
+            counter_array: self,
             offset: index * self.num_registers as usize,
         }
     }
@@ -155,10 +155,7 @@ where
 {
     #[inline]
     fn add(&mut self, element: T) {
-        let mut hasher = self.counter_array.hasher_builder.build_hasher();
-        element.hash(&mut hasher);
-
-        let x = hasher.finish();
+        let x = self.counter_array.hasher_builder.hash_one(element);
         let j = x & self.counter_array.num_registers_minus_1;
         let r = (x >> self.counter_array.log_2_num_registers | self.counter_array.sentinel_mask)
             .trailing_zeros() as HashResult;
