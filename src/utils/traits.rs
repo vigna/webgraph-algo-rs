@@ -214,6 +214,8 @@ impl<T> SliceInteriorMutability<T> for [T] {
     }
 }
 
+/// Trait defining a basic counter that can return the number of distinct elements
+/// that have been added so far.
 pub trait Counter<T> {
     /// Adds the element to the counter
     ///
@@ -229,6 +231,9 @@ pub trait Counter<T> {
     fn clear(&mut self);
 }
 
+/// Trait defining an approximated counter.
+/// Differently from [`Counter`], this returns an estimate of the number of distinct
+/// elements that have been added to the counter so far as an [`f64`].
 pub trait ApproximatedCounter<T>: Counter<T> {
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.

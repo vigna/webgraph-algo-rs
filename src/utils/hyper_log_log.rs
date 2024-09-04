@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use common_traits::*;
+use rayon::prelude::*;
 use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher, Hash},
     marker::PhantomData,
@@ -9,6 +10,13 @@ use sux::prelude::*;
 
 type HashResult = u64;
 
+/// An abstracted array of [`HyperLogLogCounter`].
+///
+/// This array is created using an [`AtomicBitFieldVec`] as a backend in order to avoid
+/// wasting memory.
+///
+/// Individual counters can be accessed with the [`Self::get_counter`] method or concretized
+/// as a [`Vec`] of [`HyperLogLogCounter`].
 pub struct HyperLogLogCounterArray<
     T,
     W: Word + IntoAtomic = usize,
@@ -16,6 +24,8 @@ pub struct HyperLogLogCounterArray<
 > {
     /// The bits of the registers
     bits: AtomicBitFieldVec<W>,
+    /// The number of counters
+    num_counters: HashResult,
     /// The number of registers per counter
     num_registers: HashResult,
     /// The number of registers per counter minus 1
@@ -32,6 +42,88 @@ pub struct HyperLogLogCounterArray<
     /// The builder of the hashers
     hasher_builder: H,
     _phantom_data: PhantomData<T>,
+}
+
+impl<T> HyperLogLogCounterArray<T> {
+    /// Creates an [`HyperLogLogCounterArray`] that tries to attain the specified
+    /// relative standard deviation.
+    ///
+    /// # Arguments
+    /// - `num_counters`: the number of counters to create in the array.
+    /// - `num_elements`: an upper bound on the number of distinct elements.
+    /// - `rsd`: the relative standard deviation to be attained.
+    pub fn from_rsd(num_counters: usize, num_elements: usize, rsd: f64) -> Self {
+        Self::from_log_2_num_registers(
+            num_counters,
+            num_elements,
+            HyperLogLogCounterArray::log_2_number_of_registers(rsd),
+        )
+    }
+
+    /// Creates an [`HyperLogLogCounterArray`] with the specified *log<sub>2</sub>m*
+    /// number of registers.
+    ///
+    /// # Arguments
+    /// - `num_counters`: the number of counters to create in the array.
+    /// - `num_elements`: an upper bound on the number of distinct elements.
+    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
+    pub fn from_log_2_num_registers(
+        num_counters: usize,
+        num_elements: usize,
+        log_2_num_registers: usize,
+    ) -> Self {
+        Self::from_hasher_builder(
+            num_counters,
+            num_elements,
+            log_2_num_registers,
+            BuildHasherDefault::default(),
+        )
+    }
+}
+
+impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt,
+{
+    /// Creates an [`HyperLogLogCounterArray`] with the specified *log<sub>2</sub>m*
+    /// number of registers and hasher builder.
+    ///
+    /// # Arguments
+    /// - `num_counters`: the number of counters to create in the array.
+    /// - `num_elements`: an upper bound on the number of distinct elements.
+    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
+    /// - `hasher_builder`: the builder of the hasher used by the array that implements
+    ///   [`BuildHasher`].
+    pub fn from_hasher_builder(
+        num_counters: usize,
+        num_elements: usize,
+        log_2_num_registers: usize,
+        hasher_builder: H,
+    ) -> Self {
+        let number_of_registers = 1 << log_2_num_registers;
+        let register_size =
+            HyperLogLogCounterArray::register_size_from_number_of_elements(num_elements);
+        let sentinel_mask = 1 << ((1 << register_size) - 2);
+        let alpha = match log_2_num_registers {
+            4 => 0.673,
+            5 => 0.697,
+            6 => 0.709,
+            _ => 0.7213 / (1.0 + 1.079 / number_of_registers as f64),
+        };
+
+        Self {
+            bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
+            num_counters: num_counters.try_into().unwrap(),
+            num_registers: number_of_registers.try_into().unwrap(),
+            num_registers_minus_1: (number_of_registers - 1).try_into().unwrap(),
+            log_2_num_registers: log_2_num_registers.try_into().unwrap(),
+            register_size: register_size.try_into().unwrap(),
+            alpha_m_m: alpha * (number_of_registers as f64).pow(2.0),
+            sentinel_mask,
+            hasher_builder,
+            _phantom_data: PhantomData,
+        }
+    }
 }
 
 impl HyperLogLogCounterArray<()> {
@@ -71,65 +163,21 @@ impl HyperLogLogCounterArray<()> {
     }
 }
 
-impl<T> HyperLogLogCounterArray<T> {
-    pub fn from_rsd(num_counters: usize, num_elements: usize, rsd: f64) -> Self {
-        Self::from_log_2_num_registers(
-            num_counters,
-            num_elements,
-            HyperLogLogCounterArray::log_2_number_of_registers(rsd),
-        )
-    }
-
-    pub fn from_log_2_num_registers(
-        num_counters: usize,
-        num_elements: usize,
-        log_2_num_registers: usize,
-    ) -> Self {
-        Self::from_hasher_builder(
-            num_counters,
-            num_elements,
-            log_2_num_registers,
-            BuildHasherDefault::default(),
-        )
-    }
-}
-
 impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt,
 {
-    pub fn from_hasher_builder(
-        num_counters: usize,
-        num_elements: usize,
-        log_2_num_registers: usize,
-        hasher_builder: H,
-    ) -> Self {
-        let number_of_registers = 1 << log_2_num_registers;
-        let register_size =
-            HyperLogLogCounterArray::register_size_from_number_of_elements(num_elements);
-        let sentinel_mask = 1 << ((1 << register_size) - 2);
-        let alpha = match log_2_num_registers {
-            4 => 0.673,
-            5 => 0.697,
-            6 => 0.709,
-            _ => 0.7213 / (1.0 + 1.079 / number_of_registers as f64),
-        };
-
-        Self {
-            bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
-            num_registers: number_of_registers.try_into().unwrap(),
-            num_registers_minus_1: (number_of_registers - 1).try_into().unwrap(),
-            log_2_num_registers: log_2_num_registers.try_into().unwrap(),
-            register_size: register_size.try_into().unwrap(),
-            alpha_m_m: alpha * (number_of_registers as f64).pow(2.0),
-            sentinel_mask,
-            hasher_builder,
-            _phantom_data: PhantomData,
-        }
+    /// Resets all counters by writing zeroes in all registers.
+    pub fn clear(&mut self) {
+        self.bits.reset(Ordering::Relaxed)
     }
 }
 
 impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
+    /// Returns the concretized [`HyperLogLogCounter`] with the specified index.
+    ///
+    /// # Arguments
+    /// - `index`: the index of the counter to concretize.
     #[inline(always)]
     pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
         HyperLogLogCounter {
@@ -139,8 +187,27 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     }
 }
 
+impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
+    /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
+    pub fn into_vec(&self) -> Vec<HyperLogLogCounter<T, W, H>> {
+        let mut vec = Vec::with_capacity(self.num_counters as usize);
+        (0..self.num_counters as usize)
+            .into_par_iter()
+            .map(|i| self.get_counter(i))
+            .collect_into_vec(&mut vec);
+        vec
+    }
+}
+
+/// Concretized counter for [`HyperLogLogCounterArray`].
+///
+/// Each counter holds only basic information in order to reduce memory usage.
+/// In particular each counter holds a shared reference to the parent [`HyperLogLogCounterArray`]
+/// and the offset of the first register of the counter.
 pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
+    /// The reference to the parent [`HyperLogLogCounterArray`].
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
+    /// The offset of the first register of the counter.
     offset: usize,
 }
 
