@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     sync::atomic::Ordering,
 };
-use sux::prelude::*;
+use sux::prelude::{bit_field_slice::AtomicHelper, AtomicBitFieldVec, Word};
 
 type HashResult = u64;
 
@@ -231,16 +231,13 @@ where
         debug_assert!(r < (1 << self.counter_array.register_size) - 1);
         debug_assert!(register < self.offset + self.counter_array.num_registers as usize);
 
-        let current_value = self
-            .counter_array
-            .bits
-            .get_atomic(register, Ordering::Relaxed);
+        let current_value = self.counter_array.bits.get(register, Ordering::Relaxed);
         let candidate_value = r + 1;
         let new_value = std::cmp::max(current_value, candidate_value.upcast());
         if current_value != new_value {
             self.counter_array
                 .bits
-                .set_atomic(register, new_value, Ordering::Relaxed);
+                .set(register, new_value, Ordering::Relaxed);
         }
     }
 
@@ -252,11 +249,9 @@ where
     #[inline]
     fn clear(&mut self) {
         for i in 0..self.counter_array.num_registers {
-            self.counter_array.bits.set_atomic(
-                self.offset + i as usize,
-                W::ZERO,
-                Ordering::Relaxed,
-            );
+            self.counter_array
+                .bits
+                .set(self.offset + i as usize, W::ZERO, Ordering::Relaxed);
         }
     }
 }
@@ -279,7 +274,7 @@ where
             let value = self
                 .counter_array
                 .bits
-                .get_atomic(register, Ordering::Relaxed)
+                .get(register, Ordering::Relaxed)
                 .upcast();
             if value == 0 {
                 zeroes += 1;
