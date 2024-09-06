@@ -25,15 +25,15 @@ pub struct HyperLogLogCounterArray<
     /// The bits of the registers
     bits: AtomicBitFieldVec<W>,
     /// The number of counters
-    num_counters: HashResult,
+    num_counters: usize,
     /// The number of registers per counter
-    num_registers: HashResult,
+    num_registers: usize,
     /// The number of registers per counter minus 1
     num_registers_minus_1: HashResult,
     /// the *log<sub>2</sub>* of the number of registers per counter
-    log_2_num_registers: HashResult,
+    log_2_num_registers: usize,
     /// The size in bits of each register
-    register_size: HashResult,
+    register_size: usize,
     /// The correct value for αm<sup>2</sup>
     alpha_m_m: f64,
     /// The mask OR'd with the output of the hash function so that the number of trailing zeroes is not
@@ -110,14 +110,21 @@ where
             6 => 0.709,
             _ => 0.7213 / (1.0 + 1.079 / number_of_registers as f64),
         };
+        let num_registers_minus_1 = (number_of_registers - 1).try_into().expect(
+            format!(
+                "should be able to convert {} from usize to the hash result type",
+                number_of_registers - 1
+            )
+            .as_str(),
+        );
 
         Self {
             bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
-            num_counters: num_counters.try_into().unwrap(),
-            num_registers: number_of_registers.try_into().unwrap(),
-            num_registers_minus_1: (number_of_registers - 1).try_into().unwrap(),
-            log_2_num_registers: log_2_num_registers.try_into().unwrap(),
-            register_size: register_size.try_into().unwrap(),
+            num_counters,
+            num_registers: number_of_registers,
+            num_registers_minus_1,
+            log_2_num_registers,
+            register_size,
             alpha_m_m: alpha * (number_of_registers as f64).pow(2.0),
             sentinel_mask,
             hasher_builder,
@@ -182,7 +189,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
         HyperLogLogCounter {
             counter_array: self,
-            offset: index * self.num_registers as usize,
+            offset: index * self.num_registers,
         }
     }
 }
@@ -190,8 +197,8 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
 impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
     /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
     pub fn into_vec(&self) -> Vec<HyperLogLogCounter<T, W, H>> {
-        let mut vec = Vec::with_capacity(self.num_counters as usize);
-        (0..self.num_counters as usize)
+        let mut vec = Vec::with_capacity(self.num_counters);
+        (0..self.num_counters)
             .into_par_iter()
             .map(|i| self.get_counter(i))
             .collect_into_vec(&mut vec);
@@ -251,7 +258,7 @@ where
         for i in 0..self.counter_array.num_registers {
             self.counter_array
                 .bits
-                .set(self.offset + i as usize, W::ZERO, Ordering::Relaxed);
+                .set(self.offset + i, W::ZERO, Ordering::Relaxed);
         }
     }
 }
@@ -270,7 +277,7 @@ where
         let mut zeroes = 0;
 
         for i in 0..self.counter_array.num_registers {
-            let register = self.offset + i as usize;
+            let register = self.offset + i;
             let value = self
                 .counter_array
                 .bits
