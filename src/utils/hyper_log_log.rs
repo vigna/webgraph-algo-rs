@@ -261,6 +261,14 @@ where
                 .set(self.offset + i, W::ZERO, Ordering::Relaxed);
         }
     }
+
+    fn merge(&self, other: &Self) -> Self {
+        todo!()
+    }
+
+    fn merge_inplace(&mut self, other: &Self) {
+        todo!()
+    }
 }
 
 impl<
