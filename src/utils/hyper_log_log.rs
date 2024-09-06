@@ -110,13 +110,12 @@ where
             6 => 0.709,
             _ => 0.7213 / (1.0 + 1.079 / number_of_registers as f64),
         };
-        let num_registers_minus_1 = (number_of_registers - 1).try_into().expect(
-            format!(
+        let num_registers_minus_1 = (number_of_registers - 1).try_into().unwrap_or_else(|_| {
+            panic!(
                 "should be able to convert {} from usize to the hash result type",
                 number_of_registers - 1
             )
-            .as_str(),
-        );
+        });
 
         Self {
             bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
@@ -236,7 +235,7 @@ where
         let register = self.offset + j as usize;
 
         debug_assert!(r < (1 << self.counter_array.register_size) - 1);
-        debug_assert!(register < self.offset + self.counter_array.num_registers as usize);
+        debug_assert!(register < self.offset + self.counter_array.num_registers);
 
         let current_value = self.counter_array.bits.get(register, Ordering::Relaxed);
         let candidate_value = r + 1;
