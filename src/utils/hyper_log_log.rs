@@ -52,8 +52,8 @@ impl<T> HyperLogLogCounterArray<T> {
     /// - `num_counters`: the number of counters to create in the array.
     /// - `num_elements`: an upper bound on the number of distinct elements.
     /// - `rsd`: the relative standard deviation to be attained.
-    pub fn from_rsd(num_counters: usize, num_elements: usize, rsd: f64) -> Self {
-        Self::from_log_2_num_registers(
+    pub fn with_rsd(num_counters: usize, num_elements: usize, rsd: f64) -> Self {
+        Self::with_log_2_num_registers(
             num_counters,
             num_elements,
             HyperLogLogCounterArray::log_2_number_of_registers(rsd),
@@ -67,12 +67,12 @@ impl<T> HyperLogLogCounterArray<T> {
     /// - `num_counters`: the number of counters to create in the array.
     /// - `num_elements`: an upper bound on the number of distinct elements.
     /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
-    pub fn from_log_2_num_registers(
+    pub fn with_log_2_num_registers(
         num_counters: usize,
         num_elements: usize,
         log_2_num_registers: usize,
     ) -> Self {
-        Self::from_hasher_builder(
+        Self::with_hasher_builder(
             num_counters,
             num_elements,
             log_2_num_registers,
@@ -94,7 +94,7 @@ where
     /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
     /// - `hasher_builder`: the builder of the hasher used by the array that implements
     ///   [`BuildHasher`].
-    pub fn from_hasher_builder(
+    pub fn with_hasher_builder(
         num_counters: usize,
         num_elements: usize,
         log_2_num_registers: usize,

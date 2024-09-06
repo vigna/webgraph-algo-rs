@@ -13,7 +13,7 @@ fn test_single() -> Result<()> {
             let mut correct = 0;
 
             for _ in 0..num_trials {
-                let counters = HyperLogLogCounterArray::from_log_2_num_registers(1, size, log2m);
+                let counters = HyperLogLogCounterArray::with_log_2_num_registers(1, size, log2m);
                 let mut counter = counters.get_counter(0);
                 let incr = (1 << 32) / size as i64;
                 let mut x = i64::MIN;
@@ -49,7 +49,7 @@ fn test_double() -> Result<()> {
             let mut correct_1 = 0;
 
             for _ in 0..num_trials {
-                let counters = HyperLogLogCounterArray::from_log_2_num_registers(2, size, log2m);
+                let counters = HyperLogLogCounterArray::with_log_2_num_registers(2, size, log2m);
                 let incr = (1 << 32) / size as i64;
                 let mut x = i64::MIN;
                 for _ in 0..size {
