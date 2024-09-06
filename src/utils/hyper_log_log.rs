@@ -272,6 +272,7 @@ impl<
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
+    #[inline]
     fn estimate_count(&self) -> f64 {
         let mut harmonic_mean = 0.0;
         let mut zeroes = 0;
