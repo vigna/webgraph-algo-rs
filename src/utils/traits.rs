@@ -230,21 +230,13 @@ pub trait Counter<T> {
     /// Clears the counter.
     fn clear(&mut self);
 
-    /// Returns the merge result from `self` and other.
-    ///
-    /// The original counters are not modified.
-    ///
-    /// # Arguments
-    /// - `other`: the counter to merge into `self`.
-    fn merge(&self, other: &Self) -> Self;
-
     /// Merges `other` into `self` inplace.
     ///
     /// `other` is not modified but `self` is.
     ///
     /// # Arguments
     /// - `other`: the counter to merge into `self`.
-    fn merge_inplace(&mut self, other: &Self);
+    fn merge(&mut self, other: &Self);
 }
 
 /// Trait defining an approximated counter.

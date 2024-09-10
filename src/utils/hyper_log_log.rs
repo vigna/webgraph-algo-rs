@@ -268,12 +268,23 @@ where
         }
     }
 
-    fn merge(&self, other: &Self) -> Self {
-        todo!()
-    }
+    fn merge(&mut self, other: &Self) {
+        for i in 0..self.counter_array.num_registers {
+            let register = self.offset + i;
+            let other_register = other.offset + i;
 
-    fn merge_inplace(&mut self, other: &Self) {
-        todo!()
+            let current_value = self.counter_array.bits.get(register, Ordering::Relaxed);
+            let other_value = self
+                .counter_array
+                .bits
+                .get(other_register, Ordering::Relaxed);
+
+            if other_value > current_value {
+                self.counter_array
+                    .bits
+                    .set(register, other_value, Ordering::Relaxed);
+            }
+        }
     }
 }
 
