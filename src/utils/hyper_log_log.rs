@@ -268,6 +268,7 @@ where
         }
     }
 
+    #[inline]
     fn merge(&mut self, other: &Self) {
         for i in 0..self.counter_array.num_registers {
             let register = self.offset + i;
