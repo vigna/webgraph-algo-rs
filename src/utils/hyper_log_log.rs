@@ -100,6 +100,13 @@ where
         log_2_num_registers: usize,
         hasher_builder: H,
     ) -> Self {
+        // This ensures counters are at least 16-bit-aligned.
+        assert!(
+            log_2_num_registers >= 4,
+            "the logarithm of the number of registers per counter should be at least 4. Got {}",
+            log_2_num_registers
+        );
+
         let number_of_registers = 1 << log_2_num_registers;
         let register_size =
             HyperLogLogCounterArray::register_size_from_number_of_elements(num_elements);
