@@ -41,6 +41,10 @@ pub struct HyperLogLogCounterArray<
     sentinel_mask: HashResult,
     /// The builder of the hashers
     hasher_builder: H,
+    /// The number of counters needed for a chunk to be aliged with `W`
+    chunk_size: usize,
+    /// The number of counters needed for a chunk to be aliged with `W` minus 1
+    chunk_size_minus_1: usize,
     _phantom_data: PhantomData<T>,
 }
 
@@ -124,6 +128,12 @@ where
             )
         });
 
+        let counter_size_in_bits = number_of_registers * register_size;
+        let mut chunk_size = 1;
+        while (counter_size_in_bits * chunk_size) % W::BITS != 0 {
+            chunk_size += 1;
+        }
+
         Self {
             bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
             num_counters,
@@ -134,6 +144,8 @@ where
             alpha_m_m: alpha * (number_of_registers as f64).pow(2.0),
             sentinel_mask,
             hasher_builder,
+            chunk_size,
+            chunk_size_minus_1: chunk_size - 1,
             _phantom_data: PhantomData,
         }
     }
@@ -196,6 +208,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
         HyperLogLogCounter {
             counter_array: self,
             offset: index * self.num_registers,
+            is_last_of_chunk: index % self.chunk_size == self.chunk_size_minus_1,
         }
     }
 }
@@ -222,6 +235,145 @@ pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
     /// The offset of the first register of the counter.
     offset: usize,
+    /// Whether the counter is the last of a chunk and needs to be updated without overlapping
+    /// the next. This is used by [`Self::merge_unsafe`].
+    is_last_of_chunk: bool,
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
+    /// Returns the chunk this counter belongs to.
+    #[inline(always)]
+    pub fn chunk_index(&self) -> usize {
+        (self.offset / self.counter_array.num_registers) / self.counter_array.chunk_size
+    }
+
+    /// Sets a register of the counter to the specified new value.
+    ///
+    /// If the counter is cached the new value isn't propagated to the backend
+    /// [`HyperLogLogCounterArray`] until [`Self::commit_changes`] is called on
+    /// this counter.
+    ///
+    /// # Arguments
+    /// - `index`: the index of the register to edit.
+    /// - `new_value`: the new value to store in the register.
+    pub fn set_register(&mut self, index: usize, new_value: W) {
+        todo!()
+    }
+
+    /// Gets the current value of the specified register.
+    ///
+    /// If the counter is cached and has been modified, this methods returns
+    /// the value present in the local cache, not the one present in the
+    /// backend.
+    ///
+    /// # Arguments
+    /// - `index`: the index of the register to read.
+    pub fn get_register(&self, index: usize) -> W {
+        todo!()
+    }
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
+    /// Merges `other` into `self` inplace using words instead of registers.
+    ///
+    /// `other` is not modified but `self` is.
+    ///
+    /// # Arguments
+    /// - `other`: the counter to merge into `self`.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method on two counters from the same chunk from two
+    /// different threads at the same time is [undefined behavior].
+    ///
+    /// Calling this method on the same counters at the same time in
+    /// different directions without first calling [`Self::cache`] as
+    /// is shown below is [undefined behavior]:
+    /// ```no_run
+    /// # use rayon::join;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::prelude::Counter;
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.5);
+    /// let mut c1 = counters.get_counter(0);
+    /// let mut c2 = counters.get_counter(1);
+    /// let c1_shared = counters.get_counter(0);
+    /// let c2_shared = counters.get_counter(1);
+    /// # counters.get_counter(0).add(0);
+    ///
+    /// // This is undefined behavior
+    /// join(|| unsafe {c1.merge_unsafe(c2_shared)}, || unsafe {c2.merge_unsafe(c1_shared)});
+    /// ```
+    ///
+    /// On the other hand, once the counter is cached it is fine:
+    ///
+    /// ```
+    /// # use rayon::join;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::prelude::Counter;
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.5);
+    /// let mut c1 = counters.get_counter(0);
+    /// let mut c2 = counters.get_counter(1);
+    /// let c1_shared = counters.get_counter(0);
+    /// let c2_shared = counters.get_counter(1);
+    /// # counters.get_counter(0).add(0);
+    ///
+    /// c1.cache();
+    /// c2.cache();
+    ///
+    /// // This is fine
+    /// join(|| unsafe {c1.merge_unsafe(c2_shared)}, || unsafe {c2.merge_unsafe(c1_shared)});
+    /// ```
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    pub unsafe fn merge_unsafe(&mut self, other: &Self) {
+        todo!()
+    }
+
+    /// Commit changes to this counter to the backend [`HyperLogLogCounterArray`].
+    ///
+    /// Calling this method on a counter whose registers aren't cached with [`Self::cache`]
+    /// will result in a panic.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method on two counters from the same chunk from two
+    /// different threads at the same time is [undefined behavior].
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    pub unsafe fn commit_changes(&mut self) {
+        todo!()
+    }
+
+    /// Cache the counter registers.
+    ///
+    /// Once this method is called every change applied to this counter isn't reflected
+    /// in the backend [`HyperLogLogCounterArray`] until [`Self::commit_changes`] is
+    /// called.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method while writing to the same memory zone in the backend
+    /// [`HyperLogLogCounterArray`] (ie. with [`Self::commit_changes`] on the same counter from
+    /// another instance) is [undefined behavior].
+    /// ```no_run
+    /// # use rayon::join;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::prelude::Counter;
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.5);
+    /// let mut c1 = counters.get_counter(0);
+    /// let mut c1_copy = counters.get_counter(0);
+    ///
+    /// unsafe { c1.cache() };
+    /// c1.add(0);
+    ///
+    /// // This is undefined behavior
+    /// join(|| unsafe {c1.commit_changes()}, || unsafe {c1_copy.cache()});
+    /// ```
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    pub unsafe fn cache(&mut self) {
+        todo!()
+    }
 }
 
 impl<
@@ -244,13 +396,11 @@ where
         debug_assert!(r < (1 << self.counter_array.register_size) - 1);
         debug_assert!(register < self.offset + self.counter_array.num_registers);
 
-        let current_value = self.counter_array.bits.get(register, Ordering::Relaxed);
+        let current_value = self.get_register(register);
         let candidate_value = r + 1;
         let new_value = std::cmp::max(current_value, candidate_value.upcast());
         if current_value != new_value {
-            self.counter_array
-                .bits
-                .set(register, new_value, Ordering::Relaxed);
+            self.set_register(register, new_value);
         }
     }
 
@@ -262,28 +412,18 @@ where
     #[inline]
     fn clear(&mut self) {
         for i in 0..self.counter_array.num_registers {
-            self.counter_array
-                .bits
-                .set(self.offset + i, W::ZERO, Ordering::Relaxed);
+            self.set_register(self.offset + i, W::ZERO);
         }
     }
 
     #[inline]
     fn merge(&mut self, other: &Self) {
         for i in 0..self.counter_array.num_registers {
-            let register = self.offset + i;
-            let other_register = other.offset + i;
-
-            let current_value = self.counter_array.bits.get(register, Ordering::Relaxed);
-            let other_value = self
-                .counter_array
-                .bits
-                .get(other_register, Ordering::Relaxed);
+            let current_value = self.get_register(i);
+            let other_value = other.get_register(i);
 
             if other_value > current_value {
-                self.counter_array
-                    .bits
-                    .set(register, other_value, Ordering::Relaxed);
+                self.set_register(i, other_value);
             }
         }
     }
@@ -305,11 +445,7 @@ where
 
         for i in 0..self.counter_array.num_registers {
             let register = self.offset + i;
-            let value = self
-                .counter_array
-                .bits
-                .get(register, Ordering::Relaxed)
-                .upcast();
+            let value = self.get_register(register).upcast();
             if value == 0 {
                 zeroes += 1;
             }
