@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     sync::atomic::Ordering,
 };
-use sux::prelude::{bit_field_slice::AtomicHelper, AtomicBitFieldVec, Word};
+use sux::prelude::*;
 
 type HashResult = u64;
 
@@ -209,6 +209,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
             counter_array: self,
             offset: index * self.num_registers,
             is_last_of_chunk: index % self.chunk_size == self.chunk_size_minus_1,
+            cached_bits: None,
         }
     }
 }
@@ -230,6 +231,9 @@ impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArr
 /// Each counter holds only basic information in order to reduce memory usage.
 /// In particular each counter holds a shared reference to the parent [`HyperLogLogCounterArray`]
 /// and the offset of the first register of the counter.
+///
+/// In alternative, the counter may make a local copy of the registers using the
+/// [`Self::cache`] method.
 pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     /// The reference to the parent [`HyperLogLogCounterArray`].
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
@@ -238,6 +242,8 @@ pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     /// Whether the counter is the last of a chunk and needs to be updated without overlapping
     /// the next. This is used by [`Self::merge_unsafe`].
     is_last_of_chunk: bool,
+    /// The cached counter bits. Remeinder bits are to be considered noise and not used.
+    cached_bits: Option<BitFieldVec<W>>,
 }
 
 impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
@@ -245,31 +251,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     #[inline(always)]
     pub fn chunk_index(&self) -> usize {
         (self.offset / self.counter_array.num_registers) / self.counter_array.chunk_size
-    }
-
-    /// Sets a register of the counter to the specified new value.
-    ///
-    /// If the counter is cached the new value isn't propagated to the backend
-    /// [`HyperLogLogCounterArray`] until [`Self::commit_changes`] is called on
-    /// this counter.
-    ///
-    /// # Arguments
-    /// - `index`: the index of the register to edit.
-    /// - `new_value`: the new value to store in the register.
-    pub fn set_register(&mut self, index: usize, new_value: W) {
-        todo!()
-    }
-
-    /// Gets the current value of the specified register.
-    ///
-    /// If the counter is cached and has been modified, this methods returns
-    /// the value present in the local cache, not the one present in the
-    /// backend.
-    ///
-    /// # Arguments
-    /// - `index`: the index of the register to read.
-    pub fn get_register(&self, index: usize) -> W {
-        todo!()
     }
 }
 
@@ -293,7 +274,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArray;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.5);
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c2 = counters.get_counter(1);
     /// let c1_shared = counters.get_counter(0);
@@ -301,7 +282,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # counters.get_counter(0).add(0);
     ///
     /// // This is undefined behavior
-    /// join(|| unsafe {c1.merge_unsafe(c2_shared)}, || unsafe {c2.merge_unsafe(c1_shared)});
+    /// join(|| unsafe {c1.merge_unsafe(&c2_shared)}, || unsafe {c2.merge_unsafe(&c1_shared)});
     /// ```
     ///
     /// On the other hand, once the counter is cached it is fine:
@@ -310,18 +291,20 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArray;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.5);
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c2 = counters.get_counter(1);
     /// let c1_shared = counters.get_counter(0);
     /// let c2_shared = counters.get_counter(1);
     /// # counters.get_counter(0).add(0);
     ///
-    /// c1.cache();
-    /// c2.cache();
+    /// unsafe {
+    ///     c1.cache();
+    ///     c2.cache();
+    /// }
     ///
     /// // This is fine
-    /// join(|| unsafe {c1.merge_unsafe(c2_shared)}, || unsafe {c2.merge_unsafe(c1_shared)});
+    /// join(|| unsafe {c1.merge_unsafe(&c2_shared)}, || unsafe {c2.merge_unsafe(&c1_shared)});
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
@@ -359,7 +342,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArray;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.5);
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c1_copy = counters.get_counter(0);
     ///
@@ -373,6 +356,51 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     pub unsafe fn cache(&mut self) {
         todo!()
+    }
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
+{
+    /// Sets a register of the counter to the specified new value.
+    ///
+    /// If the counter is cached the new value isn't propagated to the backend
+    /// [`HyperLogLogCounterArray`] until [`Self::commit_changes`] is called on
+    /// this counter.
+    ///
+    /// # Arguments
+    /// - `index`: the index of the register to edit.
+    /// - `new_value`: the new value to store in the register.
+    #[inline(always)]
+    pub fn set_register(&mut self, index: usize, new_value: W) {
+        match &mut self.cached_bits {
+            Some(bits) => bits.set(index, new_value),
+            None => self.counter_array.bits.set_atomic(
+                self.offset + index,
+                new_value,
+                Ordering::Relaxed,
+            ),
+        }
+    }
+
+    /// Gets the current value of the specified register.
+    ///
+    /// If the counter is cached and has been modified, this methods returns
+    /// the value present in the local cache, not the one present in the
+    /// backend.
+    ///
+    /// # Arguments
+    /// - `index`: the index of the register to read.
+    #[inline(always)]
+    pub fn get_register(&self, index: usize) -> W {
+        match &self.cached_bits {
+            Some(bits) => bits.get(index),
+            None => self
+                .counter_array
+                .bits
+                .get_atomic(self.offset + index, Ordering::Relaxed),
+        }
     }
 }
 
@@ -391,10 +419,10 @@ where
         let j = x & self.counter_array.num_registers_minus_1;
         let r = (x >> self.counter_array.log_2_num_registers | self.counter_array.sentinel_mask)
             .trailing_zeros() as HashResult;
-        let register = self.offset + j as usize;
+        let register = j as usize;
 
         debug_assert!(r < (1 << self.counter_array.register_size) - 1);
-        debug_assert!(register < self.offset + self.counter_array.num_registers);
+        debug_assert!(register < self.counter_array.num_registers);
 
         let current_value = self.get_register(register);
         let candidate_value = r + 1;
@@ -412,7 +440,7 @@ where
     #[inline]
     fn clear(&mut self) {
         for i in 0..self.counter_array.num_registers {
-            self.set_register(self.offset + i, W::ZERO);
+            self.set_register(i, W::ZERO);
         }
     }
 
@@ -444,8 +472,7 @@ where
         let mut zeroes = 0;
 
         for i in 0..self.counter_array.num_registers {
-            let register = self.offset + i;
-            let value = self.get_register(register).upcast();
+            let value = self.get_register(i).upcast();
             if value == 0 {
                 zeroes += 1;
             }
