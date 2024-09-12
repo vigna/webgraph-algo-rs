@@ -373,7 +373,7 @@ where
     /// - `index`: the index of the register to edit.
     /// - `new_value`: the new value to store in the register.
     #[inline(always)]
-    pub fn set_register(&mut self, index: usize, new_value: W) {
+    fn set_register(&mut self, index: usize, new_value: W) {
         match &mut self.cached_bits {
             Some(bits) => bits.set(index, new_value),
             None => self.counter_array.bits.set_atomic(
@@ -393,7 +393,7 @@ where
     /// # Arguments
     /// - `index`: the index of the register to read.
     #[inline(always)]
-    pub fn get_register(&self, index: usize) -> W {
+    fn get_register(&self, index: usize) -> W {
         match &self.cached_bits {
             Some(bits) => bits.get(index),
             None => self
