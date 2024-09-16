@@ -385,7 +385,24 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     pub unsafe fn cache(&mut self) {
-        todo!()
+        let bits_offset = self.offset * self.counter_array.register_size;
+        debug_assert!(bits_offset % 8 == 0);
+        let byte_offset = bits_offset / 8;
+
+        let mut pointer = self.counter_array.bits.as_slice().as_ptr() as *const W;
+        pointer = pointer.byte_add(byte_offset);
+
+        let mut v = Vec::with_capacity(self.counter_array.words_per_counter());
+        for _ in 0..v.capacity() {
+            v.push(pointer.read_unaligned());
+            pointer = pointer.add(1);
+        }
+
+        self.cached_bits = Some(BitFieldVec::from_raw_parts(
+            v,
+            self.counter_array.register_size,
+            self.counter_array.num_registers,
+        ));
     }
 }
 
