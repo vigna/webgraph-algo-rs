@@ -45,6 +45,10 @@ pub struct HyperLogLogCounterArray<
     chunk_size: usize,
     /// The number of counters needed for a chunk to be aliged with `W` minus 1
     chunk_size_minus_1: usize,
+    /// A mask containing a one in the most significant bit of each register
+    msb_mask: BitFieldVec<W>,
+    /// A mask containing a one in the least significant bit of each register
+    lsb_mask: BitFieldVec<W>,
     _phantom_data: PhantomData<T>,
 }
 
@@ -134,6 +138,15 @@ where
             chunk_size += 1;
         }
 
+        let mut msb = BitFieldVec::new(register_size, number_of_registers);
+        let mut lsb = BitFieldVec::new(register_size, number_of_registers);
+        let msb_w = W::ONE << (register_size - 1);
+        let lsb_w = W::ONE;
+        for i in 0..number_of_registers {
+            msb.set(i, msb_w);
+            lsb.set(i, lsb_w);
+        }
+
         Self {
             bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
             num_counters,
@@ -146,6 +159,8 @@ where
             hasher_builder,
             chunk_size,
             chunk_size_minus_1: chunk_size - 1,
+            msb_mask: msb,
+            lsb_mask: lsb,
             _phantom_data: PhantomData,
         }
     }
@@ -208,9 +223,14 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
         HyperLogLogCounter {
             counter_array: self,
             offset: index * self.num_registers,
-            is_last_of_chunk: index % self.chunk_size == self.chunk_size_minus_1,
             cached_bits: None,
         }
+    }
+
+    /// Returns the number of words `W` per counter.
+    #[inline(always)]
+    pub fn words_per_counter(&self) -> usize {
+        self.msb_mask.as_slice().len()
     }
 }
 
@@ -239,18 +259,28 @@ pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
     /// The offset of the first register of the counter.
     offset: usize,
-    /// Whether the counter is the last of a chunk and needs to be updated without overlapping
-    /// the next. This is used by [`Self::merge_unsafe`].
-    is_last_of_chunk: bool,
     /// The cached counter bits. Remeinder bits are to be considered noise and not used.
     cached_bits: Option<BitFieldVec<W>>,
 }
 
 impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
+    /// Returns the index of the current counter
+    #[inline(always)]
+    pub fn counter_index(&self) -> usize {
+        self.offset / self.counter_array.num_registers
+    }
+
     /// Returns the chunk this counter belongs to.
     #[inline(always)]
     pub fn chunk_index(&self) -> usize {
-        (self.offset / self.counter_array.num_registers) / self.counter_array.chunk_size
+        self.counter_index() / self.counter_array.chunk_size
+    }
+
+    /// Returns whether the counter is the last of a chunk and needs to be updated without overlapping
+    /// the next. This is used by [`Self::merge_unsafe`].
+    pub fn is_last_of_chunk(&self) -> bool {
+        self.counter_index() % self.counter_array.chunk_size
+            == self.counter_array.chunk_size_minus_1
     }
 }
 
