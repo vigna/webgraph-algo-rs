@@ -64,7 +64,7 @@ impl<T> HyperLogLogCounterArray<T> {
         )
     }
 
-    /// Creates an [`HyperLogLogCounterArray`] with the specified *log<sub>2</sub>m*
+    /// Creates an [`HyperLogLogCounterArray`] with the specified log₂*m*
     /// number of registers.
     ///
     /// # Arguments
