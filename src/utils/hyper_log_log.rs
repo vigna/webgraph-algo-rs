@@ -278,6 +278,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
 
     /// Returns whether the counter is the last of a chunk and needs to be updated without overlapping
     /// the next. This is used by [`Self::merge_unsafe`].
+    #[inline(always)]
     pub fn is_last_of_chunk(&self) -> bool {
         self.counter_index() % self.counter_array.chunk_size
             == self.counter_array.chunk_size_minus_1
@@ -349,12 +350,47 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// # Safety
     ///
-    /// Calling this method on two counters from the same chunk from two
-    /// different threads at the same time is [undefined behavior].
+    /// Calling this method while reading from the same memory zone in the backend
+    /// [`HyperLogLogCounterArray`] (ie. with [`Self::cache`] on the same counter from
+    /// another instance) is [undefined behavior].
+    /// ```no_run
+    /// # use rayon::join;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::prelude::Counter;
+    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
+    /// let mut c1 = counters.get_counter(0);
+    /// let mut c1_copy = counters.get_counter(0);
+    ///
+    /// unsafe { c1.cache() };
+    /// c1.add(0);
+    ///
+    /// // This is undefined behavior
+    /// join(|| unsafe {c1.commit_changes()}, || unsafe {c1_copy.cache()});
+    /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     pub unsafe fn commit_changes(&mut self) {
-        todo!()
+        let cached = self
+            .cached_bits
+            .as_ref()
+            .expect("counter should be cached first")
+            .as_slice();
+        let bits_to_write = self.counter_array.num_registers * self.counter_array.register_size;
+        debug_assert!((W::BITS * cached.len()) - bits_to_write < W::BITS);
+        debug_assert!(bits_to_write % 8 == 0);
+        debug_assert_eq!(cached.len(), self.counter_array.words_per_counter());
+        let bytes_to_write = bits_to_write / 8;
+
+        let bits_offset = self.offset * self.counter_array.register_size;
+        debug_assert!(bits_offset % 8 == 0);
+        let byte_offset = bits_offset / 8;
+
+        let pointer =
+            (self.counter_array.bits.as_slice().as_ptr() as *mut u8).byte_add(byte_offset);
+
+        std::ptr::copy_nonoverlapping(cached.as_ptr() as *const u8, pointer, bytes_to_write);
+
+        self.cached_bits = None;
     }
 
     /// Cache the counter registers.
@@ -388,15 +424,16 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         let bits_offset = self.offset * self.counter_array.register_size;
         debug_assert!(bits_offset % 8 == 0);
         let byte_offset = bits_offset / 8;
+        let num_words = self.counter_array.words_per_counter();
+        let num_bytes = num_words * W::BYTES;
+        debug_assert!((num_bytes * 8) % W::BITS == 0);
 
-        let mut pointer = self.counter_array.bits.as_slice().as_ptr() as *const W;
-        pointer = pointer.byte_add(byte_offset);
+        let pointer =
+            (self.counter_array.bits.as_slice().as_ptr() as *const u8).byte_add(byte_offset);
 
-        let mut v = Vec::with_capacity(self.counter_array.words_per_counter());
-        for _ in 0..v.capacity() {
-            v.push(pointer.read_unaligned());
-            pointer = pointer.add(1);
-        }
+        let mut v = Vec::with_capacity(num_words);
+        std::ptr::copy_nonoverlapping(pointer, v.as_mut_ptr() as *mut u8, num_bytes);
+        v.set_len(num_words);
 
         self.cached_bits = Some(BitFieldVec::from_raw_parts(
             v,
