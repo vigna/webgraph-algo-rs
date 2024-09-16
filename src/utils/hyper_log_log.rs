@@ -190,11 +190,11 @@ impl HyperLogLogCounterArray<()> {
 
 impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H>
 where
-    W::AtomicType: AtomicUnsignedInt,
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     /// Resets all counters by writing zeroes in all registers.
     pub fn clear(&mut self) {
-        self.bits.reset(Ordering::Relaxed)
+        self.bits.reset_atomic(Ordering::Relaxed)
     }
 }
 
