@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, utils::closure_vec};
 use common_traits::*;
 use rayon::prelude::*;
 use std::{
@@ -147,8 +147,26 @@ where
             lsb.set(i, lsb_w);
         }
 
+        // This allows cache to copy non-aligned words without having to check whether the backend
+        // is long enough.
+        let required_words = std::cmp::max(
+            1,
+            (number_of_registers * num_counters * register_size + W::BITS - 1) / W::BITS,
+        ) + 1;
+        let bits_vec = closure_vec(|| W::AtomicType::new(W::ZERO), required_words);
+        debug_assert!(
+            number_of_registers * num_counters * register_size <= bits_vec.len() * W::BITS
+        );
+        let bits = unsafe {
+            AtomicBitFieldVec::from_raw_parts(
+                bits_vec,
+                register_size,
+                number_of_registers * num_counters,
+            )
+        };
+
         Self {
-            bits: AtomicBitFieldVec::<W>::new(register_size, number_of_registers * num_counters),
+            bits,
             num_counters,
             num_registers: number_of_registers,
             num_registers_minus_1,
@@ -422,10 +440,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     pub unsafe fn cache(&mut self) {
         let bits_offset = self.offset * self.counter_array.register_size;
+        // Counters should be byte-aligned
         debug_assert!(bits_offset % 8 == 0);
         let byte_offset = bits_offset / 8;
         let num_words = self.counter_array.words_per_counter();
         let num_bytes = num_words * W::BYTES;
+        // We should copy whole words, not parts
         debug_assert!((num_bytes * 8) % W::BITS == 0);
 
         let pointer =
