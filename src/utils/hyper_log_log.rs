@@ -408,8 +408,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
 
         let num_words = self.counter_array.words_per_counter();
         let register_size_minus_1 = self.counter_array.register_size - 1;
-        let shift_register_size_minus_1 =
-            -(register_size_minus_1 as isize) as usize & (usize::MAX >> (usize::BITS - 5));
+        let shift_register_size_minus_1 = register_size_minus_1.wrapping_neg() & 0b11111;
 
         let msb_mask = self.counter_array.msb_mask.as_slice();
         let lsb_mask = self.counter_array.lsb_mask.as_slice();
@@ -505,7 +504,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         // We subtract x & !H_r, using mask as temporary storage
         Self::subtract(&mut acc, &mask);
 
-        // We OR with x ^ y, XOR with (x | !y), and finally AND with H_r.
+        // We OR with y ^ x, XOR with (y | !x), and finally AND with H_r.
         acc.iter_mut()
             .zip(x.iter())
             .zip(y.iter())
