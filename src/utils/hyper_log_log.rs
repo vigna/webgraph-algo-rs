@@ -550,6 +550,14 @@ where
 
     #[inline]
     fn merge(&mut self, other: &Self) {
+        assert_eq!(
+            self.counter_array.num_registers,
+            other.counter_array.num_registers
+        );
+        assert_eq!(
+            self.counter_array.register_size,
+            other.counter_array.register_size
+        );
         for i in 0..self.counter_array.num_registers {
             let current_value = self.get_register(i);
             let other_value = other.get_register(i);
