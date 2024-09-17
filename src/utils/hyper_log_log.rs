@@ -147,12 +147,15 @@ where
             lsb.set(i, lsb_w);
         }
 
-        // This allows cache to copy non-aligned words without having to check whether the backend
-        // is long enough.
-        let required_words = std::cmp::max(
+        let mut required_words = std::cmp::max(
             1,
             (number_of_registers * num_counters * register_size + W::BITS - 1) / W::BITS,
-        ) + 1;
+        );
+        if chunk_size > 1 {
+            // This allows cache to copy non-aligned words without having to check whether the backend
+            // is long enough.
+            required_words += 1;
+        }
         let bits_vec = closure_vec(|| W::AtomicType::new(W::ZERO), required_words);
         debug_assert!(
             number_of_registers * num_counters * register_size <= bits_vec.len() * W::BITS
@@ -304,6 +307,39 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
 }
 
 impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
+    /// Performs a multiple precision subtraction, leaving the result in the first operand.
+    /// The operands MUST have the same length.
+    ///
+    /// # Arguments
+    /// - `x`: the first operand. This will contain the final result.
+    /// - `y`: the second operand that will be subtracted from `x`.
+    #[inline(always)]
+    fn subtract(x: &mut [W], y: &[W]) {
+        debug_assert_eq!(x.len(), y.len());
+        let mut borrow = false;
+
+        for (x_word, &y_word) in x.iter_mut().zip(y.iter()) {
+            let mut signed_x_word = x_word.to_signed();
+            let signed_y_word = y_word.to_signed();
+            if !borrow {
+                borrow = Self::borrow_check(signed_x_word, signed_y_word);
+            } else {
+                signed_x_word = signed_x_word.wrapping_sub(W::SignedInt::ZERO);
+                if signed_x_word != W::SignedInt::ZERO {
+                    borrow = Self::borrow_check(signed_x_word, signed_y_word);
+                }
+            }
+            signed_x_word = signed_x_word.wrapping_sub(signed_y_word);
+            *x_word = signed_x_word.to_unsigned();
+        }
+    }
+
+    /// Returns the result of an unsigned strict comparison
+    #[inline(always)]
+    fn borrow_check<N: Number>(x: N, y: N) -> bool {
+        (x < y) ^ (x < N::ZERO) ^ (y < N::ZERO)
+    }
+
     /// Merges `other` into `self` inplace using words instead of registers.
     ///
     /// `other` is not modified but `self` is.
@@ -315,6 +351,10 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// Calling this method on two counters from the same chunk from two
     /// different threads at the same time is [undefined behavior].
+    ///
+    /// Calling this method while reading (ie. with [`Self::cache`] on the same counter from
+    /// another instance) or writing (ie. with [`Self::commit_changes`]) from the same memory
+    /// zone in the backend [`HyperLogLogCounterArray`] is [undefined behavior].
     ///
     /// Calling this method on the same counters at the same time in
     /// different directions without first calling [`Self::cache`] as
@@ -358,7 +398,158 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
     pub unsafe fn merge_unsafe(&mut self, other: &Self) {
-        todo!()
+        // Whether to call Self::commit_changes at the end because
+        // the counter was cached here.
+        // This is sound as the mut ref prevents other references from
+        // existing.
+        let mut commit = false;
+        // The temporary vector containing the local copy of the other counter
+        let mut y_vec;
+
+        let num_words = self.counter_array.words_per_counter();
+        let register_size_minus_1 = self.counter_array.register_size - 1;
+        let shift_register_size_minus_1 =
+            -(register_size_minus_1 as isize) as usize & (usize::MAX >> (usize::BITS - 5));
+
+        let msb_mask = self.counter_array.msb_mask.as_slice();
+        let lsb_mask = self.counter_array.lsb_mask.as_slice();
+        let x = match &mut self.cached_bits {
+            Some(bits) => bits.as_mut_slice(),
+            None => {
+                let bits_offset = self.offset * self.counter_array.register_size;
+                // Counters should be byte-aligned
+                debug_assert!(bits_offset % 8 == 0);
+                let byte_offset = bits_offset / 8;
+                let num_bytes = num_words * W::BYTES;
+                // We should copy whole words, not parts
+                debug_assert!((num_bytes * 8) % W::BITS == 0);
+
+                let pointer =
+                    (other.counter_array.bits.as_slice().as_ptr() as *mut W).byte_add(byte_offset);
+
+                if pointer.is_aligned() {
+                    std::slice::from_raw_parts_mut(pointer, num_words)
+                } else {
+                    self.cache();
+                    commit = true;
+                    self.cached_bits
+                        .as_mut()
+                        .expect("Counter should be cached")
+                        .as_mut_slice()
+                }
+            }
+        };
+        let y = match &other.cached_bits {
+            Some(bits) => bits.as_slice(),
+            None => {
+                let bits_offset = other.offset * self.counter_array.register_size;
+                // Counters should be byte-aligned
+                debug_assert!(bits_offset % 8 == 0);
+                let byte_offset = bits_offset / 8;
+                let num_bytes = num_words * W::BYTES;
+                // We should copy whole words, not parts
+                debug_assert!((num_bytes * 8) % W::BITS == 0);
+
+                let pointer = (other.counter_array.bits.as_slice().as_ptr() as *const W)
+                    .byte_add(byte_offset);
+
+                if pointer.is_aligned() {
+                    std::slice::from_raw_parts(pointer, num_words)
+                } else {
+                    y_vec = Vec::with_capacity(num_words);
+                    std::ptr::copy_nonoverlapping(
+                        pointer as *const u8,
+                        y_vec.as_mut_ptr() as *mut u8,
+                        num_bytes,
+                    );
+                    y_vec.set_len(num_words);
+
+                    y_vec.as_slice()
+                }
+            }
+        };
+
+        /* We work in two phases. Let H_r (msb_mask) be the mask with the
+         * highest bit of each register (of size r) set, and L_r (lsb_mask)
+         * be the mask with the lowest bit of each register set.
+         * We describe the algorithm on a single word.
+         *
+         * In the first phase we perform an unsigned strict register-by-register
+         * comparison of x and y, using the formula
+         *
+         * z = ((((y | H_r) - (x & !H_r)) | (y ^ x)) ^ (y | !x)) & H_r
+         *
+         * Then, we generate a register-by-register mask of all ones or
+         * all zeroes, depending on the result of the comparison, using the
+         * formula
+         *
+         * (((z >> r-1 | H_r) - L_r) | H_r) ^ z
+         *
+         * At that point, it is trivial to select from x and y the right values.
+         */
+
+        // We load y | H_r into the accumulator.
+        let mut acc = Vec::from_iter(
+            y.iter()
+                .zip(msb_mask.iter())
+                .map(|(&y_word, &msb_word)| y_word | msb_word),
+        );
+
+        // We load x & !H_r into mask as temporary storage.
+        let mut mask = Vec::from_iter(
+            x.iter()
+                .zip(msb_mask.iter())
+                .map(|(x_word, &msb_word)| x_word & !msb_word),
+        );
+
+        // We subtract x & !H_r, using mask as temporary storage
+        Self::subtract(&mut acc, &mask);
+
+        // We OR with x ^ y, XOR with (x | !y), and finally AND with H_r.
+        acc.iter_mut()
+            .zip(x.iter())
+            .zip(y.iter())
+            .zip(msb_mask.iter())
+            .for_each(|(((acc_word, x_word), &y_word), &msb_word)| {
+                *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
+            });
+
+        // We shift by register_size - 1 places and put the result into mask.
+        mask[0..num_words - 1]
+            .iter_mut()
+            .zip(acc[0..num_words - 1].iter())
+            .zip(acc[1..].iter())
+            .zip(msb_mask.iter())
+            .rev()
+            .for_each(|(((mask_word, &acc_word), &next_acc_word), &msb_word)| {
+                // W is always unsigned so the shift is always with a 0
+                *mask_word = (acc_word >> register_size_minus_1)
+                    | (next_acc_word << shift_register_size_minus_1)
+                    | msb_word
+            });
+        mask[num_words - 1] =
+            (acc[num_words - 1] >> register_size_minus_1) | msb_mask[num_words - 1];
+
+        // We subtract L_r from mask.
+        Self::subtract(&mut mask, lsb_mask);
+
+        // We OR with H_r and XOR with the accumulator.
+        mask.iter_mut()
+            .zip(msb_mask.iter())
+            .zip(acc.iter())
+            .for_each(|((mask_word, &msb_word), acc_word)| {
+                *mask_word = (*mask_word | msb_word) ^ acc_word
+            });
+
+        // Finally, we use mask to select the right bits from x and y and store the result.
+        x.iter_mut()
+            .zip(y.iter())
+            .zip(mask.iter())
+            .for_each(|((x_word, &y_word), mask_word)| *x_word ^= (*x_word ^ y_word) & mask_word);
+
+        if commit {
+            self.commit_changes();
+        }
     }
 
     /// Commit changes to this counter to the backend [`HyperLogLogCounterArray`].
