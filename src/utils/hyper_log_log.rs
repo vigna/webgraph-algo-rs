@@ -172,7 +172,8 @@ where
         let mut residual_mask = W::MAX;
         debug_assert_eq!(residual_mask.count_ones() as usize, W::BITS);
         if counter_size_in_bits % W::BITS != 0 {
-            let residual_bits = counter_size_in_bits - (counter_size_in_bits / W::BITS) * W::BITS;
+            let residual_bits =
+                ((counter_size_in_bits / W::BITS) + 1) * W::BITS - counter_size_in_bits;
             debug_assert!(residual_bits < W::BITS);
             residual_mask = residual_mask >> (W::BITS - residual_bits);
         }
