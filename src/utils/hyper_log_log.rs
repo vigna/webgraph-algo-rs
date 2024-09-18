@@ -49,6 +49,7 @@ pub struct HyperLogLogCounterArray<
     msb_mask: BitFieldVec<W>,
     /// A mask containing a one in the least significant bit of each register
     lsb_mask: BitFieldVec<W>,
+    residual_mask: W,
     _phantom_data: PhantomData<T>,
 }
 
@@ -168,6 +169,14 @@ where
             )
         };
 
+        let mut residual_mask = W::MAX;
+        debug_assert_eq!(residual_mask.count_ones() as usize, W::BITS);
+        if counter_size_in_bits % W::BITS != 0 {
+            let residual_bits = counter_size_in_bits - (counter_size_in_bits / W::BITS) * W::BITS;
+            debug_assert!(residual_bits < W::BITS);
+            residual_mask = residual_mask >> (W::BITS - residual_bits);
+        }
+
         Self {
             bits,
             num_counters,
@@ -182,6 +191,7 @@ where
             chunk_size_minus_1: chunk_size - 1,
             msb_mask: msb,
             lsb_mask: lsb,
+            residual_mask,
             _phantom_data: PhantomData,
         }
     }
@@ -407,8 +417,10 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         let mut y_vec;
 
         let num_words = self.counter_array.words_per_counter();
+        let num_words_minus_1 = num_words - 1;
         let register_size_minus_1 = self.counter_array.register_size - 1;
         let shift_register_size_minus_1 = register_size_minus_1.wrapping_neg() & 0b11111;
+        let last_word_mask = self.counter_array.residual_mask;
 
         let msb_mask = self.counter_array.msb_mask.as_slice();
         let lsb_mask = self.counter_array.lsb_mask.as_slice();
@@ -468,6 +480,13 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
             }
         };
 
+        // We split x, y and the masks so we treat the last word appropriately.
+        let (x_last, x_slice) = x.split_last_mut().unwrap_unchecked();
+        let x_last_masked = *x_last & last_word_mask;
+        let (&y_last, y_slice) = y.split_last().unwrap_unchecked();
+        let y_last_masked = y_last & last_word_mask;
+        let (&msb_last, msb_slice) = msb_mask.split_last().unwrap_unchecked();
+
         /* We work in two phases. Let H_r (msb_mask) be the mask with the
          * highest bit of each register (of size r) set, and L_r (lsb_mask)
          * be the mask with the lowest bit of each register set.
@@ -488,63 +507,85 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
          */
 
         // We load y | H_r into the accumulator.
-        let mut acc = Vec::from_iter(
-            y.iter()
-                .zip(msb_mask.iter())
+        let mut acc = Vec::with_capacity(num_words);
+        acc.extend(
+            y_slice
+                .iter()
+                .zip(msb_slice)
                 .map(|(&y_word, &msb_word)| y_word | msb_word),
         );
+        acc.push(y_last_masked | msb_last);
 
         // We load x & !H_r into mask as temporary storage.
-        let mut mask = Vec::from_iter(
-            x.iter()
-                .zip(msb_mask.iter())
+        let mut mask = Vec::with_capacity(num_words);
+        mask.extend(
+            x_slice
+                .iter()
+                .zip(msb_slice)
                 .map(|(x_word, &msb_word)| x_word & !msb_word),
         );
+        mask.push(x_last_masked & !msb_last);
 
         // We subtract x & !H_r, using mask as temporary storage
         Self::subtract(&mut acc, &mask);
 
         // We OR with y ^ x, XOR with (y | !x), and finally AND with H_r.
-        acc.iter_mut()
-            .zip(x.iter())
-            .zip(y.iter())
-            .zip(msb_mask.iter())
-            .for_each(|(((acc_word, x_word), &y_word), &msb_word)| {
-                *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
-            });
+        {
+            let (acc_last, acc_slice) = acc.split_last_mut().unwrap_unchecked();
+            acc_slice
+                .iter_mut()
+                .zip(x_slice.iter())
+                .zip(y_slice.iter())
+                .zip(msb_slice.iter())
+                .for_each(|(((acc_word, x_word), &y_word), &msb_word)| {
+                    *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
+                });
+            *acc_last = ((*acc_last | (y_last_masked ^ x_last_masked))
+                ^ (y_last_masked | !x_last_masked))
+                & msb_last;
+        }
 
         // We shift by register_size - 1 places and put the result into mask.
-        mask[0..num_words - 1]
-            .iter_mut()
-            .zip(acc[0..num_words - 1].iter())
-            .zip(acc[1..].iter())
-            .zip(msb_mask.iter())
-            .rev()
-            .for_each(|(((mask_word, &acc_word), &next_acc_word), &msb_word)| {
-                // W is always unsigned so the shift is always with a 0
-                *mask_word = (acc_word >> register_size_minus_1)
-                    | (next_acc_word << shift_register_size_minus_1)
-                    | msb_word
-            });
-        mask[num_words - 1] =
-            (acc[num_words - 1] >> register_size_minus_1) | msb_mask[num_words - 1];
+        {
+            let (mask_last, mask_slice) = mask.split_last_mut().unwrap_unchecked();
+            mask_slice
+                .iter_mut()
+                .zip(acc[0..num_words_minus_1].iter())
+                .zip(acc[1..].iter())
+                .zip(msb_slice.iter())
+                .rev()
+                .for_each(|(((mask_word, &acc_word), &next_acc_word), &msb_word)| {
+                    // W is always unsigned so the shift is always with a 0
+                    *mask_word = (acc_word >> register_size_minus_1)
+                        | (next_acc_word << shift_register_size_minus_1)
+                        | msb_word
+                });
+            *mask_last = (acc[num_words_minus_1] >> register_size_minus_1) | msb_last;
+        }
 
         // We subtract L_r from mask.
         Self::subtract(&mut mask, lsb_mask);
 
         // We OR with H_r and XOR with the accumulator.
-        mask.iter_mut()
-            .zip(msb_mask.iter())
-            .zip(acc.iter())
-            .for_each(|((mask_word, &msb_word), acc_word)| {
+        let (mask_last, mask_slice) = mask.split_last_mut().unwrap_unchecked();
+        let (&acc_last, acc_slice) = acc.split_last().unwrap_unchecked();
+        mask_slice
+            .iter_mut()
+            .zip(msb_slice.iter())
+            .zip(acc_slice.iter())
+            .for_each(|((mask_word, &msb_word), &acc_word)| {
                 *mask_word = (*mask_word | msb_word) ^ acc_word
             });
+        *mask_last = (*mask_last | msb_last) ^ acc_last;
 
         // Finally, we use mask to select the right bits from x and y and store the result.
-        x.iter_mut()
-            .zip(y.iter())
-            .zip(mask.iter())
+        x_slice
+            .iter_mut()
+            .zip(y_slice.iter())
+            .zip(mask_slice.iter())
             .for_each(|((x_word, &y_word), mask_word)| *x_word ^= (*x_word ^ y_word) & mask_word);
+        *x_last = (*x_last & !last_word_mask)
+            | (x_last_masked ^ ((x_last_masked ^ y_last_masked) & *mask_last));
 
         if commit {
             self.commit_changes();
