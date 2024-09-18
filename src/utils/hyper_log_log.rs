@@ -334,11 +334,11 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
             let signed_y_word = y_word.to_signed();
             if !borrow {
                 borrow = Self::borrow_check(signed_x_word, signed_y_word);
+            } else if signed_x_word != W::SignedInt::ZERO {
+                signed_x_word = signed_x_word.wrapping_sub(W::SignedInt::ONE);
+                borrow = Self::borrow_check(signed_x_word, signed_y_word);
             } else {
-                signed_x_word = signed_x_word.wrapping_sub(W::SignedInt::ZERO);
-                if signed_x_word != W::SignedInt::ZERO {
-                    borrow = Self::borrow_check(signed_x_word, signed_y_word);
-                }
+                signed_x_word = signed_x_word.wrapping_sub(W::SignedInt::ONE);
             }
             signed_x_word = signed_x_word.wrapping_sub(signed_y_word);
             *x_word = signed_x_word.to_unsigned();
