@@ -175,7 +175,7 @@ where
             let residual_bits =
                 ((counter_size_in_bits / W::BITS) + 1) * W::BITS - counter_size_in_bits;
             debug_assert!(residual_bits < W::BITS);
-            residual_mask = residual_mask >> (W::BITS - residual_bits);
+            residual_mask = residual_mask >> residual_bits;
         }
 
         Self {
