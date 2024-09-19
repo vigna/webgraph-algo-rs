@@ -153,13 +153,6 @@ fn test_merge_unsafe() {
 
                 let float_size = size as f64;
 
-                println!(
-                    "size: {}, count_0: {}, count_1: {}",
-                    size,
-                    counters.get_counter(0).estimate_count(),
-                    counters.get_counter(1).estimate_count()
-                );
-
                 if (float_size * 2.0 - counters.get_counter(0).estimate_count()).abs()
                     / (float_size * 2.0)
                     < 2.0 * rsd
