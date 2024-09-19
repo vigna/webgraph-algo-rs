@@ -420,7 +420,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         let num_words = self.counter_array.words_per_counter();
         let num_words_minus_1 = num_words - 1;
         let register_size_minus_1 = self.counter_array.register_size - 1;
-        let shift_register_size_minus_1 = register_size_minus_1.wrapping_neg() & 0b11111;
+        let shift_register_size_minus_1 = W::BITS - register_size_minus_1;
         let last_word_mask = self.counter_array.residual_mask;
 
         let msb_mask = self.counter_array.msb_mask.as_slice();
