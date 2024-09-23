@@ -321,6 +321,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     /// - `index`: the index of the counter to concretize.
     #[inline(always)]
     pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
+        assert!(index < self.num_counters);
         HyperLogLogCounter {
             counter_array: self,
             offset: index * self.num_registers,
