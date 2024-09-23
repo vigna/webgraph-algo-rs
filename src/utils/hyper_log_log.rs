@@ -744,7 +744,7 @@ where
 impl<
         'a,
         T: Hash,
-        W: Word + UpcastableFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
+        W: Word + TryFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
         H: BuildHasher,
     > Counter<T> for HyperLogLogCounter<'a, T, W, H>
 where
@@ -763,7 +763,17 @@ where
 
         let current_value = self.get_register(register);
         let candidate_value = r + 1;
-        let new_value = std::cmp::max(current_value, candidate_value.upcast());
+        let new_value = std::cmp::max(
+            current_value,
+            candidate_value.try_into().unwrap_or_else(|_| {
+                panic!(
+                    "Should be able to convert {} from hash result type {} to word type {}.",
+                    candidate_value,
+                    std::any::type_name::<HashResult>(),
+                    std::any::type_name::<W>()
+                )
+            }),
+        );
         if current_value != new_value {
             self.set_register(register, new_value);
         }
@@ -805,7 +815,7 @@ where
 impl<
         'a,
         T: Hash,
-        W: Word + UpcastableFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
+        W: Word + TryFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
         H: BuildHasher,
     > ApproximatedCounter<T> for HyperLogLogCounter<'a, T, W, H>
 where
