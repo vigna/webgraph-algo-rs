@@ -10,6 +10,45 @@ use sux::prelude::*;
 
 type HashResult = u64;
 
+/// Builder for [`HyperLogLogCounterArray`].
+///
+/// Create a builder with [`HyperLogLogCounterArrayBuilder::new`], edit parameters with
+/// its methods, then call [`HyperLogLogCounterArrayBuilder::build`] on it to create
+/// the [`HyperLogLogCounterArray`].
+///
+/// ```
+/// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
+/// # use crate::webgraph_algo::prelude::Counter;
+/// // Create a HyperLogLogCounterArray with 10 counters, each with
+/// // 16 registers and an upper bound on the number of elements equal to 30
+/// // and using a backend of usize.
+/// // Type of the counter is usually inferred if the counter is used,
+/// // otherwise it must be specified.
+/// let counter_array = HyperLogLogCounterArrayBuilder::new()
+///     .with_log_2_num_registers(4)
+///     .with_num_elements_upper_bound(30)
+///     .build(10);
+/// counter_array.get_counter(0).add(42);
+///
+/// assert_eq!(counter_array.into_vec().len(), 10);
+///
+/// let counter_array = HyperLogLogCounterArrayBuilder::new()
+///     .with_log_2_num_registers(4)
+///     .with_num_elements_upper_bound(30)
+///     .build::<usize>(10);
+///
+/// assert_eq!(counter_array.into_vec().len(), 10);
+///
+/// // The backend can also be changed to other unsigned types.
+/// // Note that the type must be able to hold the result of the hash function.
+/// let counter_array = HyperLogLogCounterArrayBuilder::new()
+///     .with_log_2_num_registers(4)
+///     .with_num_elements_upper_bound(30)
+///     .with_word_type::<u64>()
+///     .build::<usize>(10);
+///
+/// assert_eq!(counter_array.into_vec().len(), 10);
+/// ```
 pub struct HyperLogLogCounterArrayBuilder<H: BuildHasher, W: Word + IntoAtomic> {
     log_2_num_registers: usize,
     num_elements: usize,
@@ -40,6 +79,10 @@ impl<W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<BuildHasherDefault<Def
 impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> {
     /// Sets the counters desired relative standard deviation.
     ///
+    /// ## Note
+    /// This is a high-level alternative to [`Self::with_log_2_num_registers`].
+    /// Calling one after the other invalidates the work done by the first one.
+    ///
     /// # Arguments
     /// - `rsd`: the relative standard deviation to be attained.
     pub fn with_rsd(self, rsd: f64) -> Self {
@@ -50,7 +93,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     ///
     /// ## Note
     /// This is a low-level alternative to [`Self::with_rsd`].
-    /// It is advised to use [`Self::with_rsd`] unless you know what you are doing.
+    /// Calling one after the other invalidates the work done by the first one.
     ///
     /// # Arguments
     /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
@@ -97,6 +140,9 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     }
 
     /// Builds the counter array with the specified len, consuming the builder.
+    ///
+    /// The type of objects the counters keep track of is defined here by `T`, but
+    /// it is usually inferred by the compiler.
     ///
     /// # Arguments
     /// - `len`: the length of the counter array in counters.
