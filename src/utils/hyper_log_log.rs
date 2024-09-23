@@ -201,7 +201,7 @@ where
 
 impl HyperLogLogCounterArray<()> {
     /// Returns the logarithm of the number of registers per counter that are necessary to attain a
-    /// giver relative stadard deviation.
+    /// given relative stadard deviation.
     ///
     /// # Arguments
     /// - `rsd`: the relative standard deviation to be attained.
