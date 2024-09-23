@@ -10,6 +10,106 @@ use sux::prelude::*;
 
 type HashResult = u64;
 
+pub struct HyperLogLogCounterArrayBuilder<H: BuildHasher, W: Word + IntoAtomic> {
+    log_2_num_registers: usize,
+    num_elements: usize,
+    hasher_builder: H,
+    word: PhantomData<W>,
+}
+
+impl HyperLogLogCounterArrayBuilder<BuildHasherDefault<DefaultHasher>, usize> {
+    /// Creates a new builder for an [`HyperLogLogCounterArray`] with a default word type
+    /// of [`usize`].
+    pub fn new() -> Self {
+        Self::new_with_word_type()
+    }
+}
+
+impl<W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<BuildHasherDefault<DefaultHasher>, W> {
+    /// Creates a new builder for an [`HyperLogLogCounterArray`] with a word type of `W`.
+    pub fn new_with_word_type() -> Self {
+        Self {
+            log_2_num_registers: 4,
+            num_elements: 1,
+            hasher_builder: BuildHasherDefault::<DefaultHasher>::default(),
+            word: PhantomData,
+        }
+    }
+}
+
+impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> {
+    /// Sets the counters desired relative standard deviation.
+    ///
+    /// # Arguments
+    /// - `rsd`: the relative standard deviation to be attained.
+    pub fn with_rsd(self, rsd: f64) -> Self {
+        self.with_log_2_num_registers(HyperLogLogCounterArray::log_2_number_of_registers(rsd))
+    }
+
+    /// Sets the log₂*m* number of registers for the array of counters.
+    ///
+    /// ## Note
+    /// This is a low-level alternative to [`Self::with_rsd`].
+    /// It is advised to use [`Self::with_rsd`] unless you know what you are doing.
+    ///
+    /// # Arguments
+    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
+    pub fn with_log_2_num_registers(mut self, log_2_num_registers: usize) -> Self {
+        self.log_2_num_registers = log_2_num_registers;
+        self
+    }
+
+    /// Sets the upper bound on the number of distinct elements to be added to the
+    /// counters.
+    ///
+    /// # Arguments
+    /// - `num_elements`: an upper bound on the number of distinct elements.
+    pub fn with_num_elements_upper_bound(mut self, num_elements: usize) -> Self {
+        self.num_elements = num_elements;
+        self
+    }
+
+    /// Sets the hasher builder to be used by the counters.
+    ///
+    /// # Arguments
+    /// - `hasher_builder`: the builder of the hasher used by the array that implements
+    ///   [`BuildHasher`].
+    pub fn with_hasher_builder<H2: BuildHasher>(
+        self,
+        hasher_builder: H2,
+    ) -> HyperLogLogCounterArrayBuilder<H2, W> {
+        HyperLogLogCounterArrayBuilder {
+            log_2_num_registers: self.log_2_num_registers,
+            num_elements: self.num_elements,
+            hasher_builder,
+            word: PhantomData,
+        }
+    }
+
+    /// Sets the word type to be used by the counters.
+    pub fn with_word_type<W2: Word + IntoAtomic>(self) -> HyperLogLogCounterArrayBuilder<H, W2> {
+        HyperLogLogCounterArrayBuilder {
+            log_2_num_registers: self.log_2_num_registers,
+            num_elements: self.num_elements,
+            hasher_builder: self.hasher_builder,
+            word: PhantomData,
+        }
+    }
+
+    /// Builds the counter array with the specified len, consuming the builder.
+    ///
+    /// # Arguments
+    /// - `len`: the length of the counter array in counters.
+    pub fn build<T>(self, len: usize) -> HyperLogLogCounterArray<T, W, H> {
+        HyperLogLogCounterArray::build(
+            len,
+            self.num_elements,
+            self.log_2_num_registers,
+            self.hasher_builder,
+        )
+    }
+}
+
 /// An abstracted array of [`HyperLogLogCounter`].
 ///
 /// This array is created using an [`AtomicBitFieldVec`] as a backend in order to avoid
@@ -54,47 +154,7 @@ pub struct HyperLogLogCounterArray<
     _phantom_data: PhantomData<T>,
 }
 
-impl<T> HyperLogLogCounterArray<T> {
-    /// Creates an [`HyperLogLogCounterArray`] that tries to attain the specified
-    /// relative standard deviation.
-    ///
-    /// # Arguments
-    /// - `num_counters`: the number of counters to create in the array.
-    /// - `num_elements`: an upper bound on the number of distinct elements.
-    /// - `rsd`: the relative standard deviation to be attained.
-    pub fn with_rsd(num_counters: usize, num_elements: usize, rsd: f64) -> Self {
-        Self::with_log_2_num_registers(
-            num_counters,
-            num_elements,
-            HyperLogLogCounterArray::log_2_number_of_registers(rsd),
-        )
-    }
-
-    /// Creates an [`HyperLogLogCounterArray`] with the specified log₂*m*
-    /// number of registers.
-    ///
-    /// # Arguments
-    /// - `num_counters`: the number of counters to create in the array.
-    /// - `num_elements`: an upper bound on the number of distinct elements.
-    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
-    pub fn with_log_2_num_registers(
-        num_counters: usize,
-        num_elements: usize,
-        log_2_num_registers: usize,
-    ) -> Self {
-        Self::with_hasher_builder(
-            num_counters,
-            num_elements,
-            log_2_num_registers,
-            BuildHasherDefault::default(),
-        )
-    }
-}
-
-impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H>
-where
-    W::AtomicType: AtomicUnsignedInt,
-{
+impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     /// Creates an [`HyperLogLogCounterArray`] with the specified *log<sub>2</sub>m*
     /// number of registers and hasher builder.
     ///
@@ -104,7 +164,7 @@ where
     /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
     /// - `hasher_builder`: the builder of the hasher used by the array that implements
     ///   [`BuildHasher`].
-    pub fn with_hasher_builder(
+    fn build(
         num_counters: usize,
         num_elements: usize,
         log_2_num_registers: usize,
@@ -373,9 +433,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// is shown below is [undefined behavior]:
     /// ```no_run
     /// # use rayon::join;
-    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
+    /// let counters = HyperLogLogCounterArrayBuilder::new()
+    ///     .with_rsd(0.1)
+    ///     .with_num_elements_upper_bound(10)
+    ///     .build(2);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c2 = counters.get_counter(1);
     /// let c1_shared = counters.get_counter(0);
@@ -390,9 +453,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// ```
     /// # use rayon::join;
-    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
+    /// let counters = HyperLogLogCounterArrayBuilder::new()
+    ///     .with_rsd(0.1)
+    ///     .with_num_elements_upper_bound(10)
+    ///     .build(2);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c2 = counters.get_counter(1);
     /// let c1_shared = counters.get_counter(0);
@@ -606,9 +672,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// another instance) is [undefined behavior].
     /// ```no_run
     /// # use rayon::join;
-    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
+    /// let counters = HyperLogLogCounterArrayBuilder::new()
+    ///     .with_rsd(0.1)
+    ///     .with_num_elements_upper_bound(10)
+    ///     .build(2);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c1_copy = counters.get_counter(0);
     ///
@@ -657,9 +726,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// another instance) is [undefined behavior].
     /// ```no_run
     /// # use rayon::join;
-    /// # use webgraph_algo::utils::HyperLogLogCounterArray;
+    /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
-    /// let counters = HyperLogLogCounterArray::with_rsd(2, 10, 0.1);
+    /// let counters = HyperLogLogCounterArrayBuilder::new()
+    ///     .with_rsd(0.1)
+    ///     .with_num_elements_upper_bound(10)
+    ///     .build(2);
     /// let mut c1 = counters.get_counter(0);
     /// let mut c1_copy = counters.get_counter(0);
     ///
