@@ -15,14 +15,14 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
         return None;
     }
     let mut min = vec[0];
-    let mut argmin = Some(0);
+    let mut argmin = 0;
     for (i, &elem) in vec.iter().enumerate().skip(1) {
         if elem < min {
-            argmin = Some(i);
+            argmin = i;
             min = elem;
         }
     }
-    argmin
+    Some(argmin)
 }
 
 /// Returns the index of the minimum value approved by `filter` in the slice `vec` if found, [`None`] otherwise.

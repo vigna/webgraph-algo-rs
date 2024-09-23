@@ -15,14 +15,14 @@ pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
         return None;
     }
     let mut max = vec[0];
-    let mut argmax = Some(0);
+    let mut argmax = 0;
     for (i, &elem) in vec.iter().enumerate().skip(1) {
         if elem > max {
-            argmax = Some(i);
+            argmax = i;
             max = elem;
         }
     }
-    argmax
+    Some(argmax)
 }
 
 /// Returns the index of the maximum value approved by `filter` in the slice `vec` if found, [`None`] otherwise.
