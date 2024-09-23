@@ -110,6 +110,14 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     }
 }
 
+impl<W: Word + IntoAtomic> Default
+    for HyperLogLogCounterArrayBuilder<BuildHasherDefault<DefaultHasher>, W>
+{
+    fn default() -> Self {
+        Self::new_with_word_type()
+    }
+}
+
 /// An abstracted array of [`HyperLogLogCounter`].
 ///
 /// This array is created using an [`AtomicBitFieldVec`] as a backend in order to avoid
