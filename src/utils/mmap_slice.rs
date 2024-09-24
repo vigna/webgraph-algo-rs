@@ -192,10 +192,7 @@ impl<T: Clone> MmapSlice<T> {
                 .with_context(|| {
                     format!("Cannot create mmap of len {} in temporary directory", len)
                 })?;
-                let mut_ref = mmap_slice.as_mut();
-                for v in mut_ref {
-                    *v = value.clone();
-                }
+                mmap_slice.fill(value);
                 Ok(mmap_slice)
             }
             TempMmapOptions::CustomDir(dir, flags) => {
@@ -213,10 +210,7 @@ impl<T: Clone> MmapSlice<T> {
                         dir.display()
                     )
                 })?;
-                let mut_ref = mmap_slice.as_mut();
-                for v in mut_ref {
-                    *v = value.clone();
-                }
+                mmap_slice.fill(value);
                 Ok(mmap_slice)
             }
         }
