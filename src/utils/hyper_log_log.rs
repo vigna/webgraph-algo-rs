@@ -408,7 +408,9 @@ pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     /// The offset of the first register of the counter.
     offset: usize,
     /// The cached counter bits. Remeinder bits are to be considered noise and not used.
-    cached_bits: Option<BitFieldVec<W>>,
+    /// The boolean value is [`true`] if the cache has been modified and needs to be
+    /// committed to the backend.
+    cached_bits: Option<(BitFieldVec<W>, bool)>,
 }
 
 impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
@@ -430,6 +432,16 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     pub fn is_last_of_chunk(&self) -> bool {
         self.counter_index() % self.counter_array.chunk_size
             == self.counter_array.chunk_size_minus_1
+    }
+
+    /// Returns whether the counter's cache has been modified and should be committed to the backend.
+    #[inline(always)]
+    pub fn is_changed(&self) -> bool {
+        if let Some((_, changed)) = self.cached_bits {
+            changed
+        } else {
+            false
+        }
     }
 
     /// Performs a multiple precision subtraction, leaving the result in the first operand.
@@ -479,7 +491,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// Calling this method while reading (ie. with [`Self::cache`] on the same counter from
     /// another instance) or writing (ie. with [`Self::commit_changes`]) from the same memory
-    /// zone in the backend [`HyperLogLogCounterArray`] is [undefined behavior].
+    /// zones in the backend [`HyperLogLogCounterArray`] is [undefined behavior].
     ///
     /// Calling this method on the same counters at the same time in
     /// different directions without first calling [`Self::cache`] as
@@ -546,7 +558,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         let msb_mask = self.counter_array.msb_mask.as_slice();
         let lsb_mask = self.counter_array.lsb_mask.as_slice();
         let x = match &mut self.cached_bits {
-            Some(bits) => bits.as_mut_slice(),
+            Some((bits, _)) => bits.as_mut_slice(),
             None => {
                 let bits_offset = self.offset * self.counter_array.register_size;
                 // Counters should be byte-aligned
@@ -567,12 +579,13 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                     self.cached_bits
                         .as_mut()
                         .expect("Counter should be cached")
+                        .0
                         .as_mut_slice()
                 }
             }
         };
         let y = match &other.cached_bits {
-            Some(bits) => bits.as_slice(),
+            Some((bits, _)) => bits.as_slice(),
             None => {
                 let bits_offset = other.offset * self.counter_array.register_size;
                 // Counters should be byte-aligned
@@ -700,23 +713,43 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         *mask_last = (*mask_last | msb_last) ^ acc_last;
 
         // Finally, we use mask to select the right bits from x and y and store the result.
+        let mut changed = false;
         x_slice
             .iter_mut()
             .zip(y_slice.iter())
             .zip(mask_slice.iter())
-            .for_each(|((x_word, &y_word), mask_word)| *x_word ^= (*x_word ^ y_word) & mask_word);
-        *x_last = (*x_last & !last_word_mask)
+            .for_each(|((x_word, &y_word), mask_word)| {
+                let new_x_word = *x_word ^ ((*x_word ^ y_word) & mask_word);
+                if new_x_word != *x_word {
+                    changed = true;
+                    *x_word = new_x_word;
+                }
+            });
+        let new_x_last = (*x_last & !last_word_mask)
             | (x_last_masked ^ ((x_last_masked ^ y_last_masked) & *mask_last));
+        if new_x_last != *x_last {
+            changed = true;
+            *x_last = new_x_last;
+        }
+
+        if changed {
+            if let Some((_, cache_changed)) = self.cached_bits.as_mut() {
+                *cache_changed = changed;
+            }
+        }
 
         if commit {
-            self.commit_changes();
+            self.commit_changes(false);
         }
     }
 
-    /// Commit changes to this counter to the backend [`HyperLogLogCounterArray`].
+    /// Commits changes to this counter to the backend [`HyperLogLogCounterArray`].
     ///
     /// Calling this method on a counter whose registers aren't cached with [`Self::cache`]
-    /// will result in a panic.
+    /// or whose local cache isn't changed will result in a panic.
+    ///
+    /// # Arguments
+    /// - `keep_cached`: whether to keep the counter cached or to return to a non-cached one.
     ///
     /// # Safety
     ///
@@ -738,16 +771,16 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// c1.add(0);
     ///
     /// // This is undefined behavior
-    /// join(|| unsafe {c1.commit_changes()}, || unsafe {c1_copy.cache()});
+    /// join(|| unsafe {c1.commit_changes(false)}, || unsafe {c1_copy.cache()});
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn commit_changes(&mut self) {
-        let cached = self
-            .cached_bits
-            .as_ref()
-            .expect("counter should be cached first")
-            .as_slice();
+    pub unsafe fn commit_changes(&mut self, keep_cached: bool) {
+        assert!(self.cached_bits.is_some());
+        assert!(self.is_changed());
+
+        let cached = self.cached_bits.as_ref().unwrap().0.as_slice();
+
         let bits_to_write = self.counter_array.num_registers * self.counter_array.register_size;
         debug_assert!((W::BITS * cached.len()) - bits_to_write < W::BITS);
         debug_assert!(bits_to_write % 8 == 0);
@@ -763,7 +796,30 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
 
         std::ptr::copy_nonoverlapping(cached.as_ptr() as *const u8, pointer, bytes_to_write);
 
-        self.cached_bits = None;
+        if keep_cached {
+            if let Some((_, changed)) = self.cached_bits.as_mut() {
+                *changed = false;
+            }
+        } else {
+            self.cached_bits = None;
+        }
+    }
+
+    /// Commits changes to this counter to the backend [`HyperLogLogCounterArray`].
+    ///
+    /// This is a shorthand for `self.commit_changes(true)`.
+    ///
+    /// Calling this method on a counter whose registers aren't cached with [`Self::cache`]
+    /// or whose local cache isn't changed will result in a panic.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method while reading from the same memory zone in the backend
+    /// [`HyperLogLogCounterArray`] (ie. with [`Self::cache`] on the same counter from
+    /// another instance) is [undefined behavior].
+    #[inline(always)]
+    pub unsafe fn sync_to_backend(&mut self) {
+        self.commit_changes(true);
     }
 
     /// Cache the counter registers.
@@ -792,7 +848,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// c1.add(0);
     ///
     /// // This is undefined behavior
-    /// join(|| unsafe {c1.commit_changes()}, || unsafe {c1_copy.cache()});
+    /// join(|| unsafe {c1.commit_changes(false)}, || unsafe {c1_copy.cache()});
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
@@ -813,10 +869,13 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         std::ptr::copy_nonoverlapping(pointer, v.as_mut_ptr() as *mut u8, num_bytes);
         v.set_len(num_words);
 
-        self.cached_bits = Some(BitFieldVec::from_raw_parts(
-            v,
-            self.counter_array.register_size,
-            self.counter_array.num_registers,
+        self.cached_bits = Some((
+            BitFieldVec::from_raw_parts(
+                v,
+                self.counter_array.register_size,
+                self.counter_array.num_registers,
+            ),
+            false,
         ));
     }
 }
@@ -837,7 +896,13 @@ where
     #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
         match &mut self.cached_bits {
-            Some(bits) => bits.set(index, new_value),
+            Some((bits, changed)) => {
+                let old_value = bits.get(index);
+                if old_value != new_value {
+                    *changed = true;
+                    bits.set(index, new_value)
+                }
+            }
             None => self.counter_array.bits.set_atomic(
                 self.offset + index,
                 new_value,
@@ -857,7 +922,7 @@ where
     #[inline(always)]
     fn get_register(&self, index: usize) -> W {
         match &self.cached_bits {
-            Some(bits) => bits.get(index),
+            Some((bits, _)) => bits.get(index),
             None => self
                 .counter_array
                 .bits
