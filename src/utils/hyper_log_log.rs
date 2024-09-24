@@ -431,9 +431,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         self.counter_index() % self.counter_array.chunk_size
             == self.counter_array.chunk_size_minus_1
     }
-}
 
-impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
     /// Performs a multiple precision subtraction, leaving the result in the first operand.
     /// The operands MUST have the same length.
     ///
