@@ -4,9 +4,14 @@ use webgraph_algo::{
 };
 use xxhash_rust::xxh3::Xxh3Builder;
 
+/// The number of trials to run to ensure a bad seed does not
+/// fail the test
+const NUM_TRIALS: u64 = 100;
+/// The requires number of successes required for the test to pass
+const REQUIRED_TRIALS: u64 = 90;
+
 #[test]
 fn test_single() {
-    let num_trials = 100;
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [6, 8, 12];
 
@@ -15,7 +20,7 @@ fn test_single() {
             let rsd = HyperLogLogCounterArray::relative_standard_deviation(log2m);
             let mut correct = 0;
 
-            for trial in 0..num_trials {
+            for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
@@ -37,11 +42,12 @@ fn test_single() {
             }
 
             assert!(
-                correct >= 90,
-                "assertion failed for size {} and log2m {}: correct = {} < 90",
+                correct >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct = {} < {}",
                 size,
                 log2m,
-                correct
+                correct,
+                REQUIRED_TRIALS
             );
         }
     }
@@ -49,7 +55,6 @@ fn test_single() {
 
 #[test]
 fn test_double() {
-    let num_trials = 100;
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -59,7 +64,7 @@ fn test_double() {
             let mut correct_0 = 0;
             let mut correct_1 = 0;
 
-            for trial in 0..num_trials {
+            for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
@@ -88,18 +93,20 @@ fn test_double() {
             }
 
             assert!(
-                correct_0 >= 90,
-                "assertion failed for size {} and log2m {}: correct_0 = {} < 90",
+                correct_0 >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct_0 = {} < {}",
                 size,
                 log2m,
-                correct_0
+                correct_0,
+                REQUIRED_TRIALS
             );
             assert!(
-                correct_1 >= 90,
-                "assertion failed for size {} and log2m {}: correct_1 = {} < 90",
+                correct_1 >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct_1 = {} < {}",
                 size,
                 log2m,
-                correct_1
+                correct_1,
+                REQUIRED_TRIALS
             );
         }
     }
@@ -107,7 +114,6 @@ fn test_double() {
 
 #[test]
 fn test_merge_safe() {
-    let num_trials = 100;
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -117,7 +123,7 @@ fn test_merge_safe() {
             let mut correct_0 = 0;
             let mut correct_1 = 0;
 
-            for trial in 0..num_trials {
+            for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
@@ -151,18 +157,20 @@ fn test_merge_safe() {
             }
 
             assert!(
-                correct_0 >= 90,
-                "assertion failed for size {} and log2m {}: correct_0 = {} < 90",
+                correct_0 >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct_0 = {} < {}",
                 size,
                 log2m,
-                correct_0
+                correct_0,
+                REQUIRED_TRIALS
             );
             assert!(
-                correct_1 >= 90,
-                "assertion failed for size {} and log2m {}: correct_1 = {} < 90",
+                correct_1 >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct_1 = {} < {}",
                 size,
                 log2m,
-                correct_1
+                correct_1,
+                REQUIRED_TRIALS
             );
         }
     }
@@ -170,7 +178,6 @@ fn test_merge_safe() {
 
 #[test]
 fn test_merge_unsafe() {
-    let num_trials = 100;
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4];
 
@@ -180,7 +187,7 @@ fn test_merge_unsafe() {
             let mut correct_0 = 0;
             let mut correct_1 = 0;
 
-            for trial in 0..num_trials {
+            for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
@@ -218,18 +225,20 @@ fn test_merge_unsafe() {
             }
 
             assert!(
-                correct_0 >= 90,
-                "assertion failed for size {} and log2m {}: correct_0 = {} < 90",
+                correct_0 >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct_0 = {} < {}",
                 size,
                 log2m,
-                correct_0
+                correct_0,
+                REQUIRED_TRIALS
             );
             assert!(
-                correct_1 >= 90,
-                "assertion failed for size {} and log2m {}: correct_1 = {} < 90",
+                correct_1 >= REQUIRED_TRIALS,
+                "assertion failed for size {} and log2m {}: correct_1 = {} < {}",
                 size,
                 log2m,
-                correct_1
+                correct_1,
+                REQUIRED_TRIALS
             );
         }
     }
