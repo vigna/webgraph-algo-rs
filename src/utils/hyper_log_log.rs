@@ -243,8 +243,9 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
         };
         let num_registers_minus_1 = (number_of_registers - 1).try_into().unwrap_or_else(|_| {
             panic!(
-                "should be able to convert {} from usize to the hash result type",
-                number_of_registers - 1
+                "should be able to convert {} from usize to the hash result type {}",
+                number_of_registers - 1,
+                std::any::type_name::<HashResult>()
             )
         });
 
