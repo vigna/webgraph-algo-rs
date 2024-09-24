@@ -22,6 +22,7 @@ parallel_frontier = {git = "https://github.com/zommiommy/parallel_frontier"}
 criterion = { version = "0.5.1", features = ["html_reports"] }
 iai = "0.1"
 rand = "0.8.5"
+xxhash-rust = "0.8.12"
 
 [[bench]]
 name = "criterion_benchmark"
