@@ -893,6 +893,77 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
             false,
         ));
     }
+
+    /// Sets the content of the counter to the content of the passed counter.
+    ///
+    /// # Arguments
+    /// - `counter`: the counter from which to copy the contents.
+    ///
+    /// # Safety
+    ///
+    /// Calling this method while reading from the same memory zone in the backend
+    /// [`HyperLogLogCounterArray`] (ie. with [`Self::cache`] on the same counter from
+    /// another instance) is [undefined behavior].
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    pub unsafe fn set_to(&mut self, counter: &Self) {
+        debug_assert_eq!(
+            self.counter_array.register_size,
+            counter.counter_array.register_size
+        );
+        debug_assert_eq!(
+            self.counter_array.num_registers,
+            counter.counter_array.num_registers
+        );
+        debug_assert_eq!(
+            self.counter_array.words_per_counter(),
+            counter.counter_array.words_per_counter()
+        );
+        debug_assert_eq!(
+            self.counter_array.residual_mask,
+            counter.counter_array.residual_mask
+        );
+
+        let bits_to_copy = self.counter_array.num_registers * self.counter_array.register_size;
+        debug_assert!(bits_to_copy % 8 == 0);
+        let bytes_to_copy = bits_to_copy / 8;
+
+        let bits_offset = counter.offset * self.counter_array.register_size;
+        // Counters should be byte-aligned
+        debug_assert!(bits_offset % 8 == 0);
+        let byte_offset = bits_offset / 8;
+
+        let counter_pointer =
+            (counter.counter_array.bits.as_slice().as_ptr() as *const u8).byte_add(byte_offset);
+
+        match &mut self.cached_bits {
+            Some((bits, changed)) => {
+                let cache_pointer = bits.as_mut_slice().as_mut_ptr() as *mut u8;
+                std::ptr::copy_nonoverlapping(counter_pointer, cache_pointer, bytes_to_copy);
+
+                let backend_pointer =
+                    (self.counter_array.bits.as_slice().as_ptr() as *mut u8).byte_add(byte_offset);
+                let backend_slice = std::slice::from_raw_parts(backend_pointer, bytes_to_copy);
+                let cache_slice = std::slice::from_raw_parts(
+                    bits.as_slice().as_ptr() as *const u8,
+                    bytes_to_copy,
+                );
+
+                *changed = backend_slice == cache_slice;
+            }
+            None => {
+                let bits_offset = self.offset * self.counter_array.register_size;
+                // Counters should be byte-aligned
+                debug_assert!(bits_offset % 8 == 0);
+                let byte_offset = bits_offset / 8;
+
+                let backend_pointer =
+                    (self.counter_array.bits.as_slice().as_ptr() as *mut u8).byte_add(byte_offset);
+
+                std::ptr::copy_nonoverlapping(counter_pointer, backend_pointer, bytes_to_copy);
+            }
+        }
+    }
 }
 
 impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H>
