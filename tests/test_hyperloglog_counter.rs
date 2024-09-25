@@ -179,7 +179,7 @@ fn test_merge_safe() {
 #[test]
 fn test_merge_unsafe() {
     let sizes = [1, 10, 100, 1000, 100_000];
-    let log2ms = [4];
+    let log2ms = [4, 6, 8, 12];
 
     for size in sizes {
         for log2m in log2ms {
