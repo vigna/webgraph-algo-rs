@@ -4,7 +4,15 @@ pub mod dfv;
 
 pub mod diameter;
 
-pub mod strongly_connected_components;
+mod strongly_connected_components;
+
+pub mod hyperball;
+
+/// Strongly connected components
+pub mod scc {
+    use super::strongly_connected_components;
+    pub use strongly_connected_components::*;
+}
 
 pub mod traits {
     use super::bfv;

@@ -1,9 +1,8 @@
 use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
-use webgraph_algo::algo::strongly_connected_components::*;
+use webgraph_algo::algo::scc::*;
 use webgraph_algo::prelude::*;
-use webgraph_algo::utils::TempMmapOptions;
 
 macro_rules! test_scc_algo {
     ($scc:ident, $name:ident) => {
