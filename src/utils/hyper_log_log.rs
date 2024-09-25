@@ -184,7 +184,7 @@ pub struct HyperLogLogCounterArray<
     num_registers: usize,
     /// The number of registers per counter minus 1
     num_registers_minus_1: HashResult,
-    /// the *log<sub>2</sub>* of the number of registers per counter
+    /// The *log<sub>2</sub>* of the number of registers per counter
     log_2_num_registers: usize,
     /// The size in bits of each register
     register_size: usize,
@@ -199,6 +199,8 @@ pub struct HyperLogLogCounterArray<
     chunk_size: usize,
     /// The number of counters needed for a chunk to be aliged with `W` minus 1
     chunk_size_minus_1: usize,
+    /// The *log<sub>2</sub>* of the chunk size
+    log_2_chunk_size: usize,
     /// A mask containing a one in the most significant bit of each register
     msb_mask: BitFieldVec<W>,
     /// A mask containing a one in the least significant bit of each register
@@ -254,6 +256,15 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
         while (counter_size_in_bits * chunk_size) % W::BITS != 0 {
             chunk_size += 1;
         }
+        // Chuk size should always be a power of 2
+        debug_assert_eq!(chunk_size.count_ones(), 1);
+        let log_2_chunk_size = chunk_size.ilog2().try_into().unwrap_or_else(|_| {
+            panic!(
+                "should be able to convert {} from u32 to usize",
+                chunk_size.ilog2()
+            )
+        });
+        debug_assert_eq!(1_usize << log_2_chunk_size, chunk_size);
 
         let mut msb = BitFieldVec::new(register_size, number_of_registers);
         let mut lsb = BitFieldVec::new(register_size, number_of_registers);
@@ -306,6 +317,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
             hasher_builder,
             chunk_size,
             chunk_size_minus_1: chunk_size - 1,
+            log_2_chunk_size,
             msb_mask: msb,
             lsb_mask: lsb,
             residual_mask,
@@ -418,13 +430,15 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// Returns the index of the current counter
     #[inline(always)]
     pub fn counter_index(&self) -> usize {
-        self.offset / self.counter_array.num_registers
+        // self.offset / self.counter_array.num_registers
+        self.offset >> self.counter_array.log_2_num_registers
     }
 
     /// Returns the chunk this counter belongs to.
     #[inline(always)]
     pub fn chunk_index(&self) -> usize {
-        self.counter_index() / self.counter_array.chunk_size
+        // self.counter_index() / self.counter_array.chunk_size
+        self.counter_index() >> self.counter_array.log_2_chunk_size
     }
 
     /// Returns whether the counter is the last of a chunk and needs to be updated without overlapping
