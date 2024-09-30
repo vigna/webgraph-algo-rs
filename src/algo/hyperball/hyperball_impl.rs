@@ -121,7 +121,10 @@ where
             }
 
             if let Some(t) = threshold {
-                todo!("relative increment check");
+                if i > 3 && self.relative_increment < (1.0 + t) {
+                    pl.info(format_args!("Terminating approximation after {} iteration(s) by relative bound on the neighbourhood function", i));
+                    break;
+                }
             }
         }
 
