@@ -505,9 +505,10 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         (x < y) ^ (x < N::ZERO) ^ (y < N::ZERO)
     }
 
-    /// Merges `other` into `self` inplace using words instead of registers.
+    /// Merges `other` into `self` inplace using words instead of registers and returns
+    /// whether `self` was modified.
     ///
-    /// `other` is not modified but `self` is.
+    /// `other` is not modified but `self` can be.
     ///
     /// # Arguments
     /// - `other`: the counter to merge into `self`.
@@ -576,7 +577,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn merge_unsafe(&mut self, other: &Self) {
+    pub unsafe fn merge_unsafe(&mut self, other: &Self) -> bool {
         // Whether to call Self::commit_changes at the end because
         // the counter was cached here.
         // This is sound as the mut ref prevents other references from
@@ -777,6 +778,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         } else if commit {
             self.cached_bits = None;
         }
+
+        changed
     }
 
     /// Commits changes to this counter to the backend [`HyperLogLogCounterArray`].
