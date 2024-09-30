@@ -32,7 +32,7 @@ pub struct HyperBall<
     /// The new status of Hyperball after an iteration
     result_bits: HyperLogLogCounterArray<G1::Label, W, H>,
     /// The current iteration
-    iteration: Option<usize>,
+    iteration: isize,
     /// `true` if the computation is over
     completed: bool,
     /// `true` if we started a systolic computation
@@ -217,7 +217,7 @@ where
             });
         }
 
-        self.iteration = None;
+        self.iteration = -1;
         self.completed = false;
         self.systolic = false;
         self.local = false;
