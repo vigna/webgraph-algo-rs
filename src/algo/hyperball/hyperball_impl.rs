@@ -1,4 +1,5 @@
 use crate::{
+    algo::hyperball::kahan_sum::KahanSummation,
     prelude::*,
     utils::{HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder},
 };
@@ -9,7 +10,7 @@ use rand::random;
 use rayon::prelude::*;
 use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
-    sync::atomic::Ordering,
+    sync::{atomic::Ordering, Mutex},
 };
 use sux::{
     bits::AtomicBitVec,
@@ -48,19 +49,19 @@ pub struct HyperBall<
     /// `true` if we are preparing a local computation (systolic is `true` and less than 1% nodes were modified)
     pre_local: bool,
     /// The sum of the distances from every give node, if requested
-    sum_of_distances: Option<Vec<f64>>,
+    sum_of_distances: Option<Mutex<Vec<f64>>>,
     /// The sum of inverse distances from each given node, if requested
-    sum_of_inverse_distances: Option<Vec<f64>>,
+    sum_of_inverse_distances: Option<Mutex<Vec<f64>>>,
     /// A number of discounted centralities to be computed, possibly none
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync>>,
     /// The overall discount centrality for every [`Self::discount_functions`]
-    discounted_centralities: Vec<Vec<f64>>,
+    discounted_centralities: Vec<Mutex<Vec<f64>>>,
     /// The neighbourhood fuction if requested
     neighbourhood_function: Option<Vec<f64>>,
     /// The value computed by the last iteration
     last: f64,
     /// The value computed by the current iteration
-    current: f64,
+    current: Mutex<f64>,
     /// `modified_counter[i]` is `true` if `bits.get_counter(i)` has been modified
     modified_counter: AtomicBitVec,
     /// `modified_result_counter[i]` is `true` if `result_bits.get_counter(i)` has been modified
@@ -68,7 +69,7 @@ pub struct HyperBall<
     /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned
     local_checklist: Vec<usize>,
     /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration
-    local_next_must_be_checked: Vec<usize>,
+    local_next_must_be_checked: Mutex<Vec<usize>>,
     /// Used in systolic iterations to keep track of nodes to check
     must_be_checked: AtomicBitVec,
     /// Used in systolic iterations to keep track of nodes to check in the next iteration
@@ -240,7 +241,7 @@ where
 
         // Non-systolic computations add up the value of all counter.
         // Systolic computations modify the last value by compensating for each modified counter.
-        self.current = if self.systolic { self.last } else { 0.0 };
+        *self.current.lock().unwrap() = if self.systolic { self.last } else { 0.0 };
 
         // If we completed the last iteration in pre-local mode, we MUST run in local mode.
         self.local = self.pre_local;
@@ -272,13 +273,11 @@ where
             pl.info(format_args!("Preparing local checklist"));
             // In case of a local computation, we convert the set of must-be-checked for the
             // next iteration into a check list.
-            self.local_next_must_be_checked.par_sort_unstable();
-            self.local_next_must_be_checked.dedup();
+            let mut local_next_must_be_checked = self.local_next_must_be_checked.lock().unwrap();
+            local_next_must_be_checked.par_sort_unstable();
+            local_next_must_be_checked.dedup();
             self.local_checklist.clear();
-            std::mem::swap(
-                &mut self.local_checklist,
-                &mut self.local_next_must_be_checked,
-            );
+            std::mem::swap(&mut self.local_checklist, &mut local_next_must_be_checked);
         } else if self.systolic {
             pl.info(format_args!("Preparing systolic flags"));
             // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
@@ -297,7 +296,8 @@ where
             std::mem::swap(&mut self.must_be_checked, &mut self.next_must_be_checked);
         }
 
-        self.last = self.current;
+        let mut current_mut = self.current.lock().unwrap();
+        self.last = *current_mut;
         // We enforce monotonicity. Non-monotonicity can only be caused
         // by approximation errors.
         if let Some(n_function) = &mut self.neighbourhood_function {
@@ -305,26 +305,26 @@ where
                 .as_slice()
                 .last()
                 .expect("Should always have at least 1 element");
-            if self.current < last_output {
-                self.current = last_output;
+            if *current_mut < last_output {
+                *current_mut = last_output;
             }
-            self.relative_increment = self.current / last_output;
+            self.relative_increment = *current_mut / last_output;
 
             pl.info(format_args!(
                 "Pairs: {} ({}%)",
-                self.current,
-                (self.current * 100.0) / (num_nodes * num_nodes) as f64
+                *current_mut,
+                (*current_mut * 100.0) / (num_nodes * num_nodes) as f64
             ));
             pl.info(format_args!(
                 "Absolute increment: {}",
-                self.current - last_output
+                *current_mut - last_output
             ));
             pl.info(format_args!(
                 "Relative increment: {}",
                 self.relative_increment
             ));
 
-            n_function.push(self.current);
+            n_function.push(*current_mut);
         }
 
         self.iteration += 1;
@@ -341,14 +341,13 @@ where
     fn parallel_task(&self, broadcast_context: rayon::BroadcastContext) {
         let do_centrality = self.sum_of_distances.is_some()
             || self.sum_of_inverse_distances.is_some()
-            || self.discount_functions.len() != 0;
+            || !self.discount_functions.is_empty();
+        let mut neighbourhood_function_delta = KahanSummation::new();
 
         loop {
             // Get work
             let start = 0;
             let end = 0;
-
-            todo!();
 
             // Do work
             for i in start..end {
@@ -357,9 +356,124 @@ where
                 } else {
                     i
                 };
-                todo!()
+
+                // The three cases in which we enumerate successors:
+                // 1) A non-systolic computation (we don't know anything, so we enumerate).
+                // 2) A systolic, local computation (the node is by definition to be checked, as it comes from the local check list).
+                // 3) A systolic, non-local computation in which the node should be checked.
+                if !self.systolic || self.local || self.must_be_checked[node] {
+                    let mut counter = self.get_current_counter(node);
+                    unsafe {
+                        counter.cache();
+                    }
+                    for succ in self.graph.successors(node) {
+                        if succ != node && self.modified_counter[succ] {
+                            unsafe {
+                                counter.merge_unsafe(&self.get_current_counter(succ));
+                            }
+                        }
+                    }
+
+                    let mut post = f64::NAN;
+                    let modified_counter = counter.is_changed();
+
+                    // We need the counter value only if the iteration is standard (as we're going to
+                    // compute the neighbourhood function cumulating actual values, and not deltas) or
+                    // if the counter was actually modified (as we're going to cumulate the neighbourhood
+                    // function delta, or at least some centrality).
+                    if !self.systolic || modified_counter {
+                        post = counter.estimate_count();
+                    }
+                    if !self.systolic {
+                        neighbourhood_function_delta.add(post);
+                    }
+
+                    if modified_counter && (self.systolic || do_centrality) {
+                        let pre = self.get_current_counter(node).estimate_count();
+                        if self.systolic {
+                            neighbourhood_function_delta.add(-pre);
+                            neighbourhood_function_delta.add(post);
+                        }
+
+                        if do_centrality {
+                            let delta = post - pre;
+                            // Note that this code is executed only for distances > 0
+                            if delta > 0.0 {
+                                if let Some(distances) = &self.sum_of_distances {
+                                    let new_value = delta * (self.iteration + 1) as f64;
+                                    distances.lock().unwrap()[node] += new_value;
+                                }
+                                if let Some(distances) = &self.sum_of_inverse_distances {
+                                    let new_value = delta / (self.iteration + 1) as f64;
+                                    distances.lock().unwrap()[node] += new_value;
+                                }
+                                for (func, distances) in self
+                                    .discount_functions
+                                    .iter()
+                                    .zip(self.discounted_centralities.iter())
+                                {
+                                    let new_value = delta * func(self.iteration + 1);
+                                    distances.lock().unwrap()[node] += new_value;
+                                }
+                            }
+                        }
+                    }
+
+                    if modified_counter {
+                        // We keep track of modified counters in the result. Note that we must
+                        // add the current node to the must-be-checked set for the next
+                        // local iteration if it is modified, as it might need a copy to
+                        // the result array at the next iteration.
+                        if self.pre_local {
+                            self.local_next_must_be_checked.lock().unwrap().push(node);
+                        }
+                        self.modified_result_counter
+                            .set(node, true, Ordering::Relaxed);
+
+                        if self.systolic {
+                            debug_assert!(self.rev_graph.is_some());
+                            // In systolic computations we must keep track of which counters must
+                            // be checked on the next iteration. If we are preparing a local computation,
+                            // we do this explicitly, by adding the predecessors of the current
+                            // node to a set. Otherwise, we do this implicitly, by setting the
+                            // corresponding entry in an array.
+                            let rev_graph = self.rev_graph.expect("Should have transpose");
+                            if self.pre_local {
+                                let mut local_next_must_be_checked =
+                                    self.local_next_must_be_checked.lock().unwrap();
+                                for succ in rev_graph.successors(node) {
+                                    local_next_must_be_checked.push(succ);
+                                }
+                            } else {
+                                for succ in rev_graph.successors(node) {
+                                    self.next_must_be_checked.set(succ, true, Ordering::Relaxed);
+                                }
+                            }
+                        }
+                    }
+                    // This is slightly subtle: if a counter is not modified, and
+                    // the present value was not a modified value in the first place,
+                    // then we can avoid updating the result altogether.
+                    if modified_counter || self.modified_counter[node] {
+                        unsafe {
+                            self.get_result_counter(node).set_to(&counter);
+                        }
+                    }
+                } else {
+                    // Even if we cannot possibly have changed our value, still our copy
+                    // in the result vector might need to be updated because it does not
+                    // reflect our current value.
+                    if self.modified_counter[node] {
+                        unsafe {
+                            self.get_result_counter(node)
+                                .set_to(&self.get_current_counter(node))
+                        };
+                    }
+                }
             }
         }
+
+        *self.current.lock().unwrap() += neighbourhood_function_delta.value();
     }
 
     /// Returns the number of HyperLogLog counters that were modified by the last iteration.
@@ -402,15 +516,15 @@ where
         self.pre_local = false;
 
         pl.info(format_args!("Initializing distances"));
-        if let Some(distances) = &mut self.sum_of_distances {
-            distances.fill(f64::ZERO);
+        if let Some(distances) = &self.sum_of_distances {
+            distances.lock().unwrap().fill(f64::ZERO);
         }
-        if let Some(distances) = &mut self.sum_of_inverse_distances {
-            distances.fill(f64::ZERO);
+        if let Some(distances) = &self.sum_of_inverse_distances {
+            distances.lock().unwrap().fill(f64::ZERO);
         }
         pl.info(format_args!("Initializing centralities"));
-        for centralities in self.discounted_centralities.iter_mut() {
-            centralities.fill(0.0);
+        for centralities in self.discounted_centralities.iter() {
+            centralities.lock().unwrap().fill(0.0);
         }
 
         self.last = self.graph.num_nodes() as f64;
