@@ -59,6 +59,16 @@ pub struct HyperBall<
     modified_counter: AtomicBitVec,
     /// `modified_result_counter[i]` is `true` if `result_bits.get_counter(i)` has been modified
     modified_result_counter: AtomicBitVec,
+    /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned
+    local_checklist: Vec<usize>,
+    /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration
+    local_next_must_be_checked: Vec<usize>,
+    /// Used in systolic iterations to keep track of nodes to check
+    must_be_checked: AtomicBitVec,
+    /// Used in systolic iterations to keep track of nodes to check in the next iteration
+    next_must_be_checked: AtomicBitVec,
+    /// The relative increment of the neighbourhood function for the last iteration
+    relative_increment: f64,
 }
 
 impl<
@@ -181,11 +191,135 @@ where
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn iterate(&mut self, pl: impl ProgressLog) -> Result<()> {
+    fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+        self.iteration += 1;
+
+        pl.start(format!("Performing iteration {}", self.iteration));
+
+        // Let us record whether the previous computation was systolic or local.
+        let previous_was_systolic = self.systolic;
+        let previous_was_local = self.local;
+
+        // Record the number of modified counters and the number of nodes and arcs as u64
+        let modified_counters: u64 = self
+            .modified_counters()
+            .try_into()
+            .with_context(|| format!("Could not convert {} into u64", self.modified_counters()))?;
+        let num_nodes: u64 =
+            self.graph.num_nodes().try_into().with_context(|| {
+                format!("Could not convert {} into u64", self.graph.num_nodes())
+            })?;
+        let num_arcs: u64 = self.graph.num_arcs();
+
+        // If less than one fourth of the nodes have been modified, and we have the transpose,
+        // it is time to pass to a systolic computation.
+        self.systolic =
+            self.rev_graph.is_some() && self.iteration > 0 && modified_counters < num_nodes / 4;
+
+        // Non-systolic computations add up the value of all counter.
+        // Systolic computations modify the last value by compensating for each modified counter.
+        self.current = if self.systolic { self.last } else { 0.0 };
+
+        // If we completed the last iteration in pre-local mode, we MUST run in local mode.
+        self.local = self.pre_local;
+
+        // We run in pre-local mode if we are systolic and few nodes where modified.
+        self.pre_local =
+            self.systolic && modified_counters < (num_nodes * num_nodes) / (num_arcs * 10);
+
+        if self.systolic {
+            pl.info(format_args!(
+                "Startig systolic iteration (local: {}, pre_local: {})",
+                self.local, self.pre_local
+            ));
+        } else {
+            pl.info(format_args!("Starting standard iteration"));
+        }
+
+        pl.info(format_args!("Preparing modified_result_counter"));
+        if previous_was_local {
+            for node in self.local_checklist.iter() {
+                self.modified_result_counter
+                    .set(node, false, Ordering::Relaxed);
+            }
+        } else {
+            self.modified_result_counter.fill(false, Ordering::Relaxed);
+        }
+
+        if self.local {
+            pl.info(format_args!("Preparing local checklist"));
+            // In case of a local computation, we convert the set of must-be-checked for the
+            // next iteration into a check list.
+            self.local_next_must_be_checked.par_sort_unstable();
+            self.local_next_must_be_checked.dedup();
+            self.local_checklist.clear();
+            std::mem::swap(
+                &mut self.local_checklist,
+                &mut self.local_next_must_be_checked,
+            );
+        } else if self.systolic {
+            pl.info(format_args!("Preparing systolic flags"));
+            // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
+            self.next_must_be_checked.fill(false, Ordering::Relaxed);
+
+            // If the previous computation wasn't systolic, we must assume that all registers could have changed.
+            if !previous_was_systolic {
+                self.must_be_checked.fill(true, Ordering::Relaxed);
+            }
+        }
+
+        rayon::broadcast(|c| self.parallel_task(c));
+
+        self.swap_backend();
+        if self.systolic {
+            std::mem::swap(&mut self.must_be_checked, &mut self.next_must_be_checked);
+        }
+
+        self.last = self.current;
+        // We enforce monotonicity. Non-monotonicity can only be caused
+        // by approximation errors.
+        if let Some(n_function) = &mut self.neighbourhood_function {
+            let &last_output = n_function
+                .as_slice()
+                .last()
+                .expect("Should always have at least 1 element");
+            if self.current < last_output {
+                self.current = last_output;
+            }
+            self.relative_increment = self.current / last_output;
+
+            pl.info(format_args!(
+                "Pairs: {} ({}%)",
+                self.current,
+                (self.current * 100.0) / (num_nodes * num_nodes) as f64
+            ));
+            pl.info(format_args!(
+                "Absolute increment: {}",
+                self.current - last_output
+            ));
+            pl.info(format_args!(
+                "Relative increment: {}",
+                self.relative_increment
+            ));
+
+            n_function.push(self.current);
+        }
+
+        pl.done();
+
+        Ok(())
+    }
+
+    /// The parallel operations to be performed each iteration.
+    ///
+    /// # Arguments:
+    /// - `broadcast_context`: the context of the rayon::broadcast function
+    fn parallel_task(&self, broadcast_context: rayon::BroadcastContext) {
         todo!()
     }
 
     /// Returns the number of HyperLogLog counters that were modified by the last iteration.
+    #[inline(always)]
     fn modified_counters(&self) -> usize {
         self.modified_counter.count_ones()
     }
@@ -238,7 +372,8 @@ where
         self.last = self.graph.num_nodes() as f64;
         if let Some(n) = &mut self.neighbourhood_function {
             pl.info(format_args!("Initializing neighbourhood function"));
-            n.fill(0.0);
+            n.clear();
+            n.push(self.last);
         }
 
         pl.info(format_args!("Initializing modified counters"));
