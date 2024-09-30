@@ -1,3 +1,4 @@
+use crate::utils::closure_vec;
 use anyhow::{ensure, Context, Result};
 use mmap_rs::{MmapMut, MmapOptions};
 use std::{
@@ -274,6 +275,65 @@ impl<T> MmapSlice<T> {
             mmap: Some((file, mmap, mmap_len / Self::BLOCK_SIZE)),
             in_memory_vec: Vec::new(),
         })
+    }
+
+    /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
+    /// the elements initialized to the value returned by `closure`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use webgraph_algo::utils::*;
+    /// use std::sync::atomic::{AtomicUsize, Ordering};
+    ///
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let slice = MmapSlice::from_closure(|| AtomicUsize::new(0), 100, TempMmapOptions::None)?;
+    /// # slice.as_slice().iter().for_each(|n| assert_eq!(n.load(Ordering::Relaxed), 0));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_closure(
+        closure: impl FnMut() -> T,
+        len: usize,
+        options: TempMmapOptions,
+    ) -> Result<Self> {
+        match options {
+            TempMmapOptions::None => Ok(Self {
+                mmap: None,
+                in_memory_vec: closure_vec(closure, len),
+            }),
+            TempMmapOptions::TempDir(flags) => {
+                let mut mmap_slice = Self::from_tempfile_and_len(
+                    len,
+                    tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
+                    flags,
+                )
+                .with_context(|| {
+                    format!("Cannot create mmap of len {} in temporary directory", len)
+                })?;
+                mmap_slice.fill_with(closure);
+                Ok(mmap_slice)
+            }
+            TempMmapOptions::CustomDir(dir, flags) => {
+                let mut mmap_slice = Self::from_tempfile_and_len(
+                    len,
+                    tempfile_in(dir.as_path()).with_context(|| {
+                        format!("Cannot create tempfile in directory {}", dir.display())
+                    })?,
+                    flags,
+                )
+                .with_context(|| {
+                    format!(
+                        "Cannot create mmap of len {} in directory {}",
+                        len,
+                        dir.display()
+                    )
+                })?;
+                mmap_slice.fill_with(closure);
+                Ok(mmap_slice)
+            }
+        }
     }
 
     fn from_tempfile_and_len(len: usize, file: File, flags: MmapFlags) -> Result<Self> {
