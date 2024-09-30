@@ -76,7 +76,7 @@ where
     /// # Arguments
     /// - `upper_bound`: an upper bound to the number of iterations.
     /// - `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
-    ///   function is being computed. If [`None`] the computation will stop when o counters are modified.
+    ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
