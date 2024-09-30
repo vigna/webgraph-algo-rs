@@ -22,7 +22,7 @@ pub struct HyperBall<
     'a,
     G1: RandomAccessGraph,
     G2: RandomAccessGraph,
-    D: Succ<Input = usize, Output = usize> + Send + Sync,
+    D: Succ<Input = usize, Output = usize> + Sync,
     W: Word + IntoAtomic = usize,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
 > {
@@ -82,7 +82,7 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        D: Succ<Input = usize, Output = usize> + Send + Sync,
+        D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         H: BuildHasher + Sync,
     > HyperBall<'a, G1, G2, D, W, H>
@@ -171,7 +171,7 @@ impl<
         'a,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
-        D: Succ<Input = usize, Output = usize> + Send + Sync,
+        D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic,
         H: BuildHasher,
     > HyperBall<'a, G1, G2, D, W, H>
@@ -203,7 +203,7 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        D: Succ<Input = usize, Output = usize> + Send + Sync,
+        D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         H: BuildHasher + Sync,
     > HyperBall<'a, G1, G2, D, W, H>
