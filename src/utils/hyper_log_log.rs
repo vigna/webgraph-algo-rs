@@ -49,6 +49,7 @@ type HashResult = u64;
 ///
 /// assert_eq!(counter_array.into_vec().len(), 10);
 /// ```
+#[derive(Debug, Clone)]
 pub struct HyperLogLogCounterArrayBuilder<H: BuildHasher, W: Word + IntoAtomic> {
     log_2_num_registers: usize,
     num_elements: usize,
