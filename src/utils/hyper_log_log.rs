@@ -392,7 +392,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
 
     /// Returns the number of words `W` per counter.
     #[inline(always)]
-    fn words_per_counter(&self) -> usize {
+    pub fn words_per_counter(&self) -> usize {
         self.msb_mask.as_slice().len()
     }
 
