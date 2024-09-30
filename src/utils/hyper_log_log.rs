@@ -138,6 +138,10 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
         }
     }
 
+    /// Sets the memory options for the couters.
+    ///
+    /// # Arguments
+    /// - `options`: the memory options for the backend of the counter array.
     pub fn with_mem_options(mut self, options: TempMmapOptions) -> Self {
         self.mmap_options = options;
         self
