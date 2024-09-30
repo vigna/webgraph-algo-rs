@@ -94,9 +94,14 @@ where
         &mut self,
         upper_bound: usize,
         threshold: Option<f64>,
-        pl: impl ProgressLog,
+        mut pl: impl ProgressLog,
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
+
+        pl.start(format!(
+            "Running Hyperball for a maximum of {} iterations and a threshold of {:?}",
+            upper_bound, threshold
+        ));
 
         self.init(pl.clone())
             .with_context(|| "Could not initialize approximator")?;
@@ -119,6 +124,8 @@ where
                 todo!("relative increment check");
             }
         }
+
+        pl.done();
 
         Ok(())
     }
