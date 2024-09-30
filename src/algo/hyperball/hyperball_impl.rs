@@ -3,7 +3,7 @@ use crate::{
     utils::{HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder},
 };
 use anyhow::{Context, Result};
-use common_traits::*;
+use common_traits::{AsBytes, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
 use rand::random;
 use rayon::prelude::*;
@@ -11,13 +11,17 @@ use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
     sync::atomic::Ordering,
 };
-use sux::{bits::*, traits::*};
+use sux::{
+    bits::AtomicBitVec,
+    traits::{BitCount, Succ, Word},
+};
 use webgraph::traits::RandomAccessGraph;
 
 pub struct HyperBall<
     'a,
     G1: RandomAccessGraph,
     G2: RandomAccessGraph,
+    D: Succ<Input = usize, Output = usize> + Send + Sync,
     W: Word + IntoAtomic = usize,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
 > {
@@ -25,6 +29,8 @@ pub struct HyperBall<
     graph: &'a G1,
     /// The transposed of the graph to analyze
     rev_graph: Option<&'a G2>,
+    /// The cumulative list of outdegrees
+    cumulative_outdegree: &'a D,
     /// A slice of nonegative node weights
     weight: Option<&'a [usize]>,
     /// The current status of Hyperball
@@ -75,9 +81,10 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
+        D: Succ<Input = usize, Output = usize> + Send + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         H: BuildHasher + Sync,
-    > HyperBall<'a, G1, G2, W, H>
+    > HyperBall<'a, G1, G2, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -159,8 +166,14 @@ where
     }
 }
 
-impl<'a, G1: RandomAccessGraph, G2: RandomAccessGraph, W: Word + IntoAtomic, H: BuildHasher>
-    HyperBall<'a, G1, G2, W, H>
+impl<
+        'a,
+        G1: RandomAccessGraph,
+        G2: RandomAccessGraph,
+        D: Succ<Input = usize, Output = usize> + Send + Sync,
+        W: Word + IntoAtomic,
+        H: BuildHasher,
+    > HyperBall<'a, G1, G2, D, W, H>
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
@@ -189,9 +202,10 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
+        D: Succ<Input = usize, Output = usize> + Send + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         H: BuildHasher + Sync,
-    > HyperBall<'a, G1, G2, W, H>
+    > HyperBall<'a, G1, G2, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -246,7 +260,7 @@ where
 
         pl.info(format_args!("Preparing modified_result_counter"));
         if previous_was_local {
-            for node in self.local_checklist.iter() {
+            for &node in self.local_checklist.iter() {
                 self.modified_result_counter
                     .set(node, false, Ordering::Relaxed);
             }
@@ -325,7 +339,27 @@ where
     /// # Arguments:
     /// - `broadcast_context`: the context of the rayon::broadcast function
     fn parallel_task(&self, broadcast_context: rayon::BroadcastContext) {
-        todo!()
+        let do_centrality = self.sum_of_distances.is_some()
+            || self.sum_of_inverse_distances.is_some()
+            || self.discount_functions.len() != 0;
+
+        loop {
+            // Get work
+            let start = 0;
+            let end = 0;
+
+            todo!();
+
+            // Do work
+            for i in start..end {
+                let node = if self.local {
+                    unsafe { *self.local_checklist.get_unchecked(i) }
+                } else {
+                    i
+                };
+                todo!()
+            }
+        }
     }
 
     /// Returns the number of HyperLogLog counters that were modified by the last iteration.
@@ -349,7 +383,7 @@ where
         pl.info(format_args!("Initializing registers"));
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
-            for (i, node_weight) in w.iter().enumerate() {
+            for (i, &node_weight) in w.iter().enumerate() {
                 let mut counter = self.bits.get_counter(i);
                 for _ in 0..node_weight {
                     counter.add(random());
