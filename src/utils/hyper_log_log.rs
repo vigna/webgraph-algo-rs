@@ -406,6 +406,24 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
         assert_eq!(self.register_size, other.register_size);
         std::mem::swap(&mut self.bits, &mut other.bits);
     }
+
+    /// Returns the register size.
+    #[inline(always)]
+    pub fn register_size(&self) -> usize {
+        self.register_size
+    }
+
+    /// Returns the number of registers per counter.
+    #[inline(always)]
+    pub fn num_registers(&self) -> usize {
+        self.num_registers
+    }
+
+    /// Returns the log₂ of the number of registers per counter.
+    #[inline(always)]
+    pub fn log_2_num_registers(&self) -> usize {
+        self.log_2_num_registers
+    }
 }
 
 impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
