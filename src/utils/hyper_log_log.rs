@@ -394,6 +394,17 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     fn words_per_counter(&self) -> usize {
         self.msb_mask.as_slice().len()
     }
+
+    /// Swaps the undelying bits with those of aother equivalent array.
+    ///
+    /// # Arguments
+    /// - `other`: the array to swap bits with
+    pub fn swap_with(&mut self, other: &mut Self) {
+        assert_eq!(self.num_counters, other.num_counters);
+        assert_eq!(self.num_registers, other.num_registers);
+        assert_eq!(self.register_size, other.register_size);
+        std::mem::swap(&mut self.bits, &mut other.bits);
+    }
 }
 
 impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
