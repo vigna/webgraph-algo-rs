@@ -1,3 +1,4 @@
+use anyhow::Result;
 use webgraph_algo::{
     prelude::*,
     utils::{HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder},
@@ -11,7 +12,7 @@ const NUM_TRIALS: u64 = 100;
 const REQUIRED_TRIALS: u64 = 90;
 
 #[test]
-fn test_single() {
+fn test_single() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [6, 8, 12];
 
@@ -25,7 +26,7 @@ fn test_single() {
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
                     .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
-                    .build(1);
+                    .build(1)?;
                 let mut counter = counters.get_counter(0);
                 let incr = (1 << 32) / size as i64;
                 let mut x = i64::MIN;
@@ -51,10 +52,12 @@ fn test_single() {
             );
         }
     }
+
+    Ok(())
 }
 
 #[test]
-fn test_double() {
+fn test_double() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -69,7 +72,7 @@ fn test_double() {
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
                     .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
-                    .build(2);
+                    .build(2)?;
                 let incr = (1 << 32) / size as i64;
                 let mut x = i64::MIN;
                 for _ in 0..size {
@@ -110,10 +113,12 @@ fn test_double() {
             );
         }
     }
+
+    Ok(())
 }
 
 #[test]
-fn test_merge_safe() {
+fn test_merge_safe() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -128,7 +133,7 @@ fn test_merge_safe() {
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
                     .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
-                    .build(2);
+                    .build(2)?;
                 let incr = (1 << 32) / (size * 2) as i64;
                 let mut x = i64::MIN;
                 for _ in 0..size {
@@ -174,10 +179,12 @@ fn test_merge_safe() {
             );
         }
     }
+
+    Ok(())
 }
 
 #[test]
-fn test_merge_unsafe() {
+fn test_merge_unsafe() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -192,7 +199,7 @@ fn test_merge_unsafe() {
                     .with_log_2_num_registers(log2m)
                     .with_num_elements_upper_bound(size)
                     .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
-                    .build(2);
+                    .build(2)?;
                 let incr = (1 << 32) / (size * 2) as i64;
                 let mut x = i64::MIN;
                 for _ in 0..size {
@@ -242,4 +249,6 @@ fn test_merge_unsafe() {
             );
         }
     }
+
+    Ok(())
 }

@@ -1,4 +1,5 @@
-use crate::{prelude::*, utils::closure_vec};
+use crate::{prelude::*, utils::MmapSlice};
+use anyhow::{Context, Result};
 use common_traits::*;
 use rayon::prelude::*;
 use std::{
@@ -14,11 +15,13 @@ type HashResult = u64;
 ///
 /// Create a builder with [`HyperLogLogCounterArrayBuilder::new`], edit parameters with
 /// its methods, then call [`HyperLogLogCounterArrayBuilder::build`] on it to create
-/// the [`HyperLogLogCounterArray`].
+/// the [`HyperLogLogCounterArray`] as a [`Result`].
 ///
 /// ```
 /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
 /// # use crate::webgraph_algo::prelude::Counter;
+/// # use anyhow::Result;
+/// # fn main() -> Result<()> {
 /// // Create a HyperLogLogCounterArray with 10 counters, each with
 /// // 16 registers and an upper bound on the number of elements equal to 30
 /// // and using a backend of usize.
@@ -27,7 +30,7 @@ type HashResult = u64;
 /// let counter_array = HyperLogLogCounterArrayBuilder::new()
 ///     .with_log_2_num_registers(4)
 ///     .with_num_elements_upper_bound(30)
-///     .build(10);
+///     .build(10)?;
 /// counter_array.get_counter(0).add(42);
 ///
 /// assert_eq!(counter_array.into_vec().len(), 10);
@@ -35,7 +38,7 @@ type HashResult = u64;
 /// let counter_array = HyperLogLogCounterArrayBuilder::new()
 ///     .with_log_2_num_registers(4)
 ///     .with_num_elements_upper_bound(30)
-///     .build::<usize>(10);
+///     .build::<usize>(10)?;
 ///
 /// assert_eq!(counter_array.into_vec().len(), 10);
 ///
@@ -45,14 +48,17 @@ type HashResult = u64;
 ///     .with_log_2_num_registers(4)
 ///     .with_num_elements_upper_bound(30)
 ///     .with_word_type::<u64>()
-///     .build::<usize>(10);
+///     .build::<usize>(10)?;
 ///
 /// assert_eq!(counter_array.into_vec().len(), 10);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct HyperLogLogCounterArrayBuilder<H: BuildHasher, W: Word + IntoAtomic> {
     log_2_num_registers: usize,
     num_elements: usize,
+    mmap_options: TempMmapOptions,
     hasher_builder: H,
     word: PhantomData<W>,
 }
@@ -72,6 +78,7 @@ impl<W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<BuildHasherDefault<Def
             log_2_num_registers: 4,
             num_elements: 1,
             hasher_builder: BuildHasherDefault::<DefaultHasher>::default(),
+            mmap_options: TempMmapOptions::None,
             word: PhantomData,
         }
     }
@@ -125,9 +132,15 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
         HyperLogLogCounterArrayBuilder {
             log_2_num_registers: self.log_2_num_registers,
             num_elements: self.num_elements,
+            mmap_options: self.mmap_options,
             hasher_builder,
             word: PhantomData,
         }
+    }
+
+    pub fn with_mem_options(mut self, options: TempMmapOptions) -> Self {
+        self.mmap_options = options;
+        self
     }
 
     /// Sets the word type to be used by the counters.
@@ -135,6 +148,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
         HyperLogLogCounterArrayBuilder {
             log_2_num_registers: self.log_2_num_registers,
             num_elements: self.num_elements,
+            mmap_options: self.mmap_options,
             hasher_builder: self.hasher_builder,
             word: PhantomData,
         }
@@ -147,11 +161,12 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     ///
     /// # Arguments
     /// - `len`: the length of the counter array in counters.
-    pub fn build<T>(self, len: usize) -> HyperLogLogCounterArray<T, W, H> {
+    pub fn build<T>(self, len: usize) -> Result<HyperLogLogCounterArray<T, W, H>> {
         let num_counters = len;
         let log_2_num_registers = self.log_2_num_registers;
         let num_elements = self.num_elements;
         let hasher_builder = self.hasher_builder;
+        let mmap_options = self.mmap_options;
 
         // This ensures counters are at least 16-bit-aligned.
         assert!(
@@ -211,7 +226,9 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             // is long enough.
             required_words += 1;
         }
-        let bits_vec = closure_vec(|| W::AtomicType::new(W::ZERO), required_words);
+        let bits_vec =
+            MmapSlice::from_closure(|| W::AtomicType::new(W::ZERO), required_words, mmap_options)
+                .with_context(|| "Could not create bits for hyperloglog array as MmapSlice")?;
         debug_assert!(
             number_of_registers * num_counters * register_size <= bits_vec.len() * W::BITS
         );
@@ -232,7 +249,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             residual_mask >>= residual_bits;
         }
 
-        HyperLogLogCounterArray {
+        Ok(HyperLogLogCounterArray {
             bits,
             num_counters,
             num_registers: number_of_registers,
@@ -249,7 +266,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             lsb_mask: lsb,
             residual_mask,
             _phantom_data: PhantomData,
-        }
+        })
     }
 }
 
@@ -274,7 +291,7 @@ pub struct HyperLogLogCounterArray<
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
 > {
     /// The bits of the registers
-    bits: AtomicBitFieldVec<W>,
+    bits: AtomicBitFieldVec<W, MmapSlice<W::AtomicType>>,
     /// The number of counters
     num_counters: usize,
     /// The number of registers per counter
@@ -507,10 +524,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
     ///     .with_rsd(0.1)
     ///     .with_num_elements_upper_bound(10)
-    ///     .build(2);
+    ///     .build(2)?;
     /// let mut c1 = counters.get_counter(0);
     /// let mut c2 = counters.get_counter(1);
     /// let c1_shared = counters.get_counter(0);
@@ -519,6 +538,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// // This is undefined behavior
     /// join(|| unsafe {c1.merge_unsafe(&c2_shared)}, || unsafe {c2.merge_unsafe(&c1_shared)});
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// On the other hand, once the counter is cached it is fine:
@@ -527,10 +548,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
     ///     .with_rsd(0.1)
     ///     .with_num_elements_upper_bound(10)
-    ///     .build(2);
+    ///     .build(2)?;
     /// let mut c1 = counters.get_counter(0);
     /// let mut c2 = counters.get_counter(1);
     /// let c1_shared = counters.get_counter(0);
@@ -544,6 +567,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// // This is fine
     /// join(|| unsafe {c1.merge_unsafe(&c2_shared)}, || unsafe {c2.merge_unsafe(&c1_shared)});
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
@@ -767,10 +792,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
     ///     .with_rsd(0.1)
     ///     .with_num_elements_upper_bound(10)
-    ///     .build(2);
+    ///     .build(2)?;
     /// let mut c1 = counters.get_counter(0);
     /// let mut c1_copy = counters.get_counter(0);
     ///
@@ -779,6 +806,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// // This is undefined behavior
     /// join(|| unsafe {c1.commit_changes(false)}, || unsafe {c1_copy.cache()});
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
@@ -844,10 +873,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
     /// # use webgraph_algo::prelude::Counter;
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
     ///     .with_rsd(0.1)
     ///     .with_num_elements_upper_bound(10)
-    ///     .build(2);
+    ///     .build(2)?;
     /// let mut c1 = counters.get_counter(0);
     /// let mut c1_copy = counters.get_counter(0);
     ///
@@ -856,6 +887,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// // This is undefined behavior
     /// join(|| unsafe {c1.commit_changes(false)}, || unsafe {c1_copy.cache()});
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
@@ -1117,23 +1150,25 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_counter_creation() {
+    fn test_counter_creation() -> Result<()> {
         let counters = HyperLogLogCounterArrayBuilder::new()
             .with_log_2_num_registers(6)
-            .build::<usize>(10);
+            .build::<usize>(10)?;
 
         let counter_4 = counters.get_counter(4);
 
         assert!(counter_4.cached_bits.is_none());
         assert_eq!(counter_4.offset, 2.pow(6) * 4);
+
+        Ok(())
     }
 
     #[test]
-    fn test_counter_edit_inplace() {
+    fn test_counter_edit_inplace() -> Result<()> {
         let counters = HyperLogLogCounterArrayBuilder::new()
             .with_log_2_num_registers(6)
             .with_word_type::<u64>()
-            .build(10);
+            .build(10)?;
         let mut counter_4 = counters.get_counter(4);
 
         counter_4.add(42);
@@ -1156,14 +1191,16 @@ mod test {
                 assert!(ones > 0);
             }
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_counter_edit_cached() {
+    fn test_counter_edit_cached() -> Result<()> {
         let counters = HyperLogLogCounterArrayBuilder::new()
             .with_log_2_num_registers(6)
             .with_word_type::<u64>()
-            .build(10);
+            .build(10)?;
         let mut counter_4 = counters.get_counter(4);
 
         assert!(counter_4.cached_bits.is_none());
@@ -1196,14 +1233,16 @@ mod test {
             ones += word.count_ones();
         }
         assert!(ones > 0);
+
+        Ok(())
     }
 
     #[test]
-    fn test_counter_commit_changes() {
+    fn test_counter_commit_changes() -> Result<()> {
         let counters = HyperLogLogCounterArrayBuilder::new()
             .with_log_2_num_registers(6)
             .with_word_type::<u64>()
-            .build(10);
+            .build(10)?;
         let mut counter_4 = counters.get_counter(4);
         unsafe {
             counter_4.cache();
@@ -1231,14 +1270,16 @@ mod test {
                 assert!(ones > 0);
             }
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_counter_sync_changes() {
+    fn test_counter_sync_changes() -> Result<()> {
         let counters = HyperLogLogCounterArrayBuilder::new()
             .with_log_2_num_registers(6)
             .with_word_type::<u64>()
-            .build(10);
+            .build(10)?;
         let mut counter_4 = counters.get_counter(4);
         unsafe {
             counter_4.cache();
@@ -1263,14 +1304,16 @@ mod test {
                 assert_eq!(slice, counter_4.cached_bits.as_ref().unwrap().0.as_slice())
             }
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_counter_sync() {
+    fn test_counter_sync() -> Result<()> {
         let counters = HyperLogLogCounterArrayBuilder::new()
             .with_log_2_num_registers(6)
             .with_word_type::<u64>()
-            .build(10);
+            .build(10)?;
         let mut counter_4 = counters.get_counter(4);
         unsafe {
             counter_4.cache();
@@ -1295,5 +1338,7 @@ mod test {
                 assert_eq!(slice, counter_4.cached_bits.as_ref().unwrap().0.as_slice())
             }
         }
+
+        Ok(())
     }
 }
