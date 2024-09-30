@@ -32,7 +32,7 @@ pub struct HyperBall<
     /// The new status of Hyperball after an iteration
     result_bits: HyperLogLogCounterArray<G1::Label, W, H>,
     /// The current iteration
-    iteration: isize,
+    iteration: usize,
     /// `true` if the computation is over
     completed: bool,
     /// `true` if we started a systolic computation
@@ -199,8 +199,6 @@ where
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
-        self.iteration += 1;
-
         pl.start(format!("Performing iteration {}", self.iteration));
 
         // Let us record whether the previous computation was systolic or local.
@@ -312,6 +310,8 @@ where
             n_function.push(self.current);
         }
 
+        self.iteration += 1;
+
         pl.done();
 
         Ok(())
@@ -358,7 +358,7 @@ where
             });
         }
 
-        self.iteration = -1;
+        self.iteration = 0;
         self.completed = false;
         self.systolic = false;
         self.local = false;
