@@ -175,6 +175,12 @@ impl<
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
+    /// Performs a new iteration of HyperBall.
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
     fn iterate(&mut self, pl: impl ProgressLog) -> Result<()> {
         todo!()
     }
@@ -184,7 +190,7 @@ where
         self.modified_counter.count_ones()
     }
 
-    /// Initialises the approximator
+    /// Initialises the approximator.
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
