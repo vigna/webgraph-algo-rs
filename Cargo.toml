@@ -13,6 +13,7 @@ mmap-rs = "0.6.1"
 nonmax = "0.5.5"
 rayon = "1.8.1"
 stderrlog = "0.6.0"
+rand = "0.8.5"
 sux = {git = "https://github.com/vigna/sux-rs"}
 tempfile = "3.10.1"
 webgraph = {git = "https://github.com/vigna/webgraph-rs"}
@@ -21,7 +22,6 @@ parallel_frontier = {git = "https://github.com/zommiommy/parallel_frontier"}
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 iai = "0.1"
-rand = "0.8.5"
 xxhash-rust = "0.8.12"
 
 [[bench]]
