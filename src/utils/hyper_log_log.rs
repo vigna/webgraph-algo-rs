@@ -148,85 +148,11 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// # Arguments
     /// - `len`: the length of the counter array in counters.
     pub fn build<T>(self, len: usize) -> HyperLogLogCounterArray<T, W, H> {
-        HyperLogLogCounterArray::build(
-            len,
-            self.num_elements,
-            self.log_2_num_registers,
-            self.hasher_builder,
-        )
-    }
-}
+        let num_counters = len;
+        let log_2_num_registers = self.log_2_num_registers;
+        let num_elements = self.num_elements;
+        let hasher_builder = self.hasher_builder;
 
-impl<W: Word + IntoAtomic> Default
-    for HyperLogLogCounterArrayBuilder<BuildHasherDefault<DefaultHasher>, W>
-{
-    fn default() -> Self {
-        Self::new_with_word_type()
-    }
-}
-
-/// An abstracted array of [`HyperLogLogCounter`].
-///
-/// This array is created using an [`AtomicBitFieldVec`] as a backend in order to avoid
-/// wasting memory.
-///
-/// Individual counters can be accessed with the [`Self::get_counter`] method or concretized
-/// as a [`Vec`] of [`HyperLogLogCounter`].
-pub struct HyperLogLogCounterArray<
-    T,
-    W: Word + IntoAtomic = usize,
-    H: BuildHasher = BuildHasherDefault<DefaultHasher>,
-> {
-    /// The bits of the registers
-    bits: AtomicBitFieldVec<W>,
-    /// The number of counters
-    num_counters: usize,
-    /// The number of registers per counter
-    num_registers: usize,
-    /// The number of registers per counter minus 1
-    num_registers_minus_1: HashResult,
-    /// The *log<sub>2</sub>* of the number of registers per counter
-    log_2_num_registers: usize,
-    /// The size in bits of each register
-    register_size: usize,
-    /// The correct value for αm<sup>2</sup>
-    alpha_m_m: f64,
-    /// The mask OR'd with the output of the hash function so that the number of trailing zeroes is not
-    /// too large of a value
-    sentinel_mask: HashResult,
-    /// The builder of the hashers
-    hasher_builder: H,
-    /// The number of counters needed for a chunk to be aliged with `W`
-    chunk_size: usize,
-    /// The number of counters needed for a chunk to be aliged with `W` minus 1
-    chunk_size_minus_1: usize,
-    /// The *log<sub>2</sub>* of the chunk size
-    log_2_chunk_size: usize,
-    /// A mask containing a one in the most significant bit of each register
-    msb_mask: BitFieldVec<W>,
-    /// A mask containing a one in the least significant bit of each register
-    lsb_mask: BitFieldVec<W>,
-    /// A mask with the residual bits of a counter set to 1
-    residual_mask: W,
-    _phantom_data: PhantomData<T>,
-}
-
-impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
-    /// Creates an [`HyperLogLogCounterArray`] with the specified *log<sub>2</sub>m*
-    /// number of registers and hasher builder.
-    ///
-    /// # Arguments
-    /// - `num_counters`: the number of counters to create in the array.
-    /// - `num_elements`: an upper bound on the number of distinct elements.
-    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
-    /// - `hasher_builder`: the builder of the hasher used by the array that implements
-    ///   [`BuildHasher`].
-    fn build(
-        num_counters: usize,
-        num_elements: usize,
-        log_2_num_registers: usize,
-        hasher_builder: H,
-    ) -> Self {
         // This ensures counters are at least 16-bit-aligned.
         assert!(
             log_2_num_registers >= 4,
@@ -306,7 +232,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
             residual_mask >>= residual_bits;
         }
 
-        Self {
+        HyperLogLogCounterArray {
             bits,
             num_counters,
             num_registers: number_of_registers,
@@ -325,6 +251,60 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
             _phantom_data: PhantomData,
         }
     }
+}
+
+impl<W: Word + IntoAtomic> Default
+    for HyperLogLogCounterArrayBuilder<BuildHasherDefault<DefaultHasher>, W>
+{
+    fn default() -> Self {
+        Self::new_with_word_type()
+    }
+}
+
+/// An abstracted array of [`HyperLogLogCounter`].
+///
+/// This array is created using an [`AtomicBitFieldVec`] as a backend in order to avoid
+/// wasting memory.
+///
+/// Individual counters can be accessed with the [`Self::get_counter`] method or concretized
+/// as a [`Vec`] of [`HyperLogLogCounter`].
+pub struct HyperLogLogCounterArray<
+    T,
+    W: Word + IntoAtomic = usize,
+    H: BuildHasher = BuildHasherDefault<DefaultHasher>,
+> {
+    /// The bits of the registers
+    bits: AtomicBitFieldVec<W>,
+    /// The number of counters
+    num_counters: usize,
+    /// The number of registers per counter
+    num_registers: usize,
+    /// The number of registers per counter minus 1
+    num_registers_minus_1: HashResult,
+    /// The *log<sub>2</sub>* of the number of registers per counter
+    log_2_num_registers: usize,
+    /// The size in bits of each register
+    register_size: usize,
+    /// The correct value for αm<sup>2</sup>
+    alpha_m_m: f64,
+    /// The mask OR'd with the output of the hash function so that the number of trailing zeroes is not
+    /// too large of a value
+    sentinel_mask: HashResult,
+    /// The builder of the hashers
+    hasher_builder: H,
+    /// The number of counters needed for a chunk to be aliged with `W`
+    chunk_size: usize,
+    /// The number of counters needed for a chunk to be aliged with `W` minus 1
+    chunk_size_minus_1: usize,
+    /// The *log<sub>2</sub>* of the chunk size
+    log_2_chunk_size: usize,
+    /// A mask containing a one in the most significant bit of each register
+    msb_mask: BitFieldVec<W>,
+    /// A mask containing a one in the least significant bit of each register
+    lsb_mask: BitFieldVec<W>,
+    /// A mask with the residual bits of a counter set to 1
+    residual_mask: W,
+    _phantom_data: PhantomData<T>,
 }
 
 impl HyperLogLogCounterArray<()> {
