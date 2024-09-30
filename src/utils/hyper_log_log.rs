@@ -769,13 +769,13 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         }
 
         if changed {
-            if let Some((_, cache_changed)) = self.cached_bits.as_mut() {
+            if commit {
+                self.commit_changes(false);
+            } else if let Some((_, cache_changed)) = self.cached_bits.as_mut() {
                 *cache_changed = changed;
             }
-        }
-
-        if commit {
-            self.commit_changes(false);
+        } else if commit {
+            self.cached_bits = None;
         }
     }
 
