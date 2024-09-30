@@ -501,7 +501,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     ///
     /// # Safety
     ///
-    /// Calling this method on two counters from the same chunk from two
+    /// Calling this method on two non-cached counters from the same chunk from two
     /// different threads at the same time is [undefined behavior].
     ///
     /// Calling this method while reading (ie. with [`Self::cache`] on the same counter from
