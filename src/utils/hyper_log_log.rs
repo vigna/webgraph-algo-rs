@@ -983,8 +983,11 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         debug_assert!(bits_offset % 8 == 0);
         let byte_offset = bits_offset / 8;
 
-        let counter_pointer =
-            (counter.counter_array.bits.as_slice().as_ptr() as *const u8).byte_add(byte_offset);
+        let counter_pointer = if let Some((cached_bits, _)) = &counter.cached_bits {
+            cached_bits.as_slice().as_ptr() as *const u8
+        } else {
+            (counter.counter_array.bits.as_slice().as_ptr() as *const u8).byte_add(byte_offset)
+        };
 
         match &mut self.cached_bits {
             Some((bits, changed)) => {
