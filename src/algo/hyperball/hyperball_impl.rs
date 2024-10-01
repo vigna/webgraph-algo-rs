@@ -14,12 +14,197 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
     },
+    usize,
 };
 use sux::{
     bits::AtomicBitVec,
     traits::{BitCount, Succ, Word},
 };
 use webgraph::traits::RandomAccessGraph;
+
+/// Builder for [`HyperBall`].
+///
+/// Create a builder with [`HyperBallBuilder::new`], edit parameters with
+/// its methods, then call [`HyperBallBuilder::build`] on it to create
+/// the [`HyperBall`] as a [`Result`].
+pub struct HyperBallBuilder<
+    'a,
+    D: Succ<Input = usize, Output = usize>,
+    W: Word + IntoAtomic,
+    H: BuildHasher,
+    G1: RandomAccessGraph,
+    G2: RandomAccessGraph = G1,
+> {
+    graph: &'a G1,
+    rev_graph: Option<&'a G2>,
+    cumulative_outdegree: &'a D,
+    sum_of_distances: bool,
+    sum_of_inverse_distances: bool,
+    discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
+    granularity: usize,
+    weights: Option<&'a [usize]>,
+    hyper_log_log_settings: HyperLogLogCounterArrayBuilder<H, W>,
+}
+
+impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
+    HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, G>
+{
+    const DEFAULT_GRANULARITY: usize = 16 * 1024;
+
+    /// Creates a new builder with default parameters.
+    ///
+    /// # Arguments
+    /// - `graph`: the direct graph to analyze.
+    /// - `cumulative_outdegree`: the degree cumulative function of the graph.
+    pub fn new(graph: &'a G, cumulative_outdegree: &'a D) -> Self {
+        let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
+            .with_num_elements_upper_bound(graph.num_nodes())
+            .with_mem_options(TempMmapOptions::None);
+        Self {
+            graph,
+            rev_graph: None,
+            cumulative_outdegree,
+            sum_of_distances: false,
+            sum_of_inverse_distances: false,
+            discount_functions: Vec::new(),
+            granularity: Self::DEFAULT_GRANULARITY,
+            weights: None,
+            hyper_log_log_settings,
+        }
+    }
+}
+
+impl<
+        'a,
+        D: Succ<Input = usize, Output = usize>,
+        W: Word + IntoAtomic,
+        H: BuildHasher,
+        G1: RandomAccessGraph,
+        G2: RandomAccessGraph,
+    > HyperBallBuilder<'a, D, W, H, G1, G2>
+{
+    /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
+    ///
+    /// # Arguments
+    /// - `transposed`: the new transposed graph. If [`None`] no transposed graph is used
+    ///   and no systolic iterations will be performed by the built [`HyperBall`].
+    pub fn with_transposed<G: RandomAccessGraph>(
+        self,
+        transposed: Option<&'a G>,
+    ) -> HyperBallBuilder<'a, D, W, H, G1, G> {
+        HyperBallBuilder {
+            graph: self.graph,
+            rev_graph: transposed,
+            cumulative_outdegree: self.cumulative_outdegree,
+            sum_of_distances: self.sum_of_distances,
+            sum_of_inverse_distances: self.sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            granularity: self.granularity,
+            weights: self.weights,
+            hyper_log_log_settings: self.hyper_log_log_settings,
+        }
+    }
+
+    /// Sets whether to compute the sum of distances.
+    ///
+    /// # Arguments
+    /// - `do_sum_of_distances`: if `true` the sum of distances are computed.
+    pub fn with_sum_of_distances(mut self, do_sum_of_distances: bool) -> Self {
+        self.sum_of_distances = do_sum_of_distances;
+        self
+    }
+
+    /// Sets whether to compute the sum of inverse distances.
+    ///
+    /// # Arguments
+    /// - `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
+    pub fn with_sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
+        self.sum_of_inverse_distances = do_sum_of_inverse_distances;
+        self
+    }
+
+    /// Sets the base granularity used in the parallel phases of the iterations.
+    ///
+    /// # Arguments
+    /// - `granularity`: the new granularity value.
+    pub fn with_granularity(mut self, granularity: usize) -> Self {
+        self.granularity = granularity;
+        self
+    }
+
+    /// Sets the weights for the nodes of the graph.
+    ///
+    /// # Arguments
+    /// - `weights`: the new weights to use. If [`None`] every node is assumed to be
+    ///   of weight equal to 1.
+    pub fn with_weights(mut self, weights: Option<&'a [usize]>) -> Self {
+        if let Some(w) = weights {
+            assert_eq!(w.len(), self.graph.num_nodes());
+        }
+        self.weights = weights;
+        self
+    }
+
+    /// Adds a new discount function to compute during the iterations.
+    ///
+    /// # Arguments
+    /// - `discount_function`: the discount function to add.
+    pub fn with_discount_function<F: Fn(usize) -> f64 + Sync>(
+        mut self,
+        discount_function: impl Fn(usize) -> f64 + Sync + 'a,
+    ) -> Self {
+        self.discount_functions.push(Box::new(discount_function));
+        self
+    }
+
+    /// Removes all custom discount functions.
+    pub fn with_no_discount_function(mut self) -> Self {
+        self.discount_functions.clear();
+        self
+    }
+
+    /// Sets the settings for the [`HyperLogLogCounterArray`] used to hold the counters.
+    ///
+    /// # Arguments
+    /// - `settings`: the new settings to use.
+    pub fn with_hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher>(
+        self,
+        settings: HyperLogLogCounterArrayBuilder<H2, W2>,
+    ) -> HyperBallBuilder<'a, D, W2, H2, G1, G2> {
+        HyperBallBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            cumulative_outdegree: self.cumulative_outdegree,
+            sum_of_distances: self.sum_of_distances,
+            sum_of_inverse_distances: self.sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            granularity: self.granularity,
+            weights: self.weights,
+            hyper_log_log_settings: settings,
+        }
+    }
+}
+
+impl<
+        'a,
+        D: Succ<Input = usize, Output = usize>,
+        W: Word + IntoAtomic,
+        H: BuildHasher,
+        G1: RandomAccessGraph,
+        G2: RandomAccessGraph,
+    > HyperBallBuilder<'a, D, W, H, G1, G2>
+{
+    /// Builds the [`HyperBall`] instance with the specified settings and
+    /// logs progress with the provided logger.
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
+    pub fn build(self, pl: impl ProgressLog) -> HyperBall<'a, G1, G2, D, W, H> {
+        todo!()
+    }
+}
 
 struct ParallelContext<'a, 'b> {
     #[allow(dead_code)]
@@ -63,7 +248,7 @@ pub struct HyperBall<
     /// The sum of inverse distances from each given node, if requested
     sum_of_inverse_distances: Option<Mutex<Vec<f64>>>,
     /// A number of discounted centralities to be computed, possibly none
-    discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync>>,
+    discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
     /// The overall discount centrality for every [`Self::discount_functions`]
     discounted_centralities: Vec<Mutex<Vec<f64>>>,
     /// The neighbourhood fuction if requested
