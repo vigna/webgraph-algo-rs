@@ -22,6 +22,7 @@ use sux::{
 use webgraph::traits::RandomAccessGraph;
 
 struct ParallelContext<'a, 'b> {
+    #[allow(dead_code)]
     rayon_context: rayon::BroadcastContext<'a>,
     granularity: usize,
     cursor: &'b AtomicUsize,
@@ -377,9 +378,9 @@ where
     /// - `broadcast_context`: the context of the rayon::broadcast function
     fn parallel_task(&self, context: ParallelContext) {
         let node_granularity = context.granularity;
-        let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
-            / self.graph.num_nodes() as f64)
-            .ceil() as usize;
+        /*let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
+        / self.graph.num_nodes() as f64)
+        .ceil() as usize;*/
         let do_centrality = self.sum_of_distances.is_some()
             || self.sum_of_inverse_distances.is_some()
             || !self.discount_functions.is_empty();
