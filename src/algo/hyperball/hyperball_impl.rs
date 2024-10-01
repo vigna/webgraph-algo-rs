@@ -386,7 +386,7 @@ where
             // Do work
             for i in start..end {
                 let node = if self.local {
-                    unsafe { *self.local_checklist.get_unchecked(i) }
+                    self.local_checklist[i]
                 } else {
                     i
                 };
