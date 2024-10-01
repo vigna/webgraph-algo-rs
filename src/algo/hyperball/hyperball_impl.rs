@@ -20,6 +20,7 @@ use webgraph::traits::RandomAccessGraph;
 
 struct ParallelContext<'a> {
     rayon_context: rayon::BroadcastContext<'a>,
+    granularity: usize,
 }
 
 pub struct HyperBall<
@@ -80,6 +81,8 @@ pub struct HyperBall<
     next_must_be_checked: AtomicBitVec,
     /// The relative increment of the neighbourhood function for the last iteration
     relative_increment: f64,
+    /// The base number of nodes per task. Must be a multiple of `bits.chuk_size()`
+    granularity: usize,
 }
 
 impl<
@@ -293,7 +296,30 @@ where
             }
         }
 
-        rayon::broadcast(|c| self.parallel_task(ParallelContext { rayon_context: c }));
+        let mut granularity = self.granularity;
+        let num_threads = rayon::current_num_threads();
+
+        if num_threads > 1 && !self.local {
+            if self.iteration > 0 {
+                granularity = std::cmp::min(
+                    std::cmp::max(1, self.graph.num_nodes() / num_threads),
+                    granularity
+                        * (self.graph.num_nodes() / std::cmp::max(1, self.modified_counters())),
+                );
+                granularity = (granularity + W::BITS - 1) & W::BITS.wrapping_neg();
+            }
+            pl.info(format_args!(
+                "Adaptive granularity for this iteration: {}",
+                granularity
+            ));
+        }
+
+        rayon::broadcast(|c| {
+            self.parallel_task(ParallelContext {
+                rayon_context: c,
+                granularity,
+            })
+        });
 
         self.swap_backend();
         if self.systolic {
@@ -343,6 +369,10 @@ where
     /// # Arguments:
     /// - `broadcast_context`: the context of the rayon::broadcast function
     fn parallel_task(&self, context: ParallelContext) {
+        let node_granularity = context.granularity;
+        let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
+            / self.graph.num_nodes() as f64)
+            .ceil() as usize;
         let do_centrality = self.sum_of_distances.is_some()
             || self.sum_of_inverse_distances.is_some()
             || !self.discount_functions.is_empty();
