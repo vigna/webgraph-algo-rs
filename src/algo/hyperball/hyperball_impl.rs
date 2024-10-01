@@ -410,11 +410,13 @@ where
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
                     let mut counter = self.get_current_counter(node);
-                    unsafe {
-                        counter.cache();
-                    }
                     for succ in self.graph.successors(node) {
                         if succ != node && self.modified_counter[succ] {
+                            if !counter.is_cached() {
+                                unsafe {
+                                    counter.cache();
+                                }
+                            }
                             unsafe {
                                 counter.merge_unsafe(&self.get_current_counter(succ));
                             }
@@ -498,6 +500,7 @@ where
                             }
                         }
                     }
+
                     // This is slightly subtle: if a counter is not modified, and
                     // the present value was not a modified value in the first place,
                     // then we can avoid updating the result altogether.

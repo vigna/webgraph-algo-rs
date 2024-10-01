@@ -496,6 +496,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         }
     }
 
+    /// Returns whether the counter is cached or not.
+    #[inline(always)]
+    pub fn is_cached(&self) -> bool {
+        self.cached_bits.is_some()
+    }
+
     /// Performs a multiple precision subtraction, leaving the result in the first operand.
     /// The operands MUST have the same length.
     ///
