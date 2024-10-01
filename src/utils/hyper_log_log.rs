@@ -424,6 +424,12 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     pub fn log_2_num_registers(&self) -> usize {
         self.log_2_num_registers
     }
+
+    /// Returns the chunk size for the array.
+    #[inline(always)]
+    pub fn chunk_size(&self) -> usize {
+        self.chunk_size
+    }
 }
 
 impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
