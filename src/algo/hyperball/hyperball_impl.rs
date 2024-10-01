@@ -376,6 +376,15 @@ where
         let do_centrality = self.sum_of_distances.is_some()
             || self.sum_of_inverse_distances.is_some()
             || !self.discount_functions.is_empty();
+        let upper_limit = if self.local {
+            self.local_checklist.len()
+        } else {
+            self.graph.num_nodes()
+        };
+
+        // During standard iterations, cumulates the neighbourhood function for the nodes scanned
+        // by this thread. During systolic iterations, cumulates the *increase* of the
+        // neighbourhood function for the nodes scanned by this thread.
         let mut neighbourhood_function_delta = KahanSummation::new();
 
         loop {
