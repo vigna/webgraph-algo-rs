@@ -229,7 +229,7 @@ impl<
         let result_bits = self
             .hyper_log_log_settings
             .build(num_nodes)
-            .with_context(|| "Couldnot initialize bits")?;
+            .with_context(|| "Could not initialize result_bits")?;
 
         let sum_of_distances = if self.sum_of_distances {
             Some(Mutex::new(vec![0.0; num_nodes]))
