@@ -92,6 +92,10 @@ impl<
         self,
         transposed: Option<&'a G>,
     ) -> HyperBallBuilder<'a, D, W, H, G1, G> {
+        if let Some(t) = transposed {
+            assert_eq!(t.num_nodes(), self.graph.num_nodes());
+            assert_eq!(t.num_arcs(), self.graph.num_arcs());
+        }
         HyperBallBuilder {
             graph: self.graph,
             rev_graph: transposed,
