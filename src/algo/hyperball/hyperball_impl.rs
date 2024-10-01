@@ -392,6 +392,10 @@ where
             let start = 0;
             let end = 0;
 
+            if start == upper_limit {
+                break;
+            }
+
             // Do work
             for i in start..end {
                 let node = if self.local {
