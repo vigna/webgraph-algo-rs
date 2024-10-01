@@ -10,7 +10,10 @@ use rand::random;
 use rayon::prelude::*;
 use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
-    sync::{atomic::Ordering, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex,
+    },
 };
 use sux::{
     bits::AtomicBitVec,
@@ -18,9 +21,10 @@ use sux::{
 };
 use webgraph::traits::RandomAccessGraph;
 
-struct ParallelContext<'a> {
+struct ParallelContext<'a, 'b> {
     rayon_context: rayon::BroadcastContext<'a>,
     granularity: usize,
+    cursor: &'b AtomicUsize,
 }
 
 pub struct HyperBall<
@@ -314,10 +318,13 @@ where
             ));
         }
 
+        let cursor = AtomicUsize::new(0);
+
         rayon::broadcast(|c| {
             self.parallel_task(ParallelContext {
                 rayon_context: c,
                 granularity,
+                cursor: &cursor,
             })
         });
 
@@ -389,8 +396,13 @@ where
 
         loop {
             // Get work
-            let start = 0;
-            let end = 0;
+            let start = std::cmp::min(
+                context
+                    .cursor
+                    .fetch_add(node_granularity, Ordering::Relaxed),
+                upper_limit,
+            );
+            let end = std::cmp::min(start + node_granularity, upper_limit);
 
             if start == upper_limit {
                 break;
