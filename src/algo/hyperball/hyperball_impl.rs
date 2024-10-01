@@ -18,6 +18,10 @@ use sux::{
 };
 use webgraph::traits::RandomAccessGraph;
 
+struct ParallelContext<'a> {
+    rayon_context: rayon::BroadcastContext<'a>,
+}
+
 pub struct HyperBall<
     'a,
     G1: RandomAccessGraph,
@@ -289,7 +293,7 @@ where
             }
         }
 
-        rayon::broadcast(|c| self.parallel_task(c));
+        rayon::broadcast(|c| self.parallel_task(ParallelContext { rayon_context: c }));
 
         self.swap_backend();
         if self.systolic {
@@ -338,7 +342,7 @@ where
     ///
     /// # Arguments:
     /// - `broadcast_context`: the context of the rayon::broadcast function
-    fn parallel_task(&self, broadcast_context: rayon::BroadcastContext) {
+    fn parallel_task(&self, context: ParallelContext) {
         let do_centrality = self.sum_of_distances.is_some()
             || self.sum_of_inverse_distances.is_some()
             || !self.discount_functions.is_empty();
