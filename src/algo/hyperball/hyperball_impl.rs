@@ -38,6 +38,7 @@ pub struct HyperBallBuilder<
     graph: &'a G1,
     rev_graph: Option<&'a G2>,
     cumulative_outdegree: &'a D,
+    neighbourhood_function: bool,
     sum_of_distances: bool,
     sum_of_inverse_distances: bool,
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
@@ -64,6 +65,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             graph,
             rev_graph: None,
             cumulative_outdegree,
+            neighbourhood_function: false,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
@@ -100,6 +102,7 @@ impl<
             graph: self.graph,
             rev_graph: transposed,
             cumulative_outdegree: self.cumulative_outdegree,
+            neighbourhood_function: self.neighbourhood_function,
             sum_of_distances: self.sum_of_distances,
             sum_of_inverse_distances: self.sum_of_inverse_distances,
             discount_functions: self.discount_functions,
@@ -124,6 +127,15 @@ impl<
     /// - `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
     pub fn with_sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
         self.sum_of_inverse_distances = do_sum_of_inverse_distances;
+        self
+    }
+
+    /// Sets whether to compute the neighbourhood function.
+    ///
+    /// # Arguments
+    /// - `do_neighbourhood_function`: if `true` the neighbourhood function is computed.
+    pub fn with_neighbourhood_function(mut self, do_neighbourhood_function: bool) -> Self {
+        self.neighbourhood_function = do_neighbourhood_function;
         self
     }
 
@@ -179,6 +191,7 @@ impl<
             graph: self.graph,
             rev_graph: self.rev_graph,
             cumulative_outdegree: self.cumulative_outdegree,
+            neighbourhood_function: self.neighbourhood_function,
             sum_of_distances: self.sum_of_distances,
             sum_of_inverse_distances: self.sum_of_inverse_distances,
             discount_functions: self.discount_functions,
@@ -193,7 +206,7 @@ impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
         W: Word + IntoAtomic,
-        H: BuildHasher,
+        H: BuildHasher + Clone,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
     > HyperBallBuilder<'a, D, W, H, G1, G2>
@@ -205,8 +218,78 @@ impl<
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    pub fn build(self, pl: impl ProgressLog) -> HyperBall<'a, G1, G2, D, W, H> {
-        todo!()
+    pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, D, W, H>> {
+        let num_nodes = self.graph.num_nodes();
+
+        let bits = self
+            .hyper_log_log_settings
+            .clone()
+            .build(num_nodes)
+            .with_context(|| "Could not initialize bits")?;
+        let result_bits = self
+            .hyper_log_log_settings
+            .build(num_nodes)
+            .with_context(|| "Couldnot initialize bits")?;
+
+        let sum_of_distances = if self.sum_of_distances {
+            Some(Mutex::new(vec![0.0; num_nodes]))
+        } else {
+            None
+        };
+        let sum_of_inverse_distances = if self.sum_of_inverse_distances {
+            Some(Mutex::new(vec![0.0; num_nodes]))
+        } else {
+            None
+        };
+        let neighbourhood_function = if self.neighbourhood_function {
+            Some(Vec::new())
+        } else {
+            None
+        };
+
+        let mut discounted_centralities = Vec::new();
+        for _ in self.discount_functions.iter() {
+            discounted_centralities.push(Mutex::new(vec![0.0; num_nodes]));
+        }
+
+        let granularity = (self.granularity + W::BITS - 1) & W::BITS.wrapping_neg();
+
+        pl.info(format_args!(
+            "Relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
+            100.0 * HyperLogLogCounterArray::relative_standard_deviation(bits.log_2_num_registers()),
+            bits.num_registers(),
+            bits.register_size(),
+            (bits.num_registers() * bits.register_size()) / 8
+        ));
+
+        Ok(HyperBall {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            cumulative_outdegree: self.cumulative_outdegree,
+            weight: self.weights,
+            bits,
+            result_bits,
+            iteration: 0,
+            completed: false,
+            systolic: false,
+            local: false,
+            pre_local: false,
+            sum_of_distances,
+            sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            discounted_centralities,
+            neighbourhood_function,
+            last: 0.0,
+            current: Mutex::new(0.0),
+            modified_counter: AtomicBitVec::new(num_nodes),
+            modified_result_counter: AtomicBitVec::new(num_nodes),
+            local_checklist: Vec::new(),
+            local_next_must_be_checked: Mutex::new(Vec::new()),
+            must_be_checked: AtomicBitVec::new(num_nodes),
+            next_must_be_checked: AtomicBitVec::new(num_nodes),
+            relative_increment: 0.0,
+            granularity,
+        })
     }
 }
 
