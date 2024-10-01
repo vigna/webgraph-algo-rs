@@ -32,7 +32,7 @@ pub struct HyperBall<
     'a,
     G1: RandomAccessGraph,
     G2: RandomAccessGraph,
-    D: Succ<Input = usize, Output = usize> + Sync,
+    D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic = usize,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
 > {
