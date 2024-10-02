@@ -14,7 +14,6 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
     },
-    usize,
 };
 use sux::{
     bits::AtomicBitVec,
