@@ -1215,8 +1215,7 @@ where
             if value == 0 {
                 zeroes += 1;
             }
-            let float_value = value as f64;
-            harmonic_mean += 2.0.pow(-float_value);
+            harmonic_mean += 1.0 / (1 << value) as f64;
         }
 
         let mut estimate = self.counter_array.alpha_m_m / harmonic_mean;
