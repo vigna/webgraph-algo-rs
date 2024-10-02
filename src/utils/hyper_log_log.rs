@@ -387,6 +387,16 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
             counter_array: self,
             offset: index * self.num_registers,
             cached_bits: None,
+            thread_helper: None,
+        }
+    }
+
+    /// Creates a thread helper for a counter of this array.
+    pub fn get_thread_helper(&self) -> ThreadHelper<W> {
+        ThreadHelper {
+            acc: Vec::with_capacity(self.words_per_counter()),
+            mask: Vec::with_capacity(self.words_per_counter()),
+            y: vec![W::ZERO; self.words_per_counter()],
         }
     }
 
@@ -444,6 +454,13 @@ impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArr
     }
 }
 
+/// Utility struct for parallel optimization.
+pub struct ThreadHelper<W: Word + IntoAtomic> {
+    acc: Vec<W>,
+    mask: Vec<W>,
+    y: Vec<W>,
+}
+
 /// Concretized counter for [`HyperLogLogCounterArray`].
 ///
 /// Each counter holds only basic information in order to reduce memory usage.
@@ -452,7 +469,7 @@ impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArr
 ///
 /// In alternative, the counter may make a local copy of the registers using the
 /// [`Self::cache`] method.
-pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
+pub struct HyperLogLogCounter<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> {
     /// The reference to the parent [`HyperLogLogCounterArray`].
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
     /// The offset of the first register of the counter.
@@ -461,9 +478,12 @@ pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     /// The boolean value is [`true`] if the cache has been modified and needs to be
     /// committed to the backend.
     cached_bits: Option<(BitFieldVec<W>, bool)>,
+    /// Reference to an already allocated cache to help reduce allocations in parallel
+    /// executions.
+    thread_helper: Option<&'b mut ThreadHelper<W>>,
 }
 
-impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
+impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b, T, W, H> {
     /// Returns the index of the current counter
     #[inline(always)]
     pub fn counter_index(&self) -> usize {
@@ -613,8 +633,10 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         // This is sound as the mut ref prevents other references from
         // existing.
         let mut commit = false;
-        // The temporary vector containing the local copy of the other counter
-        let mut y_vec;
+        // The temporary vectors if no thread helper is used
+        let mut y_vec_internal;
+        let mut acc_internal;
+        let mut mask_internal;
 
         let num_words = self.counter_array.words_per_counter();
         let num_words_minus_1 = num_words - 1;
@@ -651,6 +673,16 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                 }
             }
         };
+        let (y_vec, acc, mask) = if let Some(helper) = &mut self.thread_helper {
+            helper.acc.set_len(0);
+            helper.mask.set_len(0);
+            (&mut helper.y, &mut helper.acc, &mut helper.mask)
+        } else {
+            y_vec_internal = Vec::with_capacity(num_words);
+            acc_internal = Vec::with_capacity(num_words);
+            mask_internal = Vec::with_capacity(num_words);
+            (&mut y_vec_internal, &mut acc_internal, &mut mask_internal)
+        };
         let y = match &other.cached_bits {
             Some((bits, _)) => bits.as_slice(),
             None => {
@@ -668,7 +700,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                 if pointer.is_aligned() {
                     std::slice::from_raw_parts(pointer, num_words)
                 } else {
-                    y_vec = Vec::with_capacity(num_words);
                     std::ptr::copy_nonoverlapping(
                         pointer as *const u8,
                         y_vec.as_mut_ptr() as *mut u8,
@@ -708,7 +739,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
          */
 
         // We load y | H_r into the accumulator.
-        let mut acc = Vec::with_capacity(num_words);
         acc.extend(
             y_slice
                 .iter()
@@ -718,7 +748,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         acc.push(y_last_masked | msb_last);
 
         // We load x & !H_r into mask as temporary storage.
-        let mut mask = Vec::with_capacity(num_words);
         mask.extend(
             x_slice
                 .iter()
@@ -728,7 +757,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         mask.push(x_last_masked & !msb_last);
 
         // We subtract x & !H_r, using mask as temporary storage
-        Self::subtract(&mut acc, &mask);
+        Self::subtract(acc, mask);
 
         // We OR with y ^ x, XOR with (y | !x), and finally AND with H_r.
         {
@@ -765,7 +794,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         }
 
         // We subtract L_r from mask.
-        Self::subtract(&mut mask, lsb_mask);
+        Self::subtract(mask, lsb_mask);
 
         // We OR with H_r and XOR with the accumulator.
         let (mask_last, mask_slice) = mask.split_last_mut().unwrap_unchecked();
@@ -1029,9 +1058,19 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
             }
         }
     }
+
+    #[inline(always)]
+    pub fn use_thread_helper(&mut self, helper: &'b mut ThreadHelper<W>) {
+        self.thread_helper = Some(helper)
+    }
+
+    #[inline(always)]
+    pub fn remove_thread_helper(&mut self) {
+        self.thread_helper = None
+    }
 }
 
-impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H>
+impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b, T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -1084,10 +1123,11 @@ where
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + TryFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
         H: BuildHasher,
-    > Counter<T> for HyperLogLogCounter<'a, T, W, H>
+    > Counter<T> for HyperLogLogCounter<'a, 'b, T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -1155,10 +1195,11 @@ where
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + TryFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
         H: BuildHasher,
-    > ApproximatedCounter<T> for HyperLogLogCounter<'a, T, W, H>
+    > ApproximatedCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {

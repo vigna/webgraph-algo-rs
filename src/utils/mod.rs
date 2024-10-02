@@ -17,7 +17,7 @@ pub use closure_vec::closure_vec;
 
 mod hyper_log_log;
 pub use hyper_log_log::{
-    HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder,
+    HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder, ThreadHelper,
 };
 
 pub mod traits;

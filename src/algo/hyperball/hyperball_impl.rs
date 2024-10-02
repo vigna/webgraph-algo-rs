@@ -661,6 +661,7 @@ where
         } else {
             self.graph.num_nodes()
         };
+        let mut thread_helper = self.bits.get_thread_helper();
 
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
         // by this thread. During systolic iterations, cumulates the *increase* of the
@@ -695,6 +696,7 @@ where
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
                     let mut counter = self.get_current_counter(node);
+                    counter.use_thread_helper(&mut thread_helper);
                     for succ in self.graph.successors(node) {
                         if succ != node && self.modified_counter[succ] {
                             if !counter.is_cached() {
