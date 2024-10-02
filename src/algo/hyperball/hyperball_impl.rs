@@ -398,8 +398,6 @@ where
             .with_context(|| "Could not initialize approximator")?;
 
         for i in 0..upper_bound {
-            pl.info(format_args!("Executing iteration {}", i));
-
             self.iterate(pl.clone())
                 .with_context(|| format!("Could not perform iteration {}", i))?;
 
@@ -535,7 +533,7 @@ where
 
         if self.systolic {
             pl.info(format_args!(
-                "Startig systolic iteration (local: {}, pre_local: {})",
+                "Starting systolic iteration (local: {}, pre_local: {})",
                 self.local, self.pre_local
             ));
         } else {
