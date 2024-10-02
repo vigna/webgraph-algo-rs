@@ -575,11 +575,12 @@ where
 
         if num_threads > 1 && !self.local {
             if self.iteration > 0 {
-                granularity = std::cmp::min(
-                    std::cmp::max(1, self.graph.num_nodes() / num_threads),
-                    granularity
-                        * (self.graph.num_nodes() / std::cmp::max(1, self.modified_counters())),
-                );
+                granularity = f64::min(
+                    std::cmp::max(1, self.graph.num_nodes() / num_threads) as f64,
+                    granularity as f64
+                        * (self.graph.num_nodes() as f64
+                            / std::cmp::max(1, self.modified_counters()) as f64),
+                ) as usize;
                 granularity = (granularity + W::BITS - 1) & W::BITS.wrapping_neg();
             }
             pl.info(format_args!(
@@ -646,7 +647,7 @@ where
     /// # Arguments:
     /// - `broadcast_context`: the context of the rayon::broadcast function
     fn parallel_task(&self, context: ParallelContext) {
-        let node_granularity = context.granularity;
+        let node_granularity = if self.local { 1 } else { context.granularity };
         /*let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
         / self.graph.num_nodes() as f64)
         .ceil() as usize;*/
