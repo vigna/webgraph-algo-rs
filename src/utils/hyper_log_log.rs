@@ -1059,14 +1059,16 @@ impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b,
         }
     }
 
+    /// Sets the couter to use the specified thread helper.
     #[inline(always)]
     pub fn use_thread_helper(&mut self, helper: &'b mut ThreadHelper<W>) {
-        self.thread_helper = Some(helper)
+        self.thread_helper = Some(helper);
     }
 
+    /// Stops the counter from using the thread helper.
     #[inline(always)]
     pub fn remove_thread_helper(&mut self) {
-        self.thread_helper = None
+        self.thread_helper = None;
     }
 }
 
