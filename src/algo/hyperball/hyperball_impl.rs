@@ -389,17 +389,21 @@ where
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
 
+        self.init(pl.clone())
+            .with_context(|| "Could not initialize approximator")?;
+
+        pl.item_name("iteration(s)");
+        pl.expected_updates(None);
         pl.start(format!(
             "Running Hyperball for a maximum of {} iterations and a threshold of {:?}",
             upper_bound, threshold
         ));
 
-        self.init(pl.clone())
-            .with_context(|| "Could not initialize approximator")?;
-
         for i in 0..upper_bound {
             self.iterate(pl.clone())
                 .with_context(|| format!("Could not perform iteration {}", i))?;
+
+            pl.update();
 
             if self.modified_counters() == 0 {
                 pl.info(format_args!(
@@ -497,8 +501,8 @@ where
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
-        pl.start(format!("Performing iteration {}", self.iteration));
+    fn iterate(&mut self, pl: impl ProgressLog) -> Result<()> {
+        pl.info(format_args!("Performing iteration {}", self.iteration));
 
         // Let us record whether the previous computation was systolic or local.
         let previous_was_systolic = self.systolic;
@@ -636,8 +640,6 @@ where
         }
 
         self.iteration += 1;
-
-        pl.done();
 
         Ok(())
     }
