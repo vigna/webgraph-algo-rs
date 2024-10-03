@@ -297,6 +297,7 @@ struct ParallelContext<'a, 'b> {
     rayon_context: rayon::BroadcastContext<'a>,
     granularity: usize,
     cursor: &'b AtomicUsize,
+    arc_balanced_cursor: &'b Mutex<(usize, usize)>,
 }
 
 pub struct HyperBall<
@@ -594,12 +595,14 @@ where
         }
 
         let cursor = AtomicUsize::new(0);
+        let arc_balanced_cursor = Mutex::new((0, 0));
 
         rayon::broadcast(|c| {
             self.parallel_task(ParallelContext {
                 rayon_context: c,
                 granularity,
                 cursor: &cursor,
+                arc_balanced_cursor: &arc_balanced_cursor,
             })
         });
 
@@ -649,18 +652,23 @@ where
     /// # Arguments:
     /// - `broadcast_context`: the context of the rayon::broadcast function
     fn parallel_task(&self, context: ParallelContext) {
-        let node_granularity = if self.local { 1 } else { context.granularity };
-        /*let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
-        / self.graph.num_nodes() as f64)
-        .ceil() as usize;*/
+        let node_granularity = context.granularity;
+        let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
+            / self.graph.num_nodes() as f64)
+            .ceil() as usize;
         let do_centrality = self.sum_of_distances.is_some()
             || self.sum_of_inverse_distances.is_some()
             || !self.discount_functions.is_empty();
-        let upper_limit = if self.local {
+        let node_upper_limit = if self.local {
             self.local_checklist.len()
         } else {
             self.graph.num_nodes()
         };
+        let arc_upper_limit = self
+            .graph
+            .num_arcs()
+            .try_into()
+            .expect("Should be able to convert num_arcs into usize");
         let mut thread_helper = self.bits.get_thread_helper();
 
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
@@ -670,15 +678,33 @@ where
 
         loop {
             // Get work
-            let start = std::cmp::min(
-                context
-                    .cursor
-                    .fetch_add(node_granularity, Ordering::Relaxed),
-                upper_limit,
-            );
-            let end = std::cmp::min(start + node_granularity, upper_limit);
+            let (start, end) = if self.local {
+                let start = std::cmp::min(
+                    context.cursor.fetch_add(1, Ordering::Relaxed),
+                    node_upper_limit,
+                );
+                let end = std::cmp::min(start + 1, node_upper_limit);
+                (start, end)
+            } else {
+                let mut arc_balanced_cursor = context.arc_balanced_cursor.lock().unwrap();
+                let (mut next_node, mut next_arc) = *arc_balanced_cursor;
+                if next_node >= node_upper_limit {
+                    (node_upper_limit, node_upper_limit)
+                } else {
+                    let start = next_node;
+                    let target = next_arc + arc_granularity;
+                    if target >= arc_upper_limit {
+                        next_node = node_upper_limit;
+                    } else {
+                        (next_node, next_arc) = self.cumulative_outdegree.succ(target).unwrap();
+                    }
+                    let end = next_node;
+                    *arc_balanced_cursor = (next_node, next_arc);
+                    (start, end)
+                }
+            };
 
-            if start == upper_limit {
+            if start == node_upper_limit {
                 break;
             }
 
