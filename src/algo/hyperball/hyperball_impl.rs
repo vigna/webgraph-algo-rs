@@ -10,10 +10,7 @@ use rand::random;
 use rayon::prelude::*;
 use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Mutex,
-    },
+    sync::{atomic::*, Mutex},
 };
 use sux::{
     bits::AtomicBitVec,
@@ -298,6 +295,7 @@ struct ParallelContext<'a, 'b> {
     granularity: usize,
     cursor: &'b AtomicUsize,
     arc_balanced_cursor: &'b Mutex<(usize, usize)>,
+    visited_arcs: &'b AtomicU64,
 }
 
 pub struct HyperBall<
@@ -502,7 +500,7 @@ where
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn iterate(&mut self, pl: impl ProgressLog) -> Result<()> {
+    fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration));
 
         // Let us record whether the previous computation was systolic or local.
@@ -596,6 +594,20 @@ where
 
         let cursor = AtomicUsize::new(0);
         let arc_balanced_cursor = Mutex::new((0, 0));
+        let visited_arcs = AtomicU64::new(0);
+
+        pl.item_name("arcs");
+        pl.expected_updates(if self.local {
+            None
+        } else {
+            Some(
+                self.graph
+                    .num_arcs()
+                    .try_into()
+                    .with_context(|| "Could not convert num_arcs into usize")?,
+            )
+        });
+        pl.start("Starting parallel execution");
 
         rayon::broadcast(|c| {
             self.parallel_task(ParallelContext {
@@ -603,8 +615,16 @@ where
                 granularity,
                 cursor: &cursor,
                 arc_balanced_cursor: &arc_balanced_cursor,
+                visited_arcs: &visited_arcs,
             })
         });
+
+        pl.done_with_count(
+            visited_arcs
+                .into_inner()
+                .try_into()
+                .with_context(|| "Could not convert the number of visited arcs into usize")?,
+        );
 
         self.swap_backend();
         if self.systolic {
@@ -664,6 +684,7 @@ where
         } else {
             self.graph.num_nodes()
         };
+        let mut visited_arcs = 0;
         let arc_upper_limit = self
             .graph
             .num_arcs()
@@ -724,6 +745,7 @@ where
                     let mut counter = self.get_current_counter(node);
                     counter.use_thread_helper(&mut thread_helper);
                     for succ in self.graph.successors(node) {
+                        visited_arcs += 1;
                         if succ != node && self.modified_counter[succ] {
                             if !counter.is_cached() {
                                 unsafe {
@@ -837,6 +859,9 @@ where
         }
 
         *self.current.lock().unwrap() += neighbourhood_function_delta.value();
+        context
+            .visited_arcs
+            .fetch_add(visited_arcs, Ordering::Relaxed);
     }
 
     /// Returns the number of HyperLogLog counters that were modified by the last iteration.
