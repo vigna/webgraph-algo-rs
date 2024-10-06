@@ -26,10 +26,4 @@ impl KahanSummation {
     pub fn value(&self) -> f64 {
         self.value
     }
-
-    /// Resets the current value and correction to 0.
-    pub fn reset(&mut self) {
-        self.value = 0.0;
-        self.c = 0.0;
-    }
 }
