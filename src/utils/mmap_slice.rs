@@ -271,6 +271,13 @@ impl<T> MmapSlice<T> {
                 .with_context(|| "Cannot mutably mmap")?
         };
 
+        assert!(
+            (mmap.as_ptr() as *const T).is_aligned(),
+            "mmap pointer is not aligned for {} ({} bytes)",
+            std::any::type_name::<T>(),
+            std::mem::size_of::<T>()
+        );
+
         Ok(Self {
             mmap: Some((file, mmap, mmap_len / Self::BLOCK_SIZE)),
             in_memory_vec: Vec::new(),
