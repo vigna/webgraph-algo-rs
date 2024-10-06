@@ -886,7 +886,7 @@ where
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
             for (i, &node_weight) in w.iter().enumerate() {
-                let mut counter = self.bits.get_counter(i);
+                let mut counter = self.get_current_counter(i);
                 for _ in 0..node_weight {
                     counter.add(random());
                 }
