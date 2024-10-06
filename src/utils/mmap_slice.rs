@@ -360,6 +360,7 @@ impl<T> MmapSlice<T> {
     /// Extracts a slice containing the entire data.
     ///
     /// Equivalent to `&s[..]`
+    #[inline(always)]
     pub fn as_slice(&self) -> &[T] {
         self.as_ref()
     }
@@ -367,12 +368,14 @@ impl<T> MmapSlice<T> {
     /// Extracts a mutable slice containing the entire data.
     ///
     /// Equivalent to `&mut s[..]`
+    #[inline(always)]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.as_mut()
     }
 }
 
 impl<T> AsRef<[T]> for MmapSlice<T> {
+    #[inline(always)]
     fn as_ref(&self) -> &[T] {
         if let Some((_, mmap, len)) = self.mmap.as_ref() {
             unsafe { std::slice::from_raw_parts(mmap.as_ptr() as *const T, *len) }
@@ -383,6 +386,7 @@ impl<T> AsRef<[T]> for MmapSlice<T> {
 }
 
 impl<T> AsMut<[T]> for MmapSlice<T> {
+    #[inline(always)]
     fn as_mut(&mut self) -> &mut [T] {
         if let Some((_, mmap, len)) = self.mmap.as_mut() {
             unsafe { std::slice::from_raw_parts_mut(mmap.as_mut_ptr() as *mut T, *len) }
@@ -395,12 +399,14 @@ impl<T> AsMut<[T]> for MmapSlice<T> {
 impl<T> Deref for MmapSlice<T> {
     type Target = [T];
 
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         self.as_ref()
     }
 }
 
 impl<T> DerefMut for MmapSlice<T> {
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
     }
