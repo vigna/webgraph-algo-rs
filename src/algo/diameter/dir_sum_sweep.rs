@@ -5,7 +5,7 @@ use crate::{
         strongly_connected_components::TarjanStronglyConnectedComponents,
     },
     prelude::*,
-    utils::{closure_vec, math, MmapSlice},
+    utils::{check_transposed, closure_vec, math, MmapSlice},
 };
 use anyhow::{ensure, Context, Result};
 use dsi_progress_logger::*;
@@ -121,6 +121,10 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
 
         debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
         debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
+        debug_assert!(
+            check_transposed(graph, reversed_graph),
+            "reversed_graph should be the transposed of graph"
+        );
 
         pl.info(format_args!("Initializing data structure"));
 

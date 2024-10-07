@@ -2,7 +2,8 @@ use crate::{
     algo::hyperball::kahan_sum::KahanSummation,
     prelude::*,
     utils::{
-        HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder, MmapSlice,
+        check_transposed, HyperLogLogCounter, HyperLogLogCounterArray,
+        HyperLogLogCounterArrayBuilder, MmapSlice,
     },
 };
 use anyhow::{anyhow, Context, Result};
@@ -108,6 +109,10 @@ impl<
                 "transposed should have the same number of arcs ({}). Got {}.",
                 self.graph.num_arcs(),
                 t.num_arcs()
+            );
+            debug_assert!(
+                check_transposed(self.graph, t),
+                "transposed should be the transposed of the direct graph"
             );
         }
         HyperBallBuilder {
