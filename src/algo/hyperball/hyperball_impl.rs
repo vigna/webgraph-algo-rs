@@ -5,7 +5,7 @@ use crate::{
         HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder, MmapSlice,
     },
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use common_traits::{AsBytes, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
 use rand::random;
@@ -338,6 +338,8 @@ struct ParallelContext<'a, 'b> {
     visited_arcs: &'b AtomicU64,
 }
 
+/// An algorithm thah computes an approximation of the neighbourhood function, of the size of the reachable sets,
+/// and of (discounted) positive geometric centralities of a graph.
 pub struct HyperBall<
     'a,
     G1: RandomAccessGraph,
@@ -488,6 +490,173 @@ where
     pub fn run_until_done(&mut self, pl: impl ProgressLog) -> Result<()> {
         self.run_until_stable(usize::MAX, pl)
             .with_context(|| "Could not complete run_until_done")
+    }
+
+    /// Returns the neighbourhood function computed by this instance.
+    pub fn neighbourhood_function(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            Ok(self.neighbourhood_function.clone())
+        }
+    }
+
+    /// Returns the sum of distances computed by this instance if requested.
+    pub fn sum_of_distances(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            if let Some(distances) = &self.sum_of_distances {
+                Ok(distances.lock().unwrap().to_vec())
+            } else {
+                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute them"))
+            }
+        }
+    }
+
+    /// Returns the harmonic centralities (sum of inverse distances) computed by this instance if requested.
+    pub fn harmonic_centralities(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            if let Some(distances) = &self.sum_of_inverse_distances {
+                Ok(distances.lock().unwrap().to_vec())
+            } else {
+                Err(anyhow!("Sum of inverse distances were not requested. Use builder.with_sum_of_inverse_distances(true) while building HyperBall to compute them"))
+            }
+        }
+    }
+
+    /// Returns the discounted centralities of the specified index computed by this instance.
+    ///
+    /// # Arguments
+    /// - `index`: the index of the requested discounted centrality.
+    pub fn discounted_centrality(&self, index: usize) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            let d = self.discounted_centralities.get(index);
+            if let Some(distaces) = d {
+                Ok(distaces.lock().unwrap().to_vec())
+            } else {
+                Err(anyhow!(
+                    "Discount centrality of index {} does not exist",
+                    index
+                ))
+            }
+        }
+    }
+
+    /// Computes and returns the closeness centralities from the sum of distances computed by this instance.
+    pub fn closeness_cetrality(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            if let Some(distances) = &self.sum_of_distances {
+                Ok(distances
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .map(|&d| if d == 0.0 { 0.0 } else { d.recip() })
+                    .collect())
+            } else {
+                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute closeness centrality"))
+            }
+        }
+    }
+
+    /// Computes and returns the lin centralities from the sum of distances computed by this instance.
+    pub fn lin_centrality(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            if let Some(distances) = &self.sum_of_distances {
+                Ok(distances
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &d)| {
+                        if d == 0.0 {
+                            1.0
+                        } else {
+                            let count = self.get_current_counter(i).estimate_count();
+                            count * count / d
+                        }
+                    })
+                    .collect())
+            } else {
+                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
+            }
+        }
+    }
+
+    /// Computes and returns the nieminen centralities from the sum of distances computed by this instance.
+    pub fn nieminen_centrality(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            if let Some(distances) = &self.sum_of_distances {
+                Ok(distances
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &d)| {
+                        let count = self.get_current_counter(i).estimate_count();
+                        (count * count) - d
+                    })
+                    .collect())
+            } else {
+                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
+            }
+        }
+    }
+
+    /// Reads from the internal [`HyperLogLogCounterArray`] and estimates the number of nodes reachable
+    /// from the specified node.
+    ///
+    /// # Arguments
+    /// - `node`: the index of the node to compute reachable nodes from.
+    pub fn reachable_nodes_from(&self, node: usize) -> Result<f64> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            Ok(self.get_current_counter(node).estimate_count())
+        }
+    }
+
+    /// Reads from the internal [`HyperLogLogCounterArray`] and estimates the number of nodes reachable
+    /// from every node of the graph.
+    ///
+    /// `hyperball.reachable_nodes().unwrap()[i]` is equal to `hyperball.reachable_nodes_from(i).unwrap()`.
+    pub fn reachable_nodes(&self) -> Result<Vec<f64>> {
+        if self.iteration == 0 {
+            Err(anyhow!(
+                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+            ))
+        } else {
+            Ok((0..self.graph.num_nodes())
+                .into_iter()
+                .map(|n| self.get_current_counter(n).estimate_count())
+                .collect())
+        }
     }
 }
 
