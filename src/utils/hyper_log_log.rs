@@ -1292,7 +1292,7 @@ mod test {
         }
 
         assert!(counter_4.cached_bits.is_some());
-        assert_eq!(counter_4.cached_bits.as_ref().unwrap().1, false);
+        assert!(!counter_4.cached_bits.as_ref().unwrap().1);
         assert_eq!(
             counter_4.cached_bits.as_ref().unwrap().0.as_slice(),
             vec![0; counters.words_per_counter()]
@@ -1300,7 +1300,7 @@ mod test {
 
         counter_4.add(42);
 
-        assert_eq!(counter_4.cached_bits.as_ref().unwrap().1, true);
+        assert!(counter_4.cached_bits.as_ref().unwrap().1);
         for i in 0..10 {
             let pointer = counters.bits.as_slice().as_ptr() as *const u64;
             let slice = unsafe {
@@ -1373,7 +1373,7 @@ mod test {
         }
 
         assert!(counter_4.cached_bits.is_some());
-        assert_eq!(counter_4.cached_bits.as_ref().unwrap().1, false);
+        assert!(!counter_4.cached_bits.as_ref().unwrap().1);
         for i in 0..10 {
             let pointer = counters.bits.as_slice().as_ptr() as *const u64;
             let slice = unsafe {
@@ -1407,7 +1407,7 @@ mod test {
         }
 
         assert!(counter_4.cached_bits.is_some());
-        assert_eq!(counter_4.cached_bits.as_ref().unwrap().1, false);
+        assert!(!counter_4.cached_bits.as_ref().unwrap().1);
         for i in 0..10 {
             let pointer = counters.bits.as_slice().as_ptr() as *const u64;
             let slice = unsafe {

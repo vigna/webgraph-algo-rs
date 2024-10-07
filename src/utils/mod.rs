@@ -33,9 +33,7 @@ pub(crate) fn check_transposed<G1: RandomAccessGraph, G2: RandomAccessGraph>(
     graph: &G1,
     transposed: &G2,
 ) -> bool {
-    if graph.num_nodes() != transposed.num_nodes() {
-        return false;
-    } else if graph.num_arcs() != transposed.num_arcs() {
+    if graph.num_nodes() != transposed.num_nodes() || graph.num_arcs() != transposed.num_arcs() {
         return false;
     } else {
         for node in 0..graph.num_nodes() {
@@ -50,5 +48,5 @@ pub(crate) fn check_transposed<G1: RandomAccessGraph, G2: RandomAccessGraph>(
             }
         }
     }
-    return true;
+    true
 }

@@ -514,12 +514,10 @@ where
             Err(anyhow!(
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
+        } else if let Some(distances) = &self.sum_of_distances {
+            Ok(distances.lock().unwrap().to_vec())
         } else {
-            if let Some(distances) = &self.sum_of_distances {
-                Ok(distances.lock().unwrap().to_vec())
-            } else {
-                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute them"))
-            }
+            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute them"))
         }
     }
 
@@ -529,12 +527,10 @@ where
             Err(anyhow!(
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
+        } else if let Some(distances) = &self.sum_of_inverse_distances {
+            Ok(distances.lock().unwrap().to_vec())
         } else {
-            if let Some(distances) = &self.sum_of_inverse_distances {
-                Ok(distances.lock().unwrap().to_vec())
-            } else {
-                Err(anyhow!("Sum of inverse distances were not requested. Use builder.with_sum_of_inverse_distances(true) while building HyperBall to compute them"))
-            }
+            Err(anyhow!("Sum of inverse distances were not requested. Use builder.with_sum_of_inverse_distances(true) while building HyperBall to compute them"))
         }
     }
 
@@ -566,17 +562,15 @@ where
             Err(anyhow!(
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
+        } else if let Some(distances) = &self.sum_of_distances {
+            Ok(distances
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|&d| if d == 0.0 { 0.0 } else { d.recip() })
+                .collect())
         } else {
-            if let Some(distances) = &self.sum_of_distances {
-                Ok(distances
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .map(|&d| if d == 0.0 { 0.0 } else { d.recip() })
-                    .collect())
-            } else {
-                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute closeness centrality"))
-            }
+            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute closeness centrality"))
         }
     }
 
@@ -586,25 +580,23 @@ where
             Err(anyhow!(
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
+        } else if let Some(distances) = &self.sum_of_distances {
+            Ok(distances
+                .lock()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .map(|(i, &d)| {
+                    if d == 0.0 {
+                        1.0
+                    } else {
+                        let count = self.get_current_counter(i).estimate_count();
+                        count * count / d
+                    }
+                })
+                .collect())
         } else {
-            if let Some(distances) = &self.sum_of_distances {
-                Ok(distances
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &d)| {
-                        if d == 0.0 {
-                            1.0
-                        } else {
-                            let count = self.get_current_counter(i).estimate_count();
-                            count * count / d
-                        }
-                    })
-                    .collect())
-            } else {
-                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
-            }
+            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
         }
     }
 
@@ -614,21 +606,19 @@ where
             Err(anyhow!(
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
+        } else if let Some(distances) = &self.sum_of_distances {
+            Ok(distances
+                .lock()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .map(|(i, &d)| {
+                    let count = self.get_current_counter(i).estimate_count();
+                    (count * count) - d
+                })
+                .collect())
         } else {
-            if let Some(distances) = &self.sum_of_distances {
-                Ok(distances
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &d)| {
-                        let count = self.get_current_counter(i).estimate_count();
-                        (count * count) - d
-                    })
-                    .collect())
-            } else {
-                Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
-            }
+            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
         }
     }
 
@@ -658,7 +648,6 @@ where
             ))
         } else {
             Ok((0..self.graph.num_nodes())
-                .into_iter()
                 .map(|n| self.get_current_counter(n).estimate_count())
                 .collect())
         }
