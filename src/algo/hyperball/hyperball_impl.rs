@@ -212,7 +212,7 @@ impl<
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, D, W, H>> {
         let num_nodes = self.graph.num_nodes();
@@ -378,7 +378,7 @@ where
     /// - `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
     ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn run(
         &mut self,
@@ -430,7 +430,7 @@ where
     /// # Arguments
     /// - `upper_bound`: an upper bound to the number of iterations.
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
     pub fn run_until_stable(&mut self, upper_bound: usize, pl: impl ProgressLog) -> Result<()> {
@@ -442,7 +442,7 @@ where
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
     pub fn run_until_done(&mut self, pl: impl ProgressLog) -> Result<()> {
@@ -498,7 +498,7 @@ where
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   method to log the progress of the iteration. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration));
@@ -670,7 +670,7 @@ where
     /// The parallel operations to be performed each iteration.
     ///
     /// # Arguments:
-    /// - `broadcast_context`: the context of the rayon::broadcast function
+    /// - `broadcast_context`: the context of the for the parallel task
     fn parallel_task(&self, context: ParallelContext) {
         let node_granularity = context.granularity;
         let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
@@ -874,7 +874,7 @@ where
     ///
     /// # Arguments
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   method to log the progress of the initialization. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn init(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
