@@ -64,7 +64,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             graph,
             rev_graph: None,
             cumulative_outdegree,
-            neighbourhood_function: false,
+            neighbourhood_function: true,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
@@ -275,11 +275,6 @@ impl<
             pl.info(format_args!("Skipping sum of inverse distances"));
             None
         };
-        let neighbourhood_function = if self.neighbourhood_function {
-            Some(Vec::new())
-        } else {
-            None
-        };
 
         let mut discounted_centralities = Vec::new();
         pl.info(format_args!(
@@ -319,7 +314,7 @@ impl<
             sum_of_inverse_distances,
             discount_functions: self.discount_functions,
             discounted_centralities,
-            neighbourhood_function,
+            neighbourhood_function: Vec::new(),
             last: 0.0,
             current: Mutex::new(0.0),
             modified_counter: AtomicBitVec::new(num_nodes),
@@ -381,8 +376,8 @@ pub struct HyperBall<
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
     /// The overall discount centrality for every [`Self::discount_functions`]
     discounted_centralities: Vec<Mutex<MmapSlice<f64>>>,
-    /// The neighbourhood fuction if requested
-    neighbourhood_function: Option<Vec<f64>>,
+    /// The neighbourhood fuction
+    neighbourhood_function: Vec<f64>,
     /// The value computed by the last iteration
     last: f64,
     /// The value computed by the current iteration
@@ -680,32 +675,31 @@ where
         self.last = *current_mut;
         // We enforce monotonicity. Non-monotonicity can only be caused
         // by approximation errors.
-        if let Some(n_function) = &mut self.neighbourhood_function {
-            let &last_output = n_function
-                .as_slice()
-                .last()
-                .expect("Should always have at least 1 element");
-            if *current_mut < last_output {
-                *current_mut = last_output;
-            }
-            self.relative_increment = *current_mut / last_output;
-
-            pl.info(format_args!(
-                "Pairs: {} ({}%)",
-                *current_mut,
-                (*current_mut * 100.0) / (num_nodes * num_nodes) as f64
-            ));
-            pl.info(format_args!(
-                "Absolute increment: {}",
-                *current_mut - last_output
-            ));
-            pl.info(format_args!(
-                "Relative increment: {}",
-                self.relative_increment
-            ));
-
-            n_function.push(*current_mut);
+        let &last_output = self
+            .neighbourhood_function
+            .as_slice()
+            .last()
+            .expect("Should always have at least 1 element");
+        if *current_mut < last_output {
+            *current_mut = last_output;
         }
+        self.relative_increment = *current_mut / last_output;
+
+        pl.info(format_args!(
+            "Pairs: {} ({}%)",
+            *current_mut,
+            (*current_mut * 100.0) / (num_nodes * num_nodes) as f64
+        ));
+        pl.info(format_args!(
+            "Absolute increment: {}",
+            *current_mut - last_output
+        ));
+        pl.info(format_args!(
+            "Relative increment: {}",
+            self.relative_increment
+        ));
+
+        self.neighbourhood_function.push(*current_mut);
 
         self.iteration += 1;
 
@@ -961,11 +955,9 @@ where
         }
 
         self.last = self.graph.num_nodes() as f64;
-        if let Some(n) = &mut self.neighbourhood_function {
-            pl.info(format_args!("Initializing neighbourhood function"));
-            n.clear();
-            n.push(self.last);
-        }
+        pl.info(format_args!("Initializing neighbourhood function"));
+        self.neighbourhood_function.clear();
+        self.neighbourhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
         self.modified_counter.fill(true, Ordering::Relaxed);
