@@ -1,3 +1,5 @@
+use webgraph::traits::RandomAccessGraph;
+
 mod argmax;
 mod argmin;
 
@@ -27,10 +29,7 @@ pub mod traits;
 /// # Arguments
 /// - `graph`: the direct graph.
 /// - `transposed`: the graph to check whether is the transposed of `graph`.
-pub(crate) fn check_transposed<
-    G1: webgraph::traits::RandomAccessGraph,
-    G2: webgraph::traits::RandomAccessGraph,
->(
+pub(crate) fn check_transposed<G1: RandomAccessGraph, G2: RandomAccessGraph>(
     graph: &G1,
     transposed: &G2,
 ) -> bool {
