@@ -1,7 +1,9 @@
 use crate::{
     algo::hyperball::kahan_sum::KahanSummation,
     prelude::*,
-    utils::{HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder},
+    utils::{
+        HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder, MmapSlice,
+    },
 };
 use anyhow::{Context, Result};
 use common_traits::{AsBytes, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
@@ -41,6 +43,7 @@ pub struct HyperBallBuilder<
     granularity: usize,
     weights: Option<&'a [usize]>,
     hyper_log_log_settings: HyperLogLogCounterArrayBuilder<H, W>,
+    mem_settings: TempMmapOptions,
 }
 
 impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
@@ -68,6 +71,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
             hyper_log_log_settings,
+            mem_settings: TempMmapOptions::None,
         }
     }
 }
@@ -91,8 +95,20 @@ impl<
         transposed: Option<&'a G>,
     ) -> HyperBallBuilder<'a, D, W, H, G1, G> {
         if let Some(t) = transposed {
-            assert_eq!(t.num_nodes(), self.graph.num_nodes());
-            assert_eq!(t.num_arcs(), self.graph.num_arcs());
+            assert_eq!(
+                t.num_nodes(),
+                self.graph.num_nodes(),
+                "transposed should have same number of nodes ({}). Got {}.",
+                self.graph.num_nodes(),
+                t.num_nodes()
+            );
+            assert_eq!(
+                t.num_arcs(),
+                self.graph.num_arcs(),
+                "transposed should have the same number of arcs ({}). Got {}.",
+                self.graph.num_arcs(),
+                t.num_arcs()
+            );
         }
         HyperBallBuilder {
             graph: self.graph,
@@ -105,6 +121,7 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
+            mem_settings: self.mem_settings,
         }
     }
 
@@ -194,7 +211,17 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: settings,
+            mem_settings: self.mem_settings,
         }
+    }
+
+    /// Sets the memory optios used by the support array of the [`HyperBall`] instance.
+    ///
+    /// # Argumets
+    /// - `settings`: the new setting to use.
+    pub fn with_mem_settings(mut self, settings: TempMmapOptions) -> Self {
+        self.mem_settings = settings;
+        self
     }
 }
 
@@ -217,6 +244,7 @@ impl<
     pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, D, W, H>> {
         let num_nodes = self.graph.num_nodes();
 
+        pl.info(format_args!("Initializing HyperLogLogCounterArrays"));
         let bits = self
             .hyper_log_log_settings
             .clone()
@@ -228,13 +256,23 @@ impl<
             .with_context(|| "Could not initialize result_bits")?;
 
         let sum_of_distances = if self.sum_of_distances {
-            Some(Mutex::new(vec![0.0; num_nodes]))
+            pl.info(format_args!("Initializing sum of distances"));
+            Some(Mutex::new(
+                MmapSlice::from_value(0.0, num_nodes, self.mem_settings.clone())
+                    .with_context(|| "Could not initialize sum_of_distances")?,
+            ))
         } else {
+            pl.info(format_args!("Skipping sum of distances"));
             None
         };
         let sum_of_inverse_distances = if self.sum_of_inverse_distances {
-            Some(Mutex::new(vec![0.0; num_nodes]))
+            pl.info(format_args!("Initializing sum of inverse distances"));
+            Some(Mutex::new(
+                MmapSlice::from_value(0.0, num_nodes, self.mem_settings.clone())
+                    .with_context(|| "Could not initialize sum_of_inverse_distances")?,
+            ))
         } else {
+            pl.info(format_args!("Skipping sum of inverse distances"));
             None
         };
         let neighbourhood_function = if self.neighbourhood_function {
@@ -244,8 +282,15 @@ impl<
         };
 
         let mut discounted_centralities = Vec::new();
-        for _ in self.discount_functions.iter() {
-            discounted_centralities.push(Mutex::new(vec![0.0; num_nodes]));
+        pl.info(format_args!(
+            "Initializing {} discount fuctions",
+            self.discount_functions.len()
+        ));
+        for (i, _) in self.discount_functions.iter().enumerate() {
+            discounted_centralities.push(Mutex::new(
+                MmapSlice::from_value(0.0, num_nodes, self.mem_settings.clone())
+                    .with_context(|| format!("Could not initialize discount function {}", i))?,
+            ));
         }
 
         let granularity = (self.granularity + W::BITS - 1) & W::BITS.wrapping_neg();
@@ -329,13 +374,13 @@ pub struct HyperBall<
     /// `true` if we are preparing a local computation (systolic is `true` and less than 1% nodes were modified)
     pre_local: bool,
     /// The sum of the distances from every give node, if requested
-    sum_of_distances: Option<Mutex<Vec<f64>>>,
+    sum_of_distances: Option<Mutex<MmapSlice<f64>>>,
     /// The sum of inverse distances from each given node, if requested
-    sum_of_inverse_distances: Option<Mutex<Vec<f64>>>,
+    sum_of_inverse_distances: Option<Mutex<MmapSlice<f64>>>,
     /// A number of discounted centralities to be computed, possibly none
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
     /// The overall discount centrality for every [`Self::discount_functions`]
-    discounted_centralities: Vec<Mutex<Vec<f64>>>,
+    discounted_centralities: Vec<Mutex<MmapSlice<f64>>>,
     /// The neighbourhood fuction if requested
     neighbourhood_function: Option<Vec<f64>>,
     /// The value computed by the last iteration
@@ -347,9 +392,9 @@ pub struct HyperBall<
     /// `modified_result_counter[i]` is `true` if `result_bits.get_counter(i)` has been modified
     modified_result_counter: AtomicBitVec,
     /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned
-    local_checklist: Vec<usize>,
+    local_checklist: Vec<G1::Label>,
     /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration
-    local_next_must_be_checked: Mutex<Vec<usize>>,
+    local_next_must_be_checked: Mutex<Vec<G1::Label>>,
     /// Used in systolic iterations to keep track of nodes to check
     must_be_checked: AtomicBitVec,
     /// Used in systolic iterations to keep track of nodes to check in the next iteration
