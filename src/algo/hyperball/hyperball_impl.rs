@@ -323,18 +323,41 @@ impl<
             next_must_be_checked: AtomicBitVec::new(num_nodes),
             relative_increment: 0.0,
             granularity,
-            num_modified_counters: AtomicUsize::new(0),
+            iteration_context: IterationContext::default(),
         })
     }
 }
 
-struct ParallelContext<'a, 'b> {
-    #[allow(dead_code)]
-    rayon_context: rayon::BroadcastContext<'a>,
+/// Utility used as container for iteration context
+struct IterationContext {
     granularity: usize,
-    cursor: &'b AtomicUsize,
-    arc_balanced_cursor: &'b Mutex<(usize, usize)>,
-    visited_arcs: &'b AtomicU64,
+    cursor: AtomicUsize,
+    arc_balanced_cursor: Mutex<(usize, usize)>,
+    visited_arcs: AtomicU64,
+    modified_counters: AtomicUsize,
+}
+
+impl IterationContext {
+    /// Resets the iteration context
+    fn reset(&mut self, granularity: usize) {
+        self.granularity = granularity;
+        self.cursor.store(0, Ordering::Relaxed);
+        *self.arc_balanced_cursor.lock().unwrap() = (0, 0);
+        self.visited_arcs.store(0, Ordering::Relaxed);
+        self.modified_counters.store(0, Ordering::Relaxed);
+    }
+}
+
+impl Default for IterationContext {
+    fn default() -> Self {
+        Self {
+            granularity: 0,
+            cursor: AtomicUsize::new(0),
+            arc_balanced_cursor: Mutex::new((0, 0)),
+            visited_arcs: AtomicU64::new(0),
+            modified_counters: AtomicUsize::new(0),
+        }
+    }
 }
 
 /// An algorithm thah computes an approximation of the neighbourhood function, of the size of the reachable sets,
@@ -399,8 +422,8 @@ pub struct HyperBall<
     next_must_be_checked: AtomicBitVec,
     /// The relative increment of the neighbourhood function for the last iteration
     relative_increment: f64,
-    /// The number of modified counters during the last iteration
-    num_modified_counters: AtomicUsize,
+    /// Context used in a single iteration
+    iteration_context: IterationContext,
 }
 
 impl<
@@ -447,7 +470,7 @@ where
 
             pl.update();
 
-            if self.num_modified_counters.load(Ordering::Relaxed) == 0 {
+            if self.modified_counters() == 0 {
                 pl.info(format_args!(
                     "Terminating appoximation after {} iteration(s) by stabilisation",
                     i
@@ -708,23 +731,14 @@ where
 
         // Record the number of modified counters and the number of nodes and arcs as u64
         let modified_counters: u64 = self
-            .num_modified_counters
-            .load(Ordering::Relaxed)
+            .modified_counters()
             .try_into()
-            .with_context(|| {
-                format!(
-                    "Could not convert {} into u64",
-                    self.num_modified_counters.load(Ordering::Relaxed)
-                )
-            })?;
+            .with_context(|| format!("Could not convert {} into u64", self.modified_counters()))?;
         let num_nodes: u64 =
             self.graph.num_nodes().try_into().with_context(|| {
                 format!("Could not convert {} into u64", self.graph.num_nodes())
             })?;
         let num_arcs: u64 = self.graph.num_arcs();
-
-        // Reset modified counters atomic
-        self.num_modified_counters.store(0, Ordering::Relaxed);
 
         // If less than one fourth of the nodes have been modified, and we have the transpose,
         // it is time to pass to a systolic computation.
@@ -800,9 +814,7 @@ where
             ));
         }
 
-        let cursor = AtomicUsize::new(0);
-        let arc_balanced_cursor = Mutex::new((0, 0));
-        let visited_arcs = AtomicU64::new(0);
+        self.iteration_context.reset(granularity);
 
         pl.item_name("arc");
         pl.expected_updates(if self.local {
@@ -817,19 +829,12 @@ where
         });
         pl.start("Starting parallel execution");
 
-        rayon::broadcast(|c| {
-            self.parallel_task(ParallelContext {
-                rayon_context: c,
-                granularity,
-                cursor: &cursor,
-                arc_balanced_cursor: &arc_balanced_cursor,
-                visited_arcs: &visited_arcs,
-            })
-        });
+        rayon::broadcast(|c| self.parallel_task(c));
 
         pl.done_with_count(
-            visited_arcs
-                .into_inner()
+            self.iteration_context
+                .visited_arcs
+                .load(Ordering::Relaxed)
                 .try_into()
                 .with_context(|| "Could not convert the number of visited arcs into usize")?,
         );
@@ -878,8 +883,8 @@ where
     ///
     /// # Arguments:
     /// - `broadcast_context`: the context of the for the parallel task
-    fn parallel_task(&self, context: ParallelContext) {
-        let node_granularity = context.granularity;
+    fn parallel_task(&self, _broadcast_context: rayon::BroadcastContext) {
+        let node_granularity = self.iteration_context.granularity;
         let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
             / self.graph.num_nodes() as f64)
             .ceil() as usize;
@@ -909,13 +914,16 @@ where
             // Get work
             let (start, end) = if self.local {
                 let start = std::cmp::min(
-                    context.cursor.fetch_add(1, Ordering::Relaxed),
+                    self.iteration_context
+                        .cursor
+                        .fetch_add(1, Ordering::Relaxed),
                     node_upper_limit,
                 );
                 let end = std::cmp::min(start + 1, node_upper_limit);
                 (start, end)
             } else {
-                let mut arc_balanced_cursor = context.arc_balanced_cursor.lock().unwrap();
+                let mut arc_balanced_cursor =
+                    self.iteration_context.arc_balanced_cursor.lock().unwrap();
                 let (mut next_node, mut next_arc) = *arc_balanced_cursor;
                 if next_node >= node_upper_limit {
                     (node_upper_limit, node_upper_limit)
@@ -1069,11 +1077,19 @@ where
         }
 
         *self.current.lock().unwrap() += neighbourhood_function_delta.value();
-        context
+        self.iteration_context
             .visited_arcs
             .fetch_add(visited_arcs, Ordering::Relaxed);
-        self.num_modified_counters
+        self.iteration_context
+            .modified_counters
             .fetch_add(modified_counters, Ordering::Relaxed);
+    }
+
+    /// Returns the number of HyperLogLog counters that were modified by the last iteration.
+    fn modified_counters(&self) -> usize {
+        self.iteration_context
+            .modified_counters
+            .load(Ordering::Relaxed)
     }
 
     /// Initialises the approximator.
@@ -1108,7 +1124,7 @@ where
         self.systolic = false;
         self.local = false;
         self.pre_local = false;
-        self.num_modified_counters.store(0, Ordering::Relaxed);
+        self.iteration_context.reset(self.granularity);
 
         pl.info(format_args!("Initializing distances"));
         if let Some(distances) = &self.sum_of_distances {
