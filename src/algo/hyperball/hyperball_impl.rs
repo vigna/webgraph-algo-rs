@@ -354,6 +354,8 @@ pub struct HyperBall<
     cumulative_outdegree: &'a D,
     /// A slice of nonegative node weights
     weight: Option<&'a [usize]>,
+    /// The base number of nodes per task. Must be a multiple of `bits.chuk_size()`
+    granularity: usize,
     /// The current status of Hyperball
     bits: HyperLogLogCounterArray<G1::Label, W, H>,
     /// The new status of Hyperball after an iteration
@@ -396,8 +398,6 @@ pub struct HyperBall<
     next_must_be_checked: AtomicBitVec,
     /// The relative increment of the neighbourhood function for the last iteration
     relative_increment: f64,
-    /// The base number of nodes per task. Must be a multiple of `bits.chuk_size()`
-    granularity: usize,
 }
 
 impl<
