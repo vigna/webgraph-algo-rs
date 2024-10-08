@@ -431,7 +431,7 @@ where
         self.init(pl.clone())
             .with_context(|| "Could not initialize approximator")?;
 
-        pl.item_name("iteration(s)");
+        pl.item_name("iteration");
         pl.expected_updates(None);
         pl.start(format!(
             "Running Hyperball for a maximum of {} iterations and a threshold of {:?}",
@@ -792,7 +792,7 @@ where
         let arc_balanced_cursor = Mutex::new((0, 0));
         let visited_arcs = AtomicU64::new(0);
 
-        pl.item_name("arcs");
+        pl.item_name("arc");
         pl.expected_updates(if self.local {
             None
         } else {
