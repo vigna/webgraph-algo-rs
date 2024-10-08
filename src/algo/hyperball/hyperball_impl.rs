@@ -10,7 +10,7 @@ use std::{
 };
 use sux::{
     bits::AtomicBitVec,
-    traits::{BitCount, Succ, Word},
+    traits::{Succ, Word},
 };
 use webgraph::traits::RandomAccessGraph;
 
@@ -323,6 +323,7 @@ impl<
             next_must_be_checked: AtomicBitVec::new(num_nodes),
             relative_increment: 0.0,
             granularity,
+            num_modified_counters: AtomicUsize::new(0),
         })
     }
 }
@@ -398,6 +399,8 @@ pub struct HyperBall<
     next_must_be_checked: AtomicBitVec,
     /// The relative increment of the neighbourhood function for the last iteration
     relative_increment: f64,
+    /// The number of modified counters during the last iteration
+    num_modified_counters: AtomicUsize,
 }
 
 impl<
@@ -444,7 +447,7 @@ where
 
             pl.update();
 
-            if self.modified_counters() == 0 {
+            if self.num_modified_counters.load(Ordering::Relaxed) == 0 {
                 pl.info(format_args!(
                     "Terminating appoximation after {} iteration(s) by stabilisation",
                     i
@@ -705,14 +708,23 @@ where
 
         // Record the number of modified counters and the number of nodes and arcs as u64
         let modified_counters: u64 = self
-            .modified_counters()
+            .num_modified_counters
+            .load(Ordering::Relaxed)
             .try_into()
-            .with_context(|| format!("Could not convert {} into u64", self.modified_counters()))?;
+            .with_context(|| {
+                format!(
+                    "Could not convert {} into u64",
+                    self.num_modified_counters.load(Ordering::Relaxed)
+                )
+            })?;
         let num_nodes: u64 =
             self.graph.num_nodes().try_into().with_context(|| {
                 format!("Could not convert {} into u64", self.graph.num_nodes())
             })?;
         let num_arcs: u64 = self.graph.num_arcs();
+
+        // Reset modified counters atomic
+        self.num_modified_counters.store(0, Ordering::Relaxed);
 
         // If less than one fourth of the nodes have been modified, and we have the transpose,
         // it is time to pass to a systolic computation.
@@ -778,7 +790,7 @@ where
                     std::cmp::max(1, self.graph.num_nodes() / num_threads) as f64,
                     granularity as f64
                         * (self.graph.num_nodes() as f64
-                            / std::cmp::max(1, self.modified_counters()) as f64),
+                            / std::cmp::max(1, modified_counters) as f64),
                 ) as usize;
                 granularity = (granularity + W::BITS - 1) & W::BITS.wrapping_neg();
             }
@@ -880,6 +892,7 @@ where
             self.graph.num_nodes()
         };
         let mut visited_arcs = 0;
+        let mut modified_counters = 0;
         let arc_upper_limit = self
             .graph
             .num_arcs()
@@ -1029,6 +1042,8 @@ where
                                 }
                             }
                         }
+
+                        modified_counters += 1;
                     }
 
                     // This is slightly subtle: if a counter is not modified, and
@@ -1057,12 +1072,8 @@ where
         context
             .visited_arcs
             .fetch_add(visited_arcs, Ordering::Relaxed);
-    }
-
-    /// Returns the number of HyperLogLog counters that were modified by the last iteration.
-    #[inline(always)]
-    fn modified_counters(&self) -> usize {
-        self.modified_counter.count_ones()
+        self.num_modified_counters
+            .fetch_add(modified_counters, Ordering::Relaxed);
     }
 
     /// Initialises the approximator.
@@ -1097,6 +1108,7 @@ where
         self.systolic = false;
         self.local = false;
         self.pre_local = false;
+        self.num_modified_counters.store(0, Ordering::Relaxed);
 
         pl.info(format_args!("Initializing distances"));
         if let Some(distances) = &self.sum_of_distances {
