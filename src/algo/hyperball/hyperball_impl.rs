@@ -466,21 +466,21 @@ where
 
         for i in 0..upper_bound {
             self.iterate(pl.clone())
-                .with_context(|| format!("Could not perform iteration {}", i))?;
+                .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
             pl.update();
 
             if self.modified_counters() == 0 {
                 pl.info(format_args!(
                     "Terminating appoximation after {} iteration(s) by stabilisation",
-                    i
+                    i + 1
                 ));
                 break;
             }
 
             if let Some(t) = threshold {
                 if i > 3 && self.relative_increment < (1.0 + t) {
-                    pl.info(format_args!("Terminating approximation after {} iteration(s) by relative bound on the neighbourhood function", i));
+                    pl.info(format_args!("Terminating approximation after {} iteration(s) by relative bound on the neighbourhood function", i + 1));
                     break;
                 }
             }
@@ -723,7 +723,7 @@ where
     ///   method to log the progress of the iteration. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
-        pl.info(format_args!("Performing iteration {}", self.iteration));
+        pl.info(format_args!("Performing iteration {}", self.iteration + 1));
 
         // Let us record whether the previous computation was systolic or local.
         let previous_was_systolic = self.systolic;
