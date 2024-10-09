@@ -826,6 +826,13 @@ where
                 .with_context(|| "Could not convert the number of visited arcs into usize")?,
         );
 
+        pl.info(format_args!(
+            "Modified counters: {}/{} ({:.3}%)",
+            self.modified_counters(),
+            self.graph.num_nodes(),
+            (self.modified_counters() as f64 / self.graph.num_nodes() as f64) * 100.0
+        ));
+
         self.swap_backend();
         if self.systolic {
             std::mem::swap(&mut self.must_be_checked, &mut self.next_must_be_checked);
