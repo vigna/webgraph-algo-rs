@@ -469,7 +469,7 @@ pub struct ThreadHelper<W: Word + IntoAtomic> {
 ///
 /// In alternative, the counter may make a local copy of the registers using the
 /// [`Self::cache`] method.
-pub struct HyperLogLogCounter<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> {
+pub struct HyperLogLogCounter<'a, T, W: Word + IntoAtomic, H: BuildHasher> {
     /// The reference to the parent [`HyperLogLogCounterArray`].
     counter_array: &'a HyperLogLogCounterArray<T, W, H>,
     /// The offset of the first register of the counter.
@@ -480,10 +480,10 @@ pub struct HyperLogLogCounter<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> {
     cached_bits: Option<(BitFieldVec<W>, bool)>,
     /// Reference to an already allocated cache to help reduce allocations in parallel
     /// executions.
-    thread_helper: Option<&'b mut ThreadHelper<W>>,
+    thread_helper: Option<&'a mut ThreadHelper<W>>,
 }
 
-impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b, T, W, H> {
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H> {
     /// Returns the index of the current counter
     #[inline(always)]
     pub fn counter_index(&self) -> usize {
@@ -1061,7 +1061,7 @@ impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b,
 
     /// Sets the couter to use the specified thread helper.
     #[inline(always)]
-    pub fn use_thread_helper(&mut self, helper: &'b mut ThreadHelper<W>) {
+    pub fn use_thread_helper(&mut self, helper: &'a mut ThreadHelper<W>) {
         self.thread_helper = Some(helper);
     }
 
@@ -1072,7 +1072,7 @@ impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b,
     }
 }
 
-impl<'a, 'b, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, 'b, T, W, H>
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -1125,11 +1125,10 @@ where
 
 impl<
         'a,
-        'b,
         T: Hash,
         W: Word + TryFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
         H: BuildHasher,
-    > Counter<T> for HyperLogLogCounter<'a, 'b, T, W, H>
+    > Counter<T> for HyperLogLogCounter<'a, T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -1197,11 +1196,10 @@ where
 
 impl<
         'a,
-        'b,
         T: Hash,
         W: Word + TryFrom<HashResult> + UpcastableInto<HashResult> + IntoAtomic,
         H: BuildHasher,
-    > ApproximatedCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H>
+    > ApproximatedCounter<T> for HyperLogLogCounter<'a, T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
