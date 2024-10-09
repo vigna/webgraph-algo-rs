@@ -30,7 +30,6 @@ pub struct HyperBallBuilder<
     graph: &'a G1,
     rev_graph: Option<&'a G2>,
     cumulative_outdegree: &'a D,
-    neighbourhood_function: bool,
     sum_of_distances: bool,
     sum_of_inverse_distances: bool,
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
@@ -58,7 +57,6 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             graph,
             rev_graph: None,
             cumulative_outdegree,
-            neighbourhood_function: true,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
@@ -112,7 +110,6 @@ impl<
             graph: self.graph,
             rev_graph: transposed,
             cumulative_outdegree: self.cumulative_outdegree,
-            neighbourhood_function: self.neighbourhood_function,
             sum_of_distances: self.sum_of_distances,
             sum_of_inverse_distances: self.sum_of_inverse_distances,
             discount_functions: self.discount_functions,
@@ -138,15 +135,6 @@ impl<
     /// - `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
     pub fn with_sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
         self.sum_of_inverse_distances = do_sum_of_inverse_distances;
-        self
-    }
-
-    /// Sets whether to compute the neighbourhood function.
-    ///
-    /// # Arguments
-    /// - `do_neighbourhood_function`: if `true` the neighbourhood function is computed.
-    pub fn with_neighbourhood_function(mut self, do_neighbourhood_function: bool) -> Self {
-        self.neighbourhood_function = do_neighbourhood_function;
         self
     }
 
@@ -202,7 +190,6 @@ impl<
             graph: self.graph,
             rev_graph: self.rev_graph,
             cumulative_outdegree: self.cumulative_outdegree,
-            neighbourhood_function: self.neighbourhood_function,
             sum_of_distances: self.sum_of_distances,
             sum_of_inverse_distances: self.sum_of_inverse_distances,
             discount_functions: self.discount_functions,
