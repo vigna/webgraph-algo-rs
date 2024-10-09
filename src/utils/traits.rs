@@ -104,7 +104,7 @@ impl<T> UnsafeSyncCell<T> {
     ///
     /// # Safety
     ///
-    /// Calling this method while another reference to the same cell is [undefined behavior].
+    /// Calling this method while another reference to the same cell exists is [undefined behavior].
     ///
     /// Calling [`Self::read`] while a reference returned by this method still exists is
     /// [undefined behavior].

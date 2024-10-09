@@ -924,7 +924,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         self.commit_changes(true);
     }
 
-    /// Cache the counter registers.
+    /// Cache the counter's registers.
     ///
     /// Once this method is called every change applied to this counter isn't reflected
     /// in the backend [`HyperLogLogCounterArray`] until [`Self::commit_changes`] is

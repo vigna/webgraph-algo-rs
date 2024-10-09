@@ -959,10 +959,12 @@ where
                         if succ != node && self.modified_counter[succ] {
                             if !counter.is_cached() {
                                 unsafe {
+                                    // Safety: we are only ever reading from the current array
                                     counter.cache();
                                 }
                             }
                             unsafe {
+                                // Safety: the counter is cached and no other counter has access to it
                                 counter.merge_unsafe(&self.get_current_counter(succ));
                             }
                         }
@@ -1053,6 +1055,8 @@ where
                     // then we can avoid updating the result altogether.
                     if modified_counter || self.modified_counter[node] {
                         unsafe {
+                            // Safety: we are only ever writing to the result array and
+                            // no counter is ever written to more than once
                             self.get_result_counter(node).set_to(&counter);
                         }
                     }
@@ -1062,6 +1066,8 @@ where
                     // reflect our current value.
                     if self.modified_counter[node] {
                         unsafe {
+                            // Safety: we are only ever writing to the result array and
+                            // no counter is ever written to more than once
                             self.get_result_counter(node)
                                 .set_to(&self.get_current_counter(node))
                         };
