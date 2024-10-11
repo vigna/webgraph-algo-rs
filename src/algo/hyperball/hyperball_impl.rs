@@ -51,6 +51,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
     /// - `cumulative_outdegree`: the degree cumulative function of the graph.
     pub fn new(graph: &'a G, cumulative_outdegree: &'a D) -> Self {
         let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
+            .with_log_2_num_registers(4)
             .with_num_elements_upper_bound(graph.num_nodes())
             .with_mem_options(TempMmapOptions::None);
         Self {
