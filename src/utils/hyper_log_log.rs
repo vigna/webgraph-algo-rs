@@ -260,7 +260,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             num_registers_minus_1,
             log_2_num_registers,
             register_size,
-            alpha_m_m: alpha * (number_of_registers as f64).pow(2.0),
+            alpha_m_m: alpha * (number_of_registers as f64).powi(2),
             sentinel_mask,
             hasher_builder,
             chunk_size,
