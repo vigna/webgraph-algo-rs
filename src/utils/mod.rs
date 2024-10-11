@@ -24,6 +24,9 @@ pub use hyper_log_log::{
 
 pub mod traits;
 
+const MAX_NODES_ENV_VAR: &str = "MAX_TRANSPOSED_SIZE_DEBUG";
+const MAX_NODES_DEFAULT: usize = 10000;
+
 /// Returns whether `transposed` is the transposed graph of `graph`.
 ///
 /// # Arguments
@@ -36,6 +39,13 @@ pub(crate) fn check_transposed<G1: RandomAccessGraph, G2: RandomAccessGraph>(
     if graph.num_nodes() != transposed.num_nodes() || graph.num_arcs() != transposed.num_arcs() {
         return false;
     } else {
+        let max_nodes = std::env::var(MAX_NODES_ENV_VAR)
+            .map(|v| v.parse().unwrap_or(MAX_NODES_DEFAULT))
+            .unwrap_or(MAX_NODES_DEFAULT);
+        if graph.num_nodes() > max_nodes {
+            eprintln!("This graph is bigger than {} nodes ({} nodes). It is assumed to be the correct transposed. If you wish to raise the maximum size to check at runtime, set the environment variable {} to the desired maximum size", max_nodes, graph.num_nodes(), MAX_NODES_ENV_VAR);
+            return true;
+        }
         for node in 0..graph.num_nodes() {
             for succ in graph.successors(node) {
                 if !transposed
