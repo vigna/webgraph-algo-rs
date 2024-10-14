@@ -165,7 +165,7 @@ impl<
     ///
     /// # Arguments
     /// - `discount_function`: the discount function to add.
-    pub fn with_discount_function<F: Fn(usize) -> f64 + Sync>(
+    pub fn with_discount_function(
         mut self,
         discount_function: impl Fn(usize) -> f64 + Sync + 'a,
     ) -> Self {
