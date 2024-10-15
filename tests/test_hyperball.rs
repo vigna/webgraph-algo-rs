@@ -12,18 +12,18 @@ use webgraph_algo::{algo::hyperball::HyperBallBuilder, utils::HyperLogLogCounter
 /// Jenkins Hasher as implemented in the
 /// [Java version](https://github.com/vigna/dsiutils/blob/master/src/it/unimi/dsi/util/HyperLogLogCounterArray.java#L263).
 struct JenkinsHasher {
-    a: i64,
-    b: i64,
-    c: i64,
+    a: u64,
+    b: u64,
+    c: u64,
     buffer: Vec<u8>,
 }
 
 impl JenkinsHasher {
     fn new(seed: u64) -> Self {
         Self {
-            a: seed as i64,
-            b: seed as i64,
-            c: 0x9e3779b97f4a7c13u64 as i64,
+            a: seed,
+            b: seed,
+            c: 0x9e3779b97f4a7c13,
             buffer: Vec::with_capacity(u64::BYTES),
         }
     }
@@ -45,13 +45,13 @@ impl JenkinsHasher {
 
         // Init state
 
-        a += x as i64;
+        a += x;
 
         // a -= b; a -= c; a ^= (c >>> 43);
 
         a -= b;
         a -= c;
-        a ^= (c.0 as u64 >> 43) as i64;
+        a ^= c >> 43;
 
         // b -= c; b -= a; b ^= (a << 9);
 
@@ -63,13 +63,13 @@ impl JenkinsHasher {
 
         c -= a;
         c -= b;
-        c ^= (b.0 as u64 >> 8) as i64;
+        c ^= b >> 8;
 
         // a -= b; a -= c; a ^= (c >>> 38);
 
         a -= b;
         a -= c;
-        a ^= (c.0 as u64 >> 38) as i64;
+        a ^= c >> 38;
 
         // b -= c; b -= a; b ^= (a << 23);
 
@@ -81,13 +81,13 @@ impl JenkinsHasher {
 
         c -= a;
         c -= b;
-        c ^= (b.0 as u64 >> 5) as i64;
+        c ^= b >> 5;
 
         // a -= b; a -= c; a ^= (c >>> 35);
 
         a -= b;
         a -= c;
-        a ^= (c.0 as u64 >> 35) as i64;
+        a ^= c >> 35;
 
         // b -= c; b -= a; b ^= (a << 49);
 
@@ -99,13 +99,13 @@ impl JenkinsHasher {
 
         c -= a;
         c -= b;
-        c ^= (b.0 as u64 >> 11) as i64;
+        c ^= b >> 11;
 
         // a -= b; a -= c; a ^= (c >>> 12);
 
         a -= b;
         a -= c;
-        a ^= (c.0 as u64 >> 12) as i64;
+        a ^= c >> 12;
 
         // b -= c; b -= a; b ^= (a << 18);
 
@@ -117,7 +117,7 @@ impl JenkinsHasher {
 
         c -= a;
         c -= b;
-        c ^= (b.0 as u64 >> 22) as i64;
+        c ^= b >> 22;
 
         // Save modified state
 
