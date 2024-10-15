@@ -73,7 +73,7 @@ pub struct MmapSlice<T> {
     in_memory_vec: Vec<T>,
 }
 
-impl<T: Default + Clone> MmapSlice<T> {
+impl<T: Default> MmapSlice<T> {
     /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
     /// the elements initialized to the type's default value.
     ///
@@ -105,7 +105,7 @@ impl<T: Default + Clone> MmapSlice<T> {
     /// # }
     /// ```
     pub fn new(len: usize, options: TempMmapOptions) -> Result<Self> {
-        Self::from_value(T::default(), len, options)
+        Self::from_closure(T::default, len, options)
     }
 }
 
