@@ -274,6 +274,32 @@ impl<
             ));
         }
 
+        pl.info(format_args!("Initializing bit vectors"));
+
+        pl.info(format_args!("Initializing modified_counter bitvec"));
+        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
+        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
+            .with_context(|| "Could not initialize modified_counter")?;
+        let modified_counter = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+
+        pl.info(format_args!("Initializing modified_result_counter bitvec"));
+        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
+        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
+            .with_context(|| "Could not initialize modified_result_counter")?;
+        let modified_result_counter = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+
+        pl.info(format_args!("Initializing must_be_checked bitvec"));
+        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
+        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
+            .with_context(|| "Could not initialize must_be_checked")?;
+        let must_be_checked = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+
+        pl.info(format_args!("Initializing next_must_be_checked bitvec"));
+        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
+        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
+            .with_context(|| "Could not initialize next_must_be_checked")?;
+        let next_must_be_checked = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+
         let granularity = (self.granularity + W::BITS - 1) & W::BITS.wrapping_neg();
 
         pl.info(format_args!(
@@ -303,12 +329,12 @@ impl<
             neighbourhood_function: Vec::new(),
             last: 0.0,
             current: Mutex::new(0.0),
-            modified_counter: AtomicBitVec::new(num_nodes),
-            modified_result_counter: AtomicBitVec::new(num_nodes),
+            modified_counter,
+            modified_result_counter,
             local_checklist: Vec::new(),
             local_next_must_be_checked: Mutex::new(Vec::new()),
-            must_be_checked: AtomicBitVec::new(num_nodes),
-            next_must_be_checked: AtomicBitVec::new(num_nodes),
+            must_be_checked,
+            next_must_be_checked,
             relative_increment: 0.0,
             granularity,
             iteration_context: IterationContext::default(),
@@ -397,17 +423,17 @@ pub struct HyperBall<
     /// The value computed by the current iteration
     current: Mutex<f64>,
     /// `modified_counter[i]` is `true` if `bits.get_counter(i)` has been modified
-    modified_counter: AtomicBitVec,
+    modified_counter: AtomicBitVec<MmapSlice<AtomicUsize>>,
     /// `modified_result_counter[i]` is `true` if `result_bits.get_counter(i)` has been modified
-    modified_result_counter: AtomicBitVec,
+    modified_result_counter: AtomicBitVec<MmapSlice<AtomicUsize>>,
     /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned
     local_checklist: Vec<G1::Label>,
     /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration
     local_next_must_be_checked: Mutex<Vec<G1::Label>>,
     /// Used in systolic iterations to keep track of nodes to check
-    must_be_checked: AtomicBitVec,
+    must_be_checked: AtomicBitVec<MmapSlice<AtomicUsize>>,
     /// Used in systolic iterations to keep track of nodes to check in the next iteration
-    next_must_be_checked: AtomicBitVec,
+    next_must_be_checked: AtomicBitVec<MmapSlice<AtomicUsize>>,
     /// The relative increment of the neighbourhood function for the last iteration
     relative_increment: f64,
     /// Context used in a single iteration

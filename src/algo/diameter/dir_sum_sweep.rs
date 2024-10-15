@@ -32,7 +32,7 @@ pub struct SumSweepDirectedDiameterRadius<
     reversed_graph: &'a G2,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
-    radial_vertices: AtomicBitVec,
+    radial_vertices: AtomicBitVec<MmapSlice<AtomicUsize>>,
     diameter_lower_bound: usize,
     radius_upper_bound: usize,
     /// A vertex whose eccentricity equals the diameter.
@@ -115,6 +115,10 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         } else {
             AtomicBitVec::new(nn)
         };
+        let (v, len) = acc_radial.into_raw_parts();
+        let mmap = MmapSlice::from_vec(v, options.clone())
+            .with_context(|| "Cannot create radial vertices bitvec slice")?;
+        let acc_radial = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
 
         let scc_graph = SccGraph::new(graph, reversed_graph, &scc, options.clone(), pl.clone())
             .with_context(|| "Cannot create strongly connected components graph")?;
