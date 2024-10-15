@@ -142,11 +142,11 @@ impl Hasher for JenkinsHasher {
 
 #[derive(Clone)]
 struct JenkinsHasherBuilder {
-    seed: usize,
+    seed: u64,
 }
 
 impl JenkinsHasherBuilder {
-    pub fn new(seed: usize) -> Self {
+    pub fn new(seed: u64) -> Self {
         Self { seed }
     }
 }
@@ -155,7 +155,7 @@ impl BuildHasher for JenkinsHasherBuilder {
     type Hasher = JenkinsHasher;
 
     fn build_hasher(&self) -> Self::Hasher {
-        JenkinsHasher::new(self.seed as u64)
+        JenkinsHasher::new(self.seed)
     }
 }
 
