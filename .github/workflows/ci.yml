@@ -30,25 +30,6 @@ jobs:
       - name: Check clippy lint
         run: cargo clippy -- -Dwarnings
 
-  bench:
-    name: Benchmarks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Setup Rust
-        uses: MatteoH2O1999/setup-rust@v1
-      - name: Install Valgrind
-        run: |
-          sudo apt update -y
-          sudo apt install -y valgrind
-      - name: Build benchmarks
-        run: cargo bench --no-run
-      - name: Run iai benchmarks
-        run: cargo bench --bench iai_benchmark
-
   tests:
     name: Unit tests on ${{ matrix.os }}
     strategy:

@@ -22,15 +22,10 @@ parallel_frontier = {git = "https://github.com/zommiommy/parallel_frontier"}
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
-iai = "0.1"
 xxhash-rust = "0.8.12"
 
 [[bench]]
 name = "criterion_benchmark"
-harness = false
-
-[[bench]]
-name = "iai_benchmark"
 harness = false
 
 [profile.release]
