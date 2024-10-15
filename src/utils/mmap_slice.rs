@@ -110,59 +110,6 @@ impl<T: Default> MmapSlice<T> {
 }
 
 impl<T: Clone> MmapSlice<T> {
-    /// Creates a new slice from a [`Vec`] with the provided [`TempMmapOptions`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use webgraph_algo::utils::*;
-    ///
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
-    /// let v = vec![0; 100];
-    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::None)?;
-    /// # assert_eq!(slice.as_slice(), vec![0; 100].as_slice());
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// Note how this consumes the [`Vec`].
-    /// As such the following is illegal and should not compile.
-    ///
-    /// ```compile_fail
-    /// use webgraph_algo::utils::*;
-    ///
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
-    /// let v = vec![0; 100];
-    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::None)?;
-    /// assert_eq!(slice.as_slice(), v.as_slice());
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn from_vec(v: Vec<T>, options: TempMmapOptions) -> Result<Self> {
-        match options {
-            TempMmapOptions::None => Ok(Self {
-                mmap: None,
-                in_memory_vec: v,
-            }),
-            TempMmapOptions::TempDir(flags) => Ok(Self::from_tempfile_and_vec(
-                v,
-                tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
-                flags,
-            )
-            .with_context(|| "Cannot create mmap in temporary directory")?),
-            TempMmapOptions::CustomDir(dir, flags) => Ok(Self::from_tempfile_and_vec(
-                v,
-                tempfile_in(dir.as_path()).with_context(|| {
-                    format!("Cannot create tempfile in directory {}", dir.display())
-                })?,
-                flags,
-            )
-            .with_context(|| format!("Cannot create mmap in directory {}", dir.display()))?),
-        }
-    }
-
     /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
     /// the elements initialized to `value`.
     ///
@@ -216,23 +163,6 @@ impl<T: Clone> MmapSlice<T> {
             }
         }
     }
-
-    fn from_tempfile_and_vec(v: Vec<T>, file: File, flags: MmapFlags) -> Result<Self> {
-        let expected_len = v.len() * Self::BLOCK_SIZE;
-        file.set_len(
-            expected_len
-                .try_into()
-                .with_context(|| "Cannot convert file len")?,
-        )
-        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
-
-        let mut mmap =
-            Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
-
-        mmap.as_mut().clone_from_slice(v.as_slice());
-
-        Ok(mmap)
-    }
 }
 
 impl<T> MmapSlice<T> {
@@ -282,6 +212,59 @@ impl<T> MmapSlice<T> {
             mmap: Some((file, mmap, mmap_len / Self::BLOCK_SIZE)),
             in_memory_vec: Vec::new(),
         })
+    }
+
+    /// Creates a new slice from a [`Vec`] with the provided [`TempMmapOptions`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use webgraph_algo::utils::*;
+    ///
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let v = vec![0; 100];
+    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::None)?;
+    /// # assert_eq!(slice.as_slice(), vec![0; 100].as_slice());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Note how this consumes the [`Vec`].
+    /// As such the following is illegal and should not compile.
+    ///
+    /// ```compile_fail
+    /// use webgraph_algo::utils::*;
+    ///
+    /// # use anyhow::Result;
+    /// # fn main() -> Result<()> {
+    /// let v = vec![0; 100];
+    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::None)?;
+    /// assert_eq!(slice.as_slice(), v.as_slice());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_vec(v: Vec<T>, options: TempMmapOptions) -> Result<Self> {
+        match options {
+            TempMmapOptions::None => Ok(Self {
+                mmap: None,
+                in_memory_vec: v,
+            }),
+            TempMmapOptions::TempDir(flags) => Ok(Self::from_tempfile_and_vec(
+                v,
+                tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
+                flags,
+            )
+            .with_context(|| "Cannot create mmap in temporary directory")?),
+            TempMmapOptions::CustomDir(dir, flags) => Ok(Self::from_tempfile_and_vec(
+                v,
+                tempfile_in(dir.as_path()).with_context(|| {
+                    format!("Cannot create tempfile in directory {}", dir.display())
+                })?,
+                flags,
+            )
+            .with_context(|| format!("Cannot create mmap in directory {}", dir.display()))?),
+        }
     }
 
     /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
@@ -353,6 +336,31 @@ impl<T> MmapSlice<T> {
         .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
 
         let mmap = Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
+
+        Ok(mmap)
+    }
+
+    fn from_tempfile_and_vec(v: Vec<T>, file: File, flags: MmapFlags) -> Result<Self> {
+        let expected_len = v.len() * Self::BLOCK_SIZE;
+        file.set_len(
+            expected_len
+                .try_into()
+                .with_context(|| "Cannot convert file len")?,
+        )
+        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
+
+        let mut mmap =
+            Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
+
+        let v = std::mem::ManuallyDrop::new(v);
+        let src = v.as_ptr();
+        let dst = mmap.as_mut_ptr();
+
+        unsafe {
+            // Safety: regions are non-overlapping and src is dropped by this method so
+            // only dst can be read
+            std::ptr::copy_nonoverlapping(src, dst, v.len());
+        }
 
         Ok(mmap)
     }
