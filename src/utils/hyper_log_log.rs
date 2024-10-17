@@ -533,26 +533,18 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         debug_assert_eq!(x.len(), y.len());
         let mut borrow = false;
 
-        for (x_word, &y_word) in x.iter_mut().zip(y.iter()) {
-            let mut signed_x_word = x_word.to_signed();
-            let signed_y_word = y_word.to_signed();
+        for (x_word, &y) in x.iter_mut().zip(y.iter()) {
+            let mut x = *x_word;
             if !borrow {
-                borrow = Self::borrow_check(signed_x_word, signed_y_word);
-            } else if signed_x_word != W::SignedInt::ZERO {
-                signed_x_word = signed_x_word.wrapping_sub(W::SignedInt::ONE);
-                borrow = Self::borrow_check(signed_x_word, signed_y_word);
+                borrow = x < y;
+            } else if x != W::ZERO {
+                x = x.wrapping_sub(W::ONE);
+                borrow = x < y;
             } else {
-                signed_x_word = signed_x_word.wrapping_sub(W::SignedInt::ONE);
+                x = x.wrapping_sub(W::ONE);
             }
-            signed_x_word = signed_x_word.wrapping_sub(signed_y_word);
-            *x_word = signed_x_word.to_unsigned();
+            *x_word = x.wrapping_sub(y);
         }
-    }
-
-    /// Returns the result of an unsigned strict comparison
-    #[inline(always)]
-    fn borrow_check<N: Number>(x: N, y: N) -> bool {
-        (x < y) ^ (x < N::ZERO) ^ (y < N::ZERO)
     }
 
     /// Merges `other` into `self` inplace using words instead of registers and returns
