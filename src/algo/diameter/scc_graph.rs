@@ -55,11 +55,11 @@ impl<
     /// components.
     ///
     /// # Arguments
-    /// - `graph`: An immutable reference to the graph.
-    /// - `reversed_graph`: An immutable reference to `graph` transposed.
-    /// - `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
-    /// - `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `graph`: An immutable reference to the graph.
+    /// * `reversed_graph`: An immutable reference to `graph` transposed.
+    /// * `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
+    /// * `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn new(
@@ -104,7 +104,7 @@ impl<
     /// The children of the passed strongly connected component.
     ///
     /// # Arguments
-    /// - `component`: the component.
+    /// * `component`: the component.
     ///
     /// # Panics
     /// Panics if a non existant component index is passed.
@@ -131,7 +131,7 @@ impl<
     /// in the graph. This edge is used in the [`Self::all_cc_upper_bound`] method.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn find_edges_through_scc(

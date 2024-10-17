@@ -7,9 +7,9 @@ pub trait BreadthFirstGraphVisit {
     /// After this function returns, the visit is invalid.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
@@ -27,10 +27,10 @@ pub trait BreadthFirstGraphVisit {
     /// Visits breadth-first the graph from the specified node and applies `callback` to every visited node.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `visit_root`: The node to start the visit in.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `visit_root`: The node to start the visit in.
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
@@ -48,12 +48,12 @@ pub trait BreadthFirstGraphVisit {
     /// After this function returns, the visit is invalid.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `filter`: A function or closure that takes as arguments the node index, its parent, the root
+    /// * `filter`: A function or closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it and returns `true` if the node should be visited,
     ///   `false` otherwise.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
@@ -76,13 +76,13 @@ pub trait BreadthFirstGraphVisit {
     /// Nodes are filtered with `filter` callable.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `filter`: A function or closure that takes as arguments the node index, its parent, the root
+    /// * `filter`: A function or closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it and returns `true` if the node should be visited,
     ///   `false` otherwise.
-    /// - `visit_root`: The node to start the visit in.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `visit_root`: The node to start the visit in.
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn visit_from_node_filtered<
@@ -102,12 +102,12 @@ pub trait BreadthFirstGraphVisit {
     /// Nodes are filtered with `filter` callable.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `filter`: A function or closure that takes as arguments the node index, its parent, the root
+    /// * `filter`: A function or closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it and returns `true` if the node should be visited,
     ///   `false` otherwise.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn visit_graph_filtered<
@@ -131,12 +131,12 @@ pub trait ReusableBreadthFirstGraphVisit: BreadthFirstGraphVisit {
     /// After this function returns, the visit is still valid and may be used again.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `filter`: A function or closure that takes as arguments the node index, its parent, the root
+    /// * `filter`: A function or closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it and returns `true` if the node should be visited,
     ///   `false` otherwise.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
@@ -158,9 +158,9 @@ pub trait ReusableBreadthFirstGraphVisit: BreadthFirstGraphVisit {
     /// After this function returns, the visit is still valid and may be used again.
     ///
     /// # Arguments:
-    /// - `callback`: A function or a closure that takes as arguments the node index, its parent, the root
+    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
     ///   of the visit and its distance from it.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]

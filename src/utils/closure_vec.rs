@@ -1,8 +1,8 @@
 /// Creates a [`Vec`] where each value is created calling the passed closure.
 ///
 /// # Arguments
-/// - `closure`: the closure called to initialize each value of the [`Vec`].
-/// - `length`: the length of the created [`Vec`].
+/// * `closure`: the closure called to initialize each value of the [`Vec`].
+/// * `length`: the length of the created [`Vec`].
 ///
 /// # Examples
 /// ```

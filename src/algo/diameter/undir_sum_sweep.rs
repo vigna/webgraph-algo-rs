@@ -125,7 +125,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// Returns the eccentricity of a vertex if it has already been computed, [`None`] otherwise.
     ///
     /// # Arguments
-    /// - `vertex`: The vertex.
+    /// * `vertex`: The vertex.
     pub fn eccentricity(&self, vertex: usize) -> Option<usize> {
         self.vertex_eccentricity(vertex)
     }
@@ -168,8 +168,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// of all visited nodes.
     ///
     /// # Arguments
-    /// - `start`: The starting vertex of the BFS. If [`None`], no visit happens.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `start`: The starting vertex of the BFS. If [`None`], no visit happens.
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn step_sum_sweep(&mut self, start: Option<usize>, mut pl: impl ProgressLog) -> Result<()> {
@@ -405,9 +405,9 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// This way, after few iterations, usually most lower bounds on the eccentricities are tight.
     ///
     /// # Arguments
-    /// - `start`: The starting vertex.
-    /// - `iterations`: The number of iterations.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `start`: The starting vertex.
+    /// * `iterations`: The number of iterations.
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn sum_sweep_heuristic(
@@ -435,7 +435,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn find_missing_nodes(&mut self, mut pl: impl ProgressLog) -> Result<usize> {
@@ -490,7 +490,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn compute(&mut self, mut pl: impl ProgressLog) -> Result<()> {

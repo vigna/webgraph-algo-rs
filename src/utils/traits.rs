@@ -220,7 +220,7 @@ pub trait Counter<T> {
     /// Adds the element to the counter
     ///
     /// # Arguments
-    /// - `element`: the element to add.
+    /// * `element`: the element to add.
     fn add(&mut self, element: T);
 
     /// Returns the number of distinct elements that have been added to the counter
@@ -235,7 +235,7 @@ pub trait Counter<T> {
     /// `other` is not modified but `self` is.
     ///
     /// # Arguments
-    /// - `other`: the counter to merge into `self`.
+    /// * `other`: the counter to merge into `self`.
     fn merge(&mut self, other: &Self);
 }
 

@@ -8,7 +8,7 @@ impl DFVBuilder {
     /// Creates a new builder for a sequential visit.
     ///
     /// # Arguments
-    /// - `graph`: an immutable reference to the graph to visit.
+    /// * `graph`: an immutable reference to the graph to visit.
     pub fn new_sequential<G: RandomAccessGraph>(
         graph: &G,
     ) -> SingleThreadedDepthFirstVisitBuilder<G> {

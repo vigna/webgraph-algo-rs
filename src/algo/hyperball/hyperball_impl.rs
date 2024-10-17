@@ -51,8 +51,8 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
     /// Creates a new builder with default parameters.
     ///
     /// # Arguments
-    /// - `graph`: the direct graph to analyze.
-    /// - `cumulative_outdegree`: the degree cumulative function of the graph.
+    /// * `graph`: the direct graph to analyze.
+    /// * `cumulative_outdegree`: the degree cumulative function of the graph.
     pub fn new(graph: &'a G, cumulative_outdegree: &'a D) -> Self {
         let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
             .log_2_num_registers(4)
@@ -87,7 +87,7 @@ impl<
     /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
     ///
     /// # Arguments
-    /// - `transposed`: the new transposed graph. If [`None`] no transposed graph is used
+    /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
     ///   and no systolic iterations will be performed by the built [`HyperBall`].
     pub fn transposed<G: RandomAccessGraph>(
         self,
@@ -131,7 +131,7 @@ impl<
     /// Sets whether to compute the sum of distances.
     ///
     /// # Arguments
-    /// - `do_sum_of_distances`: if `true` the sum of distances are computed.
+    /// * `do_sum_of_distances`: if `true` the sum of distances are computed.
     pub fn sum_of_distances(mut self, do_sum_of_distances: bool) -> Self {
         self.sum_of_distances = do_sum_of_distances;
         self
@@ -140,7 +140,7 @@ impl<
     /// Sets whether to compute the sum of inverse distances.
     ///
     /// # Arguments
-    /// - `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
+    /// * `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
     pub fn sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
         self.sum_of_inverse_distances = do_sum_of_inverse_distances;
         self
@@ -149,7 +149,7 @@ impl<
     /// Sets the base granularity used in the parallel phases of the iterations.
     ///
     /// # Arguments
-    /// - `granularity`: the new granularity value.
+    /// * `granularity`: the new granularity value.
     pub fn granularity(mut self, granularity: usize) -> Self {
         self.granularity = granularity;
         self
@@ -158,7 +158,7 @@ impl<
     /// Sets the weights for the nodes of the graph.
     ///
     /// # Arguments
-    /// - `weights`: the new weights to use. If [`None`] every node is assumed to be
+    /// * `weights`: the new weights to use. If [`None`] every node is assumed to be
     ///   of weight equal to 1.
     pub fn weights(mut self, weights: Option<&'a [usize]>) -> Self {
         if let Some(w) = weights {
@@ -171,7 +171,7 @@ impl<
     /// Adds a new discount function to compute during the iterations.
     ///
     /// # Arguments
-    /// - `discount_function`: the discount function to add.
+    /// * `discount_function`: the discount function to add.
     pub fn discount_function(
         mut self,
         discount_function: impl Fn(usize) -> f64 + Sync + 'a,
@@ -189,7 +189,7 @@ impl<
     /// Sets the settings for the [`HyperLogLogCounterArray`] used to hold the counters.
     ///
     /// # Arguments
-    /// - `settings`: the new settings to use.
+    /// * `settings`: the new settings to use.
     pub fn hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher>(
         self,
         settings: HyperLogLogCounterArrayBuilder<H2, W2>,
@@ -212,7 +212,7 @@ impl<
     /// Sets the memory options used by the support array of the [`HyperBall`] instance.
     ///
     /// # Argumets
-    /// - `settings`: the new setting to use.
+    /// * `settings`: the new setting to use.
     pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
         self.mem_settings = settings;
         self
@@ -239,7 +239,7 @@ impl<
     /// specified number of threads.
     ///
     /// # Arguments
-    /// - `num_threads`: the number of threads to use for the new `ThreadPool`.
+    /// * `num_threads`: the number of threads to use for the new `ThreadPool`.
     pub fn num_threads(self, num_threads: usize) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
         HyperBallBuilder {
             graph: self.graph,
@@ -259,7 +259,7 @@ impl<
     /// Sets the [`HyperBall`] instance to use the provided [`rayon::ThreadPool`].
     ///
     /// # Arguments
-    /// - `threadpool`: the custom `ThreadPool` to use.
+    /// * `threadpool`: the custom `ThreadPool` to use.
     pub fn threadpool<T2: Borrow<rayon::ThreadPool>>(
         self,
         threadpool: T2,
@@ -293,7 +293,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn build(
@@ -331,7 +331,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, T, D, W, H>> {
@@ -566,10 +566,10 @@ where
     /// Runs HyperBall.
     ///
     /// # Arguments
-    /// - `upper_bound`: an upper bound to the number of iterations.
-    /// - `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
+    /// * `upper_bound`: an upper bound to the number of iterations.
+    /// * `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
     ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     pub fn run(
@@ -620,8 +620,8 @@ where
     /// Runs HyperBall until no counters are modified.
     ///
     /// # Arguments
-    /// - `upper_bound`: an upper bound to the number of iterations.
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `upper_bound`: an upper bound to the number of iterations.
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
@@ -633,7 +633,7 @@ where
     /// Runs HyperBall until no counters are modified with no upper bound on the number of iterations.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
@@ -682,7 +682,7 @@ where
     /// Returns the discounted centralities of the specified index computed by this instance.
     ///
     /// # Arguments
-    /// - `index`: the index of the requested discounted centrality.
+    /// * `index`: the index of the requested discounted centrality.
     pub fn discounted_centrality(&self, index: usize) -> Result<Vec<f64>> {
         if self.iteration == 0 {
             Err(anyhow!(
@@ -771,7 +771,7 @@ where
     /// from the specified node.
     ///
     /// # Arguments
-    /// - `node`: the index of the node to compute reachable nodes from.
+    /// * `node`: the index of the node to compute reachable nodes from.
     pub fn reachable_nodes_from(&self, node: usize) -> Result<f64> {
         if self.iteration == 0 {
             Err(anyhow!(
@@ -847,7 +847,7 @@ where
     /// Performs a new iteration of HyperBall.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the iteration. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
@@ -1034,7 +1034,7 @@ where
     /// The parallel operations to be performed each iteration.
     ///
     /// # Arguments:
-    /// - `broadcast_context`: the context of the for the parallel task
+    /// * `broadcast_context`: the context of the for the parallel task
     fn parallel_task(&self, _broadcast_context: rayon::BroadcastContext) {
         let node_granularity = self.iteration_context.granularity;
         let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
@@ -1253,7 +1253,7 @@ where
     /// Initialises the approximator.
     ///
     /// # Arguments
-    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the initialization. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn init(&mut self, mut pl: impl ProgressLog) -> Result<()> {

@@ -1,7 +1,7 @@
 /// Returns the index of the minimum value in the slice `vec` if found, [`None`] otherwise.
 ///
 /// # Arguments
-/// - `vec`: the slice of elements.
+/// * `vec`: the slice of elements.
 ///
 /// # Examples
 /// ```
@@ -30,9 +30,9 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
 /// In case of ties, the index for which `tie_break` is minimized is returned.
 ///
 /// # Arguments
-/// - `vec`: the slice of elements.
-/// - `tie_break`: in case two elements of `vec` are the same, the index that minimises this slice is used.
-/// - `filter`: a closure that takes as arguments the index of the element and the element itself and returns
+/// * `vec`: the slice of elements.
+/// * `tie_break`: in case two elements of `vec` are the same, the index that minimises this slice is used.
+/// * `filter`: a closure that takes as arguments the index of the element and the element itself and returns
 ///   `true` if the element may be selected.
 ///
 /// # Examples

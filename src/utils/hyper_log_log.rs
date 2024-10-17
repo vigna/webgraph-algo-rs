@@ -92,7 +92,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// Calling one after the other invalidates the work done by the first one.
     ///
     /// # Arguments
-    /// - `rsd`: the relative standard deviation to be attained.
+    /// * `rsd`: the relative standard deviation to be attained.
     pub fn rsd(self, rsd: f64) -> Self {
         self.log_2_num_registers(HyperLogLogCounterArray::log_2_number_of_registers(rsd))
     }
@@ -104,7 +104,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// Calling one after the other invalidates the work done by the first one.
     ///
     /// # Arguments
-    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
+    /// * `log_2_num_registers`: the logarithm of the number of registers per counter.
     pub fn log_2_num_registers(mut self, log_2_num_registers: usize) -> Self {
         self.log_2_num_registers = log_2_num_registers;
         self
@@ -114,7 +114,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// counters.
     ///
     /// # Arguments
-    /// - `num_elements`: an upper bound on the number of distinct elements.
+    /// * `num_elements`: an upper bound on the number of distinct elements.
     pub fn num_elements_upper_bound(mut self, num_elements: usize) -> Self {
         self.num_elements = num_elements;
         self
@@ -123,7 +123,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// Sets the hasher builder to be used by the counters.
     ///
     /// # Arguments
-    /// - `hasher_builder`: the builder of the hasher used by the array that implements
+    /// * `hasher_builder`: the builder of the hasher used by the array that implements
     ///   [`BuildHasher`].
     pub fn hasher_builder<H2: BuildHasher>(
         self,
@@ -141,7 +141,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// Sets the memory options for the couters.
     ///
     /// # Arguments
-    /// - `options`: the memory options for the backend of the counter array.
+    /// * `options`: the memory options for the backend of the counter array.
     pub fn mem_options(mut self, options: TempMmapOptions) -> Self {
         self.mmap_options = options;
         self
@@ -164,7 +164,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// it is usually inferred by the compiler.
     ///
     /// # Arguments
-    /// - `len`: the length of the counter array in counters.
+    /// * `len`: the length of the counter array in counters.
     pub fn build<T>(self, len: usize) -> Result<HyperLogLogCounterArray<T, W, H>> {
         let num_counters = len;
         let log_2_num_registers = self.log_2_num_registers;
@@ -333,7 +333,7 @@ impl HyperLogLogCounterArray<()> {
     /// given relative stadard deviation.
     ///
     /// # Arguments
-    /// - `rsd`: the relative standard deviation to be attained.
+    /// * `rsd`: the relative standard deviation to be attained.
     pub fn log_2_number_of_registers(rsd: f64) -> usize {
         ((1.106 / rsd).pow(2.0)).log2().ceil() as usize
     }
@@ -341,7 +341,7 @@ impl HyperLogLogCounterArray<()> {
     /// Returns the relative standard deviation corresponding to a given number of registers per counter.
     ///
     /// # Arguments
-    /// - `log_2_num_registers`: the logarithm of the number of registers per counter.
+    /// * `log_2_num_registers`: the logarithm of the number of registers per counter.
     pub fn relative_standard_deviation(log_2_num_registers: usize) -> f64 {
         let tmp = match log_2_num_registers {
             4 => 1.106,
@@ -356,7 +356,7 @@ impl HyperLogLogCounterArray<()> {
     /// Returns the register size in bits, given an upper bound on the number of distinct elements.
     ///
     /// # Arguments
-    /// - `n`: an upper bound on the number of distinct elements.
+    /// * `n`: an upper bound on the number of distinct elements.
     pub fn register_size_from_number_of_elements(n: usize) -> usize {
         std::cmp::max(
             5,
@@ -379,7 +379,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     /// Returns the concretized [`HyperLogLogCounter`] with the specified index.
     ///
     /// # Arguments
-    /// - `index`: the index of the counter to concretize.
+    /// * `index`: the index of the counter to concretize.
     #[inline(always)]
     pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
         assert!(index < self.num_counters);
@@ -409,7 +409,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     /// Swaps the undelying bits with those of aother equivalent array.
     ///
     /// # Arguments
-    /// - `other`: the array to swap bits with
+    /// * `other`: the array to swap bits with
     pub fn swap_with(&mut self, other: &mut Self) {
         assert_eq!(self.num_counters, other.num_counters);
         assert_eq!(self.num_registers, other.num_registers);
@@ -526,8 +526,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// The operands MUST have the same length.
     ///
     /// # Arguments
-    /// - `x`: the first operand. This will contain the final result.
-    /// - `y`: the second operand that will be subtracted from `x`.
+    /// * `x`: the first operand. This will contain the final result.
+    /// * `y`: the second operand that will be subtracted from `x`.
     #[inline(always)]
     fn subtract(x: &mut [W], y: &[W]) {
         debug_assert_eq!(x.len(), y.len());
@@ -553,7 +553,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// `other` is not modified but `self` can be.
     ///
     /// # Arguments
-    /// - `other`: the counter to merge into `self`.
+    /// * `other`: the counter to merge into `self`.
     ///
     /// # Safety
     ///
@@ -839,7 +839,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// or whose local cache isn't changed will result in a panic.
     ///
     /// # Arguments
-    /// - `keep_cached`: whether to keep the counter cached or to return to a non-cached one.
+    /// * `keep_cached`: whether to keep the counter cached or to return to a non-cached one.
     ///
     /// # Safety
     ///
@@ -980,7 +980,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// Sets the content of the counter to the content of the passed counter.
     ///
     /// # Arguments
-    /// - `counter`: the counter from which to copy the contents.
+    /// * `counter`: the counter from which to copy the contents.
     ///
     /// # Safety
     ///
@@ -1075,8 +1075,8 @@ where
     /// this counter.
     ///
     /// # Arguments
-    /// - `index`: the index of the register to edit.
-    /// - `new_value`: the new value to store in the register.
+    /// * `index`: the index of the register to edit.
+    /// * `new_value`: the new value to store in the register.
     #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
         match &mut self.cached_bits {
@@ -1102,7 +1102,7 @@ where
     /// backend.
     ///
     /// # Arguments
-    /// - `index`: the index of the register to read.
+    /// * `index`: the index of the register to read.
     #[inline(always)]
     fn get_register(&self, index: usize) -> W {
         match &self.cached_bits {

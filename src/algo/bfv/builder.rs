@@ -8,7 +8,7 @@ impl BFVBuilder {
     /// Creates a new builder for a sequential visit.
     ///
     /// # Arguments
-    /// - `graph`: an immutable reference to the graph to visit.
+    /// * `graph`: an immutable reference to the graph to visit.
     pub fn new_sequential<G: RandomAccessGraph>(
         graph: &G,
     ) -> SingleThreadedBreadthFirstVisitBuilder<G> {
@@ -18,7 +18,7 @@ impl BFVBuilder {
     /// Creates a new builder for a parallel top-down visit.
     ///
     /// # Arguments
-    /// - `graph`: an immutable reference to the graph to visit.
+    /// * `graph`: an immutable reference to the graph to visit.
     pub fn new_parallel<G: RandomAccessGraph>(graph: &G) -> ParallelBreadthFirstVisitBuilder<G> {
         ParallelBreadthFirstVisitBuilder::new(graph)
     }
@@ -27,7 +27,7 @@ impl BFVBuilder {
     /// but is less efficient with long callbacks.
     ///
     /// # Arguments
-    /// - `graph`: an immutable reference to the graph to visit.
+    /// * `graph`: an immutable reference to the graph to visit.
     pub fn new_parallel_fast_callback<G: RandomAccessGraph>(
         graph: &G,
     ) -> ParallelBreadthFirstVisitFastCBBuilder<G> {

@@ -33,8 +33,8 @@ const MAX_NODES_DEFAULT: usize = 10000;
 /// Returns whether `transposed` is the transposed graph of `graph`.
 ///
 /// # Arguments
-/// - `graph`: the direct graph.
-/// - `transposed`: the graph to check whether is the transposed of `graph`.
+/// * `graph`: the direct graph.
+/// * `transposed`: the graph to check whether is the transposed of `graph`.
 pub(crate) fn check_transposed<G1: RandomAccessGraph, G2: RandomAccessGraph>(
     graph: &G1,
     transposed: &G2,
