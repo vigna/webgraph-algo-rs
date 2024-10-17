@@ -1,7 +1,8 @@
-use crate::{algo::hyperball::kahan_sum::KahanSummation, prelude::*, utils::*};
+use crate::{prelude::*, utils::*};
 use anyhow::{anyhow, Context, Result};
 use common_traits::{AsBytes, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
+use kahan::KahanSum;
 use rand::random;
 use rayon::prelude::*;
 use std::{
@@ -1059,7 +1060,7 @@ where
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
         // by this thread. During systolic iterations, cumulates the *increase* of the
         // neighbourhood function for the nodes scanned by this thread.
-        let mut neighbourhood_function_delta = KahanSummation::new();
+        let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
 
         loop {
             // Get work
@@ -1138,14 +1139,14 @@ where
                         post = counter.estimate_count();
                     }
                     if !self.systolic {
-                        neighbourhood_function_delta.add(post);
+                        neighbourhood_function_delta += post;
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
                         let pre = self.get_current_counter(node).estimate_count();
                         if self.systolic {
-                            neighbourhood_function_delta.add(-pre);
-                            neighbourhood_function_delta.add(post);
+                            neighbourhood_function_delta += -pre;
+                            neighbourhood_function_delta += post;
                         }
 
                         if do_centrality {
@@ -1233,7 +1234,7 @@ where
             }
         }
 
-        *self.current.lock().unwrap() += neighbourhood_function_delta.value();
+        *self.current.lock().unwrap() += neighbourhood_function_delta.sum();
         self.iteration_context
             .visited_arcs
             .fetch_add(visited_arcs, Ordering::Relaxed);
