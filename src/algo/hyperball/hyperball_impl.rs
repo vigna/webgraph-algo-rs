@@ -5,6 +5,7 @@ use dsi_progress_logger::ProgressLog;
 use rand::random;
 use rayon::prelude::*;
 use std::{
+    borrow::Borrow,
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
     sync::{atomic::*, Mutex},
 };
@@ -24,6 +25,7 @@ pub struct HyperBallBuilder<
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
     H: BuildHasher,
+    T,
     G1: RandomAccessGraph,
     G2: RandomAccessGraph = G1,
 > {
@@ -37,10 +39,11 @@ pub struct HyperBallBuilder<
     weights: Option<&'a [usize]>,
     hyper_log_log_settings: HyperLogLogCounterArrayBuilder<H, W>,
     mem_settings: TempMmapOptions,
+    threadpool: T,
 }
 
 impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
-    HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, G>
+    HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, Threads, G>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
 
@@ -65,6 +68,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             weights: None,
             hyper_log_log_settings,
             mem_settings: TempMmapOptions::None,
+            threadpool: Threads::Default,
         }
     }
 }
@@ -74,9 +78,10 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         W: Word + IntoAtomic,
         H: BuildHasher,
+        T,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
-    > HyperBallBuilder<'a, D, W, H, G1, G2>
+    > HyperBallBuilder<'a, D, W, H, T, G1, G2>
 {
     /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
     ///
@@ -86,7 +91,7 @@ impl<
     pub fn with_transposed<G: RandomAccessGraph>(
         self,
         transposed: Option<&'a G>,
-    ) -> HyperBallBuilder<'a, D, W, H, G1, G> {
+    ) -> HyperBallBuilder<'a, D, W, H, T, G1, G> {
         if let Some(t) = transposed {
             assert_eq!(
                 t.num_nodes(),
@@ -118,6 +123,7 @@ impl<
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
             mem_settings: self.mem_settings,
+            threadpool: self.threadpool,
         }
     }
 
@@ -186,7 +192,7 @@ impl<
     pub fn with_hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher>(
         self,
         settings: HyperLogLogCounterArrayBuilder<H2, W2>,
-    ) -> HyperBallBuilder<'a, D, W2, H2, G1, G2> {
+    ) -> HyperBallBuilder<'a, D, W2, H2, T, G1, G2> {
         HyperBallBuilder {
             graph: self.graph,
             rev_graph: self.rev_graph,
@@ -198,16 +204,81 @@ impl<
             weights: self.weights,
             hyper_log_log_settings: settings,
             mem_settings: self.mem_settings,
+            threadpool: self.threadpool,
         }
     }
 
-    /// Sets the memory optios used by the support array of the [`HyperBall`] instance.
+    /// Sets the memory options used by the support array of the [`HyperBall`] instance.
     ///
     /// # Argumets
     /// - `settings`: the new setting to use.
     pub fn with_mem_settings(mut self, settings: TempMmapOptions) -> Self {
         self.mem_settings = settings;
         self
+    }
+
+    /// Sets the [`HyperBall`] instance to use the default [`rayon::ThreadPool`].
+    pub fn with_default_threadpool(self) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
+        HyperBallBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            cumulative_outdegree: self.cumulative_outdegree,
+            sum_of_distances: self.sum_of_distances,
+            sum_of_inverse_distances: self.sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            granularity: self.granularity,
+            weights: self.weights,
+            hyper_log_log_settings: self.hyper_log_log_settings,
+            mem_settings: self.mem_settings,
+            threadpool: Threads::Default,
+        }
+    }
+
+    /// Sets the [`HyperBall`] instance to use a custom [`rayon::ThreadPool`] with the
+    /// specified number of threads.
+    ///
+    /// # Arguments
+    /// - `num_threads`: the number of threads to use for the new `ThreadPool`.
+    pub fn with_num_threads(
+        self,
+        num_threads: usize,
+    ) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
+        HyperBallBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            cumulative_outdegree: self.cumulative_outdegree,
+            sum_of_distances: self.sum_of_distances,
+            sum_of_inverse_distances: self.sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            granularity: self.granularity,
+            weights: self.weights,
+            hyper_log_log_settings: self.hyper_log_log_settings,
+            mem_settings: self.mem_settings,
+            threadpool: Threads::NumThreads(num_threads),
+        }
+    }
+
+    /// Sets the [`HyperBall`] instance to use the provided [`rayon::ThreadPool`].
+    ///
+    /// # Arguments
+    /// - `threadpool`: the custom `ThreadPool` to use.
+    pub fn with_threadpool<T2: Borrow<rayon::ThreadPool>>(
+        self,
+        threadpool: T2,
+    ) -> HyperBallBuilder<'a, D, W, H, T2, G1, G2> {
+        HyperBallBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            cumulative_outdegree: self.cumulative_outdegree,
+            sum_of_distances: self.sum_of_distances,
+            sum_of_inverse_distances: self.sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            granularity: self.granularity,
+            weights: self.weights,
+            hyper_log_log_settings: self.hyper_log_log_settings,
+            mem_settings: self.mem_settings,
+            threadpool,
+        }
     }
 }
 
@@ -218,7 +289,7 @@ impl<
         H: BuildHasher + Clone,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
-    > HyperBallBuilder<'a, D, W, H, G1, G2>
+    > HyperBallBuilder<'a, D, W, H, Threads, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified settings and
     /// logs progress with the provided logger.
@@ -227,7 +298,45 @@ impl<
     /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, D, W, H>> {
+    pub fn build(
+        self,
+        pl: impl ProgressLog,
+    ) -> Result<HyperBall<'a, G1, G2, rayon::ThreadPool, D, W, H>> {
+        let builder = HyperBallBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            cumulative_outdegree: self.cumulative_outdegree,
+            sum_of_distances: self.sum_of_distances,
+            sum_of_inverse_distances: self.sum_of_inverse_distances,
+            discount_functions: self.discount_functions,
+            granularity: self.granularity,
+            weights: self.weights,
+            hyper_log_log_settings: self.hyper_log_log_settings,
+            mem_settings: self.mem_settings,
+            threadpool: self.threadpool.build(),
+        };
+        builder.build(pl)
+    }
+}
+
+impl<
+        'a,
+        D: Succ<Input = usize, Output = usize>,
+        W: Word + IntoAtomic,
+        H: BuildHasher + Clone,
+        T: Borrow<rayon::ThreadPool>,
+        G1: RandomAccessGraph,
+        G2: RandomAccessGraph,
+    > HyperBallBuilder<'a, D, W, H, T, G1, G2>
+{
+    /// Builds the [`HyperBall`] instance with the specified settings and
+    /// logs progress with the provided logger.
+    ///
+    /// # Arguments
+    /// - `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
+    pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, T, D, W, H>> {
         let num_nodes = self.graph.num_nodes();
 
         pl.info(format_args!("Initializing HyperLogLogCounterArrays"));
@@ -338,6 +447,7 @@ impl<
             relative_increment: 0.0,
             granularity,
             iteration_context: IterationContext::default(),
+            threadpool: self.threadpool,
         })
     }
 }
@@ -380,6 +490,7 @@ pub struct HyperBall<
     'a,
     G1: RandomAccessGraph,
     G2: RandomAccessGraph,
+    T: Borrow<rayon::ThreadPool>,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic = usize,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
@@ -438,16 +549,19 @@ pub struct HyperBall<
     relative_increment: f64,
     /// Context used in a single iteration
     iteration_context: IterationContext,
+    /// The local threadpool to use
+    threadpool: T,
 }
 
 impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
+        T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        H: BuildHasher + Sync,
-    > HyperBall<'a, G1, G2, D, W, H>
+        H: BuildHasher + Sync + Send,
+    > HyperBall<'a, G1, G2, T, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -691,10 +805,11 @@ impl<
         'a,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
+        T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic,
         H: BuildHasher,
-    > HyperBall<'a, G1, G2, D, W, H>
+    > HyperBall<'a, G1, G2, T, D, W, H>
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
@@ -723,10 +838,11 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
+        T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        H: BuildHasher + Sync,
-    > HyperBall<'a, G1, G2, D, W, H>
+        H: BuildHasher + Sync + Send,
+    > HyperBall<'a, G1, G2, T, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -786,31 +902,46 @@ where
                     .set(node, false, Ordering::Relaxed);
             }
         } else {
-            self.modified_result_counter.fill(false, Ordering::Relaxed);
+            self.threadpool
+                .borrow()
+                .install(|| self.modified_result_counter.fill(false, Ordering::Relaxed));
         }
 
         if self.local {
             pl.info(format_args!("Preparing local checklist"));
             // In case of a local computation, we convert the set of must-be-checked for the
             // next iteration into a check list.
-            let mut local_next_must_be_checked = self.local_next_must_be_checked.lock().unwrap();
-            local_next_must_be_checked.par_sort_unstable();
-            local_next_must_be_checked.dedup();
-            self.local_checklist.clear();
-            std::mem::swap(&mut self.local_checklist, &mut local_next_must_be_checked);
+            self.threadpool.borrow().join(
+                || self.local_checklist.clear(),
+                || {
+                    let mut local_next_must_be_checked =
+                        self.local_next_must_be_checked.lock().unwrap();
+                    local_next_must_be_checked.par_sort_unstable();
+                    local_next_must_be_checked.dedup();
+                },
+            );
+            std::mem::swap(
+                &mut self.local_checklist,
+                &mut self.local_next_must_be_checked.lock().unwrap(),
+            );
         } else if self.systolic {
             pl.info(format_args!("Preparing systolic flags"));
-            // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
-            self.next_must_be_checked.fill(false, Ordering::Relaxed);
-
-            // If the previous computation wasn't systolic, we must assume that all registers could have changed.
-            if !previous_was_systolic {
-                self.must_be_checked.fill(true, Ordering::Relaxed);
-            }
+            self.threadpool.borrow().join(
+                || {
+                    // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
+                    self.next_must_be_checked.fill(false, Ordering::Relaxed);
+                },
+                || {
+                    // If the previous computation wasn't systolic, we must assume that all registers could have changed.
+                    if !previous_was_systolic {
+                        self.must_be_checked.fill(true, Ordering::Relaxed);
+                    }
+                },
+            );
         }
 
         let mut granularity = self.granularity;
-        let num_threads = rayon::current_num_threads();
+        let num_threads = self.threadpool.borrow().current_num_threads();
 
         if num_threads > 1 && !self.local {
             if self.iteration > 0 {
@@ -843,7 +974,9 @@ where
         });
         pl.start("Starting parallel execution");
 
-        rayon::broadcast(|c| self.parallel_task(c));
+        self.threadpool
+            .borrow()
+            .broadcast(|c| self.parallel_task(c));
 
         pl.done_with_count(
             self.iteration_context
@@ -1128,8 +1261,9 @@ where
     fn init(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
-        self.bits.clear();
-        self.result_bits.clear();
+        self.threadpool
+            .borrow()
+            .join(|| self.bits.clear(), || self.result_bits.clear());
 
         pl.info(format_args!("Initializing registers"));
         if let Some(w) = &self.weight {
@@ -1141,8 +1275,10 @@ where
                 }
             }
         } else {
-            (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
-                self.get_current_counter(i).add(i);
+            self.threadpool.borrow().install(|| {
+                (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
+                    self.get_current_counter(i).add(i);
+                });
             });
         }
 
@@ -1171,7 +1307,10 @@ where
         self.neighbourhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
-        self.modified_counter.fill(true, Ordering::Relaxed);
+        self.threadpool
+            .borrow()
+            .install(|| self.modified_counter.fill(true, Ordering::Relaxed));
+
         pl.done();
 
         Ok(())
