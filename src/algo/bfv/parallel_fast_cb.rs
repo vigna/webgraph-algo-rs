@@ -1,30 +1,34 @@
-use crate::prelude::*;
+use crate::{prelude::*, utils::Threads};
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
-use std::sync::atomic::Ordering;
+use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// Builder for [`ParallelBreadthFirstVisitFastCB`].
 #[derive(Clone)]
-pub struct ParallelBreadthFirstVisitFastCBBuilder<'a, G: RandomAccessGraph> {
+pub struct ParallelBreadthFirstVisitFastCBBuilder<'a, G: RandomAccessGraph, T = Threads> {
     graph: &'a G,
     start: usize,
     granularity: usize,
+    threads: T,
 }
 
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
+impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G, Threads> {
     /// Constructs a new builder with default parameters for specified graph.
     pub fn new(graph: &'a G) -> Self {
         Self {
             graph,
             start: 0,
             granularity: 1,
+            threads: Threads::Default,
         }
     }
+}
 
+impl<'a, G: RandomAccessGraph, T> ParallelBreadthFirstVisitFastCBBuilder<'a, G, T> {
     /// Sets the starting node for full visits.
     /// It does nothing for single visits using [`BreadthFirstGraphVisit::visit_from_node`].
     pub fn with_start(mut self, start: usize) -> Self {
@@ -41,28 +45,87 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
         self
     }
 
+    /// Sets the visit to use the default threadpool.
+    pub fn with_default_threadpool(self) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
+        ParallelBreadthFirstVisitFastCBBuilder {
+            graph: self.graph,
+            start: self.start,
+            granularity: self.granularity,
+            threads: Threads::Default,
+        }
+    }
+
+    /// Sets the visit to use a [`rayon::ThreadPool`] with the specified number of threads.
+    pub fn with_num_threads(
+        self,
+        num_threads: usize,
+    ) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
+        ParallelBreadthFirstVisitFastCBBuilder {
+            graph: self.graph,
+            start: self.start,
+            granularity: self.granularity,
+            threads: Threads::NumThreads(num_threads),
+        }
+    }
+
+    /// Sets the visit to use the custop [`rayon::ThreadPool`].
+    pub fn with_threadpool<T2: Borrow<rayon::ThreadPool>>(
+        self,
+        threadpool: T2,
+    ) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G, T2> {
+        ParallelBreadthFirstVisitFastCBBuilder {
+            graph: self.graph,
+            start: self.start,
+            granularity: self.granularity,
+            threads: threadpool,
+        }
+    }
+}
+
+impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G, Threads> {
     /// Builds the parallel BFV with the builder parameters and consumes the builder.
     pub fn build(self) -> ParallelBreadthFirstVisitFastCB<'a, G> {
+        let builder = ParallelBreadthFirstVisitFastCBBuilder {
+            graph: self.graph,
+            start: self.start,
+            granularity: self.granularity,
+            threads: self.threads.build(),
+        };
+        builder.build()
+    }
+}
+
+impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
+    ParallelBreadthFirstVisitFastCBBuilder<'a, G, T>
+{
+    /// Builds the parallel BFV with the builder parameters and consumes the builder.
+    pub fn build(self) -> ParallelBreadthFirstVisitFastCB<'a, G, T> {
         ParallelBreadthFirstVisitFastCB {
             graph: self.graph,
             start: self.start,
             granularity: self.granularity,
             visited: AtomicBitVec::new(self.graph.num_nodes()),
+            threads: self.threads,
         }
     }
 }
 
 /// A simple parallel Breadth First visit on a graph with low memory consumption but with a smaller
 /// frontier.
-pub struct ParallelBreadthFirstVisitFastCB<'a, G: RandomAccessGraph> {
+pub struct ParallelBreadthFirstVisitFastCB<
+    'a,
+    G: RandomAccessGraph,
+    T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
+> {
     graph: &'a G,
     start: usize,
     granularity: usize,
     visited: AtomicBitVec,
+    threads: T,
 }
 
-impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
-    for ParallelBreadthFirstVisitFastCB<'a, G>
+impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> BreadthFirstGraphVisit
+    for ParallelBreadthFirstVisitFastCB<'a, G, T>
 {
     fn visit_from_node_filtered<
         C: Fn(usize, usize, usize, usize) + Sync,
@@ -80,11 +143,15 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
             return Ok(());
         }
 
-        let mut next_frontier = Frontier::new();
+        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), Some(4));
 
-        next_frontier.push(visit_root);
-        self.visited.set(visit_root, true, Ordering::Relaxed);
-        callback(visit_root, visit_root, visit_root, 0);
+        self.threads.borrow().join(
+            || next_frontier.push(visit_root),
+            || {
+                self.visited.set(visit_root, true, Ordering::Relaxed);
+                callback(visit_root, visit_root, visit_root, 0);
+            },
+        );
 
         let mut distance = 1;
 
@@ -92,22 +159,24 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
         while !next_frontier.is_empty() {
             let current_frontier = next_frontier;
             let current_len = current_frontier.len();
-            next_frontier = Frontier::new();
-            current_frontier
-                .par_iter()
-                .chunks(self.granularity)
-                .for_each(|chunk| {
-                    chunk.into_iter().for_each(|&node| {
-                        self.graph.successors(node).into_iter().for_each(|succ| {
-                            if filter(succ, node, visit_root, distance)
-                                && !self.visited.swap(succ, true, Ordering::Relaxed)
-                            {
-                                callback(succ, node, visit_root, distance);
-                                next_frontier.push(succ);
-                            }
+            next_frontier = Frontier::with_threads(self.threads.borrow(), Some(4));
+            self.threads.borrow().install(|| {
+                current_frontier
+                    .par_iter()
+                    .chunks(self.granularity)
+                    .for_each(|chunk| {
+                        chunk.into_iter().for_each(|&node| {
+                            self.graph.successors(node).into_iter().for_each(|succ| {
+                                if filter(succ, node, visit_root, distance)
+                                    && !self.visited.swap(succ, true, Ordering::Relaxed)
+                                {
+                                    callback(succ, node, visit_root, distance);
+                                    next_frontier.push(succ);
+                                }
+                            })
                         })
-                    })
-                });
+                    });
+            });
             pl.update_with_count(current_len);
             distance += 1;
         }
@@ -124,7 +193,7 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        let num_threads = rayon::current_num_threads();
+        let num_threads = self.threads.borrow().current_num_threads();
 
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Visiting graph with a parallel BFV...");
@@ -144,8 +213,8 @@ impl<'a, G: RandomAccessGraph + Sync> BreadthFirstGraphVisit
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync> ReusableBreadthFirstGraphVisit
-    for ParallelBreadthFirstVisitFastCB<'a, G>
+impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ReusableBreadthFirstGraphVisit
+    for ParallelBreadthFirstVisitFastCB<'a, G, T>
 {
     #[inline(always)]
     fn reset(&mut self) -> Result<()> {

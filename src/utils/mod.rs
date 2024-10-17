@@ -22,6 +22,9 @@ pub use hyper_log_log::{
     HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder, ThreadHelper,
 };
 
+mod threadpool;
+pub(crate) use threadpool::Threads;
+
 pub mod traits;
 
 const MAX_NODES_ENV_VAR: &str = "MAX_TRANSPOSED_SIZE_DEBUG";
