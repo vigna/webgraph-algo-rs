@@ -27,7 +27,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     BFVBuilder::new_sequential(i)
-                        .with_start(start)
+                        .start(start)
                         .build()
                         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
@@ -41,8 +41,8 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     BFVBuilder::new_parallel(i)
-                        .with_start(start)
-                        .with_granularity(1)
+                        .start(start)
+                        .granularity(1)
                         .build()
                         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
@@ -56,8 +56,8 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     BFVBuilder::new_parallel(i)
-                        .with_start(start)
-                        .with_granularity(64)
+                        .start(start)
+                        .granularity(64)
                         .build()
                         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
@@ -71,8 +71,8 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     BFVBuilder::new_parallel_fast_callback(i)
-                        .with_start(start)
-                        .with_granularity(1)
+                        .start(start)
+                        .granularity(1)
                         .build()
                         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()
@@ -86,8 +86,8 @@ pub fn bench_bfv(c: &mut Criterion) {
             |b, i| {
                 b.iter_with_large_drop(|| {
                     BFVBuilder::new_parallel_fast_callback(i)
-                        .with_start(start)
-                        .with_granularity(64)
+                        .start(start)
+                        .granularity(64)
                         .build()
                         .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
                         .unwrap()

@@ -31,7 +31,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G, Thr
 impl<'a, G: RandomAccessGraph, T> ParallelBreadthFirstVisitFastCBBuilder<'a, G, T> {
     /// Sets the starting node for full visits.
     /// It does nothing for single visits using [`BreadthFirstGraphVisit::visit_from_node`].
-    pub fn with_start(mut self, start: usize) -> Self {
+    pub fn start(mut self, start: usize) -> Self {
         self.start = start;
         self
     }
@@ -40,13 +40,13 @@ impl<'a, G: RandomAccessGraph, T> ParallelBreadthFirstVisitFastCBBuilder<'a, G, 
     ///
     /// High granularity reduces overhead, but may lead to decreased performance
     /// on graphs with skewed outdegrees.
-    pub fn with_granularity(mut self, granularity: usize) -> Self {
+    pub fn granularity(mut self, granularity: usize) -> Self {
         self.granularity = granularity;
         self
     }
 
     /// Sets the visit to use the default threadpool.
-    pub fn with_default_threadpool(self) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
+    pub fn default_threadpool(self) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
         ParallelBreadthFirstVisitFastCBBuilder {
             graph: self.graph,
             start: self.start,
@@ -56,10 +56,7 @@ impl<'a, G: RandomAccessGraph, T> ParallelBreadthFirstVisitFastCBBuilder<'a, G, 
     }
 
     /// Sets the visit to use a [`rayon::ThreadPool`] with the specified number of threads.
-    pub fn with_num_threads(
-        self,
-        num_threads: usize,
-    ) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
+    pub fn num_threads(self, num_threads: usize) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
         ParallelBreadthFirstVisitFastCBBuilder {
             graph: self.graph,
             start: self.start,
@@ -69,7 +66,7 @@ impl<'a, G: RandomAccessGraph, T> ParallelBreadthFirstVisitFastCBBuilder<'a, G, 
     }
 
     /// Sets the visit to use the custop [`rayon::ThreadPool`].
-    pub fn with_threadpool<T2: Borrow<rayon::ThreadPool>>(
+    pub fn threadpool<T2: Borrow<rayon::ThreadPool>>(
         self,
         threadpool: T2,
     ) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G, T2> {
@@ -235,8 +232,8 @@ mod test {
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
-            .with_start(10)
-            .with_granularity(2)
+            .start(10)
+            .granularity(2)
             .build();
 
         assert_eq!(visit.start, 10);
@@ -251,7 +248,7 @@ mod test {
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
-            .with_start(10)
+            .start(10)
             .build();
 
         assert_eq!(visit.start, 10);
@@ -266,7 +263,7 @@ mod test {
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = ParallelBreadthFirstVisitFastCBBuilder::new(&graph)
-            .with_granularity(10)
+            .granularity(10)
             .build();
 
         assert_eq!(visit.start, 0);

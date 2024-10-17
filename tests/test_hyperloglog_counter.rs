@@ -23,9 +23,9 @@ fn test_single() -> Result<()> {
 
             for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
-                    .with_log_2_num_registers(log2m)
-                    .with_num_elements_upper_bound(size)
-                    .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
+                    .log_2_num_registers(log2m)
+                    .num_elements_upper_bound(size)
+                    .hasher_builder(Xxh3Builder::new().with_seed(trial))
                     .build(1)?;
                 let mut counter = counters.get_counter(0);
                 let incr = (1 << 32) / size as i64;
@@ -69,9 +69,9 @@ fn test_double() -> Result<()> {
 
             for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
-                    .with_log_2_num_registers(log2m)
-                    .with_num_elements_upper_bound(size)
-                    .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
+                    .log_2_num_registers(log2m)
+                    .num_elements_upper_bound(size)
+                    .hasher_builder(Xxh3Builder::new().with_seed(trial))
                     .build(2)?;
                 let incr = (1 << 32) / size as i64;
                 let mut x = i64::MIN;
@@ -130,9 +130,9 @@ fn test_merge_safe() -> Result<()> {
 
             for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
-                    .with_log_2_num_registers(log2m)
-                    .with_num_elements_upper_bound(size)
-                    .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
+                    .log_2_num_registers(log2m)
+                    .num_elements_upper_bound(size)
+                    .hasher_builder(Xxh3Builder::new().with_seed(trial))
                     .build(2)?;
                 let incr = (1 << 32) / (size * 2) as i64;
                 let mut x = i64::MIN;
@@ -196,9 +196,9 @@ fn test_merge_unsafe() -> Result<()> {
 
             for trial in 0..NUM_TRIALS {
                 let counters = HyperLogLogCounterArrayBuilder::new()
-                    .with_log_2_num_registers(log2m)
-                    .with_num_elements_upper_bound(size)
-                    .with_hasher_builder(Xxh3Builder::new().with_seed(trial))
+                    .log_2_num_registers(log2m)
+                    .num_elements_upper_bound(size)
+                    .hasher_builder(Xxh3Builder::new().with_seed(trial))
                     .build(2)?;
                 let incr = (1 << 32) / (size * 2) as i64;
                 let mut x = i64::MIN;

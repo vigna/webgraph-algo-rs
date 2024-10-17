@@ -227,15 +227,15 @@ fn test_cnr_2000() -> Result<()> {
         read_float_array("./tests/hyperball_results/cnr-2000_nieminen_centrality")?;
 
     let mut hyperball = HyperBallBuilder::new(&graph, cumulative.as_ref())
-        .with_transposed(Some(&rev_graph))
-        .with_hyperloglog_settings(
+        .transposed(Some(&rev_graph))
+        .hyperloglog_settings(
             HyperLogLogCounterArrayBuilder::new()
-                .with_log_2_num_registers(8)
-                .with_num_elements_upper_bound(graph.num_nodes())
-                .with_hasher_builder(JenkinsHasherBuilder::new(42)),
+                .log_2_num_registers(8)
+                .num_elements_upper_bound(graph.num_nodes())
+                .hasher_builder(JenkinsHasherBuilder::new(42)),
         )
-        .with_sum_of_distances(true)
-        .with_sum_of_inverse_distances(true)
+        .sum_of_distances(true)
+        .sum_of_inverse_distances(true)
         .build(Option::<ProgressLogger>::None)?;
 
     hyperball.run_until_done(Option::<ProgressLogger>::None)?;

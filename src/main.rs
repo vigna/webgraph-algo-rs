@@ -29,11 +29,11 @@ fn main() -> Result<()> {
         .local_speed(true)
         .log_interval(std::time::Duration::from_secs(180));
     let mut hyper_ball = HyperBallBuilder::new(&graph, cumulative.as_ref())
-        .with_transposed(Some(&reversed_graph))
-        .with_hyperloglog_settings(
+        .transposed(Some(&reversed_graph))
+        .hyperloglog_settings(
             HyperLogLogCounterArrayBuilder::new()
-                .with_log_2_num_registers(6)
-                .with_num_elements_upper_bound(graph.num_nodes()),
+                .log_2_num_registers(6)
+                .num_elements_upper_bound(graph.num_nodes()),
         )
         .build(hyper_ball_pl.clone())?;
     hyper_ball.run_until_done(hyper_ball_pl)?;

@@ -54,9 +54,9 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
     /// - `cumulative_outdegree`: the degree cumulative function of the graph.
     pub fn new(graph: &'a G, cumulative_outdegree: &'a D) -> Self {
         let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
-            .with_log_2_num_registers(4)
-            .with_num_elements_upper_bound(graph.num_nodes())
-            .with_mem_options(TempMmapOptions::None);
+            .log_2_num_registers(4)
+            .num_elements_upper_bound(graph.num_nodes())
+            .mem_options(TempMmapOptions::None);
         Self {
             graph,
             rev_graph: None,
@@ -88,7 +88,7 @@ impl<
     /// # Arguments
     /// - `transposed`: the new transposed graph. If [`None`] no transposed graph is used
     ///   and no systolic iterations will be performed by the built [`HyperBall`].
-    pub fn with_transposed<G: RandomAccessGraph>(
+    pub fn transposed<G: RandomAccessGraph>(
         self,
         transposed: Option<&'a G>,
     ) -> HyperBallBuilder<'a, D, W, H, T, G1, G> {
@@ -131,7 +131,7 @@ impl<
     ///
     /// # Arguments
     /// - `do_sum_of_distances`: if `true` the sum of distances are computed.
-    pub fn with_sum_of_distances(mut self, do_sum_of_distances: bool) -> Self {
+    pub fn sum_of_distances(mut self, do_sum_of_distances: bool) -> Self {
         self.sum_of_distances = do_sum_of_distances;
         self
     }
@@ -140,7 +140,7 @@ impl<
     ///
     /// # Arguments
     /// - `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
-    pub fn with_sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
+    pub fn sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
         self.sum_of_inverse_distances = do_sum_of_inverse_distances;
         self
     }
@@ -149,7 +149,7 @@ impl<
     ///
     /// # Arguments
     /// - `granularity`: the new granularity value.
-    pub fn with_granularity(mut self, granularity: usize) -> Self {
+    pub fn granularity(mut self, granularity: usize) -> Self {
         self.granularity = granularity;
         self
     }
@@ -159,7 +159,7 @@ impl<
     /// # Arguments
     /// - `weights`: the new weights to use. If [`None`] every node is assumed to be
     ///   of weight equal to 1.
-    pub fn with_weights(mut self, weights: Option<&'a [usize]>) -> Self {
+    pub fn weights(mut self, weights: Option<&'a [usize]>) -> Self {
         if let Some(w) = weights {
             assert_eq!(w.len(), self.graph.num_nodes());
         }
@@ -171,7 +171,7 @@ impl<
     ///
     /// # Arguments
     /// - `discount_function`: the discount function to add.
-    pub fn with_discount_function(
+    pub fn discount_function(
         mut self,
         discount_function: impl Fn(usize) -> f64 + Sync + 'a,
     ) -> Self {
@@ -180,7 +180,7 @@ impl<
     }
 
     /// Removes all custom discount functions.
-    pub fn with_no_discount_function(mut self) -> Self {
+    pub fn no_discount_function(mut self) -> Self {
         self.discount_functions.clear();
         self
     }
@@ -189,7 +189,7 @@ impl<
     ///
     /// # Arguments
     /// - `settings`: the new settings to use.
-    pub fn with_hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher>(
+    pub fn hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher>(
         self,
         settings: HyperLogLogCounterArrayBuilder<H2, W2>,
     ) -> HyperBallBuilder<'a, D, W2, H2, T, G1, G2> {
@@ -212,13 +212,13 @@ impl<
     ///
     /// # Argumets
     /// - `settings`: the new setting to use.
-    pub fn with_mem_settings(mut self, settings: TempMmapOptions) -> Self {
+    pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
         self.mem_settings = settings;
         self
     }
 
     /// Sets the [`HyperBall`] instance to use the default [`rayon::ThreadPool`].
-    pub fn with_default_threadpool(self) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
+    pub fn default_threadpool(self) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
         HyperBallBuilder {
             graph: self.graph,
             rev_graph: self.rev_graph,
@@ -239,10 +239,7 @@ impl<
     ///
     /// # Arguments
     /// - `num_threads`: the number of threads to use for the new `ThreadPool`.
-    pub fn with_num_threads(
-        self,
-        num_threads: usize,
-    ) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
+    pub fn num_threads(self, num_threads: usize) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
         HyperBallBuilder {
             graph: self.graph,
             rev_graph: self.rev_graph,
@@ -262,7 +259,7 @@ impl<
     ///
     /// # Arguments
     /// - `threadpool`: the custom `ThreadPool` to use.
-    pub fn with_threadpool<T2: Borrow<rayon::ThreadPool>>(
+    pub fn threadpool<T2: Borrow<rayon::ThreadPool>>(
         self,
         threadpool: T2,
     ) -> HyperBallBuilder<'a, D, W, H, T2, G1, G2> {

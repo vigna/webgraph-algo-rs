@@ -21,7 +21,7 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
 
     /// Sets the starting node for full visits.
     /// It does nothing for single visits using [`BreadthFirstGraphVisit::visit_from_node``].
-    pub fn with_start(mut self, start: usize) -> Self {
+    pub fn start(mut self, start: usize) -> Self {
         self.start = start;
         self
     }
@@ -143,7 +143,7 @@ mod test {
             .load()
             .with_context(|| "Cannot load graph")?;
         let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph)
-            .with_start(10)
+            .start(10)
             .build();
 
         assert_eq!(visit.start, 10);

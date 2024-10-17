@@ -235,7 +235,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
         pl.start(format!("Performing BFS from {}", start));
 
         let mut visit = BFVBuilder::new_parallel_fast_callback(self.graph)
-            .with_granularity(VISIT_GRANULARITY)
+            .granularity(VISIT_GRANULARITY)
             .build();
         let ecc_not_first_branch = AtomicUsize::new(0);
         let max_dist = AtomicUsize::new(0);

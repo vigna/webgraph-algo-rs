@@ -183,12 +183,12 @@ impl<
             diameter_vertex: 0,
             compute_radial_vertices,
             visit: BFVBuilder::new_parallel_fast_callback(graph)
-                .with_granularity(VISIT_GRANULARITY)
-                .with_threadpool(threadpool.clone())
+                .granularity(VISIT_GRANULARITY)
+                .threadpool(threadpool.clone())
                 .build(),
             transposed_visit: BFVBuilder::new_parallel_fast_callback(reversed_graph)
-                .with_granularity(VISIT_GRANULARITY)
-                .with_threadpool(threadpool.clone())
+                .granularity(VISIT_GRANULARITY)
+                .threadpool(threadpool.clone())
                 .build(),
             threadpool,
         })
@@ -890,8 +890,8 @@ impl<
 
         self.threadpool.borrow().broadcast(|_| {
             let mut bfs = BFVBuilder::new_parallel_fast_callback(graph)
-                .with_granularity(VISIT_GRANULARITY)
-                .with_threadpool(threadpool)
+                .granularity(VISIT_GRANULARITY)
+                .threadpool(threadpool)
                 .build();
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
