@@ -1,5 +1,5 @@
 mod builder;
-pub use builder::DFV;
+pub use builder::DFVBuilder;
 
 pub mod traits;
 

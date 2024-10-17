@@ -2,9 +2,9 @@ use crate::algo::bfv::{parallel::*, parallel_fast_cb::*, single_thread::*};
 use webgraph::traits::RandomAccessGraph;
 
 /// Utility struct to requests builders for Breadth-First visits of graphs.
-pub struct BFV;
+pub struct BFVBuilder;
 
-impl BFV {
+impl BFVBuilder {
     /// Creates a new builder for a sequential visit.
     ///
     /// # Arguments

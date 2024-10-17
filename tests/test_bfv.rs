@@ -6,7 +6,7 @@ use webgraph::{
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
-use webgraph_algo::{algo::bfv::BFV, prelude::*};
+use webgraph_algo::{algo::bfv::BFVBuilder, prelude::*};
 
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
@@ -127,6 +127,9 @@ macro_rules! test_bfv_algo {
     };
 }
 
-test_bfv_algo!(BFV::new_sequential, sequential);
-test_bfv_algo!(BFV::new_parallel, parallel);
-test_bfv_algo!(BFV::new_parallel_fast_callback, parallel_fast_callback);
+test_bfv_algo!(BFVBuilder::new_sequential, sequential);
+test_bfv_algo!(BFVBuilder::new_parallel, parallel);
+test_bfv_algo!(
+    BFVBuilder::new_parallel_fast_callback,
+    parallel_fast_callback
+);

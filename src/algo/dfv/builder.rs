@@ -2,9 +2,9 @@ use crate::algo::dfv::single_thread::*;
 use webgraph::traits::RandomAccessGraph;
 
 /// Utility struct to requests builders for Depth-First visits of graphs.
-pub struct DFV;
+pub struct DFVBuilder;
 
-impl DFV {
+impl DFVBuilder {
     /// Creates a new builder for a sequential visit.
     ///
     /// # Arguments

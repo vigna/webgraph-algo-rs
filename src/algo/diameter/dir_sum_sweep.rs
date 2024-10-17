@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        bfv::{ParallelBreadthFirstVisitFastCB, BFV},
+        bfv::{BFVBuilder, ParallelBreadthFirstVisitFastCB},
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
     },
@@ -182,11 +182,11 @@ impl<
             radius_vertex: 0,
             diameter_vertex: 0,
             compute_radial_vertices,
-            visit: BFV::new_parallel_fast_callback(graph)
+            visit: BFVBuilder::new_parallel_fast_callback(graph)
                 .with_granularity(VISIT_GRANULARITY)
                 .with_threadpool(threadpool.clone())
                 .build(),
-            transposed_visit: BFV::new_parallel_fast_callback(reversed_graph)
+            transposed_visit: BFVBuilder::new_parallel_fast_callback(reversed_graph)
                 .with_granularity(VISIT_GRANULARITY)
                 .with_threadpool(threadpool.clone())
                 .build(),
@@ -889,7 +889,7 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = BFV::new_parallel_fast_callback(graph)
+            let mut bfs = BFVBuilder::new_parallel_fast_callback(graph)
                 .with_granularity(VISIT_GRANULARITY)
                 .with_threadpool(threadpool)
                 .build();
