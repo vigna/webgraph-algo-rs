@@ -9,10 +9,10 @@ pub mod math {
     pub use super::argmin::*;
 }
 
-mod mmap_slice;
+mod mmap_helper;
 #[doc(hidden)]
-pub use mmap_slice::MmapFlags;
-pub use mmap_slice::{MmapSlice, TempMmapOptions};
+pub use mmap_helper::MmapFlags;
+pub use mmap_helper::{MmapSlice, TempMmapOptions};
 
 mod closure_vec;
 pub use closure_vec::closure_vec;
