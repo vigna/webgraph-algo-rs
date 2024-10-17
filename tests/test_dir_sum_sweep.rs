@@ -7,8 +7,13 @@ use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::diameter::*;
 use webgraph_algo::utils::TempMmapOptions;
 
+fn threadpool() -> rayon::ThreadPool {
+    rayon::ThreadPoolBuilder::new().build().unwrap()
+}
+
 #[test]
 fn test_path() -> Result<()> {
+    let threadpool = threadpool();
     let arcs = vec![(0, 1), (1, 2), (2, 1), (1, 0)];
 
     let mut vec_graph = VecGraph::new();
@@ -28,6 +33,7 @@ fn test_path() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -48,6 +54,7 @@ fn test_path() -> Result<()> {
 
 #[test]
 fn test_many_scc() -> Result<()> {
+    let threadpool = threadpool();
     let arcs = vec![
         (0, 1),
         (1, 0),
@@ -83,6 +90,7 @@ fn test_many_scc() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::Radius,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -97,6 +105,7 @@ fn test_many_scc() -> Result<()> {
 
 #[test]
 fn test_lozenge() -> Result<()> {
+    let threadpool = threadpool();
     let arcs = vec![(0, 1), (1, 0), (0, 2), (1, 3), (2, 3)];
 
     let mut vec_graph = VecGraph::new();
@@ -116,6 +125,7 @@ fn test_lozenge() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::Radius,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -131,6 +141,7 @@ fn test_lozenge() -> Result<()> {
 
 #[test]
 fn test_many_dir_path() -> Result<()> {
+    let threadpool = threadpool();
     let arcs = vec![
         (0, 1),
         (1, 2),
@@ -169,6 +180,7 @@ fn test_many_dir_path() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         Some(radial_vertices),
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -185,6 +197,7 @@ fn test_many_dir_path() -> Result<()> {
 
 #[test]
 fn test_cycle() -> Result<()> {
+    let threadpool = threadpool();
     for size in [3, 5, 7] {
         let mut vec_graph = VecGraph::new();
         for i in 0..size {
@@ -207,6 +220,7 @@ fn test_cycle() -> Result<()> {
             &graph,
             &transposed,
             SumSweepOutputLevel::RadiusDiameter,
+            &threadpool,
             None,
             TempMmapOptions::None,
             Option::<ProgressLogger>::None,
@@ -229,6 +243,7 @@ fn test_cycle() -> Result<()> {
 
 #[test]
 fn test_clique() -> Result<()> {
+    let threadpool = threadpool();
     for size in [10, 50, 100] {
         let mut vec_graph = VecGraph::new();
         for i in 0..size {
@@ -260,6 +275,7 @@ fn test_clique() -> Result<()> {
             &graph,
             &transposed,
             SumSweepOutputLevel::All,
+            &threadpool,
             Some(radial_vertices),
             TempMmapOptions::None,
             Option::<ProgressLogger>::None,
@@ -276,6 +292,7 @@ fn test_clique() -> Result<()> {
 
 #[test]
 fn test_empty() -> Result<()> {
+    let threadpool = threadpool();
     let mut vec_graph: VecGraph<()> = VecGraph::new();
     for i in 0..100 {
         vec_graph.add_node(i);
@@ -290,6 +307,7 @@ fn test_empty() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -304,6 +322,7 @@ fn test_empty() -> Result<()> {
 
 #[test]
 fn test_sparse() -> Result<()> {
+    let threadpool = threadpool();
     let arcs = vec![(10, 32), (10, 65), (65, 10), (21, 44)];
 
     let mut vec_graph = VecGraph::new();
@@ -323,6 +342,7 @@ fn test_sparse() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -337,6 +357,7 @@ fn test_sparse() -> Result<()> {
 
 #[test]
 fn test_no_radial_vertices() -> Result<()> {
+    let threadpool = threadpool();
     let arcs = vec![(0, 1)];
 
     let mut vec_graph = VecGraph::new();
@@ -357,6 +378,7 @@ fn test_no_radial_vertices() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         Some(radial_vertices),
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -370,6 +392,7 @@ fn test_no_radial_vertices() -> Result<()> {
 
 #[test]
 fn test_empty_graph() -> Result<()> {
+    let threadpool = threadpool();
     let vec_graph: VecGraph<()> = VecGraph::new();
 
     let graph = Left(vec_graph);
@@ -381,6 +404,7 @@ fn test_empty_graph() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,
@@ -395,6 +419,7 @@ fn test_empty_graph() -> Result<()> {
 
 #[test]
 fn test_graph_no_edges() -> Result<()> {
+    let threadpool = threadpool();
     let mut vec_graph: VecGraph<()> = VecGraph::new();
     for i in 0..2 {
         vec_graph.add_node(i);
@@ -409,6 +434,7 @@ fn test_graph_no_edges() -> Result<()> {
         &graph,
         &transposed,
         SumSweepOutputLevel::All,
+        &threadpool,
         None,
         TempMmapOptions::None,
         Option::<ProgressLogger>::None,

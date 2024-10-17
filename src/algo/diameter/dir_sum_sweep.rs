@@ -11,9 +11,12 @@ use anyhow::{ensure, Context, Result};
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    RwLock,
+use std::{
+    borrow::Borrow,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    },
 };
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
@@ -27,6 +30,7 @@ pub struct SumSweepDirectedDiameterRadius<
     C: StronglyConnectedComponents<G1>,
     V1: ReusableBreadthFirstGraphVisit,
     V2: ReusableBreadthFirstGraphVisit,
+    T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
     reversed_graph: &'a G2,
@@ -65,16 +69,23 @@ pub struct SumSweepDirectedDiameterRadius<
     compute_radial_vertices: bool,
     visit: V1,
     transposed_visit: V2,
+    threadpool: T,
 }
 
-impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+impl<
+        'a,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        T: Borrow<rayon::ThreadPool> + Clone,
+    >
     SumSweepDirectedDiameterRadius<
         'a,
         G1,
         G2,
         TarjanStronglyConnectedComponents<G1>,
-        ParallelBreadthFirstVisitFastCB<'a, G1>,
-        ParallelBreadthFirstVisitFastCB<'a, G2>,
+        ParallelBreadthFirstVisitFastCB<'a, G1, T>,
+        ParallelBreadthFirstVisitFastCB<'a, G2, T>,
+        T,
     >
 {
     /// Creates a new instance for computing diameter and/or radius and/or all eccentricities.
@@ -83,6 +94,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     /// - `graph`: An immutable reference to the graph.
     /// - `reversed_graph`: An immutable reference to `graph` transposed.
     /// - `output`: Which output is requested: radius, diameter, radius and diameter, or all eccentricities.
+    /// - `threads`: The threadpool to use for parallelism.
     /// - `radial_verticies`: The set of radial vertices. If [`None`], the set is automatically chosen
     ///   as the set of vertices that are in the biggest strongly connected component, or that are able
     ///   to reach the biggest strongly connected component.
@@ -94,6 +106,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         graph: &'a G1,
         reversed_graph: &'a G2,
         output: SumSweepOutputLevel,
+        threadpool: T,
         radial_vertices: Option<AtomicBitVec>,
         options: TempMmapOptions,
         pl: impl ProgressLog,
@@ -171,10 +184,13 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             compute_radial_vertices,
             visit: BFV::new_parallel_fast_callback(graph)
                 .with_granularity(VISIT_GRANULARITY)
+                .with_threadpool(threadpool.clone())
                 .build(),
             transposed_visit: BFV::new_parallel_fast_callback(reversed_graph)
                 .with_granularity(VISIT_GRANULARITY)
+                .with_threadpool(threadpool.clone())
                 .build(),
+            threadpool,
         })
     }
 }
@@ -186,7 +202,8 @@ impl<
         C: StronglyConnectedComponents<G1> + Sync,
         V1: ReusableBreadthFirstGraphVisit + Sync,
         V2: ReusableBreadthFirstGraphVisit + Sync,
-    > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2>
+        T: Borrow<rayon::ThreadPool> + Sync,
+    > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
         self.lower_bound_forward_eccentricities[index]
@@ -296,21 +313,23 @@ impl<
 
         let max_outdegree_vertex = AtomicUsize::new(0);
 
-        (0..self.number_of_nodes).into_par_iter().for_each(|v| {
-            let outdegree = self.graph.outdegree(v);
-            let mut current_max = max_outdegree_vertex.load(Ordering::Relaxed);
-            while outdegree > self.graph.outdegree(current_max) {
-                let result = max_outdegree_vertex.compare_exchange(
-                    current_max,
-                    v,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                );
-                if result.is_ok() {
-                    break;
+        self.threadpool.borrow().install(|| {
+            (0..self.number_of_nodes).into_par_iter().for_each(|v| {
+                let outdegree = self.graph.outdegree(v);
+                let mut current_max = max_outdegree_vertex.load(Ordering::Relaxed);
+                while outdegree > self.graph.outdegree(current_max) {
+                    let result = max_outdegree_vertex.compare_exchange(
+                        current_max,
+                        v,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    );
+                    if result.is_ok() {
+                        break;
+                    }
+                    current_max = max_outdegree_vertex.load(Ordering::Relaxed);
                 }
-                current_max = max_outdegree_vertex.load(Ordering::Relaxed);
-            }
+            });
         });
 
         self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())
@@ -867,10 +886,12 @@ impl<
         let mut dist_pivot = vec![0; self.number_of_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
+        let threadpool = self.threadpool.borrow();
 
-        rayon::broadcast(|_| {
+        self.threadpool.borrow().broadcast(|_| {
             let mut bfs = BFV::new_parallel_fast_callback(graph)
                 .with_granularity(VISIT_GRANULARITY)
+                .with_threadpool(threadpool)
                 .build();
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
@@ -989,51 +1010,53 @@ impl<
             .upper_bound_backward_eccentricities
             .as_mut_slice_of_cells();
 
-        (0..self.number_of_nodes).into_par_iter().for_each(|node| {
-            // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-            unsafe {
-                upper_bound_forward_eccentricities.write_once(
-                    node,
-                    std::cmp::min(
-                        upper_bound_forward_eccentricities[node].read(),
-                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
-                    ),
-                );
-            }
+        self.threadpool.borrow().install(|| {
+            (0..self.number_of_nodes).into_par_iter().for_each(|node| {
+                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                unsafe {
+                    upper_bound_forward_eccentricities.write_once(
+                        node,
+                        std::cmp::min(
+                            upper_bound_forward_eccentricities[node].read(),
+                            dist_pivot_b[node] + ecc_pivot_f[components[node]],
+                        ),
+                    );
+                }
 
-            if upper_bound_forward_eccentricities[node].read()
-                == self.lower_bound_forward_eccentricities[node]
-            {
-                let new_ecc = upper_bound_forward_eccentricities[node].read();
+                if upper_bound_forward_eccentricities[node].read()
+                    == self.lower_bound_forward_eccentricities[node]
+                {
+                    let new_ecc = upper_bound_forward_eccentricities[node].read();
 
-                if self.radial_vertices[node] {
-                    let mut update_radius = false;
-                    {
-                        let radius_lock = radius.read().unwrap();
-                        if new_ecc < radius_lock.0 {
-                            update_radius = true;
+                    if self.radial_vertices[node] {
+                        let mut update_radius = false;
+                        {
+                            let radius_lock = radius.read().unwrap();
+                            if new_ecc < radius_lock.0 {
+                                update_radius = true;
+                            }
                         }
-                    }
 
-                    if update_radius {
-                        let mut radius_lock = radius.write().unwrap();
-                        if new_ecc < radius_lock.0 {
-                            radius_lock.0 = new_ecc;
-                            radius_lock.1 = node;
+                        if update_radius {
+                            let mut radius_lock = radius.write().unwrap();
+                            if new_ecc < radius_lock.0 {
+                                radius_lock.0 = new_ecc;
+                                radius_lock.1 = node;
+                            }
                         }
                     }
                 }
-            }
 
-            unsafe {
-                upper_bound_backward_eccentricities.write_once(
-                    node,
-                    std::cmp::min(
-                        upper_bound_backward_eccentricities[node].read(),
-                        dist_pivot_f[node] + ecc_pivot_b[components[node]],
-                    ),
-                );
-            }
+                unsafe {
+                    upper_bound_backward_eccentricities.write_once(
+                        node,
+                        std::cmp::min(
+                            upper_bound_backward_eccentricities[node].read(),
+                            dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                        ),
+                    );
+                }
+            });
         });
 
         pl.update_with_count(self.number_of_nodes);
@@ -1059,48 +1082,51 @@ impl<
         pl.expected_updates(Some(self.number_of_nodes));
         pl.start("Computing missing nodes");
 
-        let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) = (0
-            ..self.number_of_nodes)
-            .into_par_iter()
-            .fold(
-                || (0, 0, 0, 0, 0),
-                |mut acc, node| {
-                    if self.incomplete_forward_vertex(node) {
-                        acc.3 += 1;
-                        if self.upper_bound_forward_eccentricities[node] > self.diameter_lower_bound
-                        {
-                            acc.1 += 1;
-                        }
-                        if self.radial_vertices[node]
-                            && self.lower_bound_forward_eccentricities[node]
-                                < self.radius_upper_bound
-                        {
-                            acc.0 += 1;
-                        }
-                    }
-                    if self.incomplete_backward_vertex(node) {
-                        acc.4 += 1;
-                        if self.upper_bound_backward_eccentricities[node]
-                            > self.diameter_lower_bound
-                        {
-                            acc.2 += 1;
-                        }
-                    }
-                    acc
-                },
-            )
-            .reduce(
-                || (0, 0, 0, 0, 0),
-                |acc, elem| {
-                    (
-                        acc.0 + elem.0,
-                        acc.1 + elem.1,
-                        acc.2 + elem.2,
-                        acc.3 + elem.3,
-                        acc.4 + elem.4,
+        let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) =
+            self.threadpool.borrow().install(|| {
+                (0..self.number_of_nodes)
+                    .into_par_iter()
+                    .fold(
+                        || (0, 0, 0, 0, 0),
+                        |mut acc, node| {
+                            if self.incomplete_forward_vertex(node) {
+                                acc.3 += 1;
+                                if self.upper_bound_forward_eccentricities[node]
+                                    > self.diameter_lower_bound
+                                {
+                                    acc.1 += 1;
+                                }
+                                if self.radial_vertices[node]
+                                    && self.lower_bound_forward_eccentricities[node]
+                                        < self.radius_upper_bound
+                                {
+                                    acc.0 += 1;
+                                }
+                            }
+                            if self.incomplete_backward_vertex(node) {
+                                acc.4 += 1;
+                                if self.upper_bound_backward_eccentricities[node]
+                                    > self.diameter_lower_bound
+                                {
+                                    acc.2 += 1;
+                                }
+                            }
+                            acc
+                        },
                     )
-                },
-            );
+                    .reduce(
+                        || (0, 0, 0, 0, 0),
+                        |acc, elem| {
+                            (
+                                acc.0 + elem.0,
+                                acc.1 + elem.1,
+                                acc.2 + elem.2,
+                                acc.3 + elem.3,
+                                acc.4 + elem.4,
+                            )
+                        },
+                    )
+            });
 
         pl.update_with_count(self.number_of_nodes);
 
