@@ -79,11 +79,13 @@ impl<W> TryFrom<Mmap> for MmapHelper<W> {
 
 impl<W> MmapHelper<W> {
     /// Returns the size of the memory mapping in `W`'s.
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.len
     }
 
     /// Returns whether the memory mapping is empty.
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         // make clippy happy
         self.len == 0
@@ -233,18 +235,21 @@ impl<W> MmapHelper<W, MmapMut> {
 }
 
 impl<W> AsRef<[W]> for MmapHelper<W> {
+    #[inline(always)]
     fn as_ref(&self) -> &[W] {
         unsafe { std::slice::from_raw_parts(self.mmap.as_ptr() as *const W, self.len) }
     }
 }
 
 impl<W> AsRef<[W]> for MmapHelper<W, MmapMut> {
+    #[inline(always)]
     fn as_ref(&self) -> &[W] {
         unsafe { std::slice::from_raw_parts(self.mmap.as_ptr() as *const W, self.len) }
     }
 }
 
 impl<W> AsMut<[W]> for MmapHelper<W, MmapMut> {
+    #[inline(always)]
     fn as_mut(&mut self) -> &mut [W] {
         unsafe { std::slice::from_raw_parts_mut(self.mmap.as_mut_ptr() as *mut W, self.len) }
     }
@@ -361,6 +366,7 @@ impl<T: Default> MmapSlice<T> {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline(always)]
     pub fn from_default(len: usize, options: TempMmapOptions) -> Result<Self> {
         Self::from_closure(T::default, len, options)
     }
