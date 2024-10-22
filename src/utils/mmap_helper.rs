@@ -1,16 +1,276 @@
-use crate::utils::closure_vec;
 use anyhow::{ensure, Context, Result};
-use mmap_rs::{MmapMut, MmapOptions};
+use common_traits::UnsignedInt;
+use core::fmt::Debug;
+use mmap_rs::{Mmap, MmapMut, MmapOptions};
 use std::{
     fs::File,
     mem::size_of,
     ops::{Deref, DerefMut},
-    path::PathBuf,
+    path::*,
+    sync::Arc,
 };
 use tempfile::{tempfile, tempfile_in};
 
 #[doc(hidden)]
 pub use mmap_rs::MmapFlags;
+
+/// Helper struct providing convenience methods and type-based [`AsRef`] access
+/// to an [`Mmap`] or [`MmapMut`] instance.
+///
+/// The parameter `W` defines the type of the slice used to access the [`Mmap`]
+/// or [`MmapMut`] instance. Usually, this will be a unsigned type such as
+/// `usize`, but per se `W` has no trait bounds.
+///
+/// If the length of the file is not a multiple of the size of `W`, the behavior
+/// of [`mmap`](MmapHelper::mmap) is platform-dependent:
+/// - on Linux, files will be silently zero-extended to the smallest length that
+///   is a multiple of  the size of `W`;
+/// - on Windows, an error will be returned; you will have to pad manually the
+///   file using the `pad` command of the `webgraph` CLI.
+///
+/// On the contrary, [`mmap_mut`](MmapHelper::mmap_mut) will always refuse to
+/// map a file whose length is not a multiple of the size of `W`.
+///
+/// If you need clonable version of this structure, consider using
+/// [`ArcMmapHelper`].
+#[derive(Clone)]
+pub struct MmapHelper<W, M = Mmap> {
+    /// The underlying memory mapping, [`Mmap`] or [`MmapMut`].
+    mmap: M,
+    /// The length of the mapping in `W`'s.
+    len: usize,
+    _marker: core::marker::PhantomData<W>,
+}
+
+impl<W: Debug> Debug for MmapHelper<W, Mmap> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("MmapHelper")
+            .field("mmap", &self.mmap.as_ptr())
+            .field("len", &self.len)
+            .finish()
+    }
+}
+
+impl<W: Debug> Debug for MmapHelper<W, MmapMut> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("MmapHelper")
+            .field("mmap", &self.mmap.as_ptr())
+            .field("len", &self.len)
+            .finish()
+    }
+}
+
+impl<W> TryFrom<Mmap> for MmapHelper<W> {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Mmap) -> std::prelude::v1::Result<Self, Self::Error> {
+        ensure!(
+            value.len() % size_of::<W>() == 0,
+            "The size of the mmap is not a multiple of the size of W"
+        );
+        let len = value.len() / size_of::<W>();
+        Ok(Self {
+            len,
+            mmap: value,
+            _marker: core::marker::PhantomData,
+        })
+    }
+}
+
+impl<W> MmapHelper<W> {
+    /// Returns the size of the memory mapping in `W`'s.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns whether the memory mapping is empty.
+    pub fn is_empty(&self) -> bool {
+        // make clippy happy
+        self.len == 0
+    }
+
+    /// Maps a file into memory (read-only).
+    ///
+    /// # Arguments
+    /// - `path`: The path to the file to be memory mapped.
+    /// - `flags`: The flags to be used for the mmap.
+    pub fn mmap(path: impl AsRef<Path>, flags: MmapFlags) -> Result<Self> {
+        let file_len: usize = path
+            .as_ref()
+            .metadata()
+            .with_context(|| format!("Cannot stat {}", path.as_ref().display()))?
+            .len()
+            .try_into()
+            .with_context(|| "Cannot convert file length to usize")?;
+        // Align to multiple of size_of::<W>
+        let mmap_len = file_len.align_to(size_of::<W>());
+        #[cfg(windows)]
+        {
+            ensure!(
+                mmap_len == file_len,
+                "File has insufficient padding for word size {}. Use \"webgraph run pad BASENAME u{}\" to ensure sufficient padding.", size_of::<W>() * 8, size_of::<W>() * 8
+            );
+        }
+        let file = std::fs::File::open(path.as_ref())
+            .with_context(|| "Cannot open file for MmapHelper")?;
+
+        let mmap = unsafe {
+            // Length must be > 0, or we get a panic.
+            mmap_rs::MmapOptions::new(mmap_len.max(size_of::<W>()))
+                .with_context(|| format!("Cannot initialize mmap of size {}", mmap_len))?
+                .with_flags(flags)
+                .with_file(&file, 0)
+                .map()
+                .with_context(|| {
+                    format!(
+                        "Cannot mmap {} (size {})",
+                        path.as_ref().display(),
+                        mmap_len
+                    )
+                })?
+        };
+
+        Ok(Self {
+            len: mmap_len / core::mem::size_of::<W>(),
+            mmap,
+            _marker: core::marker::PhantomData,
+        })
+    }
+}
+
+impl<W> MmapHelper<W, MmapMut> {
+    /// Maps a file into memory (read/write).
+    ///
+    /// # Arguments
+    /// - `path`: The path to the file to be mapped.
+    /// - `flags`: The flags to be used for the mmap.
+    pub fn mmap_mut(path: impl AsRef<Path>, flags: MmapFlags) -> Result<Self> {
+        let file_len: usize = path
+            .as_ref()
+            .metadata()
+            .with_context(|| format!("Cannot stat {}", path.as_ref().display()))?
+            .len()
+            .try_into()
+            .with_context(|| "Cannot convert file length to usize")?;
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path.as_ref())
+            .with_context(|| {
+                format!(
+                    "Cannot open {} for mutable MmapHelper",
+                    path.as_ref().display()
+                )
+            })?;
+
+        // Align to multiple of size_of::<W>
+        let mmap_len = file_len.align_to(size_of::<W>());
+
+        ensure!(mmap_len == file_len, "File has insufficient padding for word size {}. Use \"webgraph pad BASENAME u{}\" to ensure sufficient padding.", size_of::<W>(), size_of::<W>() * 8);
+
+        let mmap = unsafe {
+            mmap_rs::MmapOptions::new(mmap_len.max(1))
+                .with_context(|| format!("Cannot initialize mmap of size {}", file_len))?
+                .with_flags(flags)
+                .with_file(&file, 0)
+                .map_mut()
+                .with_context(|| {
+                    format!(
+                        "Cannot mutably mmap {} (size {})",
+                        path.as_ref().display(),
+                        file_len
+                    )
+                })?
+        };
+
+        Ok(Self {
+            len: mmap.len() / core::mem::size_of::<W>(),
+            mmap,
+            _marker: core::marker::PhantomData,
+        })
+    }
+
+    /// Creates and maps a file into memory (read/write), overwriting it if it exists.
+    ///
+    /// # Arguments
+    /// - `path`: The path to the file to be created.
+    /// - `flags`: The flags to be used for the mmap.
+    /// - `len`: The length of the file in `W`'s.
+    pub fn new(path: impl AsRef<Path>, flags: MmapFlags, len: usize) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path.as_ref())
+            .with_context(|| format!("Cannot create {} new MmapHelper", path.as_ref().display()))?;
+        let file_len = len * size_of::<W>();
+        #[cfg(windows)]
+        {
+            // Zero fill the file as CreateFileMappingW does not initialize everything to 0
+            file.set_len(
+                file_len
+                    .try_into()
+                    .with_context(|| "Cannot convert usize to u64")?,
+            )
+            .with_context(|| "Cannot modify file size")?;
+        }
+        let mmap = unsafe {
+            mmap_rs::MmapOptions::new(file_len as _)
+                .with_context(|| format!("Cannot initialize mmap of size {}", file_len))?
+                .with_flags(flags)
+                .with_file(&file, 0)
+                .map_mut()
+                .with_context(|| format!("Cannot mutably mmap {}", path.as_ref().display()))?
+        };
+
+        Ok(Self {
+            len: mmap.len() / core::mem::size_of::<W>(),
+            mmap,
+            _marker: core::marker::PhantomData,
+        })
+    }
+}
+
+impl<W> AsRef<[W]> for MmapHelper<W> {
+    fn as_ref(&self) -> &[W] {
+        unsafe { std::slice::from_raw_parts(self.mmap.as_ptr() as *const W, self.len) }
+    }
+}
+
+impl<W> AsRef<[W]> for MmapHelper<W, MmapMut> {
+    fn as_ref(&self) -> &[W] {
+        unsafe { std::slice::from_raw_parts(self.mmap.as_ptr() as *const W, self.len) }
+    }
+}
+
+impl<W> AsMut<[W]> for MmapHelper<W, MmapMut> {
+    fn as_mut(&mut self) -> &mut [W] {
+        unsafe { std::slice::from_raw_parts_mut(self.mmap.as_mut_ptr() as *mut W, self.len) }
+    }
+}
+
+/// A clonable version of a read-only [`MmapHelper`].
+///
+/// This newtype contains a read-only [`MmapHelper`] wrapped in an [`Arc`],
+/// making it possible to clone it.
+#[derive(Clone)]
+pub struct ArcMmapHelper<W>(pub Arc<MmapHelper<W>>);
+
+impl<W: Debug> Debug for ArcMmapHelper<W> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ArcMmapHelper")
+            .field("mmap", &self.0.mmap.as_ptr())
+            .field("len", &self.0.len)
+            .finish()
+    }
+}
+
+impl<W> AsRef<[W]> for ArcMmapHelper<W> {
+    fn as_ref(&self) -> &[W] {
+        unsafe { std::slice::from_raw_parts(self.0.mmap.as_ptr() as *const W, self.0.len) }
+    }
+}
 
 /// Options for [`MmapSlice`].
 /// This determines where data is stored.
@@ -48,7 +308,7 @@ pub enum TempMmapOptions {
 ///
 /// // Create a slice of 100 elements initialized to the type's default (type can be inferred
 /// // but usually isn't) stored in RAM
-/// let mmap_slice: MmapSlice<usize> = MmapSlice::new(100, TempMmapOptions::None)?;
+/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_default(100, TempMmapOptions::None)?;
 /// # assert_eq!(mmap_slice.as_slice(), vec![0; 100].as_slice());
 ///
 /// // Create a slice from a vec stored in a temporary file created in the default temporary
@@ -66,12 +326,7 @@ pub enum TempMmapOptions {
 /// # }
 ///
 /// ```
-pub struct MmapSlice<T> {
-    /// The memory map if used
-    mmap: Option<(File, MmapMut, usize)>,
-    /// The in memory vector. Empty if not used or if using an empty slice.
-    in_memory_vec: Vec<T>,
-}
+pub type MmapSlice<T> = MmapHelper<T, MmapMut>;
 
 impl<T: Default> MmapSlice<T> {
     /// Creates a new slice of length `len` with the provided [`TempMmapOptions`] and with all
@@ -84,7 +339,7 @@ impl<T: Default> MmapSlice<T> {
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
-    /// let slice: MmapSlice<usize> = MmapSlice::new(100, TempMmapOptions::None)?;
+    /// let slice: MmapSlice<usize> = MmapSlice::from_default(100, TempMmapOptions::None)?;
     /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
     /// # Ok(())
     /// # }
@@ -99,12 +354,12 @@ impl<T: Default> MmapSlice<T> {
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
-    /// let slice = MmapSlice::<usize>::new(100, TempMmapOptions::None)?;
+    /// let slice = MmapSlice::<usize>::from_default(100, TempMmapOptions::None)?;
     /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new(len: usize, options: TempMmapOptions) -> Result<Self> {
+    pub fn from_default(len: usize, options: TempMmapOptions) -> Result<Self> {
         Self::from_closure(T::default, len, options)
     }
 }
@@ -126,42 +381,37 @@ impl<T: Clone> MmapSlice<T> {
     /// # }
     /// ```
     pub fn from_value(value: T, len: usize, options: TempMmapOptions) -> Result<Self> {
-        match options {
-            TempMmapOptions::None => Ok(Self {
-                mmap: None,
-                in_memory_vec: vec![value; len],
-            }),
-            TempMmapOptions::TempDir(flags) => {
-                let mut mmap_slice = Self::from_tempfile_and_len(
-                    len,
-                    tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
-                    flags,
-                )
-                .with_context(|| {
-                    format!("Cannot create mmap of len {} in temporary directory", len)
-                })?;
-                mmap_slice.fill(value);
-                Ok(mmap_slice)
+        let mut mmap_slice = match options {
+            TempMmapOptions::None => {
+                let mut flags = MmapFlags::empty();
+                flags.set(MmapFlags::SHARED, true);
+                flags.set(MmapFlags::RANDOM_ACCESS, true);
+                Self::from_file_and_len(None, flags, len)
+                    .with_context(|| format!("Cannot create mmap of len {} in memory", len))?
             }
-            TempMmapOptions::CustomDir(dir, flags) => {
-                let mut mmap_slice = Self::from_tempfile_and_len(
+            TempMmapOptions::TempDir(flags) => Self::from_file_and_len(
+                Some(tempfile().with_context(|| "Cannot create tempfile in temporary directory")?),
+                flags,
+                len,
+            )
+            .with_context(|| format!("Cannot create mmap of len {} in temporary directory", len))?,
+            TempMmapOptions::CustomDir(dir, flags) => Self::from_file_and_len(
+                Some(tempfile_in(dir.as_path()).with_context(|| {
+                    format!("Cannot create tempfile in directory {}", dir.display())
+                })?),
+                flags,
+                len,
+            )
+            .with_context(|| {
+                format!(
+                    "Cannot create mmap of len {} in directory {}",
                     len,
-                    tempfile_in(dir.as_path()).with_context(|| {
-                        format!("Cannot create tempfile in directory {}", dir.display())
-                    })?,
-                    flags,
+                    dir.display()
                 )
-                .with_context(|| {
-                    format!(
-                        "Cannot create mmap of len {} in directory {}",
-                        len,
-                        dir.display()
-                    )
-                })?;
-                mmap_slice.fill(value);
-                Ok(mmap_slice)
-            }
-        }
+            })?,
+        };
+        mmap_slice.fill(value);
+        Ok(mmap_slice)
     }
 }
 
@@ -169,37 +419,29 @@ impl<T> MmapSlice<T> {
     /// The number of bytes required to store a single element of the slice.
     const BLOCK_SIZE: usize = size_of::<T>();
 
-    fn mmap(file: File, flags: MmapFlags) -> Result<Self> {
-        let file_len: usize = file
-            .metadata()
-            .with_context(|| "Cannot retrieve file metadata")?
-            .len()
-            .try_into()
-            .with_context(|| "Cannot convert to usize")?;
-        let mmap_len =
-            file_len + (Self::BLOCK_SIZE - (file_len % Self::BLOCK_SIZE)) % Self::BLOCK_SIZE;
+    fn from_file_and_len(file: Option<File>, flags: MmapFlags, len: usize) -> Result<Self> {
+        let mmap_bytes = std::cmp::max(1, len * Self::BLOCK_SIZE);
 
-        if mmap_len == 0 {
-            return Ok(MmapSlice {
-                mmap: None,
-                in_memory_vec: Vec::new(),
-            });
+        if let Some(f) = file.as_ref() {
+            f.set_len(
+                mmap_bytes
+                    .try_into()
+                    .with_context(|| format!("Cannot convert {} into u64", mmap_bytes))?,
+            )
+            .with_context(|| format!("Cannot set file len to {} bytes", mmap_bytes))?;
         }
 
-        ensure!(
-            mmap_len == file_len,
-            "file len is not of the correct length for element of size {}",
-            Self::BLOCK_SIZE
-        );
+        let mmap_builder = MmapOptions::new(mmap_bytes)
+            .with_context(|| format!("Cannot initialize mmap of size {}", mmap_bytes))?
+            .with_flags(flags);
 
-        let mmap = unsafe {
-            MmapOptions::new(mmap_len)
-                .with_context(|| format!("Cannot initialize mmap of size {}", mmap_len))?
-                .with_file(&file, 0)
-                .with_flags(flags)
-                .map_mut()
-                .with_context(|| "Cannot mutably mmap")?
-        };
+        let mmap = if let Some(f) = file.as_ref() {
+            unsafe { mmap_builder.with_file(f, 0) }
+        } else {
+            mmap_builder
+        }
+        .map_mut()
+        .with_context(|| "Cannot muatbly mmap")?;
 
         assert!(
             (mmap.as_ptr() as *const T).is_aligned(),
@@ -209,8 +451,9 @@ impl<T> MmapSlice<T> {
         );
 
         Ok(Self {
-            mmap: Some((file, mmap, mmap_len / Self::BLOCK_SIZE)),
-            in_memory_vec: Vec::new(),
+            mmap,
+            len,
+            _marker: std::marker::PhantomData,
         })
     }
 
@@ -246,22 +489,25 @@ impl<T> MmapSlice<T> {
     /// ```
     pub fn from_vec(v: Vec<T>, options: TempMmapOptions) -> Result<Self> {
         match options {
-            TempMmapOptions::None => Ok(Self {
-                mmap: None,
-                in_memory_vec: v,
-            }),
-            TempMmapOptions::TempDir(flags) => Ok(Self::from_tempfile_and_vec(
-                v,
-                tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
+            TempMmapOptions::None => {
+                let mut flags = MmapFlags::empty();
+                flags.set(MmapFlags::SHARED, true);
+                flags.set(MmapFlags::RANDOM_ACCESS, true);
+                Ok(Self::from_file_and_vec(None, flags, v)
+                    .with_context(|| "Cannot create mmap in memory")?)
+            }
+            TempMmapOptions::TempDir(flags) => Ok(Self::from_file_and_vec(
+                Some(tempfile().with_context(|| "Cannot create tempfile in temporary directory")?),
                 flags,
+                v,
             )
             .with_context(|| "Cannot create mmap in temporary directory")?),
-            TempMmapOptions::CustomDir(dir, flags) => Ok(Self::from_tempfile_and_vec(
-                v,
-                tempfile_in(dir.as_path()).with_context(|| {
+            TempMmapOptions::CustomDir(dir, flags) => Ok(Self::from_file_and_vec(
+                Some(tempfile_in(dir.as_path()).with_context(|| {
                     format!("Cannot create tempfile in directory {}", dir.display())
-                })?,
+                })?),
                 flags,
+                v,
             )
             .with_context(|| format!("Cannot create mmap in directory {}", dir.display()))?),
         }
@@ -288,69 +534,42 @@ impl<T> MmapSlice<T> {
         len: usize,
         options: TempMmapOptions,
     ) -> Result<Self> {
-        match options {
-            TempMmapOptions::None => Ok(Self {
-                mmap: None,
-                in_memory_vec: closure_vec(closure, len),
-            }),
-            TempMmapOptions::TempDir(flags) => {
-                let mut mmap_slice = Self::from_tempfile_and_len(
-                    len,
-                    tempfile().with_context(|| "Cannot create tempfile in temporary directory")?,
-                    flags,
-                )
-                .with_context(|| {
-                    format!("Cannot create mmap of len {} in temporary directory", len)
-                })?;
-                mmap_slice.fill_with(closure);
-                Ok(mmap_slice)
+        let mut mmap_slice = match options {
+            TempMmapOptions::None => {
+                let mut flags = MmapFlags::empty();
+                flags.set(MmapFlags::SHARED, true);
+                flags.set(MmapFlags::RANDOM_ACCESS, true);
+                Self::from_file_and_len(None, flags, len)
+                    .with_context(|| format!("Cannot create mmap of len {} in memory", len))?
             }
-            TempMmapOptions::CustomDir(dir, flags) => {
-                let mut mmap_slice = Self::from_tempfile_and_len(
+            TempMmapOptions::TempDir(flags) => Self::from_file_and_len(
+                Some(tempfile().with_context(|| "Cannot create tempfile in temporary directory")?),
+                flags,
+                len,
+            )
+            .with_context(|| format!("Cannot create mmap of len {} in temporary directory", len))?,
+            TempMmapOptions::CustomDir(dir, flags) => Self::from_file_and_len(
+                Some(tempfile_in(dir.as_path()).with_context(|| {
+                    format!("Cannot create tempfile in directory {}", dir.display())
+                })?),
+                flags,
+                len,
+            )
+            .with_context(|| {
+                format!(
+                    "Cannot create mmap of len {} in directory {}",
                     len,
-                    tempfile_in(dir.as_path()).with_context(|| {
-                        format!("Cannot create tempfile in directory {}", dir.display())
-                    })?,
-                    flags,
+                    dir.display()
                 )
-                .with_context(|| {
-                    format!(
-                        "Cannot create mmap of len {} in directory {}",
-                        len,
-                        dir.display()
-                    )
-                })?;
-                mmap_slice.fill_with(closure);
-                Ok(mmap_slice)
-            }
-        }
+            })?,
+        };
+        mmap_slice.fill_with(closure);
+        Ok(mmap_slice)
     }
 
-    fn from_tempfile_and_len(len: usize, file: File, flags: MmapFlags) -> Result<Self> {
-        let expected_len = len * Self::BLOCK_SIZE;
-        file.set_len(
-            expected_len
-                .try_into()
-                .with_context(|| "Cannot convert file len")?,
-        )
-        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
-
-        let mmap = Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
-
-        Ok(mmap)
-    }
-
-    fn from_tempfile_and_vec(v: Vec<T>, file: File, flags: MmapFlags) -> Result<Self> {
-        let expected_len = v.len() * Self::BLOCK_SIZE;
-        file.set_len(
-            expected_len
-                .try_into()
-                .with_context(|| "Cannot convert file len")?,
-        )
-        .with_context(|| format!("Cannot set file len to {} bytes", expected_len))?;
-
-        let mut mmap =
-            Self::mmap(file, flags).with_context(|| "Cannot create mmap from tempfile")?;
+    fn from_file_and_vec(file: Option<File>, flags: MmapFlags, v: Vec<T>) -> Result<Self> {
+        let mut mmap = Self::from_file_and_len(file, flags, v.len())
+            .with_context(|| "Cannot create mmap from tempfile")?;
 
         let v = std::mem::ManuallyDrop::new(v);
         let src = v.as_ptr();
@@ -379,28 +598,6 @@ impl<T> MmapSlice<T> {
     #[inline(always)]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.as_mut()
-    }
-}
-
-impl<T> AsRef<[T]> for MmapSlice<T> {
-    #[inline(always)]
-    fn as_ref(&self) -> &[T] {
-        if let Some((_, mmap, len)) = self.mmap.as_ref() {
-            unsafe { std::slice::from_raw_parts(mmap.as_ptr() as *const T, *len) }
-        } else {
-            self.in_memory_vec.as_slice()
-        }
-    }
-}
-
-impl<T> AsMut<[T]> for MmapSlice<T> {
-    #[inline(always)]
-    fn as_mut(&mut self) -> &mut [T] {
-        if let Some((_, mmap, len)) = self.mmap.as_mut() {
-            unsafe { std::slice::from_raw_parts_mut(mmap.as_mut_ptr() as *mut T, *len) }
-        } else {
-            self.in_memory_vec.as_mut_slice()
-        }
     }
 }
 

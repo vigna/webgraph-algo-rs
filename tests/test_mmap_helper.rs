@@ -47,7 +47,7 @@ fn test_from_value_tempfile() -> Result<()> {
 #[test]
 fn test_new_in_memory() -> Result<()> {
     let v = vec![usize::default(); 100];
-    let mmap_slice = MmapSlice::<usize>::new(100, TempMmapOptions::None)?;
+    let mmap_slice = MmapSlice::<usize>::from_default(100, TempMmapOptions::None)?;
 
     assert_eq!(mmap_slice.as_slice(), v.as_slice());
 
@@ -57,7 +57,8 @@ fn test_new_in_memory() -> Result<()> {
 #[test]
 fn test_new_tempfile() -> Result<()> {
     let v = vec![usize::default(); 100];
-    let mmap_slice = MmapSlice::<usize>::new(100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
+    let mmap_slice =
+        MmapSlice::<usize>::from_default(100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
 
     assert_eq!(mmap_slice.as_slice(), v.as_slice());
 
@@ -67,7 +68,7 @@ fn test_new_tempfile() -> Result<()> {
 #[test]
 fn test_mutability_in_memory() -> Result<()> {
     let v: Vec<usize> = (0..100).collect();
-    let mut mmap_slice = MmapSlice::new(100, TempMmapOptions::None)?;
+    let mut mmap_slice = MmapSlice::from_default(100, TempMmapOptions::None)?;
 
     for (i, value) in mmap_slice.as_mut_slice().iter_mut().enumerate() {
         *value = v[i];
@@ -81,7 +82,8 @@ fn test_mutability_in_memory() -> Result<()> {
 #[test]
 fn test_mutability_tempfile() -> Result<()> {
     let v: Vec<usize> = (0..100).collect();
-    let mut mmap_slice = MmapSlice::new(100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
+    let mut mmap_slice =
+        MmapSlice::from_default(100, TempMmapOptions::TempDir(MmapFlags::empty()))?;
 
     for (i, value) in mmap_slice.as_mut_slice().iter_mut().enumerate() {
         *value = v[i];
