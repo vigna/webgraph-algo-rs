@@ -5,7 +5,7 @@ import tempfile
 import json
 
 graphs = [
-    ("cnr-2000", 1)
+    ("cnr-2000", 1),
 ]
 
 base_datasets = "data.law.di.unimi.it/webdata/"
