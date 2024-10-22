@@ -720,6 +720,8 @@ where
     }
 
     /// Computes and returns the lin centralities from the sum of distances computed by this instance.
+    ///
+    /// Note that lin's index for isolated nodes is by (our) definition one (it's smaller than any other node).
     pub fn lin_centrality(&self) -> Result<Vec<f64>> {
         if self.iteration == 0 {
             Err(anyhow!(
