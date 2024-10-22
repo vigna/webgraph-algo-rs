@@ -104,7 +104,7 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
 
     fn run(&mut self, mut pl: impl ProgressLog) -> Result<()> {
         let mut visit = DFVBuilder::new_sequential(self.graph).build();
-        pl.item_name("nodes");
+        pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
 
