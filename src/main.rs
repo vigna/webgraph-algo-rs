@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     flags.set(MmapFlags::SHARED, true);
     flags.set(MmapFlags::RANDOM_ACCESS, true);
 
-    let mem_options = TempMmapOptions::None;
+    let mem_options = TempMmapOptions::Default;
 
     match std::env::args()
         .nth(1)

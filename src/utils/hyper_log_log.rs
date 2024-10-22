@@ -78,7 +78,7 @@ impl<W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<BuildHasherDefault<Def
             log_2_num_registers: 4,
             num_elements: 1,
             hasher_builder: BuildHasherDefault::<DefaultHasher>::default(),
-            mmap_options: TempMmapOptions::None,
+            mmap_options: TempMmapOptions::Default,
             word: PhantomData,
         }
     }

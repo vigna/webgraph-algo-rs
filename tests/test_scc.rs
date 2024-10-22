@@ -40,7 +40,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    TempMmapOptions::None,
+                    TempMmapOptions::Default,
                     Option::<ProgressLogger>::None,
                 )?;
 
@@ -75,7 +75,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    TempMmapOptions::None,
+                    TempMmapOptions::Default,
                     Option::<ProgressLogger>::None,
                 )?;
 
@@ -110,7 +110,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    TempMmapOptions::None,
+                    TempMmapOptions::Default,
                     Option::<ProgressLogger>::None,
                 )?;
                 components.sort_by_size();
@@ -144,7 +144,7 @@ macro_rules! test_scc_algo {
                 let mut components = $scc::compute(
                     &graph,
                     true,
-                    TempMmapOptions::None,
+                    TempMmapOptions::Default,
                     Option::<ProgressLogger>::None,
                 )?;
                 components.sort_by_size();

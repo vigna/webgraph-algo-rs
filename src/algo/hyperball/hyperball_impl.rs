@@ -57,7 +57,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
         let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
             .log_2_num_registers(4)
             .num_elements_upper_bound(graph.num_nodes())
-            .mem_options(TempMmapOptions::None);
+            .mem_options(TempMmapOptions::Default);
         Self {
             graph,
             rev_graph: None,
@@ -68,7 +68,7 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
             hyper_log_log_settings,
-            mem_settings: TempMmapOptions::None,
+            mem_settings: TempMmapOptions::Default,
             threadpool: Threads::Default,
         }
     }

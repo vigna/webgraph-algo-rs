@@ -20,7 +20,7 @@ fn test_path() -> Result<()> {
     let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
         &graph,
         SumSweepOutputLevel::All,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -70,7 +70,7 @@ fn test_star() -> Result<()> {
     let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
         &graph,
         SumSweepOutputLevel::All,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -118,7 +118,7 @@ fn test_lozenge() -> Result<()> {
     let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
         &graph,
         SumSweepOutputLevel::Radius,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -151,7 +151,7 @@ fn test_cycle() -> Result<()> {
         let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
             &graph,
             SumSweepOutputLevel::RadiusDiameter,
-            TempMmapOptions::None,
+            TempMmapOptions::Default,
             Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -187,7 +187,7 @@ fn test_clique() -> Result<()> {
         let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
             &graph,
             SumSweepOutputLevel::All,
-            TempMmapOptions::None,
+            TempMmapOptions::Default,
             Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -213,7 +213,7 @@ fn test_no_edges() -> Result<()> {
     let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
         &graph,
         SumSweepOutputLevel::All,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -241,7 +241,7 @@ fn test_sparse() -> Result<()> {
     let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
         &graph,
         SumSweepOutputLevel::Radius,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -260,7 +260,7 @@ fn test_empty() -> Result<()> {
     let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
         &graph,
         SumSweepOutputLevel::Radius,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;

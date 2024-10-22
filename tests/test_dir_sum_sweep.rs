@@ -35,7 +35,7 @@ fn test_path() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -92,7 +92,7 @@ fn test_many_scc() -> Result<()> {
         SumSweepOutputLevel::Radius,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -127,7 +127,7 @@ fn test_lozenge() -> Result<()> {
         SumSweepOutputLevel::Radius,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -182,7 +182,7 @@ fn test_many_dir_path() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         Some(radial_vertices),
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -222,7 +222,7 @@ fn test_cycle() -> Result<()> {
             SumSweepOutputLevel::RadiusDiameter,
             &threadpool,
             None,
-            TempMmapOptions::None,
+            TempMmapOptions::Default,
             Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -277,7 +277,7 @@ fn test_clique() -> Result<()> {
             SumSweepOutputLevel::All,
             &threadpool,
             Some(radial_vertices),
-            TempMmapOptions::None,
+            TempMmapOptions::Default,
             Option::<ProgressLogger>::None,
         )?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -309,7 +309,7 @@ fn test_empty() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -344,7 +344,7 @@ fn test_sparse() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -380,7 +380,7 @@ fn test_no_radial_vertices() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         Some(radial_vertices),
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -406,7 +406,7 @@ fn test_empty_graph() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
@@ -436,7 +436,7 @@ fn test_graph_no_edges() -> Result<()> {
         SumSweepOutputLevel::All,
         &threadpool,
         None,
-        TempMmapOptions::None,
+        TempMmapOptions::Default,
         Option::<ProgressLogger>::None,
     )?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;

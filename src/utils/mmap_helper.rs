@@ -276,8 +276,10 @@ impl<W> AsRef<[W]> for ArcMmapHelper<W> {
 /// This determines where data is stored.
 #[derive(Debug, Clone)]
 pub enum TempMmapOptions {
-    /// Data is stored in a [`Vec`] in RAM.
-    None,
+    /// Data is stored in RAM with options aiming to emulate the behavior of a [`Vec`].
+    Default,
+    /// Data is stored in RAM with the provided [`MmapFlags`].
+    InMemory(MmapFlags),
     /// Data is stored in a tempfile created with [`tempfile::tempfile`] and is memory mapped
     /// using the provided [`MmapFlags`].
     TempDir(MmapFlags),
@@ -289,7 +291,7 @@ pub enum TempMmapOptions {
 /// A utility struct to reduce RAM consumption by allowing storing data in persistent memory and
 /// memory mapping it.
 ///
-/// This still allows to choose to keep everything in ram by using [`TempMmapOptions::None`]
+/// This still allows to choose to keep everything in ram by using [`TempMmapOptions::Default`]
 ///
 /// # Examples
 ///
@@ -303,12 +305,12 @@ pub enum TempMmapOptions {
 /// #
 /// # fn main() -> Result<()> {
 /// // Create a slice of 100 elements initialized to 42 (type is usually inferred) stored in RAM
-/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_value(42, 100, TempMmapOptions::None)?;
+/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_value(42, 100, TempMmapOptions::Default)?;
 /// # assert_eq!(mmap_slice.as_slice(), vec![42; 100].as_slice());
 ///
 /// // Create a slice of 100 elements initialized to the type's default (type can be inferred
 /// // but usually isn't) stored in RAM
-/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_default(100, TempMmapOptions::None)?;
+/// let mmap_slice: MmapSlice<usize> = MmapSlice::from_default(100, TempMmapOptions::Default)?;
 /// # assert_eq!(mmap_slice.as_slice(), vec![0; 100].as_slice());
 ///
 /// // Create a slice from a vec stored in a temporary file created in the default temporary
@@ -339,7 +341,7 @@ impl<T: Default> MmapSlice<T> {
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
-    /// let slice: MmapSlice<usize> = MmapSlice::from_default(100, TempMmapOptions::None)?;
+    /// let slice: MmapSlice<usize> = MmapSlice::from_default(100, TempMmapOptions::Default)?;
     /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
     /// # Ok(())
     /// # }
@@ -354,7 +356,7 @@ impl<T: Default> MmapSlice<T> {
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
-    /// let slice = MmapSlice::<usize>::from_default(100, TempMmapOptions::None)?;
+    /// let slice = MmapSlice::<usize>::from_default(100, TempMmapOptions::Default)?;
     /// # assert_eq!(slice.as_slice(), vec![0usize; 100].as_slice());
     /// # Ok(())
     /// # }
@@ -375,20 +377,22 @@ impl<T: Clone> MmapSlice<T> {
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
-    /// let slice = MmapSlice::from_value(0, 100, TempMmapOptions::None)?;
+    /// let slice = MmapSlice::from_value(0, 100, TempMmapOptions::Default)?;
     /// # assert_eq!(slice.as_slice(), vec![0; 100].as_slice());
     /// # Ok(())
     /// # }
     /// ```
     pub fn from_value(value: T, len: usize, options: TempMmapOptions) -> Result<Self> {
         let mut mmap_slice = match options {
-            TempMmapOptions::None => {
+            TempMmapOptions::Default => {
                 let mut flags = MmapFlags::empty();
                 flags.set(MmapFlags::SHARED, true);
                 flags.set(MmapFlags::RANDOM_ACCESS, true);
                 Self::from_file_and_len(None, flags, len)
                     .with_context(|| format!("Cannot create mmap of len {} in memory", len))?
             }
+            TempMmapOptions::InMemory(flags) => Self::from_file_and_len(None, flags, len)
+                .with_context(|| format!("Cannot create mmap of len {} in memory", len))?,
             TempMmapOptions::TempDir(flags) => Self::from_file_and_len(
                 Some(tempfile().with_context(|| "Cannot create tempfile in temporary directory")?),
                 flags,
@@ -467,7 +471,7 @@ impl<T> MmapSlice<T> {
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let v = vec![0; 100];
-    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::None)?;
+    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::Default)?;
     /// # assert_eq!(slice.as_slice(), vec![0; 100].as_slice());
     /// # Ok(())
     /// # }
@@ -482,20 +486,22 @@ impl<T> MmapSlice<T> {
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let v = vec![0; 100];
-    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::None)?;
+    /// let slice = MmapSlice::from_vec(v, TempMmapOptions::Default)?;
     /// assert_eq!(slice.as_slice(), v.as_slice());
     /// # Ok(())
     /// # }
     /// ```
     pub fn from_vec(v: Vec<T>, options: TempMmapOptions) -> Result<Self> {
         match options {
-            TempMmapOptions::None => {
+            TempMmapOptions::Default => {
                 let mut flags = MmapFlags::empty();
                 flags.set(MmapFlags::SHARED, true);
                 flags.set(MmapFlags::RANDOM_ACCESS, true);
                 Ok(Self::from_file_and_vec(None, flags, v)
                     .with_context(|| "Cannot create mmap in memory")?)
             }
+            TempMmapOptions::InMemory(flags) => Ok(Self::from_file_and_vec(None, flags, v)
+                .with_context(|| "Cannot create mmap in memory")?),
             TempMmapOptions::TempDir(flags) => Ok(Self::from_file_and_vec(
                 Some(tempfile().with_context(|| "Cannot create tempfile in temporary directory")?),
                 flags,
@@ -524,7 +530,7 @@ impl<T> MmapSlice<T> {
     ///
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
-    /// let slice = MmapSlice::from_closure(|| AtomicUsize::new(0), 100, TempMmapOptions::None)?;
+    /// let slice = MmapSlice::from_closure(|| AtomicUsize::new(0), 100, TempMmapOptions::Default)?;
     /// # slice.as_slice().iter().for_each(|n| assert_eq!(n.load(Ordering::Relaxed), 0));
     /// # Ok(())
     /// # }
@@ -535,13 +541,15 @@ impl<T> MmapSlice<T> {
         options: TempMmapOptions,
     ) -> Result<Self> {
         let mut mmap_slice = match options {
-            TempMmapOptions::None => {
+            TempMmapOptions::Default => {
                 let mut flags = MmapFlags::empty();
                 flags.set(MmapFlags::SHARED, true);
                 flags.set(MmapFlags::RANDOM_ACCESS, true);
                 Self::from_file_and_len(None, flags, len)
                     .with_context(|| format!("Cannot create mmap of len {} in memory", len))?
             }
+            TempMmapOptions::InMemory(flags) => Self::from_file_and_len(None, flags, len)
+                .with_context(|| format!("Cannot create mmap of len {} in memory", len))?,
             TempMmapOptions::TempDir(flags) => Self::from_file_and_len(
                 Some(tempfile().with_context(|| "Cannot create tempfile in temporary directory")?),
                 flags,
