@@ -581,18 +581,19 @@ impl<T> MmapSlice<T> {
         Ok(mmap_slice)
     }
 
-    fn from_file_and_vec(file: Option<File>, flags: MmapFlags, v: Vec<T>) -> Result<Self> {
+    fn from_file_and_vec(file: Option<File>, flags: MmapFlags, mut v: Vec<T>) -> Result<Self> {
         let mut mmap = Self::from_file_and_len(file, flags, v.len())
             .with_context(|| "Cannot create mmap from tempfile")?;
 
-        let v = std::mem::ManuallyDrop::new(v);
         let src = v.as_ptr();
         let dst = mmap.as_mut_ptr();
 
         unsafe {
-            // Safety: regions are non-overlapping and src is dropped by this method so
-            // only dst can be read
+            // Safety: regions are non-overlapping, both are aligned,
+            // src is valid for v.len() reads and dst is valid for v.len() writes.
             std::ptr::copy_nonoverlapping(src, dst, v.len());
+            // Safety: all elements between 0..0 are initialized and 0 <= capacity
+            v.set_len(0);
         }
 
         Ok(mmap)
