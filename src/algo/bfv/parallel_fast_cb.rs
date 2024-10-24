@@ -126,25 +126,24 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> BreadthFirst
             return Ok(());
         }
 
-        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), Some(4));
+        // We do not provide a capacity in the hope of allocating dyinamically
+        // space as the frontiers grow.
+        let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
+        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
 
-        self.threads.borrow().join(
-            || next_frontier.push(visit_root),
-            || {
-                self.visited.set(visit_root, true, Ordering::Relaxed);
-                callback(args);
-            },
-        );
+        self.threads
+            .borrow()
+            .install(|| curr_frontier.push(visit_root));
+
+        self.visited.set(visit_root, true, Ordering::Relaxed);
+        callback(args);
 
         let mut distance = 1;
 
         // Visit the connected component
-        while !next_frontier.is_empty() {
-            let current_frontier = next_frontier;
-            let current_len = current_frontier.len();
-            next_frontier = Frontier::with_threads(self.threads.borrow(), Some(4));
+        while !curr_frontier.is_empty() {
             self.threads.borrow().install(|| {
-                current_frontier
+                curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
                     .for_each(|chunk| {
@@ -165,8 +164,12 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> BreadthFirst
                         })
                     });
             });
-            pl.update_with_count(current_len);
+            pl.update_with_count(curr_frontier.len());
             distance += 1;
+            // Swap the frontiers
+            std::mem::swap(&mut curr_frontier, &mut next_frontier);
+            // Clear the frontier we will fill in the next iteration
+            next_frontier.clear();
         }
 
         Ok(())
