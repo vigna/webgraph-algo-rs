@@ -6,7 +6,7 @@ use webgraph::{
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
-use webgraph_algo::{algo::bfv::BFVBuilder, prelude::*};
+use webgraph_algo::{algo::bfv::*, prelude::*};
 
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
@@ -54,7 +54,7 @@ fn into_non_atomic(v: Vec<AtomicUsize>) -> Vec<usize> {
 }
 
 macro_rules! test_bfv_algo {
-    ($bfv:path, $name:ident) => {
+    ($bfv:expr, $name:ident) => {
         mod $name {
             use super::*;
 
@@ -85,7 +85,7 @@ macro_rules! test_bfv_algo {
                     g.add_arc(arc.0, arc.1);
                 }
                 let graph = Left(g);
-                let mut visit = $bfv(&graph).build();
+                let mut visit = $bfv(&graph);
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();
@@ -111,7 +111,7 @@ macro_rules! test_bfv_algo {
             #[test]
             fn test_cnr_2000() -> Result<()> {
                 let graph = BvGraph::with_basename("tests/graphs/cnr-2000").load()?;
-                let mut visit = $bfv(&graph).build();
+                let mut visit = $bfv(&graph);
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();
@@ -138,9 +138,9 @@ macro_rules! test_bfv_algo {
     };
 }
 
-test_bfv_algo!(BFVBuilder::new_sequential, sequential);
-test_bfv_algo!(BFVBuilder::new_parallel, parallel);
+test_bfv_algo!(SingleThreadedBreadthFirstVisit::new, sequential);
+test_bfv_algo!(|g| ParallelBreadthFirstVisit::new(g, 32), parallel);
 test_bfv_algo!(
-    BFVBuilder::new_parallel_fast_callback,
+    |g| ParallelBreadthFirstVisitFastCB::new(g, 32),
     parallel_fast_callback
 );

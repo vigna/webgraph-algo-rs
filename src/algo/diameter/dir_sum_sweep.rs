@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        bfv::{BFVBuilder, ParallelBreadthFirstVisitFastCB},
+        bfv::ParallelBreadthFirstVisitFastCB,
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
     },
@@ -182,14 +182,16 @@ impl<
             radius_vertex: 0,
             diameter_vertex: 0,
             compute_radial_vertices,
-            visit: BFVBuilder::new_parallel_fast_callback(graph)
-                .granularity(VISIT_GRANULARITY)
-                .threadpool(threadpool.clone())
-                .build(),
-            transposed_visit: BFVBuilder::new_parallel_fast_callback(reversed_graph)
-                .granularity(VISIT_GRANULARITY)
-                .threadpool(threadpool.clone())
-                .build(),
+            visit: ParallelBreadthFirstVisitFastCB::with_threads(
+                graph,
+                VISIT_GRANULARITY,
+                threadpool.clone(),
+            ),
+            transposed_visit: ParallelBreadthFirstVisitFastCB::with_threads(
+                reversed_graph,
+                VISIT_GRANULARITY,
+                threadpool.clone(),
+            ),
             threadpool,
         })
     }
@@ -894,10 +896,8 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = BFVBuilder::new_parallel_fast_callback(graph)
-                .granularity(VISIT_GRANULARITY)
-                .threadpool(threadpool)
-                .build();
+            let mut bfs =
+                ParallelBreadthFirstVisitFastCB::with_threads(graph, VISIT_GRANULARITY, threadpool);
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {

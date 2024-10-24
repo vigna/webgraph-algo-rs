@@ -3,7 +3,7 @@ use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::ProgressLogger;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::bfv::BFVBuilder;
+use webgraph_algo::algo::bfv::*;
 use webgraph_algo::prelude::*;
 
 pub fn bench_bfv(c: &mut Criterion) {
@@ -24,11 +24,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("Sequential", &parameter),
             &input,
-            |b, i| {
+            |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = BFVBuilder::new_sequential(i).build();
-                    for i in 0..graph.num_nodes() {
-                        let node = (i + start) % graph.num_nodes();
+                    let mut visit = SingleThreadedBreadthFirstVisit::new(g);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
                         visit
                             .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
                             .unwrap();
@@ -40,11 +40,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("Parallel (Granularity 1)", &parameter),
             &input,
-            |b, i| {
+            |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = BFVBuilder::new_parallel(i).granularity(1).build();
-                    for i in 0..graph.num_nodes() {
-                        let node = (i + start) % graph.num_nodes();
+                    let mut visit = ParallelBreadthFirstVisit::new(g, 1);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
                         visit
                             .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
                             .unwrap();
@@ -56,11 +56,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("Parallel (Granularity 64)", &parameter),
             &input,
-            |b, i| {
+            |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = BFVBuilder::new_parallel(i).granularity(64).build();
-                    for i in 0..graph.num_nodes() {
-                        let node = (i + start) % graph.num_nodes();
+                    let mut visit = ParallelBreadthFirstVisit::new(g, 64);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
                         visit
                             .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
                             .unwrap();
@@ -72,13 +72,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("Parallel Fast Callback (Granularity 1)", &parameter),
             &input,
-            |b, i| {
+            |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = BFVBuilder::new_parallel_fast_callback(i)
-                        .granularity(1)
-                        .build();
-                    for i in 0..graph.num_nodes() {
-                        let node = (i + start) % graph.num_nodes();
+                    let mut visit = ParallelBreadthFirstVisitFastCB::new(g, 1);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
                         visit
                             .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
                             .unwrap();
@@ -90,13 +88,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("Parallel Fast Callback (Granularity 64)", &parameter),
             &input,
-            |b, i| {
+            |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = BFVBuilder::new_parallel_fast_callback(i)
-                        .granularity(64)
-                        .build();
-                    for i in 0..graph.num_nodes() {
-                        let node = (i + start) % graph.num_nodes();
+                    let mut visit = ParallelBreadthFirstVisitFastCB::new(g, 1);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
                         visit
                             .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
                             .unwrap();

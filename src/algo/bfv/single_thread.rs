@@ -6,28 +6,6 @@ use std::collections::VecDeque;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// Builder for [`SingleThreadedBreadthFirstVisit`].
-#[derive(Clone)]
-pub struct SingleThreadedBreadthFirstVisitBuilder<'a, G: RandomAccessGraph> {
-    graph: &'a G,
-}
-
-impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
-    /// Constructs a new builder with default parameters for specified graph.
-    pub fn new(graph: &'a G) -> Self {
-        Self { graph }
-    }
-
-    /// Builds the sequential BFV with the builder parameters and consumes the builder.
-    pub fn build(self) -> SingleThreadedBreadthFirstVisit<'a, G> {
-        SingleThreadedBreadthFirstVisit {
-            graph: self.graph,
-            visited: BitVec::new(self.graph.num_nodes()),
-            queue: VecDeque::new(),
-        }
-    }
-}
-
 /// A simple sequential Breadth First visit on a graph.
 ///
 /// This implementation uses an algorithm that is slightly different from the
@@ -46,6 +24,20 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     /// separator between levels. [`NonMaxUsize`] is used to avoid
     /// storage for the option variant tag.
     queue: VecDeque<Option<NonMaxUsize>>,
+}
+
+impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
+    /// Creates a new sequential visit.
+    ///
+    /// # Arguments
+    /// * `graph`: an immutable reference to the graph to visit.
+    pub fn new(graph: &'a G) -> Self {
+        Self {
+            graph,
+            visited: BitVec::new(graph.num_nodes()),
+            queue: VecDeque::new(),
+        }
+    }
 }
 
 impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {

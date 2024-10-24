@@ -1,5 +1,5 @@
 use crate::{
-    algo::{bfv::BFVBuilder, diameter::SumSweepOutputLevel},
+    algo::{bfv::*, diameter::SumSweepOutputLevel},
     prelude::*,
     utils::{math, MmapSlice},
 };
@@ -234,9 +234,7 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
         pl.expected_updates(None);
         pl.start(format!("Performing BFS from {}", start));
 
-        let mut visit = BFVBuilder::new_parallel_fast_callback(self.graph)
-            .granularity(VISIT_GRANULARITY)
-            .build();
+        let mut visit = ParallelBreadthFirstVisitFastCB::new(self.graph, VISIT_GRANULARITY);
         let ecc_not_first_branch = AtomicUsize::new(0);
         let max_dist = AtomicUsize::new(0);
         let dist_mut = dist.as_mut_slice_of_cells();

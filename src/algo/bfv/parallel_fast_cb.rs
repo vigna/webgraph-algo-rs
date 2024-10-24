@@ -1,4 +1,4 @@
-use crate::{prelude::*, utils::Threads};
+use crate::prelude::*;
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
@@ -6,92 +6,6 @@ use rayon::prelude::*;
 use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
-
-/// Builder for [`ParallelBreadthFirstVisitFastCB`].
-#[derive(Clone)]
-pub struct ParallelBreadthFirstVisitFastCBBuilder<'a, G: RandomAccessGraph, T = Threads> {
-    graph: &'a G,
-    granularity: usize,
-    threads: T,
-}
-
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G, Threads> {
-    /// Constructs a new builder with default parameters for specified graph.
-    pub fn new(graph: &'a G) -> Self {
-        Self {
-            graph,
-            granularity: 1,
-            threads: Threads::Default,
-        }
-    }
-}
-
-impl<'a, G: RandomAccessGraph, T> ParallelBreadthFirstVisitFastCBBuilder<'a, G, T> {
-    /// Sets the number of nodes in each chunk of the frontier to explore.
-    ///
-    /// High granularity reduces overhead, but may lead to decreased performance
-    /// on graphs with skewed outdegrees.
-    pub fn granularity(mut self, granularity: usize) -> Self {
-        self.granularity = granularity;
-        self
-    }
-
-    /// Sets the visit to use the default threadpool.
-    pub fn default_threadpool(self) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
-        ParallelBreadthFirstVisitFastCBBuilder {
-            graph: self.graph,
-            granularity: self.granularity,
-            threads: Threads::Default,
-        }
-    }
-
-    /// Sets the visit to use a [`rayon::ThreadPool`] with the specified number of threads.
-    pub fn num_threads(self, num_threads: usize) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G> {
-        ParallelBreadthFirstVisitFastCBBuilder {
-            graph: self.graph,
-            granularity: self.granularity,
-            threads: Threads::NumThreads(num_threads),
-        }
-    }
-
-    /// Sets the visit to use the custop [`rayon::ThreadPool`].
-    pub fn threadpool<T2: Borrow<rayon::ThreadPool>>(
-        self,
-        threadpool: T2,
-    ) -> ParallelBreadthFirstVisitFastCBBuilder<'a, G, T2> {
-        ParallelBreadthFirstVisitFastCBBuilder {
-            graph: self.graph,
-            granularity: self.granularity,
-            threads: threadpool,
-        }
-    }
-}
-
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCBBuilder<'a, G, Threads> {
-    /// Builds the parallel BFV with the builder parameters and consumes the builder.
-    pub fn build(self) -> ParallelBreadthFirstVisitFastCB<'a, G> {
-        let builder = ParallelBreadthFirstVisitFastCBBuilder {
-            graph: self.graph,
-            granularity: self.granularity,
-            threads: self.threads.build(),
-        };
-        builder.build()
-    }
-}
-
-impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
-    ParallelBreadthFirstVisitFastCBBuilder<'a, G, T>
-{
-    /// Builds the parallel BFV with the builder parameters and consumes the builder.
-    pub fn build(self) -> ParallelBreadthFirstVisitFastCB<'a, G, T> {
-        ParallelBreadthFirstVisitFastCB {
-            graph: self.graph,
-            granularity: self.granularity,
-            visited: AtomicBitVec::new(self.graph.num_nodes()),
-            threads: self.threads,
-        }
-    }
-}
 
 /// A simple parallel Breadth First visit on a graph with low memory consumption but with a smaller
 /// frontier.
@@ -104,6 +18,56 @@ pub struct ParallelBreadthFirstVisitFastCB<
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
+}
+
+impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<'a, G, rayon::ThreadPool> {
+    /// Creates parallel top-down visit that uses less memory
+    /// but is less efficient with long callbacks.
+    ///
+    /// # Arguments
+    /// * `graph`: an immutable reference to the graph to visit.
+    /// * `granularity`: the number of nodes in each chunk of the frontier to explore per thread.
+    ///   High granularity reduces overhead, but may lead to decreased performance on graphs with skewed outdegrees.
+    pub fn new(graph: &'a G, granularity: usize) -> Self {
+        Self::with_num_threads(graph, granularity, 0)
+    }
+
+    /// Creates a parallel top-down visit that uses the specified number of threads, less memory
+    /// but is less efficient with long callbacks.
+    ///
+    /// # Arguments
+    /// * `graph`: an immutable reference to the graph to visit.
+    /// * `granularity`: the number of nodes in each chunk of the frontier to explore per thread.
+    ///   High granularity reduces overhead, but may lead to decreased performance on graphs with skewed outdegrees.
+    /// * `num_threads`: the number of threads to use.
+    pub fn with_num_threads(graph: &'a G, granularity: usize, num_threads: usize) -> Self {
+        let threads = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap_or_else(|_| panic!("Could not build threadpool with {} threads", num_threads));
+        Self::with_threads(graph, granularity, threads)
+    }
+}
+
+impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
+    ParallelBreadthFirstVisitFastCB<'a, G, T>
+{
+    /// Creates a parallel top-down visit that uses the specified threadpool, less memory
+    /// but is less efficient with long callbacks.
+    ///
+    /// # Arguments
+    /// * `graph`: an immutable reference to the graph to visit.
+    /// * `granularity`: the number of nodes in each chunk of the frontier to explore per thread.
+    ///   High granularity reduces overhead, but may lead to decreased performance on graphs with skewed outdegrees.
+    /// * `threads`: the threadpool to use.
+    pub fn with_threads(graph: &'a G, granularity: usize, threads: T) -> Self {
+        Self {
+            graph,
+            granularity,
+            visited: AtomicBitVec::new(graph.num_nodes()),
+            threads,
+        }
+    }
 }
 
 impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> BreadthFirstGraphVisit
