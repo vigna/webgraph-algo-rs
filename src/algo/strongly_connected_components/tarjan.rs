@@ -122,78 +122,87 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
             if indexes[node_to_visit].read().is_none() {
                 visit
                     .visit_from_node(
-                        |node, parent, _, _, event| match event {
-                            // Safety: code is sequential: no concurrency and references are not left dangling
-                            // a &mut self is requested so compiler should not optimize memory with readonly
-                            DepthFirstVisitEvent::Discover => unsafe {
-                                indexes.write_once(
-                                    node,
-                                    Some(
-                                        NonMaxUsize::new(current_index.read())
-                                            .expect("indexes should not exceed usize::MAX"),
-                                    ),
-                                );
-                                lowlinks.write_once(node, current_index.read());
-                                *current_index.as_mut_unsafe() += 1;
-                                stack.as_mut_unsafe().push(node);
-                                on_stack.as_mut_unsafe().set(node, true);
-                            },
-                            DepthFirstVisitEvent::AlreadyVisited => unsafe {
-                                if on_stack.as_mut_unsafe()[node] {
-                                    lowlinks.write_once(
-                                        parent,
-                                        std::cmp::min(
-                                            lowlinks[parent].read(),
-                                            indexes[node].read().unwrap().into(),
+                        |args, event| {
+                            let (node, parent) = (args.node_index, args.parent);
+                            match event {
+                                // Safety: code is sequential: no concurrency and references are not left dangling
+                                // a &mut self is requested so compiler should not optimize memory with readonly
+                                DepthFirstVisitEvent::Discover => unsafe {
+                                    indexes.write_once(
+                                        node,
+                                        Some(
+                                            NonMaxUsize::new(current_index.read())
+                                                .expect("indexes should not exceed usize::MAX"),
                                         ),
                                     );
-                                } else if let Some(t) = terminal.as_ref() {
-                                    t.as_mut_unsafe().set(parent, false);
-                                }
-                            },
-                            DepthFirstVisitEvent::Emit => unsafe {
-                                if lowlinks[node].read() == indexes[node].read().unwrap().into() {
-                                    if let Some(b) = buckets.as_ref().map(|b| b.as_mut_unsafe()) {
-                                        let t = terminal.as_ref().unwrap().as_mut_unsafe();
-                                        let terminal = t[node];
-                                        while let Some(v) = stack.as_mut_unsafe().pop() {
-                                            components.write_once(v, number_of_components.read());
-                                            on_stack.as_mut_unsafe().set(v, false);
-                                            t.set(v, false);
-                                            if terminal && self.graph.outdegree(v) != 0 {
-                                                b[v] = true;
-                                            }
-                                            if v == node {
-                                                break;
-                                            }
-                                        }
-                                    } else {
-                                        while let Some(v) = stack.as_mut_unsafe().pop() {
-                                            components.write_once(v, number_of_components.read());
-                                            on_stack.as_mut_unsafe().set(v, false);
-                                            if v == node {
-                                                break;
-                                            }
-                                        }
+                                    lowlinks.write_once(node, current_index.read());
+                                    *current_index.as_mut_unsafe() += 1;
+                                    stack.as_mut_unsafe().push(node);
+                                    on_stack.as_mut_unsafe().set(node, true);
+                                },
+                                DepthFirstVisitEvent::AlreadyVisited => unsafe {
+                                    if on_stack.as_mut_unsafe()[node] {
+                                        lowlinks.write_once(
+                                            parent,
+                                            std::cmp::min(
+                                                lowlinks[parent].read(),
+                                                indexes[node].read().unwrap().into(),
+                                            ),
+                                        );
+                                    } else if let Some(t) = terminal.as_ref() {
+                                        t.as_mut_unsafe().set(parent, false);
                                     }
-                                    *number_of_components.as_mut_unsafe() += 1;
-                                }
+                                },
+                                DepthFirstVisitEvent::Emit => unsafe {
+                                    if lowlinks[node].read() == indexes[node].read().unwrap().into()
+                                    {
+                                        if let Some(b) = buckets.as_ref().map(|b| b.as_mut_unsafe())
+                                        {
+                                            let t = terminal.as_ref().unwrap().as_mut_unsafe();
+                                            let terminal = t[node];
+                                            while let Some(v) = stack.as_mut_unsafe().pop() {
+                                                components
+                                                    .write_once(v, number_of_components.read());
+                                                on_stack.as_mut_unsafe().set(v, false);
+                                                t.set(v, false);
+                                                if terminal && self.graph.outdegree(v) != 0 {
+                                                    b[v] = true;
+                                                }
+                                                if v == node {
+                                                    break;
+                                                }
+                                            }
+                                        } else {
+                                            while let Some(v) = stack.as_mut_unsafe().pop() {
+                                                components
+                                                    .write_once(v, number_of_components.read());
+                                                on_stack.as_mut_unsafe().set(v, false);
+                                                if v == node {
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        *number_of_components.as_mut_unsafe() += 1;
+                                    }
 
-                                if node != parent {
-                                    lowlinks.write_once(
-                                        parent,
-                                        std::cmp::min(
-                                            lowlinks[parent].read(),
-                                            lowlinks[node].read(),
-                                        ),
-                                    );
-                                    if let Some(t) = terminal.as_ref().map(|t| t.as_mut_unsafe()) {
-                                        if !t[node] {
-                                            t.set(parent, false);
+                                    if node != parent {
+                                        lowlinks.write_once(
+                                            parent,
+                                            std::cmp::min(
+                                                lowlinks[parent].read(),
+                                                lowlinks[node].read(),
+                                            ),
+                                        );
+                                        if let Some(t) =
+                                            terminal.as_ref().map(|t| t.as_mut_unsafe())
+                                        {
+                                            if !t[node] {
+                                                t.set(parent, false);
+                                            }
                                         }
                                     }
-                                }
-                            },
+                                },
+                            }
                         },
                         node_to_visit,
                         &mut pl,

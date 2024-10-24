@@ -32,8 +32,8 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, G> {
 
 impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirstVisit<'a, G> {
     fn visit_from_node_filtered<
-        C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync,
-        F: Fn(usize, usize, usize, usize) -> bool + Sync,
+        C: Fn(DFVArgs, DepthFirstVisitEvent) + Sync,
+        F: Fn(DFVArgs) -> bool + Sync,
     >(
         &mut self,
         callback: C,
@@ -50,10 +50,12 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
         let mut current_node = visit_root;
 
         callback(
-            visit_root,
-            visit_root,
-            visit_root,
-            0,
+            DFVArgs {
+                node_index: visit_root,
+                parent: visit_root,
+                root: visit_root,
+                distance_from_root: 0,
+            },
             DepthFirstVisitEvent::Discover,
         );
 
@@ -69,26 +71,20 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
             let parent_node = *parent;
 
             for succ in iter.by_ref() {
+                let args = DFVArgs {
+                    node_index: succ,
+                    parent: current_node,
+                    root: visit_root,
+                    distance_from_root: depth + 1,
+                };
                 // Check if node should be visited
-                if filter(succ, current_node, visit_root, depth + 1) {
+                if filter(args) {
                     if self.visited[succ] {
                         // Node has already been visited
-                        callback(
-                            succ,
-                            current_node,
-                            visit_root,
-                            depth + 1,
-                            DepthFirstVisitEvent::AlreadyVisited,
-                        );
+                        callback(args, DepthFirstVisitEvent::AlreadyVisited);
                     } else {
                         // First time seeing node
-                        callback(
-                            succ,
-                            current_node,
-                            visit_root,
-                            depth + 1,
-                            DepthFirstVisitEvent::Discover,
-                        );
+                        callback(args, DepthFirstVisitEvent::Discover);
 
                         self.visited.set(succ, true);
                         // current_node is the parent of succ
@@ -103,10 +99,12 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
 
             // Emit node
             callback(
-                current_node,
-                parent_node,
-                visit_root,
-                depth,
+                DFVArgs {
+                    node_index: current_node,
+                    parent: parent_node,
+                    root: visit_root,
+                    distance_from_root: depth,
+                },
                 DepthFirstVisitEvent::Emit,
             );
 

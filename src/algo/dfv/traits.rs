@@ -4,6 +4,7 @@ use dsi_progress_logger::ProgressLog;
 /// Flag used for [`DepthFirstGraphVisit`].
 ///
 /// Specifies what event triggered the callback during the visit.
+#[derive(Debug)]
 pub enum DepthFirstVisitEvent {
     /// Flag used for the first time a node is visited.
     Discover,
@@ -11,6 +12,18 @@ pub enum DepthFirstVisitEvent {
     AlreadyVisited,
     /// Flag used when a node is completely visited and emitted as completed.
     Emit,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DFVArgs {
+    /// The node index
+    pub node_index: usize,
+    /// The parent of [`Self::node_index`]
+    pub parent: usize,
+    /// The root of the current visit tree
+    pub root: usize,
+    /// The distance of [`Self::node_index`] from [`Self::root`]
+    pub distance_from_root: usize,
 }
 
 /// A visitable graph that allows to compute Depth First Visit trees.
@@ -26,13 +39,13 @@ pub trait DepthFirstGraphVisit {
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
-    fn visit_from_node<C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync>(
+    fn visit_from_node<C: Fn(DFVArgs, DepthFirstVisitEvent) + Sync>(
         &mut self,
         callback: C,
         visit_root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.visit_from_node_filtered(callback, |_, _, _, _| true, visit_root, pl)
+        self.visit_from_node_filtered(callback, |_| true, visit_root, pl)
     }
 
     /// Visits depth-first the graph from the specified node and applies `callback` to every visited node
@@ -50,8 +63,8 @@ pub trait DepthFirstGraphVisit {
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     fn visit_from_node_filtered<
-        C: Fn(usize, usize, usize, usize, DepthFirstVisitEvent) + Sync,
-        F: Fn(usize, usize, usize, usize) -> bool + Sync,
+        C: Fn(DFVArgs, DepthFirstVisitEvent) + Sync,
+        F: Fn(DFVArgs) -> bool + Sync,
     >(
         &mut self,
         callback: C,
