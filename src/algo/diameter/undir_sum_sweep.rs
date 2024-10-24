@@ -15,6 +15,7 @@ use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
 use webgraph::traits::RandomAccessGraph;
 
+/// Builder for [`SumSweepUndirectedDiameterRadius`].
 pub struct SumSweepUndirectedDiameterRadiusBuilder<
     'a,
     G: RandomAccessGraph + Sync,

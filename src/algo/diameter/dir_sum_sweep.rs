@@ -21,6 +21,7 @@ use std::{
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
+/// Builder for [`SumSweepDirectedDiameterRadius`].
 pub struct SumSweepDirectedDiameterRadiusBuilder<
     'a,
     G1: RandomAccessGraph + Sync,
