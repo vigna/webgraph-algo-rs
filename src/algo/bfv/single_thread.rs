@@ -38,10 +38,23 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
 }
 
 /// A simple sequential Breadth First visit on a graph.
+///
+/// This implementation uses an algorithm that is slightly different from the
+/// classical textbook one, as it does not store parents or distances of the
+/// nodes from the root. Parents and distances are computed on the fly and
+/// passed to the callback function by visiting nodes when they are discovered,
+/// rather than when they are extracted from the queue. This approach requires
+/// inserting a level separator between nodes at different distances: to
+/// obtain this result in a compact way, nodes are represented using
+/// [`NonMaxUsize`], so the `None` variant of `Option<NonMaxUsize>`
+/// can be used as a separator.
 pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
     visited: BitVec,
+    /// The visit queue; to avoid storing distances, we use `None` as a
+    /// separator between levels. [`NonMaxUsize`] is used to avoid
+    /// storage for the option variant tag.
     queue: VecDeque<Option<NonMaxUsize>>,
 }
 
@@ -59,16 +72,16 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
         if self.visited[visit_root] || !filter(visit_root, visit_root, visit_root, 0) {
             return Ok(());
         }
+
+        callback(visit_root, visit_root, visit_root, 0);
+        self.visited.set(visit_root, true);
         self.queue.push_back(Some(
             NonMaxUsize::new(visit_root).expect("node index should never be usize::MAX"),
         ));
         self.queue.push_back(None);
-        self.visited.set(visit_root, true);
-        callback(visit_root, visit_root, visit_root, 0);
 
         let mut distance = 1;
 
-        // Visit the connected component
         while let Some(current_node) = self.queue.pop_front() {
             let current_node = current_node.map(|n| n.into());
             match current_node {
@@ -86,6 +99,8 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
                     pl.light_update();
                 }
                 None => {
+                    // We are at the end of the current level, so
+                    // we increment the distance and add a separator.
                     if !self.queue.is_empty() {
                         distance += 1;
                         self.queue.push_back(None);
