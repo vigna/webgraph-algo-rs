@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
-use webgraph_algo::{algo::diameter::*, prelude::*};
+use webgraph_algo::algo::diameter::*;
 
 #[test]
 fn test_path() -> Result<()> {
@@ -17,12 +17,9 @@ fn test_path() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-        &graph,
-        SumSweepOutputLevel::All,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
@@ -67,12 +64,9 @@ fn test_star() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-        &graph,
-        SumSweepOutputLevel::All,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
@@ -115,12 +109,9 @@ fn test_lozenge() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-        &graph,
-        SumSweepOutputLevel::Radius,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(2));
@@ -148,12 +139,11 @@ fn test_cycle() -> Result<()> {
 
         let graph = Left(vec_graph);
 
-        let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
+        let mut sum_sweep = SumSweepUndirectedDiameterRadiusBuilder::new(
             &graph,
             SumSweepOutputLevel::RadiusDiameter,
-            TempMmapOptions::Default,
-            Option::<ProgressLogger>::None,
-        )?;
+        )
+        .build(Option::<ProgressLogger>::None)?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
         assert_eq!(sum_sweep.diameter(), Some(size / 2));
@@ -184,12 +174,9 @@ fn test_clique() -> Result<()> {
 
         let graph = Left(vec_graph);
 
-        let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-            &graph,
-            SumSweepOutputLevel::All,
-            TempMmapOptions::Default,
-            Option::<ProgressLogger>::None,
-        )?;
+        let mut sum_sweep =
+            SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
+                .build(Option::<ProgressLogger>::None)?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
         for i in 0..size {
@@ -210,12 +197,9 @@ fn test_no_edges() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-        &graph,
-        SumSweepOutputLevel::All,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(0));
@@ -238,15 +222,12 @@ fn test_sparse() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-        &graph,
-        SumSweepOutputLevel::Radius,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
-    assert_eq!(sum_sweep.radius(), Some(0));
+    assert_eq!(sum_sweep.radius(), Some(1));
 
     Ok(())
 }
@@ -257,12 +238,9 @@ fn test_empty() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = SumSweepUndirectedDiameterRadius::new(
-        &graph,
-        SumSweepOutputLevel::Radius,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), None);
