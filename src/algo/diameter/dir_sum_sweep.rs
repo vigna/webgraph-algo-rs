@@ -28,8 +28,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents<G1>,
-    V1: ReusableBreadthFirstGraphVisit,
-    V2: ReusableBreadthFirstGraphVisit,
+    V1: BreadthFirstGraphVisit,
+    V2: BreadthFirstGraphVisit,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -200,8 +200,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents<G1> + Sync,
-        V1: ReusableBreadthFirstGraphVisit + Sync,
-        V2: ReusableBreadthFirstGraphVisit + Sync,
+        V1: BreadthFirstGraphVisit + Sync,
+        V2: BreadthFirstGraphVisit + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -638,7 +638,10 @@ impl<
 
         self.transposed_visit
             .visit_from_node(
-                |node, _, _, _| self.radial_vertices.set(node, true, Ordering::Relaxed),
+                |args| {
+                    self.radial_vertices
+                        .set(args.node_index, true, Ordering::Relaxed)
+                },
                 v,
                 &mut pl,
             )
@@ -698,7 +701,8 @@ impl<
 
         self.transposed_visit
             .visit_from_node(
-                |node, _, _, distance| {
+                |args| {
+                    let (distance, node) = (args.distance_from_root, args.node_index);
                     // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                     max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -780,7 +784,8 @@ impl<
 
         self.visit
             .visit_from_node(
-                |node, _, _, distance| {
+                |args| {
+                    let (distance, node) = (args.distance_from_root, args.node_index);
                     // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                     max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -900,14 +905,15 @@ impl<
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
                 bfs.visit_from_node_filtered(
-                    |node, _, _, distance| {
+                    |args| {
+                        let (distance, node) = (args.distance_from_root, args.node_index);
                         // Safety: each node is accessed exactly once
                         unsafe {
                             dist_pivot_mut.write_once(node, distance);
                         }
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
                     },
-                    |node, _, _, _| components[node] == pivot_component,
+                    |args| components[args.node_index] == pivot_component,
                     p,
                     &mut Option::<ProgressLogger>::None,
                 )

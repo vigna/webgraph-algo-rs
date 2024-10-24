@@ -10,27 +10,18 @@ use webgraph::traits::RandomAccessGraph;
 #[derive(Clone)]
 pub struct SingleThreadedBreadthFirstVisitBuilder<'a, G: RandomAccessGraph> {
     graph: &'a G,
-    start: usize,
 }
 
 impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
     /// Constructs a new builder with default parameters for specified graph.
     pub fn new(graph: &'a G) -> Self {
-        Self { graph, start: 0 }
-    }
-
-    /// Sets the starting node for full visits.
-    /// It does nothing for single visits using [`BreadthFirstGraphVisit::visit_from_node``].
-    pub fn start(mut self, start: usize) -> Self {
-        self.start = start;
-        self
+        Self { graph }
     }
 
     /// Builds the sequential BFV with the builder parameters and consumes the builder.
     pub fn build(self) -> SingleThreadedBreadthFirstVisit<'a, G> {
         SingleThreadedBreadthFirstVisit {
             graph: self.graph,
-            start: self.start,
             visited: BitVec::new(self.graph.num_nodes()),
             queue: VecDeque::new(),
         }
@@ -50,7 +41,6 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisitBuilder<'a, G> {
 /// can be used as a separator.
 pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
-    start: usize,
     visited: BitVec,
     /// The visit queue; to avoid storing distances, we use `None` as a
     /// separator between levels. [`NonMaxUsize`] is used to avoid
@@ -59,21 +49,24 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
 }
 
 impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
-    fn visit_from_node_filtered<
-        C: Fn(usize, usize, usize, usize) + Sync,
-        F: Fn(usize, usize, usize, usize) -> bool + Sync,
-    >(
+    fn visit_from_node_filtered<C: Fn(BFVArgs) + Sync, F: Fn(BFVArgs) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,
         visit_root: usize,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        if self.visited[visit_root] || !filter(visit_root, visit_root, visit_root, 0) {
+        let args = BFVArgs {
+            node_index: visit_root,
+            parent: visit_root,
+            root: visit_root,
+            distance_from_root: 0,
+        };
+        if self.visited[visit_root] || !filter(args) {
             return Ok(());
         }
 
-        callback(visit_root, visit_root, visit_root, 0);
+        callback(args);
         self.visited.set(visit_root, true);
         self.queue.push_back(Some(
             NonMaxUsize::new(visit_root).expect("node index should never be usize::MAX"),
@@ -87,8 +80,14 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
             match current_node {
                 Some(node) => {
                     for succ in self.graph.successors(node) {
-                        if !self.visited[succ] && filter(succ, node, visit_root, distance) {
-                            callback(succ, node, visit_root, distance);
+                        let args = BFVArgs {
+                            node_index: succ,
+                            parent: node,
+                            root: visit_root,
+                            distance_from_root: distance,
+                        };
+                        if !self.visited[succ] && filter(args) {
+                            callback(args);
                             self.visited.set(succ, true);
                             self.queue.push_back(Some(
                                 NonMaxUsize::new(succ)
@@ -112,69 +111,10 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
         Ok(())
     }
 
-    fn visit_graph_filtered<
-        C: Fn(usize, usize, usize, usize) + Sync,
-        F: Fn(usize, usize, usize, usize) -> bool + Sync,
-    >(
-        &mut self,
-        callback: C,
-        filter: F,
-        pl: &mut impl ProgressLog,
-    ) -> Result<()> {
-        pl.expected_updates(Some(self.graph.num_nodes()));
-        pl.start("Visiting graph with a sequential BFV...");
-
-        for i in 0..self.graph.num_nodes() {
-            let index = (i + self.start) % self.graph.num_nodes();
-            self.visit_from_node_filtered(&callback, &filter, index, pl)?;
-        }
-
-        pl.done();
-
-        Ok(())
-    }
-}
-
-impl<'a, G: RandomAccessGraph> ReusableBreadthFirstGraphVisit
-    for SingleThreadedBreadthFirstVisit<'a, G>
-{
     #[inline(always)]
     fn reset(&mut self) -> Result<()> {
         self.queue.clear();
         self.visited.fill(false);
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use anyhow::Context;
-    use webgraph::prelude::BvGraph;
-
-    #[test]
-    fn test_sequential_bfv_with_start() -> Result<()> {
-        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
-            .load()
-            .with_context(|| "Cannot load graph")?;
-        let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph)
-            .start(10)
-            .build();
-
-        assert_eq!(visit.start, 10);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sequential_bfv_new() -> Result<()> {
-        let graph = BvGraph::with_basename("tests/graphs/cnr-2000")
-            .load()
-            .with_context(|| "Cannot load graph")?;
-        let visit = SingleThreadedBreadthFirstVisitBuilder::new(&graph).build();
-
-        assert_eq!(visit.start, 0);
-
         Ok(())
     }
 }

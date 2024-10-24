@@ -85,16 +85,21 @@ macro_rules! test_bfv_algo {
                     g.add_arc(arc.0, arc.1);
                 }
                 let graph = Left(g);
-                let visit = $bfv(&graph).start(0).build();
+                let mut visit = $bfv(&graph).build();
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();
                 let expected_dists = correct_dists(&graph, 0);
 
-                visit.visit(
-                    |node, _, _, distance| dists[node].store(distance, Ordering::Relaxed),
-                    Option::<ProgressLogger>::None,
-                )?;
+                for node in 0..graph.num_nodes() {
+                    visit.visit_from_node(
+                        |args| {
+                            dists[args.node_index].store(args.distance_from_root, Ordering::Relaxed)
+                        },
+                        node,
+                        &mut Option::<ProgressLogger>::None,
+                    )?;
+                }
 
                 let actual_dists = into_non_atomic(dists);
 
@@ -106,16 +111,22 @@ macro_rules! test_bfv_algo {
             #[test]
             fn test_cnr_2000() -> Result<()> {
                 let graph = BvGraph::with_basename("tests/graphs/cnr-2000").load()?;
-                let visit = $bfv(&graph).start(10000).build();
+                let mut visit = $bfv(&graph).build();
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();
                 let expected_dists = correct_dists(&graph, 10000);
 
-                visit.visit(
-                    |node, _, _, distance| dists[node].store(distance, Ordering::Relaxed),
-                    Option::<ProgressLogger>::None,
-                )?;
+                for i in 0..graph.num_nodes() {
+                    let node = (i + 10000) % graph.num_nodes();
+                    visit.visit_from_node(
+                        |args| {
+                            dists[args.node_index].store(args.distance_from_root, Ordering::Relaxed)
+                        },
+                        node,
+                        &mut Option::<ProgressLogger>::None,
+                    )?;
+                }
 
                 let actual_dists = into_non_atomic(dists);
 

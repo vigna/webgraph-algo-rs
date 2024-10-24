@@ -243,7 +243,8 @@ impl<'a, G: RandomAccessGraph + Sync> SumSweepUndirectedDiameterRadius<'a, G> {
 
         visit
             .visit_from_node(
-                |node, parent, _, _| {
+                |args| {
+                    let (node, parent) = (args.node_index, args.parent);
                     // Safety for unsafe blocks: each node is visited exactly once. Parents can never
                     // be out of sync.
                     if dist_mut[node].read().is_none() {

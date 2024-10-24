@@ -26,11 +26,13 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFVBuilder::new_sequential(i)
-                        .start(start)
-                        .build()
-                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
-                        .unwrap()
+                    let mut visit = BFVBuilder::new_sequential(i).build();
+                    for i in 0..graph.num_nodes() {
+                        let node = (i + start) % graph.num_nodes();
+                        visit
+                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
+                            .unwrap();
+                    }
                 });
             },
         );
@@ -40,12 +42,13 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFVBuilder::new_parallel(i)
-                        .start(start)
-                        .granularity(1)
-                        .build()
-                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
-                        .unwrap()
+                    let mut visit = BFVBuilder::new_parallel(i).granularity(1).build();
+                    for i in 0..graph.num_nodes() {
+                        let node = (i + start) % graph.num_nodes();
+                        visit
+                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
+                            .unwrap();
+                    }
                 });
             },
         );
@@ -55,12 +58,13 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFVBuilder::new_parallel(i)
-                        .start(start)
-                        .granularity(64)
-                        .build()
-                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
-                        .unwrap()
+                    let mut visit = BFVBuilder::new_parallel(i).granularity(64).build();
+                    for i in 0..graph.num_nodes() {
+                        let node = (i + start) % graph.num_nodes();
+                        visit
+                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
+                            .unwrap();
+                    }
                 });
             },
         );
@@ -70,12 +74,15 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFVBuilder::new_parallel_fast_callback(i)
-                        .start(start)
+                    let mut visit = BFVBuilder::new_parallel_fast_callback(i)
                         .granularity(1)
-                        .build()
-                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
-                        .unwrap()
+                        .build();
+                    for i in 0..graph.num_nodes() {
+                        let node = (i + start) % graph.num_nodes();
+                        visit
+                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
+                            .unwrap();
+                    }
                 });
             },
         );
@@ -85,12 +92,15 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, i| {
                 b.iter_with_large_drop(|| {
-                    BFVBuilder::new_parallel_fast_callback(i)
-                        .start(start)
+                    let mut visit = BFVBuilder::new_parallel_fast_callback(i)
                         .granularity(64)
-                        .build()
-                        .visit(|_, _, _, _| {}, Option::<ProgressLogger>::None)
-                        .unwrap()
+                        .build();
+                    for i in 0..graph.num_nodes() {
+                        let node = (i + start) % graph.num_nodes();
+                        visit
+                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
+                            .unwrap();
+                    }
                 });
             },
         );
