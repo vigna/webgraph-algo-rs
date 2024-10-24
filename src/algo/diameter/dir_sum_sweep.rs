@@ -5,7 +5,7 @@ use crate::{
         strongly_connected_components::TarjanStronglyConnectedComponents,
     },
     prelude::*,
-    utils::{check_transposed, closure_vec, math, MmapSlice},
+    utils::*,
 };
 use anyhow::{ensure, Context, Result};
 use dsi_progress_logger::*;
@@ -20,6 +20,278 @@ use std::{
 };
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
+
+pub struct SumSweepDirectedDiameterRadiusBuilder<
+    'a,
+    G1: RandomAccessGraph + Sync,
+    G2: RandomAccessGraph + Sync,
+    T,
+    C: StronglyConnectedComponents<G1> = TarjanStronglyConnectedComponents<G1>,
+> {
+    graph: &'a G1,
+    rev_graph: &'a G2,
+    output: SumSweepOutputLevel,
+    radial_vertices: Option<AtomicBitVec>,
+    threads: T,
+    mem_options: TempMmapOptions,
+    _marker: std::marker::PhantomData<C>,
+}
+
+impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+    SumSweepDirectedDiameterRadiusBuilder<
+        'a,
+        G1,
+        G2,
+        Threads,
+        TarjanStronglyConnectedComponents<G1>,
+    >
+{
+    /// Creates a new builder with default parameters.
+    ///
+    /// # Arguments
+    /// * `graph`: the direct graph to analyze.
+    /// * `transposed_graph`: the transposed of `graph`.
+    /// * `output`: the output to generate.
+    pub fn new(graph: &'a G1, transposed_graph: &'a G2, output: SumSweepOutputLevel) -> Self {
+        assert_eq!(
+            transposed_graph.num_nodes(),
+            graph.num_nodes(),
+            "transposed should have same number of nodes ({}). Got {}.",
+            graph.num_nodes(),
+            transposed_graph.num_nodes()
+        );
+        assert_eq!(
+            transposed_graph.num_arcs(),
+            graph.num_arcs(),
+            "transposed should have the same number of arcs ({}). Got {}.",
+            graph.num_arcs(),
+            transposed_graph.num_arcs()
+        );
+        debug_assert!(
+            check_transposed(graph, transposed_graph),
+            "transposed should be the transposed of the direct graph"
+        );
+        Self {
+            graph,
+            rev_graph: transposed_graph,
+            output,
+            radial_vertices: None,
+            threads: Threads::Default,
+            mem_options: TempMmapOptions::Default,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<
+        'a,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        T,
+        C: StronglyConnectedComponents<G1>,
+    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C>
+{
+    /// Sets the radial vertices with a bit vector.
+    ///
+    /// # Arguments
+    /// * `radial_vertices`: the [`AtomicBitVec`] where `v[i]` is `true` if it is a radial
+    ///   vertex. If [`None`], the set is automatically chosen as the set of vertices that
+    ///   are in the biggest strongly connected component, or that are able to reach the biggest
+    ///   strongly connected component.
+    pub fn radial_vertices(mut self, radial_vertices: Option<AtomicBitVec>) -> Self {
+        if let Some(v) = radial_vertices.as_ref() {
+            assert_eq!(v.len(), self.graph.num_nodes());
+        }
+        self.radial_vertices = radial_vertices;
+        self
+    }
+
+    /// Sets the memory options used by the support arrays of the
+    /// [`SumSweepDirectedDiameterRadius`] instance.
+    ///
+    /// # Argumets
+    /// * `settings`: the new settings to use.
+    pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
+        self.mem_options = settings;
+        self
+    }
+
+    /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use the default [`rayon::ThreadPool`].
+    pub fn default_threadpool(
+        self,
+    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C> {
+        SumSweepDirectedDiameterRadiusBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            output: self.output,
+            radial_vertices: self.radial_vertices,
+            threads: Threads::Default,
+            mem_options: self.mem_options,
+            _marker: self._marker,
+        }
+    }
+
+    /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use a custom [`rayon::ThreadPool`] with the
+    /// specified number of threads.
+    ///
+    /// # Arguments
+    /// * `num_threads`: the number of threads to use for the new `ThreadPool`.
+    pub fn num_threads(
+        self,
+        num_threads: usize,
+    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C> {
+        SumSweepDirectedDiameterRadiusBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            output: self.output,
+            radial_vertices: self.radial_vertices,
+            threads: Threads::NumThreads(num_threads),
+            mem_options: self.mem_options,
+            _marker: self._marker,
+        }
+    }
+
+    /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use the provided [`rayon::ThreadPool`].
+    ///
+    /// # Arguments
+    /// * `threadpool`: the custom `ThreadPool` to use.
+    pub fn threadpool<T2: Borrow<rayon::ThreadPool> + Clone + Sync>(
+        self,
+        threads: T2,
+    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T2, C> {
+        SumSweepDirectedDiameterRadiusBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            output: self.output,
+            radial_vertices: self.radial_vertices,
+            threads,
+            mem_options: self.mem_options,
+            _marker: self._marker,
+        }
+    }
+
+    /// Sets the algorithm to use to compute the strongly connected components for the graph.
+    pub fn scc<C2: StronglyConnectedComponents<G1>>(
+        self,
+    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C2> {
+        SumSweepDirectedDiameterRadiusBuilder {
+            graph: self.graph,
+            rev_graph: self.rev_graph,
+            output: self.output,
+            radial_vertices: self.radial_vertices,
+            threads: self.threads,
+            mem_options: self.mem_options,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<
+        'a,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        C: StronglyConnectedComponents<G1> + Sync,
+    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C>
+{
+    /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
+    /// logs progress with the provided logger.
+    ///
+    /// # Arguments
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
+    #[allow(clippy::type_complexity)]
+    pub fn build(
+        self,
+        pl: impl ProgressLog,
+    ) -> Result<
+        SumSweepDirectedDiameterRadius<
+            'a,
+            G1,
+            G2,
+            C,
+            ParallelBreadthFirstVisitFastCB<'a, G1, rayon::ThreadPool>,
+            ParallelBreadthFirstVisitFastCB<'a, G2, rayon::ThreadPool>,
+            rayon::ThreadPool,
+        >,
+    > {
+        let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+            self.graph,
+            VISIT_GRANULARITY,
+            self.threads.build(),
+        );
+        let transposed_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+            self.rev_graph,
+            VISIT_GRANULARITY,
+            self.threads.build(),
+        );
+        SumSweepDirectedDiameterRadius::new(
+            self.graph,
+            self.rev_graph,
+            self.output,
+            direct_visit,
+            transposed_visit,
+            self.threads.build(),
+            self.radial_vertices,
+            self.mem_options,
+            pl,
+        )
+    }
+}
+
+impl<
+        'a,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        T: Borrow<rayon::ThreadPool> + Clone + Sync,
+        C: StronglyConnectedComponents<G1> + Sync,
+    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C>
+{
+    /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
+    /// logs progress with the provided logger.
+    ///
+    /// # Arguments
+    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
+    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
+    ///   passed, logging code should be optimized away by the compiler.
+    #[allow(clippy::type_complexity)]
+    pub fn build(
+        self,
+        pl: impl ProgressLog,
+    ) -> Result<
+        SumSweepDirectedDiameterRadius<
+            'a,
+            G1,
+            G2,
+            C,
+            ParallelBreadthFirstVisitFastCB<'a, G1, T>,
+            ParallelBreadthFirstVisitFastCB<'a, G2, T>,
+            T,
+        >,
+    > {
+        let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+            self.graph,
+            VISIT_GRANULARITY,
+            self.threads.clone(),
+        );
+        let transposed_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+            self.rev_graph,
+            VISIT_GRANULARITY,
+            self.threads.clone(),
+        );
+        SumSweepDirectedDiameterRadius::new(
+            self.graph,
+            self.rev_graph,
+            self.output,
+            direct_visit,
+            transposed_visit,
+            self.threads,
+            self.radial_vertices,
+            self.mem_options,
+            pl,
+        )
+    }
+}
 
 const VISIT_GRANULARITY: usize = 32;
 
@@ -76,36 +348,19 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        T: Borrow<rayon::ThreadPool> + Clone,
-    >
-    SumSweepDirectedDiameterRadius<
-        'a,
-        G1,
-        G2,
-        TarjanStronglyConnectedComponents<G1>,
-        ParallelBreadthFirstVisitFastCB<'a, G1, T>,
-        ParallelBreadthFirstVisitFastCB<'a, G2, T>,
-        T,
-    >
+        C: StronglyConnectedComponents<G1> + Sync,
+        V1: BreadthFirstGraphVisit + Sync,
+        V2: BreadthFirstGraphVisit + Sync,
+        T: Borrow<rayon::ThreadPool> + Sync,
+    > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
-    /// Creates a new instance for computing diameter and/or radius and/or all eccentricities.
-    ///
-    /// # Arguments
-    /// * `graph`: An immutable reference to the graph.
-    /// * `reversed_graph`: An immutable reference to `graph` transposed.
-    /// * `output`: Which output is requested: radius, diameter, radius and diameter, or all eccentricities.
-    /// * `threads`: The threadpool to use for parallelism.
-    /// * `radial_verticies`: The set of radial vertices. If [`None`], the set is automatically chosen
-    ///   as the set of vertices that are in the biggest strongly connected component, or that are able
-    ///   to reach the biggest strongly connected component.
-    /// * `options`: the options for the [`crate::utils::MmapSlice`].
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
-    pub fn new(
+    #[allow(clippy::too_many_arguments)]
+    fn new(
         graph: &'a G1,
         reversed_graph: &'a G2,
         output: SumSweepOutputLevel,
+        direct_visit: V1,
+        transposed_visit: V2,
         threadpool: T,
         radial_vertices: Option<AtomicBitVec>,
         options: TempMmapOptions,
@@ -117,9 +372,8 @@ impl<
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        let scc =
-            TarjanStronglyConnectedComponents::compute(graph, false, options.clone(), pl.clone())
-                .with_context(|| "Cannot compute strongly connected components")?;
+        let scc = C::compute(graph, false, options.clone(), pl.clone())
+            .with_context(|| "Cannot compute strongly connected components")?;
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
@@ -182,16 +436,8 @@ impl<
             radius_vertex: 0,
             diameter_vertex: 0,
             compute_radial_vertices,
-            visit: ParallelBreadthFirstVisitFastCB::with_threads(
-                graph,
-                VISIT_GRANULARITY,
-                threadpool.clone(),
-            ),
-            transposed_visit: ParallelBreadthFirstVisitFastCB::with_threads(
-                reversed_graph,
-                VISIT_GRANULARITY,
-                threadpool.clone(),
-            ),
+            visit: direct_visit,
+            transposed_visit,
             threadpool,
         })
     }

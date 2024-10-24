@@ -36,19 +36,13 @@ fn main() -> Result<()> {
             TarjanStronglyConnectedComponents::compute(&graph, false, mem_options, main_pl)?;
         }
         "diameter" => {
-            let threadpool = rayon::ThreadPoolBuilder::new()
-                .build()
-                .expect("Should be able to get global threadpool");
-
-            let mut diameter = SumSweepDirectedDiameterRadius::new(
+            let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new(
                 &graph,
                 &reversed_graph,
                 SumSweepOutputLevel::RadiusDiameter,
-                &threadpool,
-                None,
-                mem_options,
-                main_pl.clone(),
-            )?;
+            )
+            .mem_settings(mem_options)
+            .build(main_pl.clone())?;
             diameter.compute(main_pl.clone())?;
         }
         "hyperball" => {

@@ -5,15 +5,9 @@ use webgraph::traits::SequentialLabeling;
 use webgraph::transform::transpose;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::diameter::*;
-use webgraph_algo::utils::TempMmapOptions;
-
-fn threadpool() -> rayon::ThreadPool {
-    rayon::ThreadPoolBuilder::new().build().unwrap()
-}
 
 #[test]
 fn test_path() -> Result<()> {
-    let threadpool = threadpool();
     let arcs = vec![(0, 1), (1, 2), (2, 1), (1, 0)];
 
     let mut vec_graph = VecGraph::new();
@@ -29,15 +23,9 @@ fn test_path() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.eccentricity(0, true), Some(2));
@@ -54,7 +42,6 @@ fn test_path() -> Result<()> {
 
 #[test]
 fn test_many_scc() -> Result<()> {
-    let threadpool = threadpool();
     let arcs = vec![
         (0, 1),
         (1, 0),
@@ -86,15 +73,12 @@ fn test_many_scc() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+    let mut sum_sweep = SumSweepDirectedDiameterRadiusBuilder::new(
         &graph,
         &transposed,
         SumSweepOutputLevel::Radius,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    )
+    .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(2));
@@ -105,7 +89,6 @@ fn test_many_scc() -> Result<()> {
 
 #[test]
 fn test_lozenge() -> Result<()> {
-    let threadpool = threadpool();
     let arcs = vec![(0, 1), (1, 0), (0, 2), (1, 3), (2, 3)];
 
     let mut vec_graph = VecGraph::new();
@@ -121,15 +104,12 @@ fn test_lozenge() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+    let mut sum_sweep = SumSweepDirectedDiameterRadiusBuilder::new(
         &graph,
         &transposed,
         SumSweepOutputLevel::Radius,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    )
+    .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(2));
@@ -141,7 +121,6 @@ fn test_lozenge() -> Result<()> {
 
 #[test]
 fn test_many_dir_path() -> Result<()> {
-    let threadpool = threadpool();
     let arcs = vec![
         (0, 1),
         (1, 2),
@@ -176,15 +155,10 @@ fn test_many_dir_path() -> Result<()> {
     radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
     radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        Some(radial_vertices),
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .radial_vertices(Some(radial_vertices))
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.diameter(), Some(6));
@@ -197,7 +171,6 @@ fn test_many_dir_path() -> Result<()> {
 
 #[test]
 fn test_cycle() -> Result<()> {
-    let threadpool = threadpool();
     for size in [3, 5, 7] {
         let mut vec_graph = VecGraph::new();
         for i in 0..size {
@@ -216,15 +189,12 @@ fn test_cycle() -> Result<()> {
             transpose(&graph, 32)?.0.iter(),
         ));
 
-        let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+        let mut sum_sweep = SumSweepDirectedDiameterRadiusBuilder::new(
             &graph,
             &transposed,
             SumSweepOutputLevel::RadiusDiameter,
-            &threadpool,
-            None,
-            TempMmapOptions::Default,
-            Option::<ProgressLogger>::None,
-        )?;
+        )
+        .build(Option::<ProgressLogger>::None)?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
         assert_eq!(sum_sweep.diameter(), Some(size - 1));
@@ -243,7 +213,6 @@ fn test_cycle() -> Result<()> {
 
 #[test]
 fn test_clique() -> Result<()> {
-    let threadpool = threadpool();
     for size in [10, 50, 100] {
         let mut vec_graph = VecGraph::new();
         for i in 0..size {
@@ -271,15 +240,13 @@ fn test_clique() -> Result<()> {
         radial_vertices.set(rngs[1], true, std::sync::atomic::Ordering::Relaxed);
         radial_vertices.set(rngs[2], true, std::sync::atomic::Ordering::Relaxed);
 
-        let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
+        let mut sum_sweep = SumSweepDirectedDiameterRadiusBuilder::new(
             &graph,
             &transposed,
             SumSweepOutputLevel::All,
-            &threadpool,
-            Some(radial_vertices),
-            TempMmapOptions::Default,
-            Option::<ProgressLogger>::None,
-        )?;
+        )
+        .radial_vertices(Some(radial_vertices))
+        .build(Option::<ProgressLogger>::None)?;
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
         for i in 0..size {
@@ -292,7 +259,6 @@ fn test_clique() -> Result<()> {
 
 #[test]
 fn test_empty() -> Result<()> {
-    let threadpool = threadpool();
     let mut vec_graph: VecGraph<()> = VecGraph::new();
     for i in 0..100 {
         vec_graph.add_node(i);
@@ -303,15 +269,9 @@ fn test_empty() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(0));
@@ -322,7 +282,6 @@ fn test_empty() -> Result<()> {
 
 #[test]
 fn test_sparse() -> Result<()> {
-    let threadpool = threadpool();
     let arcs = vec![(10, 32), (10, 65), (65, 10), (21, 44)];
 
     let mut vec_graph = VecGraph::new();
@@ -338,15 +297,9 @@ fn test_sparse() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(1));
@@ -357,7 +310,6 @@ fn test_sparse() -> Result<()> {
 
 #[test]
 fn test_no_radial_vertices() -> Result<()> {
-    let threadpool = threadpool();
     let arcs = vec![(0, 1)];
 
     let mut vec_graph = VecGraph::new();
@@ -374,15 +326,10 @@ fn test_no_radial_vertices() -> Result<()> {
     ));
     let radial_vertices = AtomicBitVec::new(2);
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        Some(radial_vertices),
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .radial_vertices(Some(radial_vertices))
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(usize::MAX));
@@ -392,7 +339,6 @@ fn test_no_radial_vertices() -> Result<()> {
 
 #[test]
 fn test_empty_graph() -> Result<()> {
-    let threadpool = threadpool();
     let vec_graph: VecGraph<()> = VecGraph::new();
 
     let graph = Left(vec_graph);
@@ -400,15 +346,9 @@ fn test_empty_graph() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), None);
@@ -419,7 +359,6 @@ fn test_empty_graph() -> Result<()> {
 
 #[test]
 fn test_graph_no_edges() -> Result<()> {
-    let threadpool = threadpool();
     let mut vec_graph: VecGraph<()> = VecGraph::new();
     for i in 0..2 {
         vec_graph.add_node(i);
@@ -430,15 +369,9 @@ fn test_graph_no_edges() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = SumSweepDirectedDiameterRadius::new(
-        &graph,
-        &transposed,
-        SumSweepOutputLevel::All,
-        &threadpool,
-        None,
-        TempMmapOptions::Default,
-        Option::<ProgressLogger>::None,
-    )?;
+    let mut sum_sweep =
+        SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
+            .build(Option::<ProgressLogger>::None)?;
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(0));
