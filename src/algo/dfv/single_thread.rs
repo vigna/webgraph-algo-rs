@@ -37,6 +37,9 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisitBuilder<'a, G> {
 pub struct SingleThreadedDepthFirstVisit<'a, G: RandomAccessGraph> {
     graph: &'a G,
     start: usize,
+    /// Entries on this stack represent the iterator on the successors of a node
+    /// and the parent of the node. This approach makes it possible to avoid
+    /// storing both the current and the parent node in the stack.
     stack: Vec<(
         <<G as RandomAccessLabeling>::Labels<'a> as IntoIterator>::IntoIter,
         usize,
@@ -59,21 +62,29 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
             return Ok(());
         }
 
+        // This variable keeps track of the current node being visited; the
+        // parent node is derived at each iteration of the 'recurse loop.
         let mut current_node = visit_root;
-        let mut parent = visit_root;
-        let mut iter = self.graph.successors(current_node).into_iter();
 
-        self.visited.set(current_node, true);
         callback(
-            current_node,
-            parent,
+            visit_root,
+            visit_root,
             visit_root,
             0,
             DepthFirstVisitEvent::Discover,
         );
 
+        self.visited.set(current_node, true);
+        self.stack
+            .push((self.graph.successors(visit_root).into_iter(), visit_root));
+
         'recurse: loop {
             let depth = self.stack.len();
+            let Some((iter, parent)) = self.stack.last_mut() else {
+                break;
+            };
+            let parent_node = *parent;
+
             while let Some(succ) = iter.next() {
                 // Check if node should be visited
                 if filter(succ, current_node, visit_root, depth + 1) {
@@ -97,11 +108,11 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
                         );
 
                         self.visited.set(succ, true);
-                        self.stack.push((iter, parent));
-                        parent = current_node;
+                        // current_node is the parent of succ
+                        self.stack
+                            .push((self.graph.successors(succ).into_iter(), current_node));
+                        // At the next iteration, succ will be the current node
                         current_node = succ;
-                        iter = self.graph.successors(current_node).into_iter();
-
                         continue 'recurse;
                     }
                 }
@@ -110,21 +121,18 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
             // Emit node
             callback(
                 current_node,
-                parent,
+                parent_node,
                 visit_root,
                 depth,
                 DepthFirstVisitEvent::Emit,
             );
 
-            pl.light_update();
+            // We're going up one stack level, so the next current_node
+            // is the current parent.
+            current_node = parent_node;
+            self.stack.pop();
 
-            if let Some((iterator, parent_node)) = self.stack.pop() {
-                current_node = parent;
-                parent = parent_node;
-                iter = iterator;
-            } else {
-                break;
-            }
+            pl.light_update();
         }
 
         Ok(())
