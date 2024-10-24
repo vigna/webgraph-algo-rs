@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::{algo::dfv::DFVBuilder, prelude::*, utils::MmapSlice};
+use crate::{algo::dfv::*, prelude::*, utils::MmapSlice};
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
@@ -103,7 +103,7 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
     }
 
     fn run(&mut self, mut pl: impl ProgressLog) -> Result<()> {
-        let mut visit = DFVBuilder::new_sequential(self.graph).build();
+        let mut visit = SingleThreadedDepthFirstVisit::new(self.graph);
         pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
