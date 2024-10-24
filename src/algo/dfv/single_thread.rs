@@ -85,7 +85,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstGraphVisit for SingleThreadedDepthFirst
             };
             let parent_node = *parent;
 
-            while let Some(succ) = iter.next() {
+            for succ in iter.by_ref() {
                 // Check if node should be visited
                 if filter(succ, current_node, visit_root, depth + 1) {
                     if self.visited[succ] {
