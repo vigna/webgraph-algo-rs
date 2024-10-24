@@ -88,7 +88,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// Sets the counters desired relative standard deviation.
     ///
     /// ## Note
-    /// This is a high-level alternative to [`Self::with_log_2_num_registers`].
+    /// This is a high-level alternative to [`Self::log_2_num_registers`].
     /// Calling one after the other invalidates the work done by the first one.
     ///
     /// # Arguments
@@ -100,7 +100,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// Sets the log₂*m* number of registers for the array of counters.
     ///
     /// ## Note
-    /// This is a low-level alternative to [`Self::with_rsd`].
+    /// This is a low-level alternative to [`Self::rsd`].
     /// Calling one after the other invalidates the work done by the first one.
     ///
     /// # Arguments
