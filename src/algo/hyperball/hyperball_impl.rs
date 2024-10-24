@@ -209,10 +209,10 @@ impl<
         }
     }
 
-    /// Sets the memory options used by the support array of the [`HyperBall`] instance.
+    /// Sets the memory options used by the support arrays of the [`HyperBall`] instance.
     ///
     /// # Argumets
-    /// * `settings`: the new setting to use.
+    /// * `settings`: the new settings to use.
     pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
         self.mem_settings = settings;
         self
