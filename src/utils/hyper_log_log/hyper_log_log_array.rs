@@ -219,6 +219,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             "W should allow counters to be aligned. Use {} or smaller words",
             min_alignment(counter_size_in_bits)
         );
+        let counter_size_in_words = counter_size_in_bits / W::BITS;
 
         let mut msb = BitFieldVec::new(register_size, number_of_registers);
         let mut lsb = BitFieldVec::new(register_size, number_of_registers);
@@ -229,10 +230,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             lsb.set(i, lsb_w);
         }
 
-        let required_words = std::cmp::max(
-            1,
-            (number_of_registers * num_counters * register_size + W::BITS - 1) / W::BITS,
-        );
+        let required_words = counter_size_in_words * number_of_registers;
         let bits_vec =
             MmapSlice::from_closure(|| W::AtomicType::new(W::ZERO), required_words, mmap_options)
                 .with_context(|| "Could not create bits for hyperloglog array as MmapSlice")?;
