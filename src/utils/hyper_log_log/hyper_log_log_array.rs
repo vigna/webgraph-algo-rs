@@ -1,14 +1,15 @@
 use super::*;
 use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{ensure, Context, Result};
-use common_traits::*;
+use common_traits::{AsBytes, Atomic, AtomicUnsignedInt, IntoAtomic, Number};
 use rayon::prelude::*;
 use std::{
+    f64::consts::LN_2,
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
     marker::PhantomData,
     sync::atomic::Ordering,
 };
-use sux::prelude::*;
+use sux::{bits::*, traits::bit_field_slice::*};
 
 fn min_alignment(bits: usize) -> String {
     if bits % 128 == 0 {
@@ -350,10 +351,7 @@ impl HyperLogLogCounterArray<()> {
     /// # Arguments
     /// * `n`: an upper bound on the number of distinct elements.
     pub fn register_size_from_number_of_elements(n: usize) -> usize {
-        std::cmp::max(
-            5,
-            (((n as f64).ln() / 2.0.ln()) / 2.0.ln()).ln().ceil() as usize,
-        )
+        std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
     }
 }
 
