@@ -725,3 +725,59 @@ where
         estimate
     }
 }
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> PartialEq for HyperLogLogCounter<'a, T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.counter_array.num_registers != other.counter_array.num_registers {
+            return false;
+        }
+        if self.counter_array.register_size != other.counter_array.register_size {
+            return false;
+        }
+        for i in 0..self.counter_array.num_registers {
+            if self.get_register(i) != other.get_register(i) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> Eq for HyperLogLogCounter<'a, T, W, H> where
+    W::AtomicType: AtomicUnsignedInt + AsBytes
+{
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> ToOwned for HyperLogLogCounter<'a, T, W, H> {
+    type Owned = HyperLogLogCounter<'a, T, W, H>;
+
+    fn to_owned(&self) -> Self::Owned {
+        let mut c = HyperLogLogCounter {
+            cached_bits: None,
+            counter_array: self.counter_array,
+            offset: self.offset,
+            thread_helper: None,
+        };
+        unsafe {
+            c.cache();
+        }
+        c
+    }
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> CachableCounter
+    for HyperLogLogCounter<'a, T, W, H>
+{
+    fn into_owned(mut self) -> <Self as ToOwned>::Owned
+    where
+        Self: Sized,
+    {
+        unsafe {
+            self.cache();
+        }
+        self
+    }
+}
