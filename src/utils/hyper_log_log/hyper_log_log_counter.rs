@@ -1,11 +1,11 @@
 use super::*;
 use crate::prelude::*;
-use common_traits::*;
+use common_traits::{AsBytes, AtomicUnsignedInt, IntoAtomic, UpcastableInto};
 use std::{
     hash::{BuildHasher, Hash},
     sync::atomic::Ordering,
 };
-use sux::prelude::*;
+use sux::{bits::BitFieldVec, traits::bit_field_slice::*};
 
 /// Concretized counter for [`HyperLogLogCounterArray`].
 ///
@@ -246,7 +246,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
             x_slice
                 .iter()
                 .zip(msb_slice)
-                .map(|(x_word, &msb_word)| x_word & !msb_word),
+                .map(|(&x_word, &msb_word)| x_word & !msb_word),
         );
         mask.push(x_last_masked & !msb_last);
 
@@ -261,7 +261,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                 .zip(x_slice.iter())
                 .zip(y_slice.iter())
                 .zip(msb_slice.iter())
-                .for_each(|(((acc_word, x_word), &y_word), &msb_word)| {
+                .for_each(|(((acc_word, &x_word), &y_word), &msb_word)| {
                     *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
                 });
             *acc_last = ((*acc_last | (y_last_masked ^ x_last_masked))
@@ -308,7 +308,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                 .iter_mut()
                 .zip(y_slice.iter())
                 .zip(mask_slice.iter())
-                .for_each(|((x_word, &y_word), mask_word)| {
+                .for_each(|((x_word, &y_word), &mask_word)| {
                     *x_word = *x_word ^ ((*x_word ^ y_word) & mask_word);
                 });
             *x_last = (*x_last & !last_word_mask)
@@ -318,7 +318,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                 .iter_mut()
                 .zip(y_slice.iter())
                 .zip(mask_slice.iter())
-                .for_each(|((x_word, &y_word), mask_word)| {
+                .for_each(|((x_word, &y_word), &mask_word)| {
                     let new_x_word = *x_word ^ ((*x_word ^ y_word) & mask_word);
                     if new_x_word != *x_word {
                         changed = true;
