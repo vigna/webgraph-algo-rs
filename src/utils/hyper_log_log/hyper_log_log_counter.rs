@@ -98,7 +98,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```no_run
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::Counter;
+    /// # use webgraph_algo::prelude::{Counter, CounterArray};
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
@@ -122,7 +122,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::Counter;
+    /// # use webgraph_algo::prelude::{Counter, CounterArray};
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
@@ -358,7 +358,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```no_run
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::Counter;
+    /// # use webgraph_algo::prelude::{Counter, CounterArray};
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
@@ -439,7 +439,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```no_run
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::Counter;
+    /// # use webgraph_algo::prelude::{Counter, CounterArray};
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()

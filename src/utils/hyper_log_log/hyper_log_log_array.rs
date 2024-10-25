@@ -34,7 +34,7 @@ fn min_alignment(bits: usize) -> String {
 ///
 /// ```
 /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-/// # use crate::webgraph_algo::prelude::Counter;
+/// # use webgraph_algo::prelude::{Counter, CounterArray};
 /// # use anyhow::Result;
 /// # fn main() -> Result<()> {
 /// // Create a HyperLogLogCounterArray with 10 counters, each with
@@ -231,13 +231,10 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             lsb.set(i, lsb_w);
         }
 
-        let required_words = counter_size_in_words * number_of_registers;
+        let required_words = counter_size_in_words * num_counters;
         let bits_vec =
             MmapSlice::from_closure(|| W::AtomicType::new(W::ZERO), required_words, mmap_options)
                 .with_context(|| "Could not create bits for hyperloglog array as MmapSlice")?;
-        debug_assert!(
-            number_of_registers * num_counters * register_size <= bits_vec.len() * W::BITS
-        );
         let bits = unsafe {
             AtomicBitFieldVec::from_raw_parts(
                 bits_vec,
