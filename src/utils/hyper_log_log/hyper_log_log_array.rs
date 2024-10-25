@@ -422,11 +422,12 @@ impl<T: Sync + Hash, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCou
     }
 }
 
-impl<T: Hash, W: Word + IntoAtomic, H: BuildHasher> CounterArray<T>
+impl<T: Hash, W: Word + IntoAtomic, H: BuildHasher> CounterArray
     for HyperLogLogCounterArray<T, W, H>
 {
     type Counter<'a> = HyperLogLogCounter<'a, T, W, H> where T: 'a, W: 'a, H: 'a;
 
+    #[inline(always)]
     fn get_counter<'a>(&'a self, index: usize) -> Self::Counter<'a> {
         assert!(index < self.num_counters);
         HyperLogLogCounter {
