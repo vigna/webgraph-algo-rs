@@ -1,12 +1,6 @@
 use crate::prelude::*;
 use sux::traits::Word;
 
-pub trait CounterArray<'a> {
-    type Counter;
-
-    fn get_counter(&'a self, index: usize) -> Self::Counter;
-}
-
 pub trait CachableCounter: ToOwned {
     #[inline(always)]
     fn get_copy(&self) -> <Self as ToOwned>::Owned {
@@ -19,16 +13,6 @@ pub trait CachableCounter: ToOwned {
         Self: Sized,
     {
         self.to_owned()
-    }
-}
-
-pub trait CachableCounterArray<'a>: CounterArray<'a>
-where
-    <Self as CounterArray<'a>>::Counter: CachableCounter,
-{
-    #[inline(always)]
-    fn get_owned_counter(&'a self, index: usize) -> <Self::Counter as ToOwned>::Owned {
-        self.get_counter(index).to_owned()
     }
 }
 
@@ -88,4 +72,20 @@ impl<
         C: Counter<T> + ApproximatedCounter<T> + CachableCounter + BitwiseCounter<T, W>,
     > HyperLogLog<T, W> for C
 {
+}
+
+pub trait CounterArray<'a> {
+    type Counter;
+
+    fn get_counter(&'a self, index: usize) -> Self::Counter;
+}
+
+pub trait CachableCounterArray<'a>: CounterArray<'a>
+where
+    <Self as CounterArray<'a>>::Counter: CachableCounter,
+{
+    #[inline(always)]
+    fn get_owned_counter(&'a self, index: usize) -> <Self::Counter as ToOwned>::Owned {
+        self.get_counter(index).to_owned()
+    }
 }
