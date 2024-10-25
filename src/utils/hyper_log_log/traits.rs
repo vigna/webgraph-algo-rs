@@ -1,12 +1,10 @@
 use super::*;
 use crate::prelude::*;
 
-pub trait CounterArray {
-    type Counter<'a>
-    where
-        Self: 'a;
+pub trait CounterArray<'a> {
+    type Counter;
 
-    fn get_counter<'a>(&'a self, index: usize) -> Self::Counter<'a>;
+    fn get_counter(&'a self, index: usize) -> Self::Counter;
 }
 
 pub trait CachableCounter: ToOwned {
@@ -24,12 +22,12 @@ pub trait CachableCounter: ToOwned {
     }
 }
 
-pub trait CachableCounterArray: CounterArray
+pub trait CachableCounterArray<'a>: CounterArray<'a>
 where
-    for<'a> <Self as CounterArray>::Counter<'a>: CachableCounter,
+    <Self as CounterArray<'a>>::Counter: CachableCounter,
 {
     #[inline(always)]
-    fn get_owned_counter<'a>(&'a self, index: usize) -> <Self::Counter<'a> as ToOwned>::Owned {
+    fn get_owned_counter(&'a self, index: usize) -> <Self::Counter as ToOwned>::Owned {
         self.get_counter(index).to_owned()
     }
 }
