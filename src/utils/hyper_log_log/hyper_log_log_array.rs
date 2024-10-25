@@ -5,7 +5,7 @@ use common_traits::{AsBytes, Atomic, AtomicUnsignedInt, IntoAtomic, Number};
 use rayon::prelude::*;
 use std::{
     f64::consts::LN_2,
-    hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
+    hash::{BuildHasher, BuildHasherDefault, DefaultHasher, Hash},
     marker::PhantomData,
     sync::atomic::Ordering,
 };
@@ -366,21 +366,6 @@ where
 }
 
 impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
-    /// Returns the concretized [`HyperLogLogCounter`] with the specified index.
-    ///
-    /// # Arguments
-    /// * `index`: the index of the counter to concretize.
-    #[inline(always)]
-    pub fn get_counter(&self, index: usize) -> HyperLogLogCounter<T, W, H> {
-        assert!(index < self.num_counters);
-        HyperLogLogCounter {
-            counter_array: self,
-            offset: index * self.num_registers,
-            cached_bits: None,
-            thread_helper: None,
-        }
-    }
-
     /// Creates a thread helper for a counter of this array.
     pub fn get_thread_helper(&self) -> ThreadHelper<W> {
         ThreadHelper {
@@ -425,7 +410,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     }
 }
 
-impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
+impl<T: Sync + Hash, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
     /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
     pub fn into_vec(&self) -> Vec<HyperLogLogCounter<T, W, H>> {
         let mut vec = Vec::with_capacity(self.num_counters);
@@ -434,6 +419,22 @@ impl<T: Sync, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArr
             .map(|i| self.get_counter(i))
             .collect_into_vec(&mut vec);
         vec
+    }
+}
+
+impl<T: Hash, W: Word + IntoAtomic, H: BuildHasher> CounterArray<T>
+    for HyperLogLogCounterArray<T, W, H>
+{
+    type Counter<'a> = HyperLogLogCounter<'a, T, W, H> where T: 'a, W: 'a, H: 'a;
+
+    fn get_counter<'a>(&'a self, index: usize) -> Self::Counter<'a> {
+        assert!(index < self.num_counters);
+        HyperLogLogCounter {
+            counter_array: self,
+            offset: index * self.num_registers,
+            cached_bits: None,
+            thread_helper: None,
+        }
     }
 }
 

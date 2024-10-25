@@ -25,7 +25,12 @@ pub use hyper_log_log::{
 mod threadpool;
 pub(crate) use threadpool::Threads;
 
-pub mod traits;
+#[path = "traits.rs"]
+mod utils_traits;
+pub mod traits {
+    pub use super::hyper_log_log::traits::*;
+    pub use super::utils_traits::*;
+}
 
 const MAX_NODES_ENV_VAR: &str = "MAX_TRANSPOSED_SIZE_DEBUG";
 const MAX_NODES_DEFAULT: usize = 10000;
