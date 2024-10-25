@@ -31,3 +31,6 @@ where
         self.get_counter(index).to_owned()
     }
 }
+
+pub trait HyperLogLog<T>: Counter<T> + ApproximatedCounter<T> + CachableCounter {}
+impl<T, C: Counter<T> + ApproximatedCounter<T> + CachableCounter> HyperLogLog<T> for C {}
