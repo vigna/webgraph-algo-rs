@@ -1130,14 +1130,12 @@ where
                         visited_arcs += 1;
                         if succ != node && self.modified_counter[succ] {
                             if !counter.is_cached() {
-                                unsafe {
-                                    // Safety: we are only ever reading from the current array
-                                    counter.cache();
-                                }
+                                counter = counter.into_owned();
                             }
                             unsafe {
                                 // Safety: the counter is cached and no other counter has access to it
-                                counter.merge_unsafe(&self.get_current_counter_borrowed(succ));
+                                counter
+                                    .merge_bitwise_unsafe(&self.get_current_counter_borrowed(succ));
                             }
                         }
                     }
@@ -1229,7 +1227,8 @@ where
                         unsafe {
                             // Safety: we are only ever writing to the result array and
                             // no counter is ever written to more than once
-                            self.get_result_counter_borrowed(node).set_to(&counter);
+                            self.get_result_counter_borrowed(node)
+                                .set_to_bitwise_unsafe(&counter);
                         }
                     }
                 } else {
@@ -1241,7 +1240,7 @@ where
                             // Safety: we are only ever writing to the result array and
                             // no counter is ever written to more than once
                             self.get_result_counter_borrowed(node)
-                                .set_to(&self.get_current_counter_borrowed(node))
+                                .set_to_bitwise_unsafe(&self.get_current_counter_borrowed(node))
                         };
                     }
                 }

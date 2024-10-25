@@ -216,7 +216,7 @@ fn test_merge_unsafe() -> Result<()> {
                 unsafe {
                     counters
                         .get_counter(0)
-                        .merge_unsafe(&counters.get_counter(1));
+                        .merge_bitwise_unsafe(&counters.get_counter(1));
                 }
 
                 let float_size = size as f64;

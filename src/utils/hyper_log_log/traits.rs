@@ -1,4 +1,3 @@
-use super::*;
 use crate::prelude::*;
 use sux::traits::Word;
 
@@ -33,7 +32,7 @@ where
     }
 }
 
-pub trait BitwiseCounter<T, W: Word>: Counter<T> {
+pub trait BitwiseCounter<T, W: Word> {
     fn as_words(&self) -> &[W];
 
     unsafe fn as_mut_words_unsafe(&mut self) -> &mut [W];
