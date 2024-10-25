@@ -422,13 +422,13 @@ impl<T: Sync + Hash, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCou
     }
 }
 
-impl<T: Hash, W: Word + IntoAtomic, H: BuildHasher> CounterArray
+impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CounterArray<'a>
     for HyperLogLogCounterArray<T, W, H>
 {
-    type Counter<'a> = HyperLogLogCounter<'a, T, W, H> where T: 'a, W: 'a, H: 'a;
+    type Counter = HyperLogLogCounter<'a, T, W, H>;
 
     #[inline(always)]
-    fn get_counter<'a>(&'a self, index: usize) -> Self::Counter<'a> {
+    fn get_counter(&'a self, index: usize) -> Self::Counter {
         assert!(index < self.num_counters);
         HyperLogLogCounter {
             counter_array: self,
@@ -437,6 +437,11 @@ impl<T: Hash, W: Word + IntoAtomic, H: BuildHasher> CounterArray
             thread_helper: None,
         }
     }
+}
+
+impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CachableCounterArray<'a>
+    for HyperLogLogCounterArray<T, W, H>
+{
 }
 
 /// Utility struct for parallel optimization.
