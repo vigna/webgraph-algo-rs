@@ -98,7 +98,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```no_run
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::{Counter, CounterArray};
+    /// # use webgraph_algo::prelude::*;
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
@@ -112,7 +112,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// # counters.get_counter(0).add(0);
     ///
     /// // This is undefined behavior
-    /// join(|| unsafe {c1.merge_unsafe(&c2_shared)}, || unsafe {c2.merge_unsafe(&c1_shared)});
+    /// join(|| unsafe {c1.merge_bitwise_unsafe(&c2_shared)}, || unsafe {c2.merge_bitwise_unsafe(&c1_shared)});
     /// # Ok(())
     /// # }
     /// ```
@@ -122,7 +122,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// ```
     /// # use rayon::join;
     /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::{Counter, CounterArray};
+    /// # use webgraph_algo::prelude::*;
     /// # use anyhow::Result;
     /// # fn main() -> Result<()> {
     /// let counters = HyperLogLogCounterArrayBuilder::new()
@@ -135,19 +135,17 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// let c2_shared = counters.get_counter(1);
     /// # counters.get_counter(0).add(0);
     ///
-    /// unsafe {
-    ///     c1.cache();
-    ///     c2.cache();
-    /// }
+    /// c1 = c1.into_owned();
+    /// c2 = c2.into_owned();
     ///
     /// // This is fine
-    /// join(|| unsafe {c1.merge_unsafe(&c2_shared)}, || unsafe {c2.merge_unsafe(&c1_shared)});
+    /// join(|| unsafe {c1.merge_bitwise_unsafe(&c2_shared)}, || unsafe {c2.merge_bitwise_unsafe(&c1_shared)});
     /// # Ok(())
     /// # }
     /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn merge_unsafe(&mut self, other: &Self) -> bool {
+    unsafe fn merge_unsafe(&mut self, other: &Self) -> bool {
         // The temporary vectors if no thread helper is used
         let mut acc_internal;
         let mut mask_internal;
@@ -172,7 +170,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
                 debug_assert!((num_bytes * 8) % W::BITS == 0);
 
                 let pointer =
-                    (other.counter_array.bits.as_slice().as_ptr() as *mut W).byte_add(byte_offset);
+                    (self.counter_array.bits.as_slice().as_ptr() as *mut W).byte_add(byte_offset);
                 debug_assert!(pointer.is_aligned());
 
                 (std::slice::from_raw_parts_mut(pointer, num_words), false)
@@ -342,89 +340,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
         changed
     }
 
-    /// Commits changes to this counter to the backend [`HyperLogLogCounterArray`].
-    ///
-    /// Calling this method on a counter whose registers aren't cached with [`Self::cache`]
-    /// or whose local cache isn't changed will result in a panic.
-    ///
-    /// # Arguments
-    /// * `keep_cached`: whether to keep the counter cached or to return to a non-cached one.
-    ///
-    /// # Safety
-    ///
-    /// Calling this method while reading from the same memory zone in the backend
-    /// [`HyperLogLogCounterArray`] (ie. with [`Self::cache`] on the same counter from
-    /// another instance) is [undefined behavior].
-    /// ```no_run
-    /// # use rayon::join;
-    /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::{Counter, CounterArray};
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
-    /// let counters = HyperLogLogCounterArrayBuilder::new()
-    ///     .rsd(0.1)
-    ///     .num_elements_upper_bound(10)
-    ///     .build(2)?;
-    /// let mut c1 = counters.get_counter(0);
-    /// let mut c1_copy = counters.get_counter(0);
-    ///
-    /// unsafe { c1.cache() };
-    /// c1.add(0);
-    ///
-    /// // This is undefined behavior
-    /// join(|| unsafe {c1.commit_changes(false)}, || unsafe {c1_copy.cache()});
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn commit_changes(&mut self, keep_cached: bool) {
-        assert!(self.cached_bits.is_some());
-        assert!(self.is_changed());
-
-        let cached = self.cached_bits.as_ref().unwrap().0.as_slice();
-
-        let bits_to_write = self.counter_array.num_registers * self.counter_array.register_size;
-        debug_assert!((W::BITS * cached.len()) - bits_to_write < W::BITS);
-        debug_assert!(bits_to_write % 8 == 0);
-        debug_assert_eq!(cached.len(), self.counter_array.words_per_counter());
-        let bytes_to_write = bits_to_write / 8;
-
-        let bits_offset = self.offset * self.counter_array.register_size;
-        debug_assert!(bits_offset % 8 == 0);
-        let byte_offset = bits_offset / 8;
-
-        let pointer =
-            (self.counter_array.bits.as_slice().as_ptr() as *mut u8).byte_add(byte_offset);
-
-        std::ptr::copy_nonoverlapping(cached.as_ptr() as *const u8, pointer, bytes_to_write);
-
-        if keep_cached {
-            if let Some((_, changed)) = self.cached_bits.as_mut() {
-                *changed = false;
-            }
-        } else {
-            self.cached_bits = None;
-        }
-    }
-
-    /// Commits changes to this counter to the backend [`HyperLogLogCounterArray`].
-    ///
-    /// This is a shorthand for `self.commit_changes(true)`.
-    ///
-    /// Calling this method on a counter whose registers aren't cached with [`Self::cache`]
-    /// or whose local cache isn't changed will result in a panic.
-    ///
-    /// # Safety
-    ///
-    /// Calling this method while reading from the same memory zone in the backend
-    /// [`HyperLogLogCounterArray`] (ie. with [`Self::cache`] on the same counter from
-    /// another instance) is [undefined behavior].
-    #[inline(always)]
-    pub unsafe fn sync_to_backend(&mut self) {
-        self.commit_changes(true);
-    }
-
     /// Cache the counter's registers.
     ///
     /// Once this method is called every change applied to this counter isn't reflected
@@ -436,30 +351,9 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// Calling this method while writing to the same memory zone in the backend
     /// [`HyperLogLogCounterArray`] (ie. with [`Self::commit_changes`] on the same counter from
     /// another instance) is [undefined behavior].
-    /// ```no_run
-    /// # use rayon::join;
-    /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-    /// # use webgraph_algo::prelude::{Counter, CounterArray};
-    /// # use anyhow::Result;
-    /// # fn main() -> Result<()> {
-    /// let counters = HyperLogLogCounterArrayBuilder::new()
-    ///     .rsd(0.1)
-    ///     .num_elements_upper_bound(10)
-    ///     .build(2)?;
-    /// let mut c1 = counters.get_counter(0);
-    /// let mut c1_copy = counters.get_counter(0);
-    ///
-    /// unsafe { c1.cache() };
-    /// c1.add(0);
-    ///
-    /// // This is undefined behavior
-    /// join(|| unsafe {c1.commit_changes(false)}, || unsafe {c1_copy.cache()});
-    /// # Ok(())
-    /// # }
-    /// ```
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn cache(&mut self) {
+    unsafe fn cache(&mut self) {
         let bits_offset = self.offset * self.counter_array.register_size;
         // Counters should be byte-aligned
         debug_assert!(bits_offset % 8 == 0);
@@ -498,7 +392,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
     /// another instance) is [undefined behavior].
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    pub unsafe fn set_to(&mut self, counter: &Self) {
+    unsafe fn set_to(&mut self, counter: &Self) {
         debug_assert_eq!(
             self.counter_array.register_size,
             counter.counter_array.register_size
@@ -779,5 +673,94 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> CachableCounter
             self.cache();
         }
         self
+    }
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<T, W>
+    for HyperLogLogCounter<'a, T, W, H>
+{
+    fn as_words(&self) -> &[W] {
+        match &self.cached_bits {
+            Some((bits, _)) => bits.as_slice(),
+            None => {
+                let num_words = self.counter_array.words_per_counter();
+                let bits_offset = self.offset * self.counter_array.register_size;
+                // Counters should be byte-aligned
+                debug_assert!(bits_offset % 8 == 0);
+                let byte_offset = bits_offset / 8;
+                let num_bytes = num_words * W::BYTES;
+                // We should copy whole words, not parts
+                debug_assert!((num_bytes * 8) % W::BITS == 0);
+
+                unsafe {
+                    let pointer = (self.counter_array.bits.as_slice().as_ptr() as *const W)
+                        .byte_add(byte_offset);
+                    debug_assert!(pointer.is_aligned());
+
+                    std::slice::from_raw_parts(pointer, num_words)
+                }
+            }
+        }
+    }
+
+    unsafe fn as_mut_words_unsafe(&mut self) -> &mut [W] {
+        match &mut self.cached_bits {
+            Some((bits, _)) => bits.as_mut_slice(),
+            None => {
+                let num_words = self.counter_array.words_per_counter();
+                let bits_offset = self.offset * self.counter_array.register_size;
+                // Counters should be byte-aligned
+                debug_assert!(bits_offset % 8 == 0);
+                let byte_offset = bits_offset / 8;
+                let num_bytes = num_words * W::BYTES;
+                // We should copy whole words, not parts
+                debug_assert!((num_bytes * 8) % W::BITS == 0);
+                unsafe {
+                    let pointer = (self.counter_array.bits.as_slice().as_ptr() as *mut W)
+                        .byte_add(byte_offset);
+                    debug_assert!(pointer.is_aligned());
+
+                    std::slice::from_raw_parts_mut(pointer, num_words)
+                }
+            }
+        }
+    }
+
+    unsafe fn merge_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<T, W>) {
+        let other = HyperLogLogCounter {
+            counter_array: self.counter_array,
+            offset: 0,
+            thread_helper: None,
+            cached_bits: Some((
+                BitFieldVec::from_raw_parts(
+                    Vec::from_iter(other.as_words().iter().cloned()),
+                    self.counter_array.register_size,
+                    self.counter_array.num_registers,
+                ),
+                false,
+            )),
+        };
+        self.merge_unsafe(&other);
+    }
+
+    unsafe fn set_to_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<T, W>) {
+        let other = HyperLogLogCounter {
+            counter_array: self.counter_array,
+            offset: 0,
+            thread_helper: None,
+            cached_bits: Some((
+                BitFieldVec::from_raw_parts(
+                    Vec::from_iter(other.as_words().iter().cloned()),
+                    self.counter_array.register_size,
+                    self.counter_array.num_registers,
+                ),
+                false,
+            )),
+        };
+        self.set_to(&other);
+    }
+
+    unsafe fn set_to_words_unsafe(&mut self, _words: &[W]) {
+        todo!()
     }
 }
