@@ -440,3 +440,11 @@ impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CachableC
     for HyperLogLogCounterArray<T, W, H>
 {
 }
+impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> ThreadHelperCounterArray<'a>
+    for HyperLogLogCounterArray<T, W, H>
+{
+    #[inline(always)]
+    fn get_thread_helper(&self) -> <Self::Counter as ThreadHelperCounter<'a>>::ThreadHelper {
+        self.get_thread_helper()
+    }
+}
