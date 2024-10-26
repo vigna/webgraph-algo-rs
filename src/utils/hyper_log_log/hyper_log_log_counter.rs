@@ -7,6 +7,12 @@ use std::{
 };
 use sux::{bits::BitFieldVec, traits::bit_field_slice::*};
 
+/// Utility struct for parallel optimization.
+pub struct ThreadHelper<W: Word + IntoAtomic> {
+    pub(super) acc: Vec<W>,
+    pub(super) mask: Vec<W>,
+}
+
 /// Concretized counter for [`HyperLogLogCounterArray`].
 ///
 /// Each counter holds only basic information in order to reduce memory usage.
