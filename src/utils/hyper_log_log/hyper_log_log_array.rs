@@ -440,9 +440,3 @@ impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CachableC
     for HyperLogLogCounterArray<T, W, H>
 {
 }
-
-/// Utility struct for parallel optimization.
-pub struct ThreadHelper<W: Word + IntoAtomic> {
-    pub(super) acc: Vec<W>,
-    pub(super) mask: Vec<W>,
-}
