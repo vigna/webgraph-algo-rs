@@ -639,10 +639,12 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> Eq for HyperLogLogCounter<'a, 
 {
 }
 
-impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> ToOwned for HyperLogLogCounter<'a, T, W, H> {
-    type Owned = HyperLogLogCounter<'a, T, W, H>;
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> CachableCounter
+    for HyperLogLogCounter<'a, T, W, H>
+{
+    type OwnedCounter = HyperLogLogCounter<'a, T, W, H>;
 
-    fn to_owned(&self) -> Self::Owned {
+    fn get_copy(&self) -> Self::OwnedCounter {
         let mut c = HyperLogLogCounter {
             cached_bits: None,
             counter_array: self.counter_array,
@@ -654,12 +656,8 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> ToOwned for HyperLogLogCounter
         }
         c
     }
-}
 
-impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> CachableCounter
-    for HyperLogLogCounter<'a, T, W, H>
-{
-    fn into_owned(mut self) -> <Self as ToOwned>::Owned
+    fn into_owned(mut self) -> Self::OwnedCounter
     where
         Self: Sized,
     {
@@ -670,7 +668,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> CachableCounter
     }
 }
 
-impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<T, W>
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<W>
     for HyperLogLogCounter<'a, T, W, H>
 {
     fn as_words(&self) -> &[W] {
@@ -720,7 +718,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<T, W>
         }
     }
 
-    unsafe fn merge_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<T, W>) {
+    unsafe fn merge_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>) {
         let other = HyperLogLogCounter {
             counter_array: self.counter_array,
             offset: 0,
@@ -737,7 +735,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<T, W>
         self.merge_unsafe(&other);
     }
 
-    unsafe fn set_to_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<T, W>) {
+    unsafe fn set_to_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>) {
         let other = HyperLogLogCounter {
             counter_array: self.counter_array,
             offset: 0,
@@ -763,14 +761,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> ThreadHelperCounter<'a>
     for HyperLogLogCounter<'a, T, W, H>
 {
     type ThreadHelper = ThreadHelper<W>;
-
-    #[inline(always)]
-    fn get_thread_helper(&self) -> Self::ThreadHelper {
-        ThreadHelper {
-            acc: Vec::with_capacity(self.counter_array.words_per_counter()),
-            mask: Vec::with_capacity(self.counter_array.words_per_counter()),
-        }
-    }
 
     #[inline(always)]
     fn use_thread_helper(&mut self, helper: &'a mut ThreadHelper<W>) {
