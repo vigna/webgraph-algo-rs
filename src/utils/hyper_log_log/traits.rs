@@ -62,15 +62,38 @@ pub unsafe trait BitwiseCounterSafe<T, W: Word>: BitwiseCounter<T, W> {
     }
 }
 
-pub trait HyperLogLog<T, W: Word>:
-    Counter<T> + ApproximatedCounter<T> + CachableCounter + BitwiseCounter<T, W>
+pub trait ThreadHelperCounter<'a> {
+    /// The type of the thread helper struct.
+    type ThreadHelper;
+
+    /// Sets the couter to use the specified thread helper.
+    fn use_thread_helper(&mut self, helper: &'a mut Self::ThreadHelper);
+
+    /// Stops the counter from using the thread helper.
+    fn remove_thread_helper(&mut self);
+
+    /// Returns a thread helper for this counter.
+    fn get_thread_helper(&self) -> Self::ThreadHelper;
+}
+
+pub trait HyperLogLog<'a, T, W: Word>:
+    Counter<T>
+    + ApproximatedCounter<T>
+    + CachableCounter
+    + BitwiseCounter<T, W>
+    + ThreadHelperCounter<'a>
 {
 }
 impl<
+        'a,
         T,
         W: Word,
-        C: Counter<T> + ApproximatedCounter<T> + CachableCounter + BitwiseCounter<T, W>,
-    > HyperLogLog<T, W> for C
+        C: Counter<T>
+            + ApproximatedCounter<T>
+            + CachableCounter
+            + BitwiseCounter<T, W>
+            + ThreadHelperCounter<'a>,
+    > HyperLogLog<'a, T, W> for C
 {
 }
 

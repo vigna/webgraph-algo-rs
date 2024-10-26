@@ -459,18 +459,6 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H
             }
         }
     }
-
-    /// Sets the couter to use the specified thread helper.
-    #[inline(always)]
-    pub fn use_thread_helper(&mut self, helper: &'a mut ThreadHelper<W>) {
-        self.thread_helper = Some(helper);
-    }
-
-    /// Stops the counter from using the thread helper.
-    #[inline(always)]
-    pub fn remove_thread_helper(&mut self) {
-        self.thread_helper = None;
-    }
 }
 
 impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounter<'a, T, W, H>
@@ -768,5 +756,29 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<T, W>
 
     unsafe fn set_to_words_unsafe(&mut self, _words: &[W]) {
         todo!()
+    }
+}
+
+impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> ThreadHelperCounter<'a>
+    for HyperLogLogCounter<'a, T, W, H>
+{
+    type ThreadHelper = ThreadHelper<W>;
+
+    #[inline(always)]
+    fn get_thread_helper(&self) -> Self::ThreadHelper {
+        ThreadHelper {
+            acc: Vec::with_capacity(self.counter_array.words_per_counter()),
+            mask: Vec::with_capacity(self.counter_array.words_per_counter()),
+        }
+    }
+
+    #[inline(always)]
+    fn use_thread_helper(&mut self, helper: &'a mut ThreadHelper<W>) {
+        self.thread_helper = Some(helper);
+    }
+
+    #[inline(always)]
+    fn remove_thread_helper(&mut self) {
+        self.thread_helper = None;
     }
 }
