@@ -22,7 +22,7 @@ fn test_single() -> Result<()> {
             let mut correct = 0;
 
             for trial in 0..NUM_TRIALS {
-                let counters = HyperLogLogCounterArrayBuilder::new()
+                let mut counters = HyperLogLogCounterArrayBuilder::new()
                     .word_type::<u16>()
                     .log_2_num_registers(log2m)
                     .num_elements_upper_bound(size)
@@ -69,7 +69,7 @@ fn test_double() -> Result<()> {
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let counters = HyperLogLogCounterArrayBuilder::new()
+                let mut counters = HyperLogLogCounterArrayBuilder::new()
                     .word_type::<u16>()
                     .log_2_num_registers(log2m)
                     .num_elements_upper_bound(size)
@@ -131,7 +131,7 @@ fn test_merge_safe() -> Result<()> {
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let counters = HyperLogLogCounterArrayBuilder::new()
+                let mut counters = HyperLogLogCounterArrayBuilder::new()
                     .word_type::<u16>()
                     .log_2_num_registers(log2m)
                     .num_elements_upper_bound(size)
@@ -146,7 +146,11 @@ fn test_merge_safe() -> Result<()> {
                     x += incr;
                 }
 
-                counters.get_counter(0).merge(&counters.get_counter(1));
+                unsafe {
+                    counters
+                        .get_counter_from_shared(0)
+                        .merge(&counters.get_counter_from_shared(1));
+                }
 
                 let float_size = size as f64;
 
@@ -198,7 +202,7 @@ fn test_merge_unsafe() -> Result<()> {
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let counters = HyperLogLogCounterArrayBuilder::new()
+                let mut counters = HyperLogLogCounterArrayBuilder::new()
                     .word_type::<u16>()
                     .log_2_num_registers(log2m)
                     .num_elements_upper_bound(size)
@@ -215,8 +219,8 @@ fn test_merge_unsafe() -> Result<()> {
 
                 unsafe {
                     counters
-                        .get_counter(0)
-                        .merge_bitwise_unsafe(&counters.get_counter(1));
+                        .get_counter_from_shared(0)
+                        .merge_bitwise(&counters.get_counter_from_shared(1));
                 }
 
                 let float_size = size as f64;

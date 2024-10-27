@@ -1103,23 +1103,37 @@ where
                 // 2) A systolic, local computation (the node is by definition to be checked, as it comes from the local check list).
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
-                    let mut counter = self.bits.get_owned_counter(node);
+                    // We write directly to the result
+                    let mut counter = unsafe {
+                        // Safety: no other thread will ever read from or write to this counter
+                        self.result_bits.get_counter_from_shared(node)
+                    };
+                    let old_counter = unsafe {
+                        // Safety: self.bits is never written to in parallel_task
+                        self.bits.get_counter_from_shared(node)
+                    };
                     counter.use_thread_helper(&mut thread_helper);
+                    let mut modified = false;
                     for succ in self.graph.successors(node) {
-                        visited_arcs += 1;
                         if succ != node && self.modified_counter[succ] {
-                            if !counter.is_cached() {
-                                counter = counter.into_owned();
+                            visited_arcs += 1;
+                            if !modified {
+                                counter.set_to_bitwise(&old_counter);
+                                modified = true;
                             }
                             unsafe {
-                                // Safety: the counter is cached and no other counter has access to it
+                                // Safety: self.bits is never written to in parallel_task
                                 counter.merge_bitwise(&self.bits.get_counter_from_shared(succ));
                             }
                         }
                     }
 
                     let mut post = f64::NAN;
-                    let modified_counter = counter.is_changed();
+                    let modified_counter = if modified {
+                        counter != old_counter
+                    } else {
+                        false
+                    };
 
                     // We need the counter value only if the iteration is standard (as we're going to
                     // compute the neighbourhood function cumulating actual values, and not deltas) or
@@ -1133,8 +1147,7 @@ where
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre =
-                            unsafe { self.bits.get_counter_from_shared(node) }.estimate_count();
+                        let pre = old_counter.estimate_count();
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
@@ -1202,14 +1215,8 @@ where
                     // This is slightly subtle: if a counter is not modified, and
                     // the present value was not a modified value in the first place,
                     // then we can avoid updating the result altogether.
-                    if modified_counter || self.modified_counter[node] {
-                        unsafe {
-                            // Safety: we are only ever writing to the result array and
-                            // no counter is ever written to more than once
-                            self.result_bits
-                                .get_counter_from_shared(node)
-                                .set_to_bitwise(&counter);
-                        }
+                    if !modified && self.modified_counter[node] {
+                        counter.set_to_bitwise(&old_counter);
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
