@@ -695,7 +695,7 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<W>
         }
     }
 
-    unsafe fn as_mut_words_unsafe(&mut self) -> &mut [W] {
+    fn as_mut_words(&mut self) -> &mut [W] {
         match &mut self.cached_bits {
             Some((bits, _)) => bits.as_mut_slice(),
             None => {
@@ -718,41 +718,45 @@ impl<'a, T, W: Word + IntoAtomic, H: BuildHasher> BitwiseCounter<W>
         }
     }
 
-    unsafe fn merge_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>) {
-        let other = HyperLogLogCounter {
-            counter_array: self.counter_array,
-            offset: 0,
-            thread_helper: None,
-            cached_bits: Some((
-                BitFieldVec::from_raw_parts(
-                    Vec::from_iter(other.as_words().iter().cloned()),
-                    self.counter_array.register_size,
-                    self.counter_array.num_registers,
-                ),
-                false,
-            )),
-        };
-        self.merge_unsafe(&other);
+    fn merge_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
+        unsafe {
+            let other = HyperLogLogCounter {
+                counter_array: self.counter_array,
+                offset: 0,
+                thread_helper: None,
+                cached_bits: Some((
+                    BitFieldVec::from_raw_parts(
+                        Vec::from_iter(other.as_words().iter().cloned()),
+                        self.counter_array.register_size,
+                        self.counter_array.num_registers,
+                    ),
+                    false,
+                )),
+            };
+            self.merge_unsafe(&other);
+        }
     }
 
-    unsafe fn set_to_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>) {
-        let other = HyperLogLogCounter {
-            counter_array: self.counter_array,
-            offset: 0,
-            thread_helper: None,
-            cached_bits: Some((
-                BitFieldVec::from_raw_parts(
-                    Vec::from_iter(other.as_words().iter().cloned()),
-                    self.counter_array.register_size,
-                    self.counter_array.num_registers,
-                ),
-                false,
-            )),
-        };
-        self.set_to(&other);
+    fn set_to_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
+        unsafe {
+            let other = HyperLogLogCounter {
+                counter_array: self.counter_array,
+                offset: 0,
+                thread_helper: None,
+                cached_bits: Some((
+                    BitFieldVec::from_raw_parts(
+                        Vec::from_iter(other.as_words().iter().cloned()),
+                        self.counter_array.register_size,
+                        self.counter_array.num_registers,
+                    ),
+                    false,
+                )),
+            };
+            self.set_to(&other);
+        }
     }
 
-    unsafe fn set_to_words_unsafe(&mut self, _words: &[W]) {
+    fn set_to_words(&mut self, _words: &[W]) {
         todo!()
     }
 }

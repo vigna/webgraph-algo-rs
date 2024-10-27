@@ -22,46 +22,18 @@ pub trait CachableCounter {
 pub trait BitwiseCounter<W: Word> {
     fn as_words(&self) -> &[W];
 
-    unsafe fn as_mut_words_unsafe(&mut self) -> &mut [W];
+    fn as_mut_words(&mut self) -> &mut [W];
 
-    unsafe fn merge_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>);
-
-    #[inline(always)]
-    unsafe fn set_to_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>) {
-        self.set_to_words_unsafe(other.as_words());
-    }
-
-    #[inline(always)]
-    unsafe fn set_to_words_unsafe(&mut self, words: &[W]) {
-        self.as_mut_words_unsafe().copy_from_slice(words);
-    }
-}
-
-pub unsafe trait BitwiseCounterSafe<W: Word>: BitwiseCounter<W> {
-    #[inline(always)]
-    fn as_mut_words(&mut self) -> &mut [W] {
-        unsafe { self.as_mut_words_unsafe() }
-    }
-
-    #[inline(always)]
-    fn merge_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
-        unsafe {
-            self.merge_bitwise_unsafe(other);
-        }
-    }
+    fn merge_bitwise(&mut self, other: &impl BitwiseCounter<W>);
 
     #[inline(always)]
     fn set_to_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
-        unsafe {
-            self.set_to_bitwise_unsafe(other);
-        }
+        self.set_to_words(other.as_words());
     }
 
     #[inline(always)]
     fn set_to_words(&mut self, words: &[W]) {
-        unsafe {
-            self.set_to_words_unsafe(words);
-        }
+        self.as_mut_words().copy_from_slice(words);
     }
 }
 
@@ -101,42 +73,28 @@ impl<
 {
 }
 
-pub trait CounterArray<'a> {
-    type Counter;
+pub trait HyperLogLogArray<'a, T, W: Word> {
+    type Counter: HyperLogLog<'a, T, W>;
 
-    fn get_counter(&'a self, index: usize) -> Self::Counter;
-}
+    unsafe fn get_counter_from_shared(&'a self, index: usize) -> Self::Counter;
 
-pub trait CachableCounterArray<'a>: CounterArray<'a>
-where
-    <Self as CounterArray<'a>>::Counter: CachableCounter,
-{
-    #[inline(always)]
+    fn get_counter(&'a mut self, index: usize) -> Self::Counter {
+        unsafe {
+            // Safety: We have a mutable reference so no other references exists
+            self.get_counter_from_shared(index)
+        }
+    }
+
     fn get_owned_counter(
         &'a self,
         index: usize,
     ) -> <Self::Counter as CachableCounter>::OwnedCounter {
-        self.get_counter(index).into_owned()
+        unsafe {
+            // Safety: We have a mutable reference so no other references exists,
+            // then the returned counter is owned, so no shared data exists
+            self.get_counter_from_shared(index).into_owned()
+        }
     }
-}
 
-pub trait ThreadHelperCounterArray<'a>: CounterArray<'a>
-where
-    Self::Counter: ThreadHelperCounter<'a>,
-{
     fn get_thread_helper(&self) -> <Self::Counter as ThreadHelperCounter<'a>>::ThreadHelper;
-}
-
-pub trait HyperLogLogArray<'a>:
-    CounterArray<'a> + CachableCounterArray<'a> + ThreadHelperCounterArray<'a>
-where
-    <Self as CounterArray<'a>>::Counter: CachableCounter + ThreadHelperCounter<'a>,
-{
-}
-
-impl<'a, T: CounterArray<'a> + CachableCounterArray<'a> + ThreadHelperCounterArray<'a>>
-    HyperLogLogArray<'a> for T
-where
-    T::Counter: CachableCounter + ThreadHelperCounter<'a>,
-{
 }

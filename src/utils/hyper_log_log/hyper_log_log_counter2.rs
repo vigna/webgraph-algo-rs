@@ -1,5 +1,6 @@
 use super::*;
 use crate::prelude::*;
+use common_traits::{IntoAtomic, UpcastableInto};
 use std::hash::*;
 use sux::{bits::BitFieldVec, traits::bit_field_slice::*};
 
@@ -12,7 +13,7 @@ pub struct ThreadHelper2<W: Word> {
 pub struct HyperLogLogCounter2<
     'a,
     T,
-    W: WordHash,
+    W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
     B = BitFieldVec<W, &'a mut [W]>,
 > {
@@ -21,8 +22,13 @@ pub struct HyperLogLogCounter2<
     pub(super) thread_helper: Option<&'a mut ThreadHelper2<W>>,
 }
 
-impl<'a, T: Hash, W: WordHash, H: BuildHasher, B: BitFieldSlice<W> + BitFieldSliceMut<W>>
-    HyperLogLogCounter2<'a, T, W, H, B>
+impl<
+        'a,
+        T: Hash,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B: BitFieldSlice<W> + BitFieldSliceMut<W>,
+    > HyperLogLogCounter2<'a, T, W, H, B>
 {
     /// Sets a register of the counter to the specified new value.
     ///
@@ -44,8 +50,13 @@ impl<'a, T: Hash, W: WordHash, H: BuildHasher, B: BitFieldSlice<W> + BitFieldSli
     }
 }
 
-impl<'a, T: Hash, W: WordHash, H: BuildHasher, B: BitFieldSlice<W> + BitFieldSliceMut<W>> Counter<T>
-    for HyperLogLogCounter2<'a, T, W, H, B>
+impl<
+        'a,
+        T: Hash,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B: BitFieldSlice<W> + BitFieldSliceMut<W>,
+    > Counter<T> for HyperLogLogCounter2<'a, T, W, H, B>
 {
     fn add(&mut self, element: T) {
         let x = self.array.hasher_builder.hash_one(element);
@@ -99,8 +110,13 @@ impl<'a, T: Hash, W: WordHash, H: BuildHasher, B: BitFieldSlice<W> + BitFieldSli
     }
 }
 
-impl<'a, T: Hash, W: WordHash, H: BuildHasher, B: BitFieldSlice<W> + BitFieldSliceMut<W>>
-    ApproximatedCounter<T> for HyperLogLogCounter2<'a, T, W, H, B>
+impl<
+        'a,
+        T: Hash,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B: BitFieldSlice<W> + BitFieldSliceMut<W>,
+    > ApproximatedCounter<T> for HyperLogLogCounter2<'a, T, W, H, B>
 {
     fn estimate_count(&self) -> f64 {
         let mut harmonic_mean = 0.0;
@@ -123,8 +139,8 @@ impl<'a, T: Hash, W: WordHash, H: BuildHasher, B: BitFieldSlice<W> + BitFieldSli
     }
 }
 
-impl<'a, T, W: WordHash, H: BuildHasher> CachableCounter
-    for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, &'a mut [W]>>
+impl<'a, T, W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>, H: BuildHasher>
+    CachableCounter for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, &'a mut [W]>>
 {
     type OwnedCounter = HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, Vec<W>>>;
 
@@ -155,10 +171,7 @@ impl<'a, T, W: WordHash, H: BuildHasher> CachableCounter
     }
 
     fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
-        unsafe {
-            // Safety: dst is Owned, so no shared data is accessed
-            dst.set_to_bitwise_unsafe(self);
-        };
+        dst.set_to_bitwise(self);
     }
 }
 
@@ -187,8 +200,13 @@ fn subtract<W: Word>(x: &mut [W], y: &[W]) {
     }
 }
 
-impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCounter<W>
-    for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, B>>
+impl<
+        'a,
+        T,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B: AsRef<[W]> + AsMut<[W]>,
+    > BitwiseCounter<W> for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, B>>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -196,11 +214,11 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
     }
 
     #[inline(always)]
-    unsafe fn as_mut_words_unsafe(&mut self) -> &mut [W] {
+    fn as_mut_words(&mut self) -> &mut [W] {
         self.bits.as_mut_slice()
     }
 
-    unsafe fn merge_bitwise_unsafe(&mut self, other: &impl BitwiseCounter<W>) {
+    fn merge_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
         // The temporary vectors if no thread helper is used
         let mut acc_internal;
         let mut mask_internal;
@@ -216,8 +234,8 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
         let x = self.bits.as_mut_slice();
         let y = other.as_words();
         let (acc, mask) = if let Some(helper) = &mut self.thread_helper {
-            helper.acc.set_len(0);
-            helper.mask.set_len(0);
+            helper.acc.clear();
+            helper.mask.clear();
             (&mut helper.acc, &mut helper.mask)
         } else {
             acc_internal = Vec::with_capacity(num_words);
@@ -226,11 +244,11 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
         };
 
         // We split x, y and the masks so we treat the last word appropriately.
-        let (x_last, x_slice) = x.split_last_mut().unwrap_unchecked();
+        let (x_last, x_slice) = x.split_last_mut().unwrap();
         let x_last_masked = *x_last & last_word_mask;
-        let (&y_last, y_slice) = y.split_last().unwrap_unchecked();
+        let (&y_last, y_slice) = y.split_last().unwrap();
         let y_last_masked = y_last & last_word_mask;
-        let (&msb_last, msb_slice) = msb_mask.split_last().unwrap_unchecked();
+        let (&msb_last, msb_slice) = msb_mask.split_last().unwrap();
 
         /* We work in two phases. Let H_r (msb_mask) be the mask with the
          * highest bit of each register (of size r) set, and L_r (lsb_mask)
@@ -274,7 +292,7 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
 
         // We OR with y ^ x, XOR with (y | !x), and finally AND with H_r.
         {
-            let (acc_last, acc_slice) = acc.split_last_mut().unwrap_unchecked();
+            let (acc_last, acc_slice) = acc.split_last_mut().unwrap();
             acc_slice
                 .iter_mut()
                 .zip(x_slice.iter())
@@ -290,7 +308,7 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
 
         // We shift by register_size - 1 places and put the result into mask.
         {
-            let (mask_last, mask_slice) = mask.split_last_mut().unwrap_unchecked();
+            let (mask_last, mask_slice) = mask.split_last_mut().unwrap();
             mask_slice
                 .iter_mut()
                 .zip(acc[0..num_words_minus_1].iter())
@@ -310,8 +328,8 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
         subtract(mask, lsb_mask);
 
         // We OR with H_r and XOR with the accumulator.
-        let (mask_last, mask_slice) = mask.split_last_mut().unwrap_unchecked();
-        let (&acc_last, acc_slice) = acc.split_last().unwrap_unchecked();
+        let (mask_last, mask_slice) = mask.split_last_mut().unwrap();
+        let (&acc_last, acc_slice) = acc.split_last().unwrap();
         mask_slice
             .iter_mut()
             .zip(msb_slice.iter())
@@ -329,13 +347,17 @@ impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]> + AsMut<[W]>> BitwiseCoun
             .for_each(|((x_word, &y_word), &mask_word)| {
                 *x_word = *x_word ^ ((*x_word ^ y_word) & mask_word);
             });
-        *x_last = (*x_last & !last_word_mask)
-            | (x_last_masked ^ ((x_last_masked ^ y_last_masked) & *mask_last));
+        *x_last = x_last_masked ^ ((x_last_masked ^ y_last_masked) & *mask_last);
     }
 }
 
-impl<'a, T, W: WordHash, H: BuildHasher, B> ThreadHelperCounter<'a>
-    for HyperLogLogCounter2<'a, T, W, H, B>
+impl<
+        'a,
+        T,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B,
+    > ThreadHelperCounter<'a> for HyperLogLogCounter2<'a, T, W, H, B>
 {
     type ThreadHelper = ThreadHelper2<W>;
 
@@ -348,15 +370,25 @@ impl<'a, T, W: WordHash, H: BuildHasher, B> ThreadHelperCounter<'a>
     }
 }
 
-impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]>> PartialEq
-    for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, B>>
+impl<
+        'a,
+        T,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B: AsRef<[W]>,
+    > PartialEq for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, B>>
 {
     fn eq(&self, other: &Self) -> bool {
         self.bits.as_slice() == other.bits.as_slice()
     }
 }
 
-impl<'a, T, W: WordHash, H: BuildHasher, B: AsRef<[W]>> Eq
-    for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, B>>
+impl<
+        'a,
+        T,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+        H: BuildHasher,
+        B: AsRef<[W]>,
+    > Eq for HyperLogLogCounter2<'a, T, W, H, BitFieldVec<W, B>>
 {
 }
