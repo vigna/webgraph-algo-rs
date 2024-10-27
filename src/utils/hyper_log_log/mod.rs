@@ -9,4 +9,7 @@ pub use hyper_log_log_counter2::*;
 
 pub mod traits;
 
+mod bitwise_utils;
+use bitwise_utils::*;
+
 type HashResult = u64;
