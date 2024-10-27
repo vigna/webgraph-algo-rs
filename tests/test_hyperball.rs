@@ -129,7 +129,7 @@ impl JenkinsHasher {
 
 impl Hasher for JenkinsHasher {
     fn finish(&self) -> u64 {
-        self.c as u64
+        self.c
     }
 
     fn write(&mut self, bytes: &[u8]) {

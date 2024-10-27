@@ -1,78 +1,81 @@
-use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 
-/// Flag used for [`DepthFirstGraphVisit`].
-///
-/// Specifies what event triggered the callback during the visit.
-#[derive(Debug)]
-pub enum DepthFirstVisitEvent {
-    /// Flag used for the first time a node is visited.
-    Discover,
-    /// Flag used for every time a node is encountered after the first.
-    AlreadyVisited,
-    /// Flag used when a node is completely visited and emitted as completed.
-    Emit,
+/// Types of callback events generated during a [`DepthFirstVisit`].
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Event {
+    /// The node thas just been encountered for the first time.
+    ///
+    /// The color of the node is white, and will become grey
+    /// after this event.
+    Unknown,
+    /// The node has been encountered before.
+    ///
+    /// The color of the node is grey or black, and will be
+    /// unchanged after this event.
+    Known,
+    /// The enumeration of the successors of the node has been completed.
+    ///
+    /// The color of the node is grey, and will turn black after this event.
+    Completed,
 }
 
-#[derive(Debug, Clone, Copy)]
+/// Convenience struct to pass arguments to the callback of a
+/// [`DepthFirstVisit`].
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct DFVArgs {
-    /// The node index
-    pub node_index: usize,
-    /// The parent of [`Self::node_index`]
-    pub parent: usize,
-    /// The root of the current visit tree
+    /// The node.
+    pub node: usize,
+    /// The predecessor of [node](`Self::node`); if [event](`Self::event`) is
+    /// [Unknown](`Event::Unknown`), this is the parent of [node](`Self::node`)
+    /// in the visit tree.
+    pub pred: usize,
+    /// The root of the current visit tree.
     pub root: usize,
-    /// The distance of [`Self::node_index`] from [`Self::root`]
-    pub distance_from_root: usize,
+    /// The distance of [node](`Self::node`) from the [root](`Self::root`).
+    pub distance: usize,
+    /// The event that triggered the callback.
+    pub event: Event,
 }
 
-/// A visitable graph that allows to compute Depth First Visit trees.
-pub trait DepthFirstGraphVisit {
-    /// Visits depth-first the graph from the specified node and applies `callback` to every visited node
-    /// with the appropriate flag.
+/// Depth-first visits for a graph.
+///
+/// Implementation of this trait must provide the
+/// [`visit_from_node`](DepthFirstVisit::visit_from_node) method, which should
+/// perform a depth-first visit of a graph starting from a given node, and the
+/// [`visit`](DepthFirstVisit::visit) method, which should perform a depth-first
+/// visit of the whole graph.
+///
+/// For each node, the visit should invoke a callback with argument of type
+/// [`DFVArgs`]. In particular, the callback will be called every time a new node
+/// is discovered, every time a node is revisited, and every time the
+/// enumeration of the successors of a node is completed. The callback will
+/// return a boolean value, and the subsequent behavior of the visit may very
+/// depending on the value. The specific behavior can be different for different
+/// implementations of this trait.
+///
+pub trait DepthFirstVisit {
+    /// Visits depth-first the graph from the specified node.
     ///
     /// # Arguments:
-    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
-    ///   of the visit, its distance from it and the event flag.
-    /// * `visit_root`: The node to start the visit in.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
-    #[inline(always)]
-    fn visit_from_node<C: Fn(DFVArgs, DepthFirstVisitEvent) + Sync>(
-        &mut self,
-        callback: C,
-        visit_root: usize,
-        pl: &mut impl ProgressLog,
-    ) -> Result<()> {
-        self.visit_from_node_filtered(callback, |_| true, visit_root, pl)
-    }
-
-    /// Visits depth-first the graph from the specified node and applies `callback` to every visited node
-    /// with the appropriate flag.
-    /// Nodes are filtered with `filter` callable.
+    /// * `callback`: The callback function.
     ///
-    /// # Arguments:
-    /// * `callback`: A function or a closure that takes as arguments the node index, its parent, the root
-    ///   of the visit, its distance from it and the event flag.
-    /// * `filter`: A function or closure that takes as arguments the node index, its parent, the root
-    ///   of the visit and its distance from it and returns `true` if the node should be visited,
-    ///   `false` otherwise.
-    /// * `visit_root`: The node to start the visit in.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
-    fn visit_from_node_filtered<
-        C: Fn(DFVArgs, DepthFirstVisitEvent) + Sync,
-        F: Fn(DFVArgs) -> bool + Sync,
-    >(
+    /// * `root`: The node to start the visit from.
+    ///
+    /// * `pl`: A progress logger that implements
+    ///   [`dsi_progress_logger::ProgressLog`] may be passed to the method to
+    ///   log the progress of the visit. If
+    ///   `Option::<dsi_progress_logger::ProgressLogger>::None` is passed,
+    ///   logging code should be optimized away by the compiler.
+    fn visit_from_node(
         &mut self,
-        callback: C,
-        filter: F,
-        visit_root: usize,
+        callback: impl Fn(DFVArgs) -> bool + Sync,
+        root: usize,
         pl: &mut impl ProgressLog,
-    ) -> Result<()>;
+    );
 
-    /// Resets the visit status.
-    fn reset(&mut self) -> Result<()>;
+    /// Visits the whole graph.
+    fn visit(&mut self, callback: impl Fn(DFVArgs) -> bool + Sync, pl: &mut impl ProgressLog);
+
+    /// Resets the visit status, making it possible to reuse it.
+    fn reset(&mut self);
 }
