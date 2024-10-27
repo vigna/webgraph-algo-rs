@@ -32,9 +32,11 @@ fn min_alignment(bits: usize) -> String {
 /// its methods, then call [`HyperLogLogCounterArrayBuilder::build`] on it to create
 /// the [`HyperLogLogCounterArray`] as a [`Result`].
 ///
+/// It assumes the counters are `W-aligned`.
+///
 /// ```
 /// # use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
-/// # use webgraph_algo::prelude::{Counter, CounterArray};
+/// # use webgraph_algo::prelude::*;
 /// # use anyhow::Result;
 /// # fn main() -> Result<()> {
 /// // Create a HyperLogLogCounterArray with 10 counters, each with
@@ -42,7 +44,7 @@ fn min_alignment(bits: usize) -> String {
 /// // and using a backend of usize.
 /// // Type of the counter is usually inferred if the counter is used,
 /// // otherwise it must be specified.
-/// let counter_array = HyperLogLogCounterArrayBuilder::new()
+/// let mut counter_array = HyperLogLogCounterArrayBuilder::new()
 ///     .log_2_num_registers(6)
 ///     .num_elements_upper_bound(30)
 ///     .build(10)?;
@@ -243,15 +245,6 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             )
         };
 
-        let mut residual_mask = W::MAX;
-        debug_assert_eq!(residual_mask.count_ones() as usize, W::BITS);
-        if counter_size_in_bits % W::BITS != 0 {
-            let residual_bits =
-                ((counter_size_in_bits / W::BITS) + 1) * W::BITS - counter_size_in_bits;
-            debug_assert!(residual_bits < W::BITS);
-            residual_mask >>= residual_bits;
-        }
-
         Ok(HyperLogLogCounterArray {
             bits,
             num_counters,
@@ -264,7 +257,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
             hasher_builder,
             msb_mask: msb,
             lsb_mask: lsb,
-            residual_mask,
+            words_per_counter: counter_size_in_words,
             _phantom_data: PhantomData,
         })
     }
@@ -313,8 +306,8 @@ pub struct HyperLogLogCounterArray<
     pub(super) msb_mask: BitFieldVec<W>,
     /// A mask containing a one in the least significant bit of each register
     pub(super) lsb_mask: BitFieldVec<W>,
-    /// A mask with the residual bits of a counter set to 1
-    pub(super) residual_mask: W,
+    /// The number of words per counter
+    pub(super) words_per_counter: usize,
     _phantom_data: PhantomData<T>,
 }
 
@@ -363,18 +356,10 @@ where
 }
 
 impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
-    /// Creates a thread helper for a counter of this array.
-    pub fn get_thread_helper(&self) -> ThreadHelper<W> {
-        ThreadHelper {
-            acc: Vec::with_capacity(self.words_per_counter()),
-            mask: Vec::with_capacity(self.words_per_counter()),
-        }
-    }
-
     /// Returns the number of words `W` per counter.
     #[inline(always)]
     pub fn words_per_counter(&self) -> usize {
-        self.msb_mask.as_slice().len()
+        self.words_per_counter
     }
 
     /// Swaps the undelying bits with those of aother equivalent array.
@@ -440,16 +425,22 @@ where
     #[inline(always)]
     unsafe fn get_counter_from_shared(&'a self, index: usize) -> Self::Counter {
         assert!(index < self.num_counters);
+        let mut ptr = self.bits.as_slice().as_ptr() as *mut W;
+        ptr = ptr.add(self.words_per_counter * index);
+        let slice = std::slice::from_raw_parts_mut(ptr, self.words_per_counter);
+        let bits = BitFieldVec::from_raw_parts(slice, self.register_size, self.num_registers);
         HyperLogLogCounter {
-            counter_array: self,
-            offset: index * self.num_registers,
-            cached_bits: None,
+            array: self,
+            bits,
             thread_helper: None,
         }
     }
 
     #[inline(always)]
     fn get_thread_helper(&self) -> <Self::Counter as ThreadHelperCounter<'a>>::ThreadHelper {
-        self.get_thread_helper()
+        ThreadHelper {
+            acc: Vec::with_capacity(self.words_per_counter),
+            mask: Vec::with_capacity(self.words_per_counter),
+        }
     }
 }
