@@ -39,33 +39,31 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, G> {
 impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit<'a, G> {
     fn visit_from_node(
         &mut self,
+        root: usize,
         callback: impl Fn(DFVArgs) -> bool + Sync,
-        visit_root: usize,
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) {
-        if self.discovered[visit_root] {
+        if self.discovered[root] {
             return;
         }
 
         // This variable keeps track of the current node being visited; the
         // parent node is derived at each iteration of the 'recurse loop.
-        let mut current_node = visit_root;
+        let mut current_node = root;
 
-        let args = DFVArgs {
-            node: visit_root,
-            pred: visit_root,
-            root: visit_root,
+        if !callback(DFVArgs {
+            node: root,
+            pred: root,
+            root,
             distance: 0,
             event: Event::Unknown,
-        };
-
-        if !callback(args) {
+        }) {
             return;
         }
 
         self.discovered.set(current_node, true);
         self.stack
-            .push((self.graph.successors(visit_root).into_iter(), visit_root));
+            .push((self.graph.successors(root).into_iter(), root));
 
         'recurse: loop {
             let depth = self.stack.len();
@@ -81,7 +79,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
                     if !callback(DFVArgs {
                         node: succ,
                         pred: current_node,
-                        root: visit_root,
+                        root,
                         distance: depth + 1,
                         event: Event::Known,
                     }) {
@@ -92,7 +90,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
                     if callback(DFVArgs {
                         node: succ,
                         pred: current_node,
-                        root: visit_root,
+                        root,
                         distance: depth + 1,
                         event: Event::Unknown,
                     }) {
@@ -111,7 +109,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
             if !callback(DFVArgs {
                 node: current_node,
                 pred: parent_node,
-                root: visit_root,
+                root,
                 distance: depth,
                 event: Event::Completed,
             }) {
@@ -133,7 +131,7 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(&callback, node, pl);
+            self.visit_from_node(node, &callback, pl);
         }
     }
 

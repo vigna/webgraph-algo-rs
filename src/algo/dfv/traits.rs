@@ -57,9 +57,9 @@ pub trait DepthFirstVisit {
     /// Visits depth-first the graph from the specified node.
     ///
     /// # Arguments:
-    /// * `callback`: The callback function.
-    ///
     /// * `root`: The node to start the visit from.
+    ///
+    /// * `callback`: The callback function.
     ///
     /// * `pl`: A progress logger that implements
     ///   [`dsi_progress_logger::ProgressLog`] may be passed to the method to
@@ -68,12 +68,15 @@ pub trait DepthFirstVisit {
     ///   logging code should be optimized away by the compiler.
     fn visit_from_node(
         &mut self,
-        callback: impl Fn(DFVArgs) -> bool + Sync,
         root: usize,
+        callback: impl Fn(DFVArgs) -> bool + Sync,
         pl: &mut impl ProgressLog,
     );
 
     /// Visits the whole graph.
+    ///
+    /// See [`visit_from_node`](DepthFirstVisit::visit_from_node) for more
+    /// details.
     fn visit(&mut self, callback: impl Fn(DFVArgs) -> bool + Sync, pl: &mut impl ProgressLog);
 
     /// Resets the visit status, making it possible to reuse it.
