@@ -1,7 +1,7 @@
 use super::*;
 use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{ensure, Context, Result};
-use common_traits::{AsBytes, Atomic, AtomicUnsignedInt, IntoAtomic, Number};
+use common_traits::{AsBytes, Atomic, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
 use rayon::prelude::*;
 use std::{
     f64::consts::LN_2,
@@ -407,25 +407,38 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
     }
 }
 
-impl<T: Sync + Hash, W: Word + IntoAtomic, H: BuildHasher + Sync> HyperLogLogCounterArray<T, W, H> {
+impl<
+        T: Sync + Hash,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
+        H: BuildHasher + Sync,
+    > HyperLogLogCounterArray<T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
+{
     /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
     pub fn into_vec(&self) -> Vec<HyperLogLogCounter<T, W, H>> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
-            .map(|i| self.get_counter(i))
+            .map(|i| unsafe { self.get_counter_from_shared(i) })
             .collect_into_vec(&mut vec);
         vec
     }
 }
 
-impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CounterArray<'a>
-    for HyperLogLogCounterArray<T, W, H>
+impl<
+        'a,
+        T: Hash + 'a,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64> + 'a,
+        H: BuildHasher + 'a,
+    > HyperLogLogArray<'a, T, W> for HyperLogLogCounterArray<T, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     type Counter = HyperLogLogCounter<'a, T, W, H>;
 
     #[inline(always)]
-    fn get_counter(&'a self, index: usize) -> Self::Counter {
+    unsafe fn get_counter_from_shared(&'a self, index: usize) -> Self::Counter {
         assert!(index < self.num_counters);
         HyperLogLogCounter {
             counter_array: self,
@@ -434,15 +447,7 @@ impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CounterAr
             thread_helper: None,
         }
     }
-}
 
-impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> CachableCounterArray<'a>
-    for HyperLogLogCounterArray<T, W, H>
-{
-}
-impl<'a, T: Hash + 'a, W: Word + IntoAtomic + 'a, H: BuildHasher + 'a> ThreadHelperCounterArray<'a>
-    for HyperLogLogCounterArray<T, W, H>
-{
     #[inline(always)]
     fn get_thread_helper(&self) -> <Self::Counter as ThreadHelperCounter<'a>>::ThreadHelper {
         self.get_thread_helper()

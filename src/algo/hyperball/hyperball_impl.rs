@@ -737,7 +737,8 @@ where
                     if d == 0.0 {
                         1.0
                     } else {
-                        let count = self.get_current_counter_borrowed(i).estimate_count();
+                        let count =
+                            unsafe { self.bits.get_counter_from_shared(i) }.estimate_count();
                         count * count / d
                     }
                 })
@@ -760,7 +761,7 @@ where
                 .iter()
                 .enumerate()
                 .map(|(i, &d)| {
-                    let count = self.get_current_counter_borrowed(i).estimate_count();
+                    let count = unsafe { self.bits.get_counter_from_shared(i) }.estimate_count();
                     (count * count) - d
                 })
                 .collect())
@@ -780,7 +781,7 @@ where
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
         } else {
-            Ok(self.get_current_counter_borrowed(node).estimate_count())
+            Ok(unsafe { self.bits.get_counter_from_shared(node) }.estimate_count())
         }
     }
 
@@ -795,7 +796,7 @@ where
             ))
         } else {
             Ok((0..self.graph.num_nodes())
-                .map(|n| self.get_current_counter_borrowed(n).estimate_count())
+                .map(|n| unsafe { self.bits.get_counter_from_shared(n) }.estimate_count())
                 .collect())
         }
     }
@@ -807,9 +808,11 @@ impl<
         G2: RandomAccessGraph,
         T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
-        W: Word + IntoAtomic,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
         H: BuildHasher,
     > HyperBall<'a, G1, G2, T, D, W, H>
+where
+    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
@@ -819,30 +822,6 @@ impl<
             &mut self.modified_counter,
             &mut self.modified_result_counter,
         );
-    }
-
-    /// Returns the counter of the specified index using as backend [`Self::current`].
-    #[inline(always)]
-    fn get_current_counter_borrowed(&self, index: usize) -> HyperLogLogCounter<G1::Label, W, H> {
-        self.bits.get_counter(index)
-    }
-
-    /// Returns the counter of the specified index using as backend [`Self::result`].
-    #[inline(always)]
-    fn get_result_counter_borrowed(&self, index: usize) -> HyperLogLogCounter<G1::Label, W, H> {
-        self.result_bits.get_counter(index)
-    }
-
-    /// Returns the owned counter of the specified index using as backend [`Self::current`].
-    #[inline(always)]
-    fn get_current_counter_owned(&self, index: usize) -> HyperLogLogCounter<G1::Label, W, H> {
-        self.bits.get_owned_counter(index)
-    }
-
-    /// Returns the owned counter of the specified index using as backend [`Self::result`].
-    #[inline(always)]
-    fn get_result_counter_owned(&self, index: usize) -> HyperLogLogCounter<G1::Label, W, H> {
-        self.result_bits.get_owned_counter(index)
     }
 }
 
@@ -1124,7 +1103,7 @@ where
                 // 2) A systolic, local computation (the node is by definition to be checked, as it comes from the local check list).
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
-                    let mut counter = self.get_current_counter_borrowed(node);
+                    let mut counter = self.bits.get_owned_counter(node);
                     counter.use_thread_helper(&mut thread_helper);
                     for succ in self.graph.successors(node) {
                         visited_arcs += 1;
@@ -1134,8 +1113,7 @@ where
                             }
                             unsafe {
                                 // Safety: the counter is cached and no other counter has access to it
-                                counter
-                                    .merge_bitwise_unsafe(&self.get_current_counter_borrowed(succ));
+                                counter.merge_bitwise(&self.bits.get_counter_from_shared(succ));
                             }
                         }
                     }
@@ -1155,7 +1133,8 @@ where
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = self.get_current_counter_borrowed(node).estimate_count();
+                        let pre =
+                            unsafe { self.bits.get_counter_from_shared(node) }.estimate_count();
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
@@ -1227,8 +1206,9 @@ where
                         unsafe {
                             // Safety: we are only ever writing to the result array and
                             // no counter is ever written to more than once
-                            self.get_result_counter_borrowed(node)
-                                .set_to_bitwise_unsafe(&counter);
+                            self.result_bits
+                                .get_counter_from_shared(node)
+                                .set_to_bitwise(&counter);
                         }
                     }
                 } else {
@@ -1239,8 +1219,9 @@ where
                         unsafe {
                             // Safety: we are only ever writing to the result array and
                             // no counter is ever written to more than once
-                            self.get_result_counter_borrowed(node)
-                                .set_to_bitwise_unsafe(&self.get_current_counter_borrowed(node))
+                            self.result_bits
+                                .get_counter_from_shared(node)
+                                .set_to_bitwise(&self.bits.get_counter_from_shared(node))
                         };
                     }
                 }
@@ -1280,7 +1261,7 @@ where
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
             for (i, &node_weight) in w.iter().enumerate() {
-                let mut counter = self.get_current_counter_borrowed(i);
+                let mut counter = self.bits.get_counter(i);
                 for _ in 0..node_weight {
                     counter.add(random());
                 }
@@ -1288,7 +1269,7 @@ where
         } else {
             self.threadpool.borrow().install(|| {
                 (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
-                    self.get_current_counter_borrowed(i).add(i);
+                    unsafe { self.bits.get_counter_from_shared(i) }.add(i);
                 });
             });
         }
