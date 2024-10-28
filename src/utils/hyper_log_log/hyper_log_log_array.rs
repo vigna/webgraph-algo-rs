@@ -400,10 +400,10 @@ impl<
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
     for<'a> Self: HyperLogLogArray<'a, T, W>,
-    for<'a> <Self as HyperLogLogArray<'a, T, W>>::Counter: Send,
+    for<'a, 'b> <Self as HyperLogLogArray<'a, T, W>>::Counter<'b>: Send,
 {
     /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
-    pub fn into_vec(&self) -> Vec<<Self as HyperLogLogArray<'_, T, W>>::Counter> {
+    pub fn into_vec(&self) -> Vec<<Self as HyperLogLogArray<'_, T, W>>::Counter<'_>> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
@@ -414,18 +414,18 @@ where
 }
 
 impl<
-        'a,
-        T: Hash + 'a,
-        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64> + 'a,
-        H: BuildHasher + 'a,
-    > HyperLogLogArray<'a, T, W> for HyperLogLogCounterArray<T, W, H>
+        'b,
+        T: Hash + 'b,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64> + 'b,
+        H: BuildHasher + 'b,
+    > HyperLogLogArray<'b, T, W> for HyperLogLogCounterArray<T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
-    type Counter = HyperLogLogCounter<'a, T, W, H, &'a mut [W]>;
+    type Counter<'a> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]> where T: 'a, W: 'a, H: 'a;
 
     #[inline(always)]
-    unsafe fn get_counter_from_shared(&'a self, index: usize) -> Self::Counter {
+    unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_> {
         assert!(index < self.num_counters);
         let mut ptr = self.bits.as_slice().as_ptr() as *mut W;
         ptr = ptr.add(self.words_per_counter * index);
@@ -438,7 +438,7 @@ where
     }
 
     #[inline(always)]
-    fn get_thread_helper(&self) -> <Self::Counter as ThreadHelperCounter<'a>>::ThreadHelper {
+    fn get_thread_helper(&self) -> <Self::Counter<'_> as ThreadHelperCounter<'b>>::ThreadHelper {
         ThreadHelper {
             acc: Vec::with_capacity(self.words_per_counter),
             mask: Vec::with_capacity(self.words_per_counter),
