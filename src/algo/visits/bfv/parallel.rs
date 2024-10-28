@@ -1,5 +1,5 @@
-use crate::prelude::*;
-use anyhow::Result;
+use crate::{algo::visits::ParVisit, prelude::*};
+use bfv::Args;
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -7,9 +7,8 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A simple parallel Breadth First visit on a graph with low memory consumption but with a smaller
-/// frontier.
-pub struct ParallelBreadthFirstVisitFastCB<
+/// A simple parallel Breadth First visit on a graph.
+pub struct ParallelBreadthFirstVisit<
     'a,
     G: RandomAccessGraph,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
@@ -20,9 +19,8 @@ pub struct ParallelBreadthFirstVisitFastCB<
     threads: T,
 }
 
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<'a, G, rayon::ThreadPool> {
-    /// Creates parallel top-down visit that uses less memory
-    /// but is less efficient with long callbacks.
+impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G, rayon::ThreadPool> {
+    /// Creates parallel top-down visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -32,8 +30,7 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<'a, G, rayon::Thr
         Self::with_num_threads(graph, granularity, 0)
     }
 
-    /// Creates a parallel top-down visit that uses the specified number of threads, less memory
-    /// but is less efficient with long callbacks.
+    /// Creates a parallel top-down visit that uses the specified number of threads.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -49,11 +46,8 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<'a, G, rayon::Thr
     }
 }
 
-impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
-    ParallelBreadthFirstVisitFastCB<'a, G, T>
-{
-    /// Creates a parallel top-down visit that uses the specified threadpool, less memory
-    /// but is less efficient with long callbacks.
+impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParallelBreadthFirstVisit<'a, G, T> {
+    /// Creates a parallel top-down visit that uses the specified threadpool.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -70,59 +64,63 @@ impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> BreadthFirstGraphVisit
-    for ParallelBreadthFirstVisitFastCB<'a, G, T>
+impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args>
+    for ParallelBreadthFirstVisit<'a, G, T>
 {
-    fn visit_from_node_filtered<C: Fn(BFVArgs) + Sync, F: Fn(BFVArgs) -> bool + Sync>(
+    fn visit_from_node<C: Fn(bfv::Args) + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
         &mut self,
+        root: usize,
         callback: C,
         filter: F,
-        visit_root: usize,
         pl: &mut impl ProgressLog,
-    ) -> Result<()> {
-        let args = BFVArgs {
-            node_index: visit_root,
-            parent: visit_root,
-            root: visit_root,
-            distance_from_root: 0,
+    ) {
+        let args = Args {
+            node: root,
+            parent: root,
+            root,
+            distance: 0,
         };
-        if self.visited.get(visit_root, Ordering::Relaxed) || !filter(args) {
-            return Ok(());
+        if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
+            return;
         }
+
+        callback(args);
 
         // We do not provide a capacity in the hope of allocating dyinamically
         // space as the frontiers grow.
         let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
         let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
 
-        self.threads
-            .borrow()
-            .install(|| curr_frontier.push(visit_root));
+        self.threads.borrow().install(|| {
+            curr_frontier.push((root, root));
+        });
 
-        self.visited.set(visit_root, true, Ordering::Relaxed);
-        callback(args);
+        self.visited.set(root, true, Ordering::Relaxed);
+        let mut distance = 0;
 
-        let mut distance = 1;
-
-        // Visit the connected component
         while !curr_frontier.is_empty() {
+            let distance_plus_one = distance + 1;
             self.threads.borrow().install(|| {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
                     .for_each(|chunk| {
-                        chunk.into_iter().for_each(|&node| {
+                        chunk.into_iter().for_each(|&(node, parent)| {
+                            callback(Args {
+                                node,
+                                parent,
+                                root,
+                                distance,
+                            });
                             self.graph.successors(node).into_iter().for_each(|succ| {
-                                let args = BFVArgs {
-                                    node_index: succ,
+                                if filter(&Args {
+                                    node: succ,
                                     parent: node,
-                                    root: visit_root,
-                                    distance_from_root: distance,
-                                };
-                                if filter(args) && !self.visited.swap(succ, true, Ordering::Relaxed)
+                                    root,
+                                    distance: distance_plus_one,
+                                }) && !self.visited.swap(succ, true, Ordering::Relaxed)
                                 {
-                                    callback(args);
-                                    next_frontier.push(succ);
+                                    next_frontier.push((succ, node));
                                 }
                             })
                         })
@@ -135,13 +133,20 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> BreadthFirst
             // Clear the frontier we will fill in the next iteration
             next_frontier.clear();
         }
-
-        Ok(())
     }
 
-    #[inline(always)]
-    fn reset(&mut self) -> Result<()> {
+    fn visit<C: Fn(bfv::Args) + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+        &mut self,
+        callback: C,
+        filter: F,
+        pl: &mut impl dsi_progress_logger::ProgressLog,
+    ) {
+        for node in 0..self.graph.num_nodes() {
+            self.visit_from_node(node, &callback, &filter, pl);
+        }
+    }
+
+    fn reset(&mut self) {
         self.visited.fill(false, Ordering::Relaxed);
-        Ok(())
     }
 }

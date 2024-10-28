@@ -67,7 +67,7 @@ impl<
         reversed_graph: &G2,
         scc: &C,
         options: TempMmapOptions,
-        mut pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<Self> {
         pl.display_memory(false);
         pl.expected_updates(None);

@@ -41,7 +41,7 @@ macro_rules! test_scc_algo {
                     &graph,
                     true,
                     TempMmapOptions::Default,
-                    Option::<ProgressLogger>::None,
+                    &mut Option::<ProgressLogger>::None,
                 )?;
 
                 assert_eq!(components.component()[3], components.component()[4]);
@@ -76,7 +76,7 @@ macro_rules! test_scc_algo {
                     &graph,
                     true,
                     TempMmapOptions::Default,
-                    Option::<ProgressLogger>::None,
+                    &mut Option::<ProgressLogger>::None,
                 )?;
 
                 let mut buckets = vec![false; graph.num_nodes()];
@@ -111,7 +111,7 @@ macro_rules! test_scc_algo {
                     &graph,
                     true,
                     TempMmapOptions::Default,
-                    Option::<ProgressLogger>::None,
+                    &mut Option::<ProgressLogger>::None,
                 )?;
                 components.sort_by_size();
 
@@ -145,7 +145,7 @@ macro_rules! test_scc_algo {
                     &graph,
                     true,
                     TempMmapOptions::Default,
-                    Option::<ProgressLogger>::None,
+                    &mut Option::<ProgressLogger>::None,
                 )?;
                 components.sort_by_size();
 

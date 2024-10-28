@@ -33,7 +33,7 @@ pub trait StronglyConnectedComponents<G> {
         graph: &G,
         compute_buckets: bool,
         options: TempMmapOptions,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<Self>
     where
         Self: Sized;
@@ -102,7 +102,7 @@ mod test {
             _graph: &G,
             _compute_buckets: bool,
             _path: TempMmapOptions,
-            _pl: impl ProgressLog,
+            _pl: &mut impl ProgressLog,
         ) -> Result<Self> {
             panic!()
         }

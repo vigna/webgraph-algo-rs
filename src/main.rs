@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     let graph = BvGraph::with_basename(&basename).load()?;
     let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
     let cumulative = DCF::load_mmap(basename + ".dcf", Flags::empty())?;
-    let main_pl = ProgressLogger::default();
+    let mut main_pl = ProgressLogger::default();
     main_pl.info(format_args!("Starting test..."));
 
     let mut flags = MmapFlags::empty();
@@ -33,17 +33,17 @@ fn main() -> Result<()> {
         .as_str()
     {
         "tarjan" => {
-            TarjanStronglyConnectedComponents::compute(&graph, false, mem_options, main_pl)?;
+            TarjanStronglyConnectedComponents::compute(&graph, false, mem_options, &mut main_pl)?;
         }
         "diameter" => {
-            let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new(
+            let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new_directed(
                 &graph,
                 &reversed_graph,
                 SumSweepOutputLevel::RadiusDiameter,
             )
             .mem_settings(mem_options)
-            .build(main_pl.clone())?;
-            diameter.compute(main_pl.clone())?;
+            .build(&mut main_pl);
+            diameter.compute(main_pl.clone()).unwrap();
         }
         "hyperball" => {
             let log2m = std::env::args()

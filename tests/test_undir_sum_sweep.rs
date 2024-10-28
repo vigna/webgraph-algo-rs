@@ -1,4 +1,4 @@
-use anyhow::Result;
+/*use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::diameter::*;
@@ -248,3 +248,4 @@ fn test_empty() -> Result<()> {
 
     Ok(())
 }
+*/

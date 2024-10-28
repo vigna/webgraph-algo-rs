@@ -1,6 +1,4 @@
-pub mod bfv;
-
-pub mod dfv;
+pub mod visits;
 
 pub mod diameter;
 
@@ -15,11 +13,9 @@ pub mod scc {
 }
 
 pub mod traits {
-    use super::bfv;
-    use super::dfv;
     use super::strongly_connected_components;
+    pub use super::visits::bfv;
+    pub use super::visits::dfv;
 
-    pub use bfv::traits::*;
-    pub use dfv::traits::*;
     pub use strongly_connected_components::traits::*;
 }

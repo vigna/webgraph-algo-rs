@@ -6,7 +6,7 @@ use webgraph::{
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
-use webgraph_algo::{algo::bfv::*, prelude::*};
+use webgraph_algo::algo::visits::*;
 
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
@@ -93,12 +93,11 @@ macro_rules! test_bfv_algo {
 
                 for node in 0..graph.num_nodes() {
                     visit.visit_from_node(
-                        |args| {
-                            dists[args.node_index].store(args.distance_from_root, Ordering::Relaxed)
-                        },
                         node,
+                        |args| dists[args.node].store(args.distance, Ordering::Relaxed),
+                        |_| true,
                         &mut Option::<ProgressLogger>::None,
-                    )?;
+                    );
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -120,12 +119,11 @@ macro_rules! test_bfv_algo {
                 for i in 0..graph.num_nodes() {
                     let node = (i + 10000) % graph.num_nodes();
                     visit.visit_from_node(
-                        |args| {
-                            dists[args.node_index].store(args.distance_from_root, Ordering::Relaxed)
-                        },
                         node,
+                        |args| dists[args.node].store(args.distance, Ordering::Relaxed),
+                        |_| true,
                         &mut Option::<ProgressLogger>::None,
-                    )?;
+                    );
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -138,9 +136,15 @@ macro_rules! test_bfv_algo {
     };
 }
 
-test_bfv_algo!(SingleThreadedBreadthFirstVisit::new, sequential);
-test_bfv_algo!(|g| ParallelBreadthFirstVisit::new(g, 32), parallel);
 test_bfv_algo!(
-    |g| ParallelBreadthFirstVisitFastCB::new(g, 32),
+    webgraph_algo::prelude::bfv::SingleThreadedBreadthFirstVisit::new,
+    sequential
+);
+test_bfv_algo!(
+    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisit::new(g, 32),
+    parallel
+);
+test_bfv_algo!(
+    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisitFastCB::new(g, 32),
     parallel_fast_callback
 );

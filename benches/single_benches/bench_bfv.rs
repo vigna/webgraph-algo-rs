@@ -3,7 +3,8 @@ use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::ProgressLogger;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::bfv::*;
+use webgraph_algo::algo::visits::bfv::*;
+use webgraph_algo::algo::visits::{ParVisit, SeqVisit};
 use webgraph_algo::prelude::*;
 
 pub fn bench_bfv(c: &mut Criterion) {
@@ -29,9 +30,12 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = SingleThreadedBreadthFirstVisit::new(g);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit_from_node(
+                            node,
+                            |_| {},
+                            |_| true,
+                            &mut Option::<ProgressLogger>::None,
+                        );
                     }
                 });
             },
@@ -45,9 +49,12 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisit::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit_from_node(
+                            node,
+                            |_| {},
+                            |_| true,
+                            &mut Option::<ProgressLogger>::None,
+                        );
                     }
                 });
             },
@@ -61,9 +68,12 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisit::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit_from_node(
+                            node,
+                            |_| {},
+                            |_| true,
+                            &mut Option::<ProgressLogger>::None,
+                        );
                     }
                 });
             },
@@ -77,9 +87,12 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisitFastCB::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit_from_node(
+                            node,
+                            |_| {},
+                            |_| true,
+                            &mut Option::<ProgressLogger>::None,
+                        );
                     }
                 });
             },
@@ -93,9 +106,12 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisitFastCB::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit_from_node(|_| {}, node, &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit_from_node(
+                            node,
+                            |_| {},
+                            |_| true,
+                            &mut Option::<ProgressLogger>::None,
+                        );
                     }
                 });
             },

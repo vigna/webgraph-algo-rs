@@ -1,5 +1,4 @@
-use crate::prelude::*;
-use anyhow::Result;
+use crate::algo::visits::{bfv, SeqVisit};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
@@ -40,28 +39,27 @@ impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
     }
 }
 
-impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthFirstVisit<'a, G> {
-    fn visit_from_node_filtered<C: Fn(BFVArgs) + Sync, F: Fn(BFVArgs) -> bool + Sync>(
+impl<'a, G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVisit<'a, G> {
+    fn visit_from_node<C: FnMut(bfv::Args), F: Fn(&bfv::Args) -> bool>(
         &mut self,
-        callback: C,
+        root: usize,
+        mut callback: C,
         filter: F,
-        visit_root: usize,
         pl: &mut impl ProgressLog,
-    ) -> Result<()> {
-        let args = BFVArgs {
-            node_index: visit_root,
-            parent: visit_root,
-            root: visit_root,
-            distance_from_root: 0,
+    ) {
+        let args = bfv::Args {
+            node: root,
+            parent: root,
+            root,
+            distance: 0,
         };
-        if self.visited[visit_root] || !filter(args) {
-            return Ok(());
+        if self.visited[root] || !filter(&args) {
+            return;
         }
 
-        callback(args);
-        self.visited.set(visit_root, true);
+        self.visited.set(root, true);
         self.queue.push_back(Some(
-            NonMaxUsize::new(visit_root).expect("node index should never be usize::MAX"),
+            NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
         ));
         self.queue.push_back(None);
 
@@ -72,13 +70,13 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
             match current_node {
                 Some(node) => {
                     for succ in self.graph.successors(node) {
-                        let args = BFVArgs {
-                            node_index: succ,
+                        let args = bfv::Args {
+                            node: succ,
                             parent: node,
-                            root: visit_root,
-                            distance_from_root: distance,
+                            root,
+                            distance,
                         };
-                        if !self.visited[succ] && filter(args) {
+                        if !self.visited[succ] && filter(&args) {
                             callback(args);
                             self.visited.set(succ, true);
                             self.queue.push_back(Some(
@@ -99,14 +97,21 @@ impl<'a, G: RandomAccessGraph> BreadthFirstGraphVisit for SingleThreadedBreadthF
                 }
             }
         }
-
-        Ok(())
     }
 
-    #[inline(always)]
-    fn reset(&mut self) -> Result<()> {
+    fn visit<C: FnMut(bfv::Args), F: Fn(&bfv::Args) -> bool>(
+        &mut self,
+        mut callback: C,
+        filter: F,
+        pl: &mut impl dsi_progress_logger::ProgressLog,
+    ) {
+        for node in 0..self.graph.num_nodes() {
+            self.visit_from_node(node, &mut callback, &filter, pl);
+        }
+    }
+
+    fn reset(&mut self) {
         self.queue.clear();
         self.visited.fill(false);
-        Ok(())
     }
 }

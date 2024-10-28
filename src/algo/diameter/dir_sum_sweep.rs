@@ -1,13 +1,14 @@
 use crate::{
     algo::{
-        bfv::ParallelBreadthFirstVisitFastCB,
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
+        visits::{bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
     },
     prelude::*,
     utils::*,
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result};
+use bfv::Args;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
@@ -27,7 +28,7 @@ pub struct SumSweepDirectedDiameterRadiusBuilder<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     T,
-    C: StronglyConnectedComponents<G1> = TarjanStronglyConnectedComponents<G1>,
+    SCC: StronglyConnectedComponents<G1> = TarjanStronglyConnectedComponents<G1>,
 > {
     graph: &'a G1,
     rev_graph: &'a G2,
@@ -35,7 +36,7 @@ pub struct SumSweepDirectedDiameterRadiusBuilder<
     radial_vertices: Option<AtomicBitVec>,
     threads: T,
     mem_options: TempMmapOptions,
-    _marker: std::marker::PhantomData<C>,
+    _marker: std::marker::PhantomData<SCC>,
 }
 
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
@@ -53,7 +54,11 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     /// * `graph`: the direct graph to analyze.
     /// * `transposed_graph`: the transposed of `graph`.
     /// * `output`: the output to generate.
-    pub fn new(graph: &'a G1, transposed_graph: &'a G2, output: SumSweepOutputLevel) -> Self {
+    pub fn new_directed(
+        graph: &'a G1,
+        transposed_graph: &'a G2,
+        output: SumSweepOutputLevel,
+    ) -> Self {
         assert_eq!(
             transposed_graph.num_nodes(),
             graph.num_nodes(),
@@ -82,6 +87,28 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             _marker: std::marker::PhantomData,
         }
     }
+
+    /*/// Creates a new builder with default parameters.
+    ///
+    /// # Arguments
+    /// * `graph`: the direct graph to analyze.
+    /// * `transposed_graph`: the transposed of `graph`.
+    /// * `output`: the output to generate.
+    pub fn new_undirected(graph: &G1, output: SumSweepOutputLevel) -> Self {
+        debug_assert!(
+            // We need check_symmetric
+            ///check_transposed(&graph, &transposed_graph), "transposed should be the transposed of the direct graph"
+        );
+        Self {
+            graph: graph,
+            rev_graph: graph,
+            output,
+            radial_vertices: None,
+            threads: Threads::Default,
+            mem_options: TempMmapOptions::Default,
+            _marker: std::marker::PhantomData,
+        }
+    }*/
 }
 
 impl<
@@ -191,8 +218,8 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents<G1> + Sync,
-    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C>
+        SCC: StronglyConnectedComponents<G1> + Sync,
+    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, SCC>
 {
     /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
     /// logs progress with the provided logger.
@@ -204,18 +231,20 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
-        pl: impl ProgressLog,
-    ) -> Result<
-        SumSweepDirectedDiameterRadius<
-            'a,
-            G1,
-            G2,
-            C,
-            ParallelBreadthFirstVisitFastCB<'a, G1, rayon::ThreadPool>,
-            ParallelBreadthFirstVisitFastCB<'a, G2, rayon::ThreadPool>,
-            rayon::ThreadPool,
-        >,
-    > {
+        pl: &mut impl ProgressLog,
+    ) -> SumSweepDirectedDiameterRadius<
+        'a,
+        G1,
+        G2,
+        SCC,
+        ParallelBreadthFirstVisitFastCB<&'a G1, rayon::ThreadPool>,
+        ParallelBreadthFirstVisitFastCB<&'a G2, rayon::ThreadPool>,
+        rayon::ThreadPool,
+    >
+    where
+        G1: 'a,
+        G2: 'a,
+    {
         let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
             self.graph,
             VISIT_GRANULARITY,
@@ -237,6 +266,7 @@ impl<
             self.mem_options,
             pl,
         )
+        .unwrap()
     }
 }
 
@@ -245,8 +275,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool> + Clone + Sync,
-        C: StronglyConnectedComponents<G1> + Sync,
-    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C>
+        SCC: StronglyConnectedComponents<G1> + Sync,
+    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, SCC>
 {
     /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
     /// logs progress with the provided logger.
@@ -258,17 +288,15 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
-        pl: impl ProgressLog,
-    ) -> Result<
-        SumSweepDirectedDiameterRadius<
-            'a,
-            G1,
-            G2,
-            C,
-            ParallelBreadthFirstVisitFastCB<'a, G1, T>,
-            ParallelBreadthFirstVisitFastCB<'a, G2, T>,
-            T,
-        >,
+        pl: &mut impl ProgressLog,
+    ) -> SumSweepDirectedDiameterRadius<
+        'a,
+        G1,
+        G2,
+        SCC,
+        ParallelBreadthFirstVisitFastCB<&'a G1, T>,
+        ParallelBreadthFirstVisitFastCB<&'a G2, T>,
+        T,
     > {
         let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
             self.graph,
@@ -291,6 +319,7 @@ impl<
             self.mem_options,
             pl,
         )
+        .unwrap()
     }
 }
 
@@ -300,9 +329,9 @@ pub struct SumSweepDirectedDiameterRadius<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
-    C: StronglyConnectedComponents<G1>,
-    V1: BreadthFirstGraphVisit,
-    V2: BreadthFirstGraphVisit,
+    SCC: StronglyConnectedComponents<G1>,
+    V1: ParVisit<bfv::Args> + Sync,
+    V2: ParVisit<bfv::Args> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -330,9 +359,9 @@ pub struct SumSweepDirectedDiameterRadius<
     forward_eccentricities_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all eccentricities are found.
     all_eccentricities_iterations: Option<NonMaxUsize>,
-    strongly_connected_components: C,
+    strongly_connected_components: SCC,
     /// The strongly connected components diagram.
-    strongly_connected_components_graph: SccGraph<G1, G2, C>,
+    strongly_connected_components_graph: SccGraph<G1, G2, SCC>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
     total_forward_distance: MmapSlice<usize>,
@@ -349,11 +378,11 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents<G1> + Sync,
-        V1: BreadthFirstGraphVisit + Sync,
-        V2: BreadthFirstGraphVisit + Sync,
+        SCC: StronglyConnectedComponents<G1> + Sync,
+        V1: ParVisit<bfv::Args> + Sync,
+        V2: ParVisit<bfv::Args> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
-    > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
+    > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -365,16 +394,15 @@ impl<
         threadpool: T,
         radial_vertices: Option<AtomicBitVec>,
         options: TempMmapOptions,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<Self> {
         let nn = graph.num_nodes();
-        ensure!(
+        assert!(
             nn < usize::MAX,
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        let scc = C::compute(graph, false, options.clone(), pl.clone())
-            .with_context(|| "Cannot compute strongly connected components")?;
+        let scc = SCC::compute(graph, false, options.clone(), pl).unwrap();
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
@@ -388,13 +416,12 @@ impl<
             .with_context(|| "Cannot create radial vertices bitvec slice")?;
         let acc_radial = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
 
-        let scc_graph = SccGraph::new(graph, reversed_graph, &scc, options.clone(), pl.clone())
-            .with_context(|| "Cannot create strongly connected components graph")?;
+        let scc_graph = SccGraph::new(graph, reversed_graph, &scc, options.clone(), pl)?;
 
         debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
         debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
         debug_assert!(
-            check_transposed(graph, reversed_graph),
+            check_transposed(&graph, &reversed_graph),
             "reversed_graph should be the transposed of graph"
         );
 
@@ -414,8 +441,8 @@ impl<
             .with_context(|| "Cannot create total backards distances slice")?;
 
         Ok(SumSweepDirectedDiameterRadius {
-            graph,
-            reversed_graph,
+            graph: &graph,
+            reversed_graph: &reversed_graph,
             number_of_nodes: nn,
             total_forward_distance: total_forward,
             total_backward_distance: total_backward,
@@ -449,8 +476,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents<G1> + Sync,
-        V1: BreadthFirstGraphVisit + Sync,
-        V2: BreadthFirstGraphVisit + Sync,
+        V1: ParVisit<bfv::Args> + Sync,
+        V2: ParVisit<bfv::Args> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -885,19 +912,14 @@ impl<
 
         pl.info(format_args!("Computing radial vertices set"));
 
-        self.transposed_visit
-            .visit_from_node(
-                |args| {
-                    self.radial_vertices
-                        .set(args.node_index, true, Ordering::Relaxed)
-                },
-                v,
-                &mut pl,
-            )
-            .with_context(|| format!("Could not perform BFS from {}", v))?;
-        self.transposed_visit
-            .reset()
-            .with_context(|| "Could not reset transposed visit")?;
+        let radial_vertices = &self.radial_vertices;
+        self.transposed_visit.visit_from_node(
+            v,
+            |args| radial_vertices.set(args.node, true, Ordering::Relaxed),
+            |_| true,
+            &mut pl,
+        );
+        self.transposed_visit.reset();
 
         pl.done();
 
@@ -948,57 +970,55 @@ impl<
             .as_mut_slice_of_cells();
         let total_forward_distance = self.total_forward_distance.as_mut_slice_of_cells();
 
-        self.transposed_visit
-            .visit_from_node(
-                |args| {
-                    let (distance, node) = (args.distance_from_root, args.node_index);
-                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                    max_dist.fetch_max(distance, Ordering::Relaxed);
+        self.transposed_visit.visit_from_node(
+            start,
+            |args| {
+                let (distance, node) = (args.distance, args.node);
+                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                    let node_forward_lower_bound_ptr =
-                        unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
-                    let node_total_forward_distance_ptr =
-                        unsafe { total_forward_distance.get_mut_unsafe(node) };
+                let node_forward_lower_bound_ptr =
+                    unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
+                let node_total_forward_distance_ptr =
+                    unsafe { total_forward_distance.get_mut_unsafe(node) };
 
-                    let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
-                    let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
+                let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
+                let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
 
+                unsafe {
+                    *node_total_forward_distance_ptr += distance;
+                }
+                if node_forward_lower_bound != node_forward_upper_bound
+                    && node_forward_lower_bound < distance
+                {
                     unsafe {
-                        *node_total_forward_distance_ptr += distance;
+                        *node_forward_lower_bound_ptr = distance;
                     }
-                    if node_forward_lower_bound != node_forward_upper_bound
-                        && node_forward_lower_bound < distance
-                    {
-                        unsafe {
-                            *node_forward_lower_bound_ptr = distance;
+
+                    if distance == node_forward_upper_bound && self.radial_vertices[node] {
+                        let mut update_radius = false;
+                        {
+                            let radius_lock = radius.read().unwrap();
+                            if distance < radius_lock.0 {
+                                update_radius = true;
+                            }
                         }
 
-                        if distance == node_forward_upper_bound && self.radial_vertices[node] {
-                            let mut update_radius = false;
-                            {
-                                let radius_lock = radius.read().unwrap();
-                                if distance < radius_lock.0 {
-                                    update_radius = true;
-                                }
-                            }
-
-                            if update_radius {
-                                let mut radius_lock = radius.write().unwrap();
-                                if distance < radius_lock.0 {
-                                    radius_lock.0 = distance;
-                                    radius_lock.1 = node;
-                                }
+                        if update_radius {
+                            let mut radius_lock = radius.write().unwrap();
+                            if distance < radius_lock.0 {
+                                radius_lock.0 = distance;
+                                radius_lock.1 = node;
                             }
                         }
                     }
-                },
-                start,
-                &mut pl,
-            )
-            .with_context(|| format!("Could not perform BFS from {}", start))?;
-        self.transposed_visit
-            .reset()
-            .with_context(|| "Could not reset transposed visit")?;
+                }
+            },
+            |_| true,
+            &mut pl,
+        );
+
+        self.transposed_visit.reset();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -1031,39 +1051,36 @@ impl<
             .as_mut_slice_of_cells();
         let total_backward_distance = self.total_backward_distance.as_mut_slice_of_cells();
 
-        self.visit
-            .visit_from_node(
-                |args| {
-                    let (distance, node) = (args.distance_from_root, args.node_index);
-                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                    max_dist.fetch_max(distance, Ordering::Relaxed);
+        self.visit.visit_from_node(
+            start,
+            |args| {
+                let (distance, node) = (args.distance, args.node);
+                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                    let node_backward_lower_bound_ptr =
-                        unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
-                    let node_total_backward_distance_ptr =
-                        unsafe { total_backward_distance.get_mut_unsafe(node) };
+                let node_backward_lower_bound_ptr =
+                    unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
+                let node_total_backward_distance_ptr =
+                    unsafe { total_backward_distance.get_mut_unsafe(node) };
 
-                    let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
-                    let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
+                let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
+                let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
 
+                unsafe {
+                    *node_total_backward_distance_ptr += distance;
+                }
+                if node_backward_lower_bound != node_backward_upper_bound
+                    && node_backward_lower_bound < distance
+                {
                     unsafe {
-                        *node_total_backward_distance_ptr += distance;
+                        *node_backward_lower_bound_ptr = distance;
                     }
-                    if node_backward_lower_bound != node_backward_upper_bound
-                        && node_backward_lower_bound < distance
-                    {
-                        unsafe {
-                            *node_backward_lower_bound_ptr = distance;
-                        }
-                    }
-                },
-                start,
-                &mut pl,
-            )
-            .with_context(|| format!("Could not perform BFS from {}", start))?;
-        self.visit
-            .reset()
-            .with_context(|| "Could not reset visit")?;
+                }
+            },
+            |_| true,
+            &mut pl,
+        );
+        self.visit.reset();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -1151,20 +1168,23 @@ impl<
                 let pivot_component = components[p];
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
-                bfs.visit_from_node_filtered(
-                    |args| {
-                        let (distance, node) = (args.distance_from_root, args.node_index);
+                bfs.visit_from_node(
+                    p,
+                    |Args {
+                         node,
+                         parent: _parent,
+                         root: _root,
+                         distance,
+                     }| {
                         // Safety: each node is accessed exactly once
                         unsafe {
                             dist_pivot_mut.write_once(node, distance);
                         }
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
                     },
-                    |args| components[args.node_index] == pivot_component,
-                    p,
+                    |args| components[args.node] == pivot_component,
                     &mut Option::<ProgressLogger>::None,
-                )
-                .unwrap_or_else(|_| panic!("Could not perform visit from {}", p));
+                );
 
                 current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
             }

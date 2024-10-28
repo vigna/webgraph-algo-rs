@@ -1,4 +1,7 @@
-use crate::prelude::*;
+use crate::algo::visits::{
+    dfv::{Args, Event},
+    SeqVisit,
+};
 use sux::bits::BitVec;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
@@ -28,19 +31,21 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, G> {
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
     pub fn new(graph: &'a G) -> Self {
+        let num_nodes = graph.num_nodes();
         Self {
             graph,
             stack: Vec::with_capacity(16),
-            discovered: BitVec::new(graph.num_nodes()),
+            discovered: BitVec::new(num_nodes),
         }
     }
 }
 
-impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit<'a, G> {
-    fn visit_from_node(
+impl<'a, G: RandomAccessGraph> SeqVisit<Args> for SingleThreadedDepthFirstVisit<'a, G> {
+    fn visit_from_node<C: FnMut(Args), F: Fn(&Args) -> bool>(
         &mut self,
         root: usize,
-        callback: impl Fn(DFVArgs) -> bool + Sync,
+        mut callback: C,
+        filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) {
         if self.discovered[root] {
@@ -51,15 +56,19 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
         // parent node is derived at each iteration of the 'recurse loop.
         let mut current_node = root;
 
-        if !callback(DFVArgs {
+        let args = Args {
             node: root,
             pred: root,
             root,
-            distance: 0,
+            depth: 0,
             event: Event::Unknown,
-        }) {
+        };
+
+        if !filter(&args) {
             return;
         }
+
+        callback(args);
 
         self.discovered.set(current_node, true);
         self.stack
@@ -76,24 +85,28 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
                 // Check if node should be visited
                 if self.discovered[succ] {
                     // Node has already been visited
-                    if !callback(DFVArgs {
+                    let args = Args {
                         node: succ,
                         pred: current_node,
                         root,
-                        distance: depth + 1,
+                        depth: depth + 1,
                         event: Event::Known,
-                    }) {
+                    };
+                    if !filter(&args) {
                         break;
                     }
+                    callback(args);
                 } else {
                     // First time seeing node
-                    if callback(DFVArgs {
+                    let args = Args {
                         node: succ,
                         pred: current_node,
                         root,
-                        distance: depth + 1,
+                        depth: depth + 1,
                         event: Event::Unknown,
-                    }) {
+                    };
+                    if filter(&args) {
+                        callback(args);
                         self.discovered.set(succ, true);
                         // current_node is the parent of succ
                         self.stack
@@ -106,15 +119,18 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
             }
 
             // Emit node
-            if !callback(DFVArgs {
+
+            let args = Args {
                 node: current_node,
                 pred: parent_node,
                 root,
-                distance: depth,
+                depth,
                 event: Event::Completed,
-            }) {
+            };
+            if !filter(&args) {
                 break;
             }
+            callback(args);
 
             // We're going up one stack level, so the next current_node
             // is the current parent.
@@ -125,17 +141,17 @@ impl<'a, G: RandomAccessGraph> DepthFirstVisit for SingleThreadedDepthFirstVisit
         }
     }
 
-    fn visit(
+    fn visit<C: FnMut(Args), F: Fn(&Args) -> bool>(
         &mut self,
-        callback: impl Fn(DFVArgs) -> bool + Sync,
+        mut callback: C,
+        filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &callback, pl);
+            self.visit_from_node(node, &mut callback, &filter, pl);
         }
     }
 
-    #[inline(always)]
     fn reset(&mut self) {
         self.stack.clear();
         self.discovered.fill(false);

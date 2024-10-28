@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::{algo::dfv::*, prelude::*, utils::MmapSlice};
+use crate::{algo::visits::dfv::*, algo::visits::SeqVisit, prelude::*, utils::MmapSlice};
 use anyhow::{Context, Result};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
@@ -40,9 +40,9 @@ impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
         graph: &G,
         compute_buckets: bool,
         options: TempMmapOptions,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<Self> {
-        let mut visit = Visit::new(graph, compute_buckets);
+        let mut visit = Tarjan::new(graph, compute_buckets);
 
         visit
             .run(pl.clone())
@@ -64,46 +64,47 @@ impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
     }
 }
 
-struct Visit<'a, G: RandomAccessGraph> {
-    graph: &'a G,
+struct Tarjan<G: RandomAccessGraph> {
+    graph: G,
     pub components: Vec<usize>,
     pub buckets: Option<Vec<bool>>,
     indexes: Vec<Option<NonMaxUsize>>,
     lowlinks: Vec<usize>,
     on_stack: BitVec,
     terminal: Option<BitVec>,
-    /// The first-visit clock (incremented at each visited node).
+    /// The first-Tarjan clock (incremented at each Tarjaned node).
     current_index: usize,
     pub number_of_components: usize,
     stack: Vec<usize>,
 }
 
-impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
-    fn new(graph: &'a G, compute_buckets: bool) -> Visit<'a, G> {
-        Visit {
+impl<G: RandomAccessGraph + Sync> Tarjan<G> {
+    fn new(graph: G, compute_buckets: bool) -> Tarjan<G> {
+        let num_nodes = graph.num_nodes();
+        Tarjan {
             graph,
             buckets: if compute_buckets {
-                Some(vec![false; graph.num_nodes()])
+                Some(vec![false; num_nodes])
             } else {
                 None
             },
             terminal: if compute_buckets {
-                Some(BitVec::with_value(graph.num_nodes(), true))
+                Some(BitVec::with_value(num_nodes, true))
             } else {
                 None
             },
             current_index: 0,
-            indexes: vec![None; graph.num_nodes()],
-            lowlinks: vec![usize::MAX; graph.num_nodes()],
-            on_stack: BitVec::new(graph.num_nodes()),
+            indexes: vec![None; num_nodes],
+            lowlinks: vec![usize::MAX; num_nodes],
+            on_stack: BitVec::new(num_nodes),
             number_of_components: 0,
-            components: vec![0; graph.num_nodes()],
+            components: vec![0; num_nodes],
             stack: Vec::new(),
         }
     }
 
     fn run(&mut self, mut pl: impl ProgressLog) -> Result<()> {
-        let mut visit = SingleThreadedDepthFirstVisit::new(self.graph);
+        let mut visit = SingleThreadedDepthFirstVisit::new(&self.graph);
         pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
@@ -119,11 +120,11 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
         let components = self.components.as_mut_slice_of_cells();
 
         visit.visit(
-            |DFVArgs {
+            |Args {
                  node,
                  pred,
                  root: _root,
-                 distance: _distance,
+                 depth: _distance,
                  event,
              }| {
                 match event {
@@ -156,7 +157,9 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
                         }
                     },
                     Event::Completed => unsafe {
-                        if lowlinks[node].read() == indexes[node].read().unwrap().into() {
+                        if lowlinks[node].read()
+                            == <NonMaxUsize as Into<usize>>::into(indexes[node].read().unwrap())
+                        {
                             if let Some(b) = buckets.as_ref().map(|b| b.as_mut_unsafe()) {
                                 let t = terminal.as_ref().unwrap().as_mut_unsafe();
                                 let terminal = t[node];
@@ -196,8 +199,8 @@ impl<'a, G: RandomAccessGraph + Sync> Visit<'a, G> {
                         }
                     },
                 }
-                true
             },
+            |_| true,
             &mut pl,
         );
 
