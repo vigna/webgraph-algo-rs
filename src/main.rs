@@ -58,7 +58,6 @@ fn main() -> Result<()> {
                         .mem_options(mem_options.clone())
                         .num_elements_upper_bound(graph.num_nodes()),
                 )
-                .mem_settings(mem_options)
                 .sum_of_distances(true)
                 .sum_of_inverse_distances(true)
                 .transposed(Some(&reversed_graph))

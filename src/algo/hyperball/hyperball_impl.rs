@@ -39,7 +39,6 @@ pub struct HyperBallBuilder<
     granularity: usize,
     weights: Option<&'a [usize]>,
     hyper_log_log_settings: HyperLogLogCounterArrayBuilder<H, W>,
-    mem_settings: TempMmapOptions,
     threadpool: T,
 }
 
@@ -68,7 +67,6 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
             hyper_log_log_settings,
-            mem_settings: TempMmapOptions::Default,
             threadpool: Threads::Default,
         }
     }
@@ -123,7 +121,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
-            mem_settings: self.mem_settings,
             threadpool: self.threadpool,
         }
     }
@@ -204,18 +201,8 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: settings,
-            mem_settings: self.mem_settings,
             threadpool: self.threadpool,
         }
-    }
-
-    /// Sets the memory options used by the support arrays of the [`HyperBall`] instance.
-    ///
-    /// # Argumets
-    /// * `settings`: the new settings to use.
-    pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
-        self.mem_settings = settings;
-        self
     }
 
     /// Sets the [`HyperBall`] instance to use the default [`rayon::ThreadPool`].
@@ -230,7 +217,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
-            mem_settings: self.mem_settings,
             threadpool: Threads::Default,
         }
     }
@@ -251,7 +237,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
-            mem_settings: self.mem_settings,
             threadpool: Threads::NumThreads(num_threads),
         }
     }
@@ -274,7 +259,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
-            mem_settings: self.mem_settings,
             threadpool,
         }
     }
@@ -310,7 +294,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
-            mem_settings: self.mem_settings,
             threadpool: self.threadpool.build(),
         };
         builder.build(pl)
@@ -350,20 +333,14 @@ impl<
 
         let sum_of_distances = if self.sum_of_distances {
             pl.info(format_args!("Initializing sum of distances"));
-            Some(Mutex::new(
-                MmapSlice::from_value(0.0, num_nodes, self.mem_settings.clone())
-                    .with_context(|| "Could not initialize sum_of_distances")?,
-            ))
+            Some(Mutex::new(vec![0.0; num_nodes]))
         } else {
             pl.info(format_args!("Skipping sum of distances"));
             None
         };
         let sum_of_inverse_distances = if self.sum_of_inverse_distances {
             pl.info(format_args!("Initializing sum of inverse distances"));
-            Some(Mutex::new(
-                MmapSlice::from_value(0.0, num_nodes, self.mem_settings.clone())
-                    .with_context(|| "Could not initialize sum_of_inverse_distances")?,
-            ))
+            Some(Mutex::new(vec![0.0; num_nodes]))
         } else {
             pl.info(format_args!("Skipping sum of inverse distances"));
             None
@@ -374,38 +351,23 @@ impl<
             "Initializing {} discount fuctions",
             self.discount_functions.len()
         ));
-        for (i, _) in self.discount_functions.iter().enumerate() {
-            discounted_centralities.push(Mutex::new(
-                MmapSlice::from_value(0.0, num_nodes, self.mem_settings.clone())
-                    .with_context(|| format!("Could not initialize discount function {}", i))?,
-            ));
+        for _ in self.discount_functions.iter() {
+            discounted_centralities.push(Mutex::new(vec![0.0; num_nodes]));
         }
 
         pl.info(format_args!("Initializing bit vectors"));
 
         pl.info(format_args!("Initializing modified_counter bitvec"));
-        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
-        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
-            .with_context(|| "Could not initialize modified_counter")?;
-        let modified_counter = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+        let modified_counter = AtomicBitVec::new(num_nodes);
 
         pl.info(format_args!("Initializing modified_result_counter bitvec"));
-        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
-        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
-            .with_context(|| "Could not initialize modified_result_counter")?;
-        let modified_result_counter = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+        let modified_result_counter = AtomicBitVec::new(num_nodes);
 
         pl.info(format_args!("Initializing must_be_checked bitvec"));
-        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
-        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
-            .with_context(|| "Could not initialize must_be_checked")?;
-        let must_be_checked = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+        let must_be_checked = AtomicBitVec::new(num_nodes);
 
         pl.info(format_args!("Initializing next_must_be_checked bitvec"));
-        let (v, len) = AtomicBitVec::new(num_nodes).into_raw_parts();
-        let mmap = MmapSlice::from_vec(v, self.mem_settings.clone())
-            .with_context(|| "Could not initialize next_must_be_checked")?;
-        let next_must_be_checked = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
+        let next_must_be_checked = AtomicBitVec::new(num_nodes);
 
         let granularity = (self.granularity + W::BITS - 1) & W::BITS.wrapping_neg();
 
@@ -518,13 +480,13 @@ pub struct HyperBall<
     /// `true` if we are preparing a local computation (systolic is `true` and less than 1% nodes were modified)
     pre_local: bool,
     /// The sum of the distances from every give node, if requested
-    sum_of_distances: Option<Mutex<MmapSlice<f64>>>,
+    sum_of_distances: Option<Mutex<Vec<f64>>>,
     /// The sum of inverse distances from each given node, if requested
-    sum_of_inverse_distances: Option<Mutex<MmapSlice<f64>>>,
+    sum_of_inverse_distances: Option<Mutex<Vec<f64>>>,
     /// A number of discounted centralities to be computed, possibly none
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
     /// The overall discount centrality for every [`Self::discount_functions`]
-    discounted_centralities: Vec<Mutex<MmapSlice<f64>>>,
+    discounted_centralities: Vec<Mutex<Vec<f64>>>,
     /// The neighbourhood fuction
     neighbourhood_function: Vec<f64>,
     /// The value computed by the last iteration
@@ -532,17 +494,17 @@ pub struct HyperBall<
     /// The value computed by the current iteration
     current: Mutex<f64>,
     /// `modified_counter[i]` is `true` if `bits.get_counter(i)` has been modified
-    modified_counter: AtomicBitVec<MmapSlice<AtomicUsize>>,
+    modified_counter: AtomicBitVec,
     /// `modified_result_counter[i]` is `true` if `result_bits.get_counter(i)` has been modified
-    modified_result_counter: AtomicBitVec<MmapSlice<AtomicUsize>>,
+    modified_result_counter: AtomicBitVec,
     /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned
     local_checklist: Vec<G1::Label>,
     /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration
     local_next_must_be_checked: Mutex<Vec<G1::Label>>,
     /// Used in systolic iterations to keep track of nodes to check
-    must_be_checked: AtomicBitVec<MmapSlice<AtomicUsize>>,
+    must_be_checked: AtomicBitVec,
     /// Used in systolic iterations to keep track of nodes to check in the next iteration
-    next_must_be_checked: AtomicBitVec<MmapSlice<AtomicUsize>>,
+    next_must_be_checked: AtomicBitVec,
     /// The relative increment of the neighbourhood function for the last iteration
     relative_increment: f64,
     /// Context used in a single iteration
