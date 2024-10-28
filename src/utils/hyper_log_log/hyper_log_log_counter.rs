@@ -13,7 +13,7 @@ pub struct ThreadHelper<W: Word> {
 pub struct HyperLogLogCounter<
     'a,
     T,
-    W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<u64>,
+    W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
     B = BitFieldVec<W, &'a mut [W]>,
 > {
