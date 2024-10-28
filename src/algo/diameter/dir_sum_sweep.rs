@@ -35,7 +35,6 @@ pub struct SumSweepDirectedDiameterRadiusBuilder<
     output: SumSweepOutputLevel,
     radial_vertices: Option<AtomicBitVec>,
     threads: T,
-    mem_options: TempMmapOptions,
     _marker: std::marker::PhantomData<SCC>,
 }
 
@@ -54,11 +53,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     /// * `graph`: the direct graph to analyze.
     /// * `transposed_graph`: the transposed of `graph`.
     /// * `output`: the output to generate.
-    pub fn new_directed(
-        graph: &'a G1,
-        transposed_graph: &'a G2,
-        output: SumSweepOutputLevel,
-    ) -> Self {
+    pub fn new(graph: &'a G1, transposed_graph: &'a G2, output: SumSweepOutputLevel) -> Self {
         assert_eq!(
             transposed_graph.num_nodes(),
             graph.num_nodes(),
@@ -83,32 +78,9 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             output,
             radial_vertices: None,
             threads: Threads::Default,
-            mem_options: TempMmapOptions::Default,
             _marker: std::marker::PhantomData,
         }
     }
-
-    /*/// Creates a new builder with default parameters.
-    ///
-    /// # Arguments
-    /// * `graph`: the direct graph to analyze.
-    /// * `transposed_graph`: the transposed of `graph`.
-    /// * `output`: the output to generate.
-    pub fn new_undirected(graph: &G1, output: SumSweepOutputLevel) -> Self {
-        debug_assert!(
-            // We need check_symmetric
-            ///check_transposed(&graph, &transposed_graph), "transposed should be the transposed of the direct graph"
-        );
-        Self {
-            graph: graph,
-            rev_graph: graph,
-            output,
-            radial_vertices: None,
-            threads: Threads::Default,
-            mem_options: TempMmapOptions::Default,
-            _marker: std::marker::PhantomData,
-        }
-    }*/
 }
 
 impl<
@@ -134,16 +106,6 @@ impl<
         self
     }
 
-    /// Sets the memory options used by the support arrays of the
-    /// [`SumSweepDirectedDiameterRadius`] instance.
-    ///
-    /// # Argumets
-    /// * `settings`: the new settings to use.
-    pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
-        self.mem_options = settings;
-        self
-    }
-
     /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use the default [`rayon::ThreadPool`].
     pub fn default_threadpool(
         self,
@@ -154,7 +116,6 @@ impl<
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads: Threads::Default,
-            mem_options: self.mem_options,
             _marker: self._marker,
         }
     }
@@ -174,7 +135,6 @@ impl<
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads: Threads::NumThreads(num_threads),
-            mem_options: self.mem_options,
             _marker: self._marker,
         }
     }
@@ -193,7 +153,6 @@ impl<
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads,
-            mem_options: self.mem_options,
             _marker: self._marker,
         }
     }
@@ -208,7 +167,6 @@ impl<
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads: self.threads,
-            mem_options: self.mem_options,
             _marker: std::marker::PhantomData,
         }
     }
@@ -263,10 +221,8 @@ impl<
             transposed_visit,
             self.threads.build(),
             self.radial_vertices,
-            self.mem_options,
             pl,
         )
-        .unwrap()
     }
 }
 
@@ -316,10 +272,8 @@ impl<
             transposed_visit,
             self.threads,
             self.radial_vertices,
-            self.mem_options,
             pl,
         )
-        .unwrap()
     }
 }
 
@@ -338,7 +292,7 @@ pub struct SumSweepDirectedDiameterRadius<
     reversed_graph: &'a G2,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
-    radial_vertices: AtomicBitVec<MmapSlice<AtomicUsize>>,
+    radial_vertices: AtomicBitVec,
     diameter_lower_bound: usize,
     radius_upper_bound: usize,
     /// A vertex whose eccentricity equals the diameter.
@@ -347,10 +301,10 @@ pub struct SumSweepDirectedDiameterRadius<
     radius_vertex: usize,
     /// Number of iterations performed until now.
     iterations: usize,
-    lower_bound_forward_eccentricities: MmapSlice<usize>,
-    upper_bound_forward_eccentricities: MmapSlice<usize>,
-    lower_bound_backward_eccentricities: MmapSlice<usize>,
-    upper_bound_backward_eccentricities: MmapSlice<usize>,
+    lower_bound_forward_eccentricities: Vec<usize>,
+    upper_bound_forward_eccentricities: Vec<usize>,
+    lower_bound_backward_eccentricities: Vec<usize>,
+    upper_bound_backward_eccentricities: Vec<usize>,
     /// Number of iterations before the radius is found.
     radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter is found.
@@ -364,10 +318,10 @@ pub struct SumSweepDirectedDiameterRadius<
     strongly_connected_components_graph: SccGraph<G1, G2, SCC>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_forward_distance: MmapSlice<usize>,
+    total_forward_distance: Vec<usize>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_backward_distance: MmapSlice<usize>,
+    total_backward_distance: Vec<usize>,
     compute_radial_vertices: bool,
     visit: V1,
     transposed_visit: V2,
@@ -393,16 +347,15 @@ impl<
         transposed_visit: V2,
         threadpool: T,
         radial_vertices: Option<AtomicBitVec>,
-        options: TempMmapOptions,
         pl: &mut impl ProgressLog,
-    ) -> Result<Self> {
+    ) -> Self {
         let nn = graph.num_nodes();
         assert!(
             nn < usize::MAX,
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        let scc = SCC::compute(graph, false, options.clone(), pl).unwrap();
+        let scc = SCC::compute(graph, false, pl);
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
@@ -411,12 +364,8 @@ impl<
         } else {
             AtomicBitVec::new(nn)
         };
-        let (v, len) = acc_radial.into_raw_parts();
-        let mmap = MmapSlice::from_vec(v, options.clone())
-            .with_context(|| "Cannot create radial vertices bitvec slice")?;
-        let acc_radial = unsafe { AtomicBitVec::from_raw_parts(mmap, len) };
 
-        let scc_graph = SccGraph::new(graph, reversed_graph, &scc, options.clone(), pl)?;
+        let scc_graph = SccGraph::new(graph, reversed_graph, &scc, pl);
 
         debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
         debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
@@ -427,20 +376,14 @@ impl<
 
         pl.info(format_args!("Initializing data structure"));
 
-        let lower_forward = MmapSlice::from_vec(vec![0; nn], options.clone())
-            .with_context(|| "Cannot create lower bound forward eccentricities slice")?;
-        let lower_backward = MmapSlice::from_vec(vec![0; nn], options.clone())
-            .with_context(|| "Cannot create lower bound backwards eccentricities slice")?;
-        let upper_forward = MmapSlice::from_vec(vec![nn + 1; nn], options.clone())
-            .with_context(|| "Cannot create upper bound forward eccentricities slice")?;
-        let upper_backward = MmapSlice::from_vec(vec![nn + 1; nn], options.clone())
-            .with_context(|| "Cannot create upper bound backwards eccentricities slice")?;
-        let total_forward = MmapSlice::from_vec(vec![0; nn], options.clone())
-            .with_context(|| "Cannot create total forward distances slice")?;
-        let total_backward = MmapSlice::from_vec(vec![0; nn], options.clone())
-            .with_context(|| "Cannot create total backards distances slice")?;
+        let lower_forward = vec![0; nn];
+        let lower_backward = vec![0; nn];
+        let upper_forward = vec![nn + 1; nn];
+        let upper_backward = vec![nn + 1; nn];
+        let total_forward = vec![0; nn];
+        let total_backward = vec![0; nn];
 
-        Ok(SumSweepDirectedDiameterRadius {
+        SumSweepDirectedDiameterRadius {
             graph: &graph,
             reversed_graph: &reversed_graph,
             number_of_nodes: nn,
@@ -467,7 +410,7 @@ impl<
             visit: direct_visit,
             transposed_visit,
             threadpool,
-        })
+        }
     }
 }
 

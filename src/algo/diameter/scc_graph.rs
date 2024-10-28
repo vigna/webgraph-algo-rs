@@ -1,8 +1,4 @@
-use crate::{
-    prelude::*,
-    utils::{MmapSlice, TempMmapOptions},
-};
-use anyhow::{ensure, Context, Result};
+use crate::prelude::*;
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
@@ -26,8 +22,8 @@ pub struct SccGraph<
 > {
     /// Slice of offsets where the `i`-th offset is how many elements to skip in [`Self::data`]
     /// in order to reach the first element relative to component `i`.
-    segments_offset: MmapSlice<usize>,
-    data: MmapSlice<SccGraphConnection>,
+    segments_offset: Vec<usize>,
+    data: Vec<SccGraphConnection>,
     _phantom_graph: PhantomData<G1>,
     _phantom_revgraph: PhantomData<G2>,
     _phantom_component: PhantomData<C>,
@@ -58,47 +54,26 @@ impl<
     /// * `graph`: An immutable reference to the graph.
     /// * `reversed_graph`: An immutable reference to `graph` transposed.
     /// * `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
-    /// * `options`: the options for the [`crate::utils::mmap_slice::MmapSlice`].
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    pub fn new(
-        graph: &G1,
-        reversed_graph: &G2,
-        scc: &C,
-        options: TempMmapOptions,
-        pl: &mut impl ProgressLog,
-    ) -> Result<Self> {
+    pub fn new(graph: &G1, reversed_graph: &G2, scc: &C, pl: &mut impl ProgressLog) -> Self {
         pl.display_memory(false);
         pl.expected_updates(None);
         pl.start("Computing strongly connected components graph...");
 
         let (vec_lengths, vec_connections) =
-            Self::find_edges_through_scc(graph, reversed_graph, scc, pl.clone()).with_context(
-                || "Cannot create vector based strongly connected components graph",
-            )?;
+            Self::find_edges_through_scc(graph, reversed_graph, scc, pl.clone());
 
-        pl.info(format_args!("Memory mapping segment lengths..."));
-
-        let mmap_lengths = MmapSlice::from_vec(vec_lengths, options.clone())
-            .with_context(|| "Cannot mmap segment lengths")?;
-
-        pl.info(format_args!("Segment lengths successfully memory mapped"));
-        pl.info(format_args!("Memory mapping connections..."));
-
-        let mmap_connections = MmapSlice::from_vec(vec_connections, options.clone())
-            .with_context(|| "Cannot mmap connections")?;
-
-        pl.info(format_args!("Connections successfully memory mapped"));
         pl.done();
 
-        Ok(Self {
-            segments_offset: mmap_lengths,
-            data: mmap_connections,
+        Self {
+            segments_offset: vec_lengths,
+            data: vec_connections,
             _phantom_graph: PhantomData,
             _phantom_revgraph: PhantomData,
             _phantom_component: PhantomData,
-        })
+        }
     }
 
     /// The children of the passed strongly connected component.
@@ -139,8 +114,8 @@ impl<
         reversed_graph: &G2,
         scc: &C,
         mut pl: impl ProgressLog,
-    ) -> Result<(Vec<usize>, Vec<SccGraphConnection>)> {
-        ensure!(
+    ) -> (Vec<usize>, Vec<SccGraphConnection>) {
+        assert!(
             graph.num_nodes() < usize::MAX,
             "Graph should have a number of nodes < usize::MAX"
         );
@@ -245,6 +220,6 @@ impl<
 
         pl.done();
 
-        Ok((lengths, connections))
+        (lengths, connections)
     }
 }

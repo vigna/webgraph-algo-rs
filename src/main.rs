@@ -33,17 +33,16 @@ fn main() -> Result<()> {
         .as_str()
     {
         "tarjan" => {
-            TarjanStronglyConnectedComponents::compute(&graph, false, mem_options, &mut main_pl)?;
+            TarjanStronglyConnectedComponents::compute(&graph, false, &mut main_pl);
         }
         "diameter" => {
-            let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new_directed(
+            let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new(
                 &graph,
                 &reversed_graph,
                 SumSweepOutputLevel::RadiusDiameter,
             )
-            .mem_settings(mem_options)
             .build(&mut main_pl);
-            diameter.compute(main_pl.clone()).unwrap();
+            diameter.compute(main_pl.clone())?;
         }
         "hyperball" => {
             let log2m = std::env::args()

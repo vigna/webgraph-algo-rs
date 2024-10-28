@@ -5,7 +5,6 @@ use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::visits::bfv::*;
 use webgraph_algo::algo::visits::{ParVisit, SeqVisit};
-use webgraph_algo::prelude::*;
 
 pub fn bench_bfv(c: &mut Criterion) {
     let mut group = c.benchmark_group("Breadth first visit");

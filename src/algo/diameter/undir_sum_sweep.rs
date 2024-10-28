@@ -1,16 +1,16 @@
-/*use crate::{
+use crate::{
     algo::{
         diameter::{
             SumSweepDirectedDiameterRadius, SumSweepDirectedDiameterRadiusBuilder,
             SumSweepOutputLevel,
         },
         scc::TarjanStronglyConnectedComponents,
-        visits::bfv::ParallelBreadthFirstVisitFastCB,
+        visits::{bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
     },
     prelude::*,
     utils::Threads,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
 use webgraph::traits::RandomAccessGraph;
@@ -25,7 +25,6 @@ pub struct SumSweepUndirectedDiameterRadiusBuilder<
     graph: &'a G,
     output: SumSweepOutputLevel,
     threads: T,
-    mem_options: TempMmapOptions,
     _marker: std::marker::PhantomData<C>,
 }
 
@@ -42,7 +41,6 @@ impl<'a, G: RandomAccessGraph + Sync>
             graph,
             output,
             threads: Threads::Default,
-            mem_options: TempMmapOptions::Default,
             _marker: std::marker::PhantomData,
         }
     }
@@ -51,23 +49,12 @@ impl<'a, G: RandomAccessGraph + Sync>
 impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
     SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C>
 {
-    /// Sets the memory options used by the support arrays of the
-    /// [`SumSweepUndirectedDiameterRadius`] instance.
-    ///
-    /// # Argumets
-    /// * `settings`: the new settings to use.
-    pub fn mem_settings(mut self, settings: TempMmapOptions) -> Self {
-        self.mem_options = settings;
-        self
-    }
-
     /// Sets the [`SumSweepUndirectedDiameterRadius`] instance to use the default [`rayon::ThreadPool`].
     pub fn default_threadpool(self) -> SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, C> {
         SumSweepUndirectedDiameterRadiusBuilder {
             graph: self.graph,
             output: self.output,
             threads: Threads::Default,
-            mem_options: self.mem_options,
             _marker: self._marker,
         }
     }
@@ -85,7 +72,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
             graph: self.graph,
             output: self.output,
             threads: Threads::NumThreads(num_threads),
-            mem_options: self.mem_options,
             _marker: self._marker,
         }
     }
@@ -102,7 +88,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
             graph: self.graph,
             output: self.output,
             threads,
-            mem_options: self.mem_options,
             _marker: self._marker,
         }
     }
@@ -115,7 +100,6 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
             graph: self.graph,
             output: self.output,
             threads: self.threads,
-            mem_options: self.mem_options,
             _marker: std::marker::PhantomData,
         }
     }
@@ -133,29 +117,24 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
     ///   passed, logging code should be optimized away by the compiler.
     pub fn build(
         self,
-        pl: impl ProgressLog,
-    ) -> Result<
-        SumSweepUndirectedDiameterRadius<
-            'a,
-            G,
-            C,
-            ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool>,
-            rayon::ThreadPool,
-        >,
+        pl: &mut impl ProgressLog,
+    ) -> SumSweepUndirectedDiameterRadius<
+        'a,
+        G,
+        C,
+        ParallelBreadthFirstVisitFastCB<&'a G, rayon::ThreadPool>,
+        rayon::ThreadPool,
     > {
         let mut builder =
             SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
-                .mem_settings(self.mem_options)
                 .scc::<C>();
         builder = match self.threads {
             Threads::Default => builder.default_threadpool(),
             Threads::NumThreads(num_threads) => builder.num_threads(num_threads),
         };
-        Ok(SumSweepUndirectedDiameterRadius {
-            inner: builder
-                .build(pl)
-                .with_context(|| "Could not build directed sum sweep")?,
-        })
+        SumSweepUndirectedDiameterRadius {
+            inner: builder.build(pl),
+        }
     }
 }
 
@@ -175,19 +154,16 @@ impl<
     ///   passed, logging code should be optimized away by the compiler.
     pub fn build(
         self,
-        pl: impl ProgressLog,
-    ) -> Result<SumSweepUndirectedDiameterRadius<'a, G, C, ParallelBreadthFirstVisitFastCB<G, T>, T>>
+        pl: &mut impl ProgressLog,
+    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParallelBreadthFirstVisitFastCB<&'a G, T>, T>
     {
         let builder =
             SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
-                .mem_settings(self.mem_options)
                 .scc::<C>()
                 .threadpool(self.threads);
-        Ok(SumSweepUndirectedDiameterRadius {
-            inner: builder
-                .build(pl)
-                .with_context(|| "Could not build directed sum sweep")?,
-        })
+        SumSweepUndirectedDiameterRadius {
+            inner: builder.build(pl),
+        }
     }
 }
 
@@ -195,7 +171,7 @@ pub struct SumSweepUndirectedDiameterRadius<
     'a,
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents<G> + Sync,
-    V: Visit + Sync,
+    V: ParVisit<bfv::Args> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 > {
     inner: SumSweepDirectedDiameterRadius<'a, G, G, C, V, V, T>,
@@ -205,7 +181,7 @@ impl<'a, G, C, V, T> SumSweepUndirectedDiameterRadius<'a, G, C, V, T>
 where
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents<G> + Sync,
-    V: Visit + Sync,
+    V: ParVisit<bfv::Args> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 {
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.
@@ -287,4 +263,3 @@ where
         self.inner.compute(pl)
     }
 }
-*/

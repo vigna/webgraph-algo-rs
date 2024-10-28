@@ -1,6 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::{algo::visits::dfv::*, algo::visits::SeqVisit, prelude::*, utils::MmapSlice};
-use anyhow::{Context, Result};
+use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use std::marker::PhantomData;
@@ -9,7 +8,7 @@ use webgraph::traits::RandomAccessGraph;
 
 pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
-    component: MmapSlice<usize>,
+    component: Vec<usize>,
     buckets: Option<Vec<bool>>,
     _phantom: PhantomData<G>,
 }
@@ -36,31 +35,17 @@ impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
         }
     }
 
-    fn compute(
-        graph: &G,
-        compute_buckets: bool,
-        options: TempMmapOptions,
-        pl: &mut impl ProgressLog,
-    ) -> Result<Self> {
+    fn compute(graph: &G, compute_buckets: bool, pl: &mut impl ProgressLog) -> Self {
         let mut visit = Tarjan::new(graph, compute_buckets);
 
-        visit
-            .run(pl.clone())
-            .with_context(|| "Cannot compute tarjan algorithm")?;
+        visit.run(pl.clone());
 
-        pl.info(format_args!("Memory mapping components..."));
-
-        let component_mmap = MmapSlice::from_vec(visit.components, options)
-            .with_context(|| "Cannot mmap components")?;
-
-        pl.info(format_args!("Components successfully memory mapped"));
-
-        Ok(TarjanStronglyConnectedComponents {
+        TarjanStronglyConnectedComponents {
             buckets: visit.buckets,
-            component: component_mmap,
+            component: visit.components,
             n_of_components: visit.number_of_components,
             _phantom: PhantomData,
-        })
+        }
     }
 }
 
@@ -103,69 +88,49 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
         }
     }
 
-    fn run(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+    fn run(&mut self, mut pl: impl ProgressLog) {
         let mut visit = SingleThreadedDepthFirstVisit::new(&self.graph);
         pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
-
-        let current_index = self.current_index.as_interior_mut();
-        let number_of_components = self.number_of_components.as_interior_mut();
-        let stack = self.stack.as_interior_mut();
-        let on_stack = self.on_stack.as_interior_mut();
-        let buckets = self.buckets.as_mut().map(|b| b.as_interior_mut());
-        let terminal = self.terminal.as_mut().map(|t| t.as_interior_mut());
-        let indexes = self.indexes.as_mut_slice_of_cells();
-        let lowlinks = self.lowlinks.as_mut_slice_of_cells();
-        let components = self.components.as_mut_slice_of_cells();
 
         visit.visit(
             |Args {
                  node,
                  pred,
                  root: _root,
-                 depth: _distance,
+                 depth: _depth,
                  event,
              }| {
                 match event {
-                    // Safety: code is sequential: no concurrency and references are not left dangling
-                    // a &mut self is requested so compiler should not optimize memory with readonly
-                    Event::Unknown => unsafe {
-                        indexes.write_once(
-                            node,
-                            Some(
-                                NonMaxUsize::new(current_index.read())
-                                    .expect("indexes should not exceed usize::MAX"),
-                            ),
+                    Event::Unknown => {
+                        self.indexes[node] = Some(
+                            NonMaxUsize::new(self.current_index)
+                                .expect("indexes should not exceed usize::MAX"),
                         );
-                        lowlinks.write_once(node, current_index.read());
-                        *current_index.as_mut_unsafe() += 1;
-                        stack.as_mut_unsafe().push(node);
-                        on_stack.as_mut_unsafe().set(node, true);
-                    },
-                    Event::Known => unsafe {
-                        if on_stack.as_mut_unsafe()[node] {
-                            lowlinks.write_once(
-                                pred,
-                                std::cmp::min(
-                                    lowlinks[pred].read(),
-                                    indexes[node].read().unwrap().into(),
-                                ),
+                        self.lowlinks[node] = self.current_index;
+                        self.current_index += 1;
+                        self.stack.push(node);
+                        self.on_stack.set(node, true);
+                    }
+                    Event::Known => {
+                        if self.on_stack[node] {
+                            self.lowlinks[pred] = std::cmp::min(
+                                self.lowlinks[pred],
+                                self.indexes[node].unwrap().into(),
                             );
-                        } else if let Some(t) = terminal.as_ref() {
-                            t.as_mut_unsafe().set(pred, false);
+                        } else if let Some(t) = &mut self.terminal {
+                            t.set(pred, false);
                         }
-                    },
-                    Event::Completed => unsafe {
-                        if lowlinks[node].read()
-                            == <NonMaxUsize as Into<usize>>::into(indexes[node].read().unwrap())
-                        {
-                            if let Some(b) = buckets.as_ref().map(|b| b.as_mut_unsafe()) {
-                                let t = terminal.as_ref().unwrap().as_mut_unsafe();
+                    }
+                    Event::Completed => {
+                        if self.lowlinks[node] == self.indexes[node].unwrap().into() {
+                            if let Some(b) = &mut self.buckets {
+                                let t = self.terminal.as_mut().unwrap();
                                 let terminal = t[node];
-                                while let Some(v) = stack.as_mut_unsafe().pop() {
-                                    components.write_once(v, number_of_components.read());
-                                    on_stack.as_mut_unsafe().set(v, false);
+                                while let Some(v) = self.stack.pop() {
+                                    self.components[v] = self.number_of_components;
+                                    self.on_stack.set(v, false);
                                     t.set(v, false);
                                     if terminal && self.graph.outdegree(v) != 0 {
                                         b[v] = true;
@@ -175,29 +140,27 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
                                     }
                                 }
                             } else {
-                                while let Some(v) = stack.as_mut_unsafe().pop() {
-                                    components.write_once(v, number_of_components.read());
-                                    on_stack.as_mut_unsafe().set(v, false);
+                                while let Some(v) = self.stack.pop() {
+                                    self.components[v] = self.number_of_components;
+                                    self.on_stack.set(v, false);
                                     if v == node {
                                         break;
                                     }
                                 }
                             }
-                            *number_of_components.as_mut_unsafe() += 1;
+                            self.number_of_components += 1;
                         }
 
                         if node != pred {
-                            lowlinks.write_once(
-                                pred,
-                                std::cmp::min(lowlinks[pred].read(), lowlinks[node].read()),
-                            );
-                            if let Some(t) = terminal.as_ref().map(|t| t.as_mut_unsafe()) {
+                            self.lowlinks[pred] =
+                                std::cmp::min(self.lowlinks[pred], self.lowlinks[node]);
+                            if let Some(t) = &mut self.terminal {
                                 if !t[node] {
                                     t.set(pred, false);
                                 }
                             }
                         }
-                    },
+                    }
                 }
             },
             |_| true,
@@ -205,7 +168,5 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
         );
 
         pl.done();
-
-        Ok(())
     }
 }
