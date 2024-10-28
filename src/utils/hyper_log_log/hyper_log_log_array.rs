@@ -403,7 +403,7 @@ where
     for<'a> <Self as HyperLogLogArray<'a, T, W>>::Counter: Send,
 {
     /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
-    pub fn into_vec<'a>(&'a self) -> Vec<<Self as HyperLogLogArray<'a, T, W>>::Counter> {
+    pub fn into_vec(&self) -> Vec<<Self as HyperLogLogArray<'_, T, W>>::Counter> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
