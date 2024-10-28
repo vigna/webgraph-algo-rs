@@ -399,9 +399,11 @@ impl<
     > HyperLogLogCounterArray<T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
+    for<'a> Self: HyperLogLogArray<'a, T, W>,
+    for<'a> <Self as HyperLogLogArray<'a, T, W>>::Counter: Send,
 {
     /// Creates a [`Vec`] where `v[i]` is the [`HyperLogLogCounter`] with index `i`.
-    pub fn into_vec(&self) -> Vec<HyperLogLogCounter<T, W, H>> {
+    pub fn into_vec<'a>(&'a self) -> Vec<<Self as HyperLogLogArray<'a, T, W>>::Counter> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
@@ -420,15 +422,14 @@ impl<
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
-    type Counter = HyperLogLogCounter<'a, T, W, H>;
+    type Counter = HyperLogLogCounter<'a, T, W, H, &'a mut [W]>;
 
     #[inline(always)]
     unsafe fn get_counter_from_shared(&'a self, index: usize) -> Self::Counter {
         assert!(index < self.num_counters);
         let mut ptr = self.bits.as_slice().as_ptr() as *mut W;
         ptr = ptr.add(self.words_per_counter * index);
-        let slice = std::slice::from_raw_parts_mut(ptr, self.words_per_counter);
-        let bits = BitFieldVec::from_raw_parts(slice, self.register_size, self.num_registers);
+        let bits = std::slice::from_raw_parts_mut(ptr, self.words_per_counter);
         HyperLogLogCounter {
             array: self,
             bits,
