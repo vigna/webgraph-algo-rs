@@ -16,8 +16,8 @@ use webgraph::traits::RandomAccessGraph;
 /// obtain this result in a compact way, nodes are represented using
 /// [`NonMaxUsize`], so the `None` variant of `Option<NonMaxUsize>`
 /// can be used as a separator.
-pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
-    graph: &'a G,
+pub struct SingleThreadedBreadthFirstVisit<G: RandomAccessGraph> {
+    graph: G,
     visited: BitVec,
     /// The visit queue; to avoid storing distances, we use `None` as a
     /// separator between levels. [`NonMaxUsize`] is used to avoid
@@ -25,21 +25,22 @@ pub struct SingleThreadedBreadthFirstVisit<'a, G: RandomAccessGraph> {
     queue: VecDeque<Option<NonMaxUsize>>,
 }
 
-impl<'a, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<'a, G> {
+impl<G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> Self {
+    pub fn new(graph: G) -> Self {
+        let num_nodes = graph.num_nodes();
         Self {
             graph,
-            visited: BitVec::new(graph.num_nodes()),
+            visited: BitVec::new(num_nodes),
             queue: VecDeque::new(),
         }
     }
 }
 
-impl<'a, G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVisit<'a, G> {
+impl<G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVisit<G> {
     fn visit_from_node<C: FnMut(bfv::Args), F: Fn(&bfv::Args) -> bool>(
         &mut self,
         root: usize,
