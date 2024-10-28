@@ -19,7 +19,7 @@ pub struct ParallelBreadthFirstVisitFastCB<
     threads: T,
 }
 
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool> {
+impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool> {
     /// Creates parallel top-down visit that uses less memory
     /// but is less efficient with long callbacks.
     ///
@@ -113,7 +113,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
                                     node: succ,
                                     parent: node,
                                     root,
-                                    distance: distance,
+                                    distance,
                                 };
                                 if filter(&args)
                                     && !self.visited.swap(succ, true, Ordering::Relaxed)

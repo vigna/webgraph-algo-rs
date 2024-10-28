@@ -384,8 +384,8 @@ impl<
         let total_backward = vec![0; nn];
 
         SumSweepDirectedDiameterRadius {
-            graph: &graph,
-            reversed_graph: &reversed_graph,
+            graph,
+            reversed_graph,
             number_of_nodes: nn,
             total_forward_distance: total_forward,
             total_backward_distance: total_backward,
