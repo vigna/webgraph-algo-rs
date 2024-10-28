@@ -74,11 +74,13 @@ impl<
 }
 
 pub trait HyperLogLogArray<'a, T, W: Word> {
-    type Counter: HyperLogLog<'a, T, W>;
+    type Counter<'b>: HyperLogLog<'a, T, W>
+    where
+        Self: 'b;
 
-    unsafe fn get_counter_from_shared(&'a self, index: usize) -> Self::Counter;
+    unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_>;
 
-    fn get_counter(&'a mut self, index: usize) -> Self::Counter {
+    fn get_counter(&mut self, index: usize) -> Self::Counter<'_> {
         unsafe {
             // Safety: We have a mutable reference so no other references exists
             self.get_counter_from_shared(index)
@@ -86,9 +88,9 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
     }
 
     fn get_owned_counter(
-        &'a self,
+        &self,
         index: usize,
-    ) -> <Self::Counter as CachableCounter>::OwnedCounter {
+    ) -> <Self::Counter<'_> as CachableCounter>::OwnedCounter {
         unsafe {
             // Safety: We have a mutable reference so no other references exists,
             // then the returned counter is owned, so no shared data exists
@@ -96,5 +98,5 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
         }
     }
 
-    fn get_thread_helper(&self) -> <Self::Counter as ThreadHelperCounter<'a>>::ThreadHelper;
+    fn get_thread_helper(&self) -> <Self::Counter<'_> as ThreadHelperCounter<'a>>::ThreadHelper;
 }

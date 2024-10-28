@@ -12,6 +12,7 @@ pub struct ThreadHelper<W: Word> {
 
 pub struct HyperLogLogCounter<
     'a,
+    'b,
     T,
     W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
     H: BuildHasher = BuildHasherDefault<DefaultHasher>,
@@ -19,7 +20,7 @@ pub struct HyperLogLogCounter<
 > {
     pub(super) array: &'a HyperLogLogCounterArray<T, W, H>,
     pub(super) bits: B,
-    pub(super) thread_helper: Option<&'a mut ThreadHelper<W>>,
+    pub(super) thread_helper: Option<&'b mut ThreadHelper<W>>,
 }
 
 trait RegisterEdit<W> {
@@ -39,11 +40,12 @@ trait RegisterEdit<W> {
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]> + AsMut<[W]>,
-    > RegisterEdit<W> for HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, B>>
+    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
 {
     #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
@@ -58,10 +60,11 @@ impl<
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > RegisterEdit<W> for HyperLogLogCounter<'a, T, W, H, Vec<W>>
+    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
 {
     #[inline(always)]
     fn get_register(&self, index: usize) -> W {
@@ -111,10 +114,11 @@ impl<
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > RegisterEdit<W> for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
+    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
 {
     #[inline(always)]
     fn get_register(&self, index: usize) -> W {
@@ -164,11 +168,12 @@ impl<
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B,
-    > Counter<T> for HyperLogLogCounter<'a, T, W, H, B>
+    > Counter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B>
 where
     Self: RegisterEdit<W>,
 {
@@ -226,11 +231,12 @@ where
 
 impl<
         'a,
+        'b,
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B,
-    > ApproximatedCounter<T> for HyperLogLogCounter<'a, T, W, H, B>
+    > ApproximatedCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B>
 where
     Self: RegisterEdit<W>,
 {
@@ -257,12 +263,13 @@ where
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > CachableCounter for HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, &'a mut [W]>>
+    > CachableCounter for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, &'a mut [W]>>
 {
-    type OwnedCounter = HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, Vec<W>>>;
+    type OwnedCounter = HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, Vec<W>>>;
 
     fn get_copy(&self) -> Self::OwnedCounter {
         let v = self.bits.as_slice().to_vec();
@@ -297,12 +304,13 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > CachableCounter for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
+    > CachableCounter for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
 {
-    type OwnedCounter = HyperLogLogCounter<'a, T, W, H, Vec<W>>;
+    type OwnedCounter = HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>;
 
     fn get_copy(&self) -> Self::OwnedCounter {
         Self::OwnedCounter {
@@ -330,11 +338,12 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]> + AsMut<[W]>,
-    > BitwiseCounter<W> for HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, B>>
+    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -381,10 +390,11 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > BitwiseCounter<W> for HyperLogLogCounter<'a, T, W, H, Vec<W>>
+    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -431,10 +441,11 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > BitwiseCounter<W> for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
+    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -481,16 +492,17 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B,
-    > ThreadHelperCounter<'a> for HyperLogLogCounter<'a, T, W, H, B>
+    > ThreadHelperCounter<'b> for HyperLogLogCounter<'a, 'b, T, W, H, B>
 {
     type ThreadHelper = ThreadHelper<W>;
 
     #[inline(always)]
-    fn use_thread_helper(&mut self, helper: &'a mut Self::ThreadHelper) {
+    fn use_thread_helper(&mut self, helper: &'b mut Self::ThreadHelper) {
         self.thread_helper = Some(helper)
     }
 
@@ -502,11 +514,12 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]>,
-    > PartialEq for HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, B>>
+    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
 {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
@@ -516,20 +529,22 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]>,
-    > Eq for HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, B>>
+    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
 {
 }
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > PartialEq for HyperLogLogCounter<'a, T, W, H, Vec<W>>
+    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
 {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
@@ -539,19 +554,21 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > Eq for HyperLogLogCounter<'a, T, W, H, Vec<W>>
+    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
 {
 }
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > PartialEq for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
+    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
 {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
@@ -561,9 +578,10 @@ impl<
 
 impl<
         'a,
+        'b,
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > Eq for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
+    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
 {
 }
