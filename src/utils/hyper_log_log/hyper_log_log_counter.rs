@@ -63,6 +63,7 @@ impl<
         H: BuildHasher,
     > RegisterEdit<W> for HyperLogLogCounter<'a, T, W, H, Vec<W>>
 {
+    #[inline(always)]
     fn get_register(&self, index: usize) -> W {
         let bit_width = self.array.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
@@ -80,6 +81,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
         let bit_width = self.array.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
@@ -114,6 +116,7 @@ impl<
         H: BuildHasher,
     > RegisterEdit<W> for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
 {
+    #[inline(always)]
     fn get_register(&self, index: usize) -> W {
         let bit_width = self.array.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
@@ -131,6 +134,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
         let bit_width = self.array.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
@@ -485,10 +489,12 @@ impl<
 {
     type ThreadHelper = ThreadHelper<W>;
 
+    #[inline(always)]
     fn use_thread_helper(&mut self, helper: &'a mut Self::ThreadHelper) {
         self.thread_helper = Some(helper)
     }
 
+    #[inline(always)]
     fn remove_thread_helper(&mut self) {
         self.thread_helper.take();
     }
@@ -502,6 +508,7 @@ impl<
         B: AsRef<[W]>,
     > PartialEq for HyperLogLogCounter<'a, T, W, H, BitFieldVec<W, B>>
 {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.bits.as_slice() == other.bits.as_slice()
     }
@@ -524,6 +531,7 @@ impl<
         H: BuildHasher,
     > PartialEq for HyperLogLogCounter<'a, T, W, H, Vec<W>>
 {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.bits.as_slice() == other.bits.as_slice()
     }
@@ -545,6 +553,7 @@ impl<
         H: BuildHasher,
     > PartialEq for HyperLogLogCounter<'a, T, W, H, &'a mut [W]>
 {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.bits == other.bits
     }
