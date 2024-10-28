@@ -92,8 +92,9 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
         index: usize,
     ) -> <Self::Counter<'_> as CachableCounter>::OwnedCounter {
         unsafe {
-            // Safety: We have a mutable reference so no other references exists,
-            // then the returned counter is owned, so no shared data exists
+            // Safety: the returned counter is owned, so no shared data exists.
+            // Assumption: Counters created with get_counter_from_shared are used
+            // correctly
             self.get_counter_from_shared(index).into_owned()
         }
     }
