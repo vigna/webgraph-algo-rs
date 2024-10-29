@@ -520,7 +520,7 @@ impl<
         T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        H: BuildHasher + Sync + Send,
+        H: BuildHasher + Sync + Send + Clone,
     > HyperBall<'a, G1, G2, T, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
@@ -794,7 +794,7 @@ impl<
         T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        H: BuildHasher + Sync + Send,
+        H: BuildHasher + Sync + Send + Clone,
     > HyperBall<'a, G1, G2, T, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,

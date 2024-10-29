@@ -417,12 +417,12 @@ impl<
         'b,
         T: Hash + 'b,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64> + 'b,
-        H: BuildHasher + 'b,
+        H: BuildHasher + Clone + 'b,
     > HyperLogLogArray<'b, T, W> for HyperLogLogCounterArray<T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
-    type Counter<'a> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]> where T: 'a, W: 'a, H: 'a;
+    type Counter<'a> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a Self> where T: 'a, W: 'a, H: 'a;
 
     #[inline(always)]
     unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_> {
@@ -434,6 +434,7 @@ where
             array: self,
             bits,
             thread_helper: None,
+            _phantom_data: std::marker::PhantomData,
         }
     }
 
