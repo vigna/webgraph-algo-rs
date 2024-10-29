@@ -120,7 +120,7 @@ fn test_double() -> Result<()> {
 }
 
 #[test]
-fn test_merge_register() -> Result<()> {
+fn test_merge_same_type() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
