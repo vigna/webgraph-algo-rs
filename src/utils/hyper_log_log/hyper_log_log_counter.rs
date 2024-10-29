@@ -5,11 +5,26 @@ use std::hash::*;
 use sux::{bits::BitFieldVec, traits::bit_field_slice::*};
 
 /// Utility struct for parallel optimization.
+#[derive(Debug, Clone)]
 pub struct ThreadHelper<W: Word> {
     pub(super) acc: Vec<W>,
     pub(super) mask: Vec<W>,
 }
 
+/// Concretized view of an HyperLogLogCounter stored in a [`HyperLogLogCounterArray`].
+///
+/// This stores minimal information as a reference to the original array as an
+/// `&'a HyperLogLogCounterArray<T, W, H>` or as a copy of the relevant information
+/// stored in an [`OwnedArray`](`OwnedArray`)[^note].
+///
+/// Two versions of this counter are provided:
+/// * A [`BitFieldVec`]-based implementation that provides optimized register operations at the
+///   cost of a bigger memory footprint.
+/// * A [`Vec`]-based implementation that is lighter on the memory but carries less information
+///   and provides less optimized register-based operations.
+///
+/// [^note]: This structure is for internal use only and should only be used for type annotations.
+#[derive(Debug)]
 pub struct HyperLogLogCounter<'a, 'b, T, W: Word, H, B, A> {
     pub(super) array: A,
     pub(super) bits: B,
@@ -17,6 +32,15 @@ pub struct HyperLogLogCounter<'a, 'b, T, W: Word, H, B, A> {
     pub(super) _phantom_data: std::marker::PhantomData<&'a (T, H)>,
 }
 
+/// Internal structure storing owned information from an [`HyperLogLogCounterArray`] used by
+/// the owned version of [`HyperLogLogCounter`].
+///
+/// <div class="warning">
+///
+/// This structure is for internal use onlt and should only be used for type annotations.
+///
+/// </div>
+#[derive(Debug, Clone)]
 pub struct OwnedArray<W: Word, H: BuildHasher> {
     build_hasher: H,
     register_size: usize,
@@ -49,6 +73,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> From<&HyperLogLogCounterAr
     }
 }
 
+/// Internal trait for handling both owned and borrowed [`HyperLogLogCounterArray`].
 trait ArrayInfo<W: Word, H: BuildHasher> {
     fn register_size(&self) -> usize;
 
@@ -71,7 +96,7 @@ trait ArrayInfo<W: Word, H: BuildHasher> {
     fn words_per_counter(&self) -> usize;
 }
 
-impl<T, W: Word + IntoAtomic, H: BuildHasher> ArrayInfo<W, H>
+impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> ArrayInfo<W, H>
     for &HyperLogLogCounterArray<T, W, H>
 {
     #[inline(always)]
@@ -177,6 +202,8 @@ impl<W: Word, H: BuildHasher> ArrayInfo<W, H> for OwnedArray<W, H> {
     }
 }
 
+/// Internal trait to handle register-based operations on all provided backends
+/// for [`HyperLogLogCounter`].
 trait RegisterEdit<W> {
     /// Sets a register of the counter to the specified new value.
     ///
