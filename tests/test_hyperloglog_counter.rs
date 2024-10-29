@@ -120,7 +120,7 @@ fn test_double() -> Result<()> {
 }
 
 #[test]
-fn test_merge_safe() -> Result<()> {
+fn test_merge_register() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -146,11 +146,10 @@ fn test_merge_safe() -> Result<()> {
                     x += incr;
                 }
 
-                unsafe {
-                    counters
-                        .get_counter_from_shared(0)
-                        .merge(&counters.get_counter_from_shared(1));
-                }
+                let mut counter_0 = counters.get_owned_counter(0);
+                let counter_1 = counters.get_owned_counter(1);
+                counter_0.merge(&counter_1);
+                counters.get_counter(0).set_to_bitwise(&counter_0);
 
                 let float_size = size as f64;
 
@@ -191,7 +190,7 @@ fn test_merge_safe() -> Result<()> {
 }
 
 #[test]
-fn test_merge_unsafe() -> Result<()> {
+fn test_merge_bitwise() -> Result<()> {
     let sizes = [1, 10, 100, 1000, 100_000];
     let log2ms = [4, 6, 8, 12];
 
@@ -217,11 +216,8 @@ fn test_merge_unsafe() -> Result<()> {
                     x += incr;
                 }
 
-                unsafe {
-                    counters
-                        .get_counter_from_shared(0)
-                        .merge_bitwise(&counters.get_counter_from_shared(1));
-                }
+                let counter_to_merge = counters.get_owned_counter(1);
+                counters.get_counter(0).merge_bitwise(&counter_to_merge);
 
                 let float_size = size as f64;
 
