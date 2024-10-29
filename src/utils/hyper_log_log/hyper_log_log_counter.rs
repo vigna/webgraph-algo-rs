@@ -15,12 +15,174 @@ pub struct HyperLogLogCounter<
     'b,
     T,
     W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
-    H: BuildHasher = BuildHasherDefault<DefaultHasher>,
-    B = BitFieldVec<W, &'a mut [W]>,
+    H: BuildHasher,
+    B,
+    A: ArrayInfo<W, H>,
 > {
-    pub(super) array: &'a HyperLogLogCounterArray<T, W, H>,
+    pub(super) array: A,
     pub(super) bits: B,
     pub(super) thread_helper: Option<&'b mut ThreadHelper<W>>,
+    pub(super) _phantom_data: std::marker::PhantomData<&'a (T, H)>,
+}
+
+pub struct OwnedArray<W: Word, H: BuildHasher> {
+    build_hasher: H,
+    register_size: usize,
+    num_registers_minus_1: HashResult,
+    log_2_num_registers: usize,
+    sentinel_mask: HashResult,
+    num_registers: usize,
+    words_per_counter: usize,
+    alpha_m_m: f64,
+    msb_mask: Vec<W>,
+    lsb_mask: Vec<W>,
+}
+
+impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> From<&HyperLogLogCounterArray<T, W, H>>
+    for OwnedArray<W, H>
+{
+    fn from(value: &HyperLogLogCounterArray<T, W, H>) -> Self {
+        OwnedArray {
+            build_hasher: value.hasher_builder.clone(),
+            register_size: value.register_size,
+            num_registers_minus_1: value.num_registers_minus_1,
+            log_2_num_registers: value.log_2_num_registers,
+            sentinel_mask: value.sentinel_mask,
+            num_registers: value.num_registers,
+            words_per_counter: value.words_per_counter,
+            alpha_m_m: value.alpha_m_m,
+            msb_mask: value.msb_mask.as_slice().to_vec(),
+            lsb_mask: value.lsb_mask.as_slice().to_vec(),
+        }
+    }
+}
+
+pub trait ArrayInfo<W: Word, H: BuildHasher> {
+    fn register_size(&self) -> usize;
+
+    fn hasher_builder(&self) -> &H;
+
+    fn num_registers_minus_1(&self) -> HashResult;
+
+    fn log_2_num_registers(&self) -> usize;
+
+    fn sentinel_mask(&self) -> HashResult;
+
+    fn num_registers(&self) -> usize;
+
+    fn alpha_m_m(&self) -> f64;
+
+    fn msb_mask(&self) -> &[W];
+
+    fn lsb_mask(&self) -> &[W];
+
+    fn words_per_counter(&self) -> usize;
+}
+
+impl<T, W: Word + IntoAtomic, H: BuildHasher> ArrayInfo<W, H>
+    for &HyperLogLogCounterArray<T, W, H>
+{
+    #[inline(always)]
+    fn alpha_m_m(&self) -> f64 {
+        self.alpha_m_m
+    }
+
+    #[inline(always)]
+    fn hasher_builder(&self) -> &H {
+        &self.hasher_builder
+    }
+
+    #[inline(always)]
+    fn log_2_num_registers(&self) -> usize {
+        self.log_2_num_registers
+    }
+
+    #[inline(always)]
+    fn num_registers(&self) -> usize {
+        self.num_registers
+    }
+
+    #[inline(always)]
+    fn num_registers_minus_1(&self) -> HashResult {
+        self.num_registers_minus_1
+    }
+
+    #[inline(always)]
+    fn register_size(&self) -> usize {
+        self.register_size
+    }
+
+    #[inline(always)]
+    fn sentinel_mask(&self) -> HashResult {
+        self.sentinel_mask
+    }
+
+    #[inline(always)]
+    fn words_per_counter(&self) -> usize {
+        self.words_per_counter
+    }
+
+    #[inline(always)]
+    fn msb_mask(&self) -> &[W] {
+        self.msb_mask.as_slice()
+    }
+
+    #[inline(always)]
+    fn lsb_mask(&self) -> &[W] {
+        self.lsb_mask.as_slice()
+    }
+}
+
+impl<W: Word, H: BuildHasher> ArrayInfo<W, H> for OwnedArray<W, H> {
+    #[inline(always)]
+    fn alpha_m_m(&self) -> f64 {
+        self.alpha_m_m
+    }
+
+    #[inline(always)]
+    fn hasher_builder(&self) -> &H {
+        &self.build_hasher
+    }
+
+    #[inline(always)]
+    fn log_2_num_registers(&self) -> usize {
+        self.log_2_num_registers
+    }
+
+    #[inline(always)]
+    fn num_registers(&self) -> usize {
+        self.num_registers
+    }
+
+    #[inline(always)]
+    fn num_registers_minus_1(&self) -> HashResult {
+        self.num_registers_minus_1
+    }
+
+    #[inline(always)]
+    fn register_size(&self) -> usize {
+        self.register_size
+    }
+
+    #[inline(always)]
+    fn sentinel_mask(&self) -> HashResult {
+        self.sentinel_mask
+    }
+
+    #[inline(always)]
+    fn words_per_counter(&self) -> usize {
+        self.words_per_counter
+    }
+
+    #[inline(always)]
+    fn msb_mask(&self) -> &[W] {
+        &self.msb_mask
+    }
+
+    #[inline(always)]
+    fn lsb_mask(&self) -> &[W] {
+        &self.lsb_mask
+    }
 }
 
 trait RegisterEdit<W> {
@@ -45,7 +207,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]> + AsMut<[W]>,
-    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
+        A: ArrayInfo<W, H>,
+    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>, A>
 {
     #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
@@ -64,11 +227,12 @@ impl<
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
+        A: ArrayInfo<W, H>,
+    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>, A>
 {
     #[inline(always)]
     fn get_register(&self, index: usize) -> W {
-        let bit_width = self.array.register_size;
+        let bit_width = self.array.register_size();
         let mask = W::MAX >> (W::BITS - bit_width);
         let pos = index * bit_width;
         let word_index = pos / W::BITS;
@@ -86,7 +250,7 @@ impl<
 
     #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
-        let bit_width = self.array.register_size;
+        let bit_width = self.array.register_size();
         let mask = W::MAX >> (W::BITS - bit_width);
         let pos = index * bit_width;
         let word_index = pos / W::BITS;
@@ -118,11 +282,12 @@ impl<
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
+        A: ArrayInfo<W, H>,
+    > RegisterEdit<W> for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], A>
 {
     #[inline(always)]
     fn get_register(&self, index: usize) -> W {
-        let bit_width = self.array.register_size;
+        let bit_width = self.array.register_size();
         let mask = W::MAX >> (W::BITS - bit_width);
         let pos = index * bit_width;
         let word_index = pos / W::BITS;
@@ -140,7 +305,7 @@ impl<
 
     #[inline(always)]
     fn set_register(&mut self, index: usize, new_value: W) {
-        let bit_width = self.array.register_size;
+        let bit_width = self.array.register_size();
         let mask = W::MAX >> (W::BITS - bit_width);
         let pos = index * bit_width;
         let word_index = pos / W::BITS;
@@ -173,19 +338,20 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B,
-    > Counter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B>
+        A: ArrayInfo<W, H>,
+    > Counter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
 where
     Self: RegisterEdit<W>,
 {
     fn add(&mut self, element: T) {
-        let x = self.array.hasher_builder.hash_one(element);
-        let j = x & self.array.num_registers_minus_1;
-        let r = (x >> self.array.log_2_num_registers | self.array.sentinel_mask).trailing_zeros()
-            as HashResult;
+        let x = self.array.hasher_builder().hash_one(element);
+        let j = x & self.array.num_registers_minus_1();
+        let r = (x >> self.array.log_2_num_registers() | self.array.sentinel_mask())
+            .trailing_zeros() as HashResult;
         let register = j as usize;
 
-        debug_assert!(r < (1 << self.array.register_size) - 1);
-        debug_assert!(register < self.array.num_registers);
+        debug_assert!(r < (1 << self.array.register_size()) - 1);
+        debug_assert!(register < self.array.num_registers());
 
         let current_value = self.get_register(register);
         let candidate_value = r + 1;
@@ -206,7 +372,7 @@ where
     }
 
     fn clear(&mut self) {
-        for i in 0..self.array.num_registers {
+        for i in 0..self.array.num_registers() {
             self.set_register(i, W::ZERO);
         }
     }
@@ -216,9 +382,9 @@ where
     }
 
     fn merge(&mut self, other: &Self) {
-        assert_eq!(self.array.num_registers, other.array.num_registers);
-        assert_eq!(self.array.register_size, other.array.register_size);
-        for i in 0..self.array.num_registers {
+        assert_eq!(self.array.num_registers(), other.array.num_registers());
+        assert_eq!(self.array.register_size(), other.array.register_size());
+        for i in 0..self.array.num_registers() {
             let current_value = self.get_register(i);
             let other_value = other.get_register(i);
 
@@ -236,7 +402,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B,
-    > ApproximatedCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B>
+        A: ArrayInfo<W, H>,
+    > ApproximatedCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
 where
     Self: RegisterEdit<W>,
 {
@@ -244,7 +411,7 @@ where
         let mut harmonic_mean = 0.0;
         let mut zeroes = 0;
 
-        for i in 0..self.array.num_registers {
+        for i in 0..self.array.num_registers() {
             let value = self.get_register(i).upcast();
             if value == 0 {
                 zeroes += 1;
@@ -252,10 +419,10 @@ where
             harmonic_mean += 1.0 / (1 << value) as f64;
         }
 
-        let mut estimate = self.array.alpha_m_m / harmonic_mean;
-        if zeroes != 0 && estimate < 2.5 * self.array.num_registers as f64 {
-            estimate = self.array.num_registers as f64
-                * (self.array.num_registers as f64 / zeroes as f64).ln();
+        let mut estimate = self.array.alpha_m_m() / harmonic_mean;
+        if zeroes != 0 && estimate < 2.5 * self.array.num_registers() as f64 {
+            estimate = self.array.num_registers() as f64
+                * (self.array.num_registers() as f64 / zeroes as f64).ln();
         }
         estimate
     }
@@ -264,12 +431,22 @@ where
 impl<
         'a,
         'b,
+        T: 'b,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult> + 'b,
+        H: BuildHasher + Clone + 'b,
+    > CachableCounter
+    for HyperLogLogCounter<
+        'a,
+        'b,
         T,
-        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
-        H: BuildHasher,
-    > CachableCounter for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, &'a mut [W]>>
+        W,
+        H,
+        BitFieldVec<W, &'a mut [W]>,
+        &'a HyperLogLogCounterArray<T, W, H>,
+    >
 {
-    type OwnedCounter = HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, Vec<W>>>;
+    type OwnedCounter =
+        HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>>;
 
     fn get_copy(&self) -> Self::OwnedCounter {
         let v = self.bits.as_slice().to_vec();
@@ -277,9 +454,10 @@ impl<
             BitFieldVec::from_raw_parts(v, self.array.register_size, self.array.num_registers)
         };
         Self::OwnedCounter {
-            array: self.array,
+            array: self.array.into(),
             thread_helper: None,
             bits: bit_field,
+            _phantom_data: std::marker::PhantomData,
         }
     }
 
@@ -291,9 +469,10 @@ impl<
         let v = v.to_vec();
         let bit_field = unsafe { BitFieldVec::from_raw_parts(v, width, len) };
         Self::OwnedCounter {
-            array: self.array,
+            array: self.array.into(),
             thread_helper: self.thread_helper,
             bits: bit_field,
+            _phantom_data: std::marker::PhantomData,
         }
     }
 
@@ -305,18 +484,20 @@ impl<
 impl<
         'a,
         'b,
-        T,
-        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
-        H: BuildHasher,
-    > CachableCounter for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
+        T: 'b,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult> + 'b,
+        H: BuildHasher + Clone + 'b,
+    > CachableCounter
+    for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a HyperLogLogCounterArray<T, W, H>>
 {
-    type OwnedCounter = HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>;
+    type OwnedCounter = HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>>;
 
     fn get_copy(&self) -> Self::OwnedCounter {
         Self::OwnedCounter {
-            array: self.array,
+            array: self.array.into(),
             thread_helper: None,
             bits: self.bits.to_vec(),
+            _phantom_data: std::marker::PhantomData,
         }
     }
 
@@ -325,9 +506,10 @@ impl<
         Self: Sized,
     {
         Self::OwnedCounter {
-            array: self.array,
+            array: self.array.into(),
             thread_helper: self.thread_helper,
             bits: self.bits.to_vec(),
+            _phantom_data: std::marker::PhantomData,
         }
     }
 
@@ -343,7 +525,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]> + AsMut<[W]>,
-    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
+        A: ArrayInfo<W, H>,
+    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>, A>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -362,8 +545,8 @@ impl<
 
         let num_words = self.array.words_per_counter();
 
-        let msb_mask = self.array.msb_mask.as_slice();
-        let lsb_mask = self.array.lsb_mask.as_slice();
+        let msb_mask = self.array.msb_mask();
+        let lsb_mask = self.array.lsb_mask();
         let x = self.bits.as_mut_slice();
         let y = other.as_words();
         let (acc, mask) = if let Some(helper) = &mut self.thread_helper {
@@ -383,7 +566,7 @@ impl<
             lsb_mask,
             acc,
             mask,
-            self.array.register_size,
+            self.array.register_size(),
         );
     }
 }
@@ -394,7 +577,8 @@ impl<
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
+        A: ArrayInfo<W, H>,
+    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>, A>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -413,8 +597,8 @@ impl<
 
         let num_words = self.array.words_per_counter();
 
-        let msb_mask = self.array.msb_mask.as_slice();
-        let lsb_mask = self.array.lsb_mask.as_slice();
+        let msb_mask = self.array.msb_mask();
+        let lsb_mask = self.array.lsb_mask();
         let x = self.bits.as_mut_slice();
         let y = other.as_words();
         let (acc, mask) = if let Some(helper) = &mut self.thread_helper {
@@ -434,7 +618,7 @@ impl<
             lsb_mask,
             acc,
             mask,
-            self.array.register_size,
+            self.array.register_size(),
         );
     }
 }
@@ -445,7 +629,8 @@ impl<
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
+        A: ArrayInfo<W, H>,
+    > BitwiseCounter<W> for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], A>
 {
     #[inline(always)]
     fn as_words(&self) -> &[W] {
@@ -464,8 +649,8 @@ impl<
 
         let num_words = self.array.words_per_counter();
 
-        let msb_mask = self.array.msb_mask.as_slice();
-        let lsb_mask = self.array.lsb_mask.as_slice();
+        let msb_mask = self.array.msb_mask();
+        let lsb_mask = self.array.lsb_mask();
         let x = &mut self.bits;
         let y = other.as_words();
         let (acc, mask) = if let Some(helper) = &mut self.thread_helper {
@@ -485,7 +670,7 @@ impl<
             lsb_mask,
             acc,
             mask,
-            self.array.register_size,
+            self.array.register_size(),
         );
     }
 }
@@ -497,7 +682,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B,
-    > ThreadHelperCounter<'b> for HyperLogLogCounter<'a, 'b, T, W, H, B>
+        A: ArrayInfo<W, H>,
+    > ThreadHelperCounter<'b> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
 {
     type ThreadHelper = ThreadHelper<W>;
 
@@ -519,7 +705,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]>,
-    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
+        A: ArrayInfo<W, H>,
+    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>, A>
 {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
@@ -534,7 +721,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
         B: AsRef<[W]>,
-    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>>
+        A: ArrayInfo<W, H>,
+    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, BitFieldVec<W, B>, A>
 {
 }
 
@@ -544,7 +732,8 @@ impl<
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
+        A: ArrayInfo<W, H>,
+    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>, A>
 {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
@@ -558,7 +747,8 @@ impl<
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>>
+        A: ArrayInfo<W, H>,
+    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, Vec<W>, A>
 {
 }
 
@@ -568,7 +758,8 @@ impl<
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
+        A: ArrayInfo<W, H>,
+    > PartialEq for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], A>
 {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
@@ -582,6 +773,7 @@ impl<
         T,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
         H: BuildHasher,
-    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W]>
+        A: ArrayInfo<W, H>,
+    > Eq for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], A>
 {
 }
