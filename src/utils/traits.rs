@@ -1,4 +1,5 @@
 use std::cell::UnsafeCell;
+use sux::traits::Word;
 
 /// Trait that allows mutable access to a value in a mutable slice from an immutable reference.
 ///
@@ -246,4 +247,192 @@ pub trait ApproximatedCounter<T>: Counter<T> {
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
     fn estimate_count(&self) -> f64;
+}
+
+/// A cachable counter capable of copying the borrowed data it points to
+/// into an owned counter providing the same interface.
+///
+/// Implementors should ensure that [`Self::OwnedCounter`] contains no references
+/// to the borrowed data the original counter points to.
+///
+/// Default implementations for [`Self::into_owned`] and [`Self::copy_into_owned`]
+/// are provided but should be overridden in case parts of the counter may
+/// be reused to avoid reallocations.
+pub trait CachableCounter {
+    /// The type of the owned counter with all the relevant data copied into itself.
+    type OwnedCounter;
+
+    /// Get a copy of [`Self`] that can be modified freely without modified the original data.
+    fn get_copy(&self) -> Self::OwnedCounter;
+
+    /// Copies all the data from the borrowed counter into an instance of
+    /// [`Self::OwnedCounter`] and then drops it.
+    #[inline(always)]
+    fn into_owned(self) -> Self::OwnedCounter
+    where
+        Self: Sized,
+    {
+        self.get_copy()
+    }
+
+    /// Copies the borrowed counter into the provided instance of [`Self::OwnedCounter`].
+    ///
+    /// # Arguments
+    /// * `dst`: a mutable reference to an instance of [`Self::OwnedCounter`].
+    #[inline(always)]
+    fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
+        *dst = self.get_copy()
+    }
+}
+
+/// A counter capable of performing offering a view of its data as a slice of words `W`
+/// and of performing efficient operations using bitwise logic.
+///
+/// Implementors should ensure that panics conditions are respected and that [`Self::as_words`]
+/// and [`Self::as_mut_words`] always return the same slice, albait one as an immutable one and
+/// the other as a mutable one.
+pub trait BitwiseCounter<W: Word> {
+    /// Returns the counter's data as an immutable slice of `W`.
+    fn as_words(&self) -> &[W];
+
+    /// Returns the counter's data as a mutable slice of `W`.
+    fn as_mut_words(&mut self) -> &mut [W];
+
+    /// Merges `other` into `self` inplace using each counter's
+    /// representation as slice of `W`.
+    ///
+    /// `other` is not modified but `self` is.
+    ///
+    /// # Arguments
+    /// * `other`: the counter to merge into `self`.
+    fn merge_bitwise(&mut self, other: &impl BitwiseCounter<W>);
+
+    /// Sets this counter's contents to the contents of `other`.
+    ///
+    /// # Panics
+    /// This function panics if `self.as_words()` and `other.as_words()` have
+    /// different lengths.
+    ///
+    /// # Arguments
+    /// * `other`: the counter to set this counter's contents to.
+    #[inline(always)]
+    fn set_to_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
+        self.set_to_words(other.as_words());
+    }
+
+    /// Sets this counter's contents to the provided slice of `W`.
+    ///
+    /// # Panics
+    /// This function panics if `self.as_words()` and `words` have different lengths.
+    ///
+    /// # Arguments
+    /// * `words`: the immutable slice of `W` to set this counter's contents to.
+    #[inline(always)]
+    fn set_to_words(&mut self, words: &[W]) {
+        self.as_mut_words().copy_from_slice(words);
+    }
+}
+
+/// A counter capable of using external allocations during its lifetime in order to
+/// avoid to allocate all its data structures each time.
+///
+/// You can obtain a [`Self::ThreadHelper`] by calling [`HyperLogLogArray::get_thread_helper`].
+pub trait ThreadHelperCounter<'a> {
+    /// The type of the thread helper struct with all the data structures
+    /// already allocated.
+    type ThreadHelper;
+
+    /// Sets the counter to use the specified thread helper.
+    fn use_thread_helper(&mut self, helper: &'a mut Self::ThreadHelper);
+
+    /// Stops the counter from using the thread helper.
+    fn remove_thread_helper(&mut self);
+}
+
+/// An HyperLogLogCounter.
+///
+/// This represents a counter capable of performing the `HyperLogLog` algorithm.
+pub trait HyperLogLog<'a, T, W: Word>:
+    Counter<T>
+    + ApproximatedCounter<T>
+    + CachableCounter
+    + BitwiseCounter<W>
+    + ThreadHelperCounter<'a>
+    + PartialEq
+    + Eq
+{
+}
+impl<
+        'a,
+        T,
+        W: Word,
+        C: Counter<T>
+            + ApproximatedCounter<T>
+            + CachableCounter
+            + BitwiseCounter<W>
+            + ThreadHelperCounter<'a>
+            + PartialEq
+            + Eq,
+    > HyperLogLog<'a, T, W> for C
+{
+}
+
+/// An array of counter implementing [`HyperLogLog`].
+pub trait HyperLogLogArray<'a, T, W: Word> {
+    /// The type of counter this array contains.
+    ///
+    /// Note how lifetime `'a` is the lifetime of the `ThreadHelper` reference
+    /// while `'b` is the lifetime of the data pointed to by the borrowed counter.
+    type Counter<'b>: HyperLogLog<'a, T, W>
+    where
+        Self: 'b;
+
+    /// Returns the borrowed counter at the specified index using an immutable reference
+    /// to the underlying array.
+    ///
+    /// # Arguments
+    /// * `index`: the index of the counter to get.
+    ///
+    /// # Safety
+    ///
+    /// It is up to the caller to avoid data races when using this function.
+    /// In particular reading from or writing to a borrowed counter that is already being written to
+    /// is [undefined behavior], while reading from a counter that is only being read from is perfectly sound.
+    ///
+    /// Reading from or writing to an owned counter is always sound, as the data contained within is owned
+    /// by the counter and not shared with the underlying array.
+    ///
+    /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
+    unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_>;
+
+    /// Returns the borrowed counter at the specified index.
+    ///
+    /// # Arguments
+    /// * `index`: the index of the counter to get.
+    fn get_counter(&mut self, index: usize) -> Self::Counter<'_> {
+        unsafe {
+            // Safety: We have a mutable reference so no other references exist
+            self.get_counter_from_shared(index)
+        }
+    }
+
+    /// Returns the owned counter at the specified index.
+    ///
+    /// # Arguments
+    /// * `index`: the index of the counter to get.
+    fn get_owned_counter(
+        &self,
+        index: usize,
+    ) -> <Self::Counter<'_> as CachableCounter>::OwnedCounter {
+        unsafe {
+            // Safety: the returned counter is owned, so no shared data exist.
+            // Assumption: Counters created with get_counter_from_shared are used
+            // correctly
+            self.get_counter_from_shared(index).into_owned()
+        }
+    }
+
+    /// Returns a new [`ThreadHelperCounter::ThreadHelper`] for [`Self::Counter`] by
+    /// performing the necessary allocations.
+    fn get_thread_helper(&self) -> <Self::Counter<'_> as ThreadHelperCounter<'a>>::ThreadHelper;
 }
