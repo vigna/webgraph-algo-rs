@@ -50,24 +50,24 @@ fn min_alignment(bits: usize) -> String {
 ///     .build(10)?;
 /// counter_array.get_counter(0).add(42);
 ///
-/// assert_eq!(counter_array.into_vec().len(), 10);
+/// assert_eq!(counter_array.to_vec().len(), 10);
 ///
-/// let counter_array = HyperLogLogCounterArrayBuilder::new()
+/// let mut counter_array = HyperLogLogCounterArrayBuilder::new()
 ///     .log_2_num_registers(6)
 ///     .num_elements_upper_bound(30)
 ///     .build::<usize>(10)?;
 ///
-/// assert_eq!(counter_array.into_vec().len(), 10);
+/// assert_eq!(counter_array.to_vec().len(), 10);
 ///
 /// // The backend can also be changed to other unsigned types.
 /// // Note that the type must be able to hold the result of the hash function.
-/// let counter_array = HyperLogLogCounterArrayBuilder::new()
+/// let mut counter_array = HyperLogLogCounterArrayBuilder::new()
 ///     .log_2_num_registers(6)
 ///     .num_elements_upper_bound(30)
 ///     .word_type::<u64>()
 ///     .build::<usize>(10)?;
 ///
-/// assert_eq!(counter_array.into_vec().len(), 10);
+/// assert_eq!(counter_array.to_vec().len(), 10);
 /// # Ok(())
 /// # }
 /// ```
