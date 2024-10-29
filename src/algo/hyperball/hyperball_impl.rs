@@ -25,7 +25,7 @@ pub struct HyperBallBuilder<
     'a,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
-    H: BuildHasher,
+    H: BuildHasher + Clone,
     T,
     G1: RandomAccessGraph,
     G2: RandomAccessGraph = G1,
@@ -76,7 +76,7 @@ impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
         W: Word + IntoAtomic,
-        H: BuildHasher,
+        H: BuildHasher + Clone,
         T,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
@@ -187,7 +187,7 @@ impl<
     ///
     /// # Arguments
     /// * `settings`: the new settings to use.
-    pub fn hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher>(
+    pub fn hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher + Clone>(
         self,
         settings: HyperLogLogCounterArrayBuilder<H2, W2>,
     ) -> HyperBallBuilder<'a, D, W2, H2, T, G1, G2> {
@@ -453,7 +453,7 @@ pub struct HyperBall<
     T: Borrow<rayon::ThreadPool>,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic = usize,
-    H: BuildHasher = BuildHasherDefault<DefaultHasher>,
+    H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
 > {
     /// The direct graph to analyze
     graph: &'a G1,
@@ -771,7 +771,7 @@ impl<
         T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
-        H: BuildHasher,
+        H: BuildHasher + Clone,
     > HyperBall<'a, G1, G2, T, D, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,

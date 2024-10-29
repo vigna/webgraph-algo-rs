@@ -101,7 +101,7 @@ impl<W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<BuildHasherDefault<Def
     }
 }
 
-impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> {
+impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> {
     /// Sets the counters desired relative standard deviation.
     ///
     /// ## Note
@@ -142,7 +142,7 @@ impl<H: BuildHasher, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilder<H, W> 
     /// # Arguments
     /// * `hasher_builder`: the builder of the hasher used by the array that implements
     ///   [`BuildHasher`].
-    pub fn hasher_builder<H2: BuildHasher>(
+    pub fn hasher_builder<H2: BuildHasher + Clone>(
         self,
         hasher_builder: H2,
     ) -> HyperLogLogCounterArrayBuilder<H2, W> {
@@ -271,17 +271,19 @@ impl<W: Word + IntoAtomic> Default
     }
 }
 
-/// An abstracted array of [`HyperLogLogCounter`].
+/// An abstracted array of counters implementing [`HyperLogLog`].
 ///
 /// This array is created using an [`AtomicBitFieldVec`] as a backend in order to avoid
 /// wasting memory.
 ///
-/// Individual counters can be accessed with the [`Self::get_counter`] method or concretized
-/// as a [`Vec`] of [`HyperLogLogCounter`].
+/// Individual counters can be accessed with the [`Self::get_counter`],
+/// [`Self::get_counter_from_shared`] and the [`Self::get_owned_counter`]
+/// methods or concretized as a [`Vec`] of [`HyperLogLogCounter`] with [`Self::to_vec`].
+#[derive(Debug)]
 pub struct HyperLogLogCounterArray<
     T,
     W: Word + IntoAtomic = usize,
-    H: BuildHasher = BuildHasherDefault<DefaultHasher>,
+    H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
 > {
     /// The bits of the registers
     pub(super) bits: AtomicBitFieldVec<W, MmapSlice<W::AtomicType>>,
@@ -345,7 +347,7 @@ impl HyperLogLogCounterArray<()> {
     }
 }
 
-impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H>
+impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
@@ -355,7 +357,7 @@ where
     }
 }
 
-impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
+impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T, W, H> {
     /// Returns the number of words `W` per counter.
     #[inline(always)]
     pub fn words_per_counter(&self) -> usize {
@@ -395,19 +397,24 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogCounterArray<T, W, H> {
 impl<
         T: Sync + Hash,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
-        H: BuildHasher + Sync,
+        H: BuildHasher + Sync + Clone,
     > HyperLogLogCounterArray<T, W, H>
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
     for<'a> Self: HyperLogLogArray<'a, T, W>,
     for<'a, 'b> <Self as HyperLogLogArray<'a, T, W>>::Counter<'b>: Send,
 {
-    /// Creates a [`Vec`] where `v[i]` is the counter with index `i`.
+    /// Creates a vector where `v[i]` is the counter with index `i`.
     pub fn to_vec(&mut self) -> Vec<<Self as HyperLogLogArray<'_, T, W>>::Counter<'_>> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
-            .map(|i| unsafe { self.get_counter_from_shared(i) })
+            .map(|i| unsafe {
+                // Safety: each counter is returned exactly once and a mutable reference
+                // is requested so no other counters can be created as long as the Vec is
+                // alive.
+                self.get_counter_from_shared(i)
+            })
             .collect_into_vec(&mut vec);
         vec
     }
