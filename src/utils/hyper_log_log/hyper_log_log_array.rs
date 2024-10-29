@@ -1,7 +1,7 @@
 use super::*;
 use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{ensure, Context, Result};
-use common_traits::{AsBytes, Atomic, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
+use common_traits::{Atomic, IntoAtomic, Number, UpcastableInto};
 use rayon::prelude::*;
 use std::{
     f64::consts::LN_2,
@@ -343,10 +343,7 @@ impl HyperLogLogCounterArray<()> {
     }
 }
 
-impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T, W, H>
-where
-    W::AtomicType: AtomicUnsignedInt + AsBytes,
-{
+impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T, W, H> {
     /// Resets all counters by writing zeroes in all words.
     pub fn clear(&mut self) {
         self.bits
@@ -398,7 +395,6 @@ impl<
         H: BuildHasher + Sync + Clone,
     > HyperLogLogCounterArray<T, W, H>
 where
-    W::AtomicType: AtomicUnsignedInt + AsBytes,
     for<'a> Self: HyperLogLogArray<'a, T, W>,
     for<'a, 'b> <Self as HyperLogLogArray<'a, T, W>>::Counter<'b>: Send,
 {
@@ -424,8 +420,6 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64> + 'b,
         H: BuildHasher + Clone + 'b,
     > HyperLogLogArray<'b, T, W> for HyperLogLogCounterArray<T, W, H>
-where
-    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     type Counter<'a> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a Self> where T: 'a, W: 'a, H: 'a;
 

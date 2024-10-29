@@ -1,6 +1,6 @@
 use crate::{prelude::*, utils::*};
 use anyhow::{anyhow, Context, Result};
-use common_traits::{AsBytes, AtomicUnsignedInt, IntoAtomic, Number, UpcastableInto};
+use common_traits::{IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
 use kahan::KahanSum;
 use rand::random;
@@ -522,8 +522,6 @@ impl<
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         H: BuildHasher + Sync + Send + Clone,
     > HyperBall<'a, G1, G2, T, D, W, H>
-where
-    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     /// Runs HyperBall.
     ///
@@ -773,8 +771,6 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
         H: BuildHasher + Clone,
     > HyperBall<'a, G1, G2, T, D, W, H>
-where
-    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
@@ -796,8 +792,6 @@ impl<
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         H: BuildHasher + Sync + Send + Clone,
     > HyperBall<'a, G1, G2, T, D, W, H>
-where
-    W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
     /// Performs a new iteration of HyperBall.
     ///
