@@ -6,13 +6,13 @@ use dsi_progress_logger::ProgressLog;
 /// A sequential visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_from_node`](Visit::visit_from_node) method, which should
+/// [`visit_from_node`](SeqVisit::visit_from_node) method, which should
 /// perform a depth-first visit of a graph starting from a given node, and the
-/// [`visit`](Visit::visit) method, which should perform a depth-first
+/// [`visit`](SeqVisit::visit) method, which should perform a depth-first
 /// visit of the whole graph.
 ///
 /// For each node, the visit should invoke a callback with argument of type
-/// [`DFVArgs`]. In particular, the callback will be called every time a new node
+/// `A`. In particular, the callback will be called every time a new node
 /// is discovered, every time a node is revisited, and every time the
 /// enumeration of the successors of a node is completed. The callback will
 /// return a boolean value, and the subsequent behavior of the visit may very
@@ -42,7 +42,7 @@ pub trait SeqVisit<A> {
 
     /// Visits the whole graph.
     ///
-    /// See [`visit_from_node`](Visit::visit_from_node) for more
+    /// See [`visit_from_node`](SeqVisit::visit_from_node) for more
     /// details.
     fn visit<C: FnMut(A), F: Fn(&A) -> bool>(
         &mut self,
@@ -58,9 +58,9 @@ pub trait SeqVisit<A> {
 /// A parallel visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_from_node`](Visit::visit_from_node) method, which should
+/// [`visit_from_node`](ParVisit::visit_from_node) method, which should
 /// perform a depth-first visit of a graph starting from a given node, and the
-/// [`visit`](Visit::visit) method, which should perform a depth-first
+/// [`visit`](ParVisit::visit) method, which should perform a depth-first
 /// visit of the whole graph.
 ///
 /// For each node, the visit should invoke a callback with argument of type
@@ -94,7 +94,7 @@ pub trait ParVisit<A> {
 
     /// Visits the whole graph.
     ///
-    /// See [`visit_from_node`](Visit::visit_from_node) for more
+    /// See [`visit_from_node`](ParVisit::visit_from_node) for more
     /// details.
     fn visit<C: Fn(A) + Sync, F: Fn(&A) -> bool + Sync>(
         &mut self,
