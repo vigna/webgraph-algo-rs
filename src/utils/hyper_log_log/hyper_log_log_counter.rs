@@ -467,6 +467,7 @@ impl<
     type OwnedCounter =
         HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>>;
 
+    #[inline(always)]
     fn get_copy(&self) -> Self::OwnedCounter {
         let v = self.bits.as_slice().to_vec();
         let bit_field = unsafe {
@@ -480,6 +481,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn into_owned(self) -> Self::OwnedCounter
     where
         Self: Sized,
@@ -495,6 +497,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
         dst.set_to_bitwise(self);
     }
@@ -511,6 +514,7 @@ impl<
 {
     type OwnedCounter = HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>>;
 
+    #[inline(always)]
     fn get_copy(&self) -> Self::OwnedCounter {
         Self::OwnedCounter {
             array: self.array.into(),
@@ -520,6 +524,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn into_owned(self) -> Self::OwnedCounter
     where
         Self: Sized,
@@ -532,6 +537,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
         dst.bits.copy_from_slice(self.bits);
     }

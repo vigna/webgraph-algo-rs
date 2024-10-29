@@ -286,6 +286,9 @@ pub struct HyperLogLogCounterArray<
     H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
 > {
     /// The bits of the registers
+    ///
+    /// **NOTE**: we are using atomic integers in order to tell Rust that the values within
+    /// may change even without a mutable reference (see [`interior mutability`](https://doc.rust-lang.org/reference/interior-mutability.html))
     pub(super) bits: AtomicBitFieldVec<W, MmapSlice<W::AtomicType>>,
     /// The number of counters
     pub(super) num_counters: usize,
