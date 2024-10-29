@@ -234,16 +234,9 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilde
         }
 
         let required_words = counter_size_in_words * num_counters;
-        let bits_vec =
+        let bits =
             MmapSlice::from_closure(|| W::AtomicType::new(W::ZERO), required_words, mmap_options)
                 .with_context(|| "Could not create bits for hyperloglog array as MmapSlice")?;
-        let bits = unsafe {
-            AtomicBitFieldVec::from_raw_parts(
-                bits_vec,
-                register_size,
-                number_of_registers * num_counters,
-            )
-        };
 
         Ok(HyperLogLogCounterArray {
             bits,
@@ -289,7 +282,7 @@ pub struct HyperLogLogCounterArray<
     ///
     /// **NOTE**: we are using atomic integers in order to tell Rust that the values within
     /// may change even without a mutable reference (see [`interior mutability`](https://doc.rust-lang.org/reference/interior-mutability.html))
-    pub(super) bits: AtomicBitFieldVec<W, MmapSlice<W::AtomicType>>,
+    pub(super) bits: MmapSlice<W::AtomicType>,
     /// The number of counters
     pub(super) num_counters: usize,
     /// The number of registers per counter
@@ -354,9 +347,11 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T,
 where
     W::AtomicType: AtomicUnsignedInt + AsBytes,
 {
-    /// Resets all counters by writing zeroes in all registers.
+    /// Resets all counters by writing zeroes in all words.
     pub fn clear(&mut self) {
-        self.bits.reset_atomic(Ordering::Relaxed)
+        self.bits
+            .par_iter_mut()
+            .for_each(|v| v.store(W::ZERO, Ordering::Relaxed));
     }
 }
 
@@ -367,7 +362,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T,
         self.words_per_counter
     }
 
-    /// Swaps the undelying bits with those of aother equivalent array.
+    /// Swaps the undelying bits with those of another equivalent array.
     ///
     /// # Arguments
     /// * `other`: the array to swap bits with
@@ -437,7 +432,7 @@ where
     #[inline(always)]
     unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_> {
         assert!(index < self.num_counters);
-        let mut ptr = self.bits.as_slice().as_ptr() as *mut W;
+        let mut ptr = self.bits.as_ptr() as *mut W;
         ptr = ptr.add(self.words_per_counter * index);
         let bits = std::slice::from_raw_parts_mut(ptr, self.words_per_counter);
         HyperLogLogCounter {
