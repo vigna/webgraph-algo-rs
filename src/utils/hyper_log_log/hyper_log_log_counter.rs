@@ -10,15 +10,7 @@ pub struct ThreadHelper<W: Word> {
     pub(super) mask: Vec<W>,
 }
 
-pub struct HyperLogLogCounter<
-    'a,
-    'b,
-    T,
-    W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult>,
-    H: BuildHasher,
-    B,
-    A: ArrayInfo<W, H>,
-> {
+pub struct HyperLogLogCounter<'a, 'b, T, W: Word, H, B, A> {
     pub(super) array: A,
     pub(super) bits: B,
     pub(super) thread_helper: Option<&'b mut ThreadHelper<W>>,
@@ -57,7 +49,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> From<&HyperLogLogCounterAr
     }
 }
 
-pub trait ArrayInfo<W: Word, H: BuildHasher> {
+trait ArrayInfo<W: Word, H: BuildHasher> {
     fn register_size(&self) -> usize;
 
     fn hasher_builder(&self) -> &H;

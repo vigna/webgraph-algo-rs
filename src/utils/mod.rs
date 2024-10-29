@@ -17,9 +17,9 @@ pub use mmap_helper::*;
 mod closure_vec;
 pub use closure_vec::closure_vec;
 
-mod hyper_log_log;
+pub mod hyper_log_log;
 pub use hyper_log_log::{
-    HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder, ThreadHelper,
+    HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder,
 };
 
 mod threadpool;
