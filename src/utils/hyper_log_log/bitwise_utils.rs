@@ -26,7 +26,7 @@ pub(super) fn subtract<W: Word>(x: &mut [W], y: &[W]) {
 }
 
 #[inline(always)]
-pub(crate) fn merge_hyperloglog_bitwise<W: Word>(
+pub(super) fn merge_hyperloglog_bitwise<W: Word>(
     x: &mut [W],
     y: &[W],
     msb_mask: &[W],
