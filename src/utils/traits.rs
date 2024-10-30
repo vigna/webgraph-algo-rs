@@ -266,7 +266,7 @@ pub trait CachableCounter {
     fn get_copy(&self) -> Self::OwnedCounter;
 
     /// Copies all the data from the borrowed counter into an instance of
-    /// [`Self::OwnedCounter`] and then drops it.
+    /// [`Self::OwnedCounter`] and then drops it without modifying it.
     #[inline(always)]
     fn into_owned(self) -> Self::OwnedCounter
     where
