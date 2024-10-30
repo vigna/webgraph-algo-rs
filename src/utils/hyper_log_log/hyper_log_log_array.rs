@@ -386,11 +386,11 @@ impl<
         H: BuildHasher + Sync + Clone,
     > HyperLogLogCounterArray<T, W, H>
 where
-    for<'a> Self: HyperLogLogArray<'a, T, W>,
-    for<'a, 'b> <Self as HyperLogLogArray<'a, T, W>>::Counter<'b>: Send,
+    Self: HyperLogLogArray<T, W>,
+    for<'a, 'b> <Self as HyperLogLogArray<T, W>>::Counter<'a, 'b>: Send,
 {
     /// Creates a vector where `v[i]` is the counter with index `i`.
-    pub fn to_vec(&mut self) -> Vec<<Self as HyperLogLogArray<'_, T, W>>::Counter<'_>> {
+    pub fn to_vec<'b>(&mut self) -> Vec<<Self as HyperLogLogArray<T, W>>::Counter<'_, 'b>> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
@@ -406,17 +406,20 @@ where
 }
 
 impl<
-        'b,
-        T: Hash + 'b,
-        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64> + 'b,
-        H: BuildHasher + Clone + 'b,
-    > HyperLogLogArray<'b, T, W> for HyperLogLogCounterArray<T, W, H>
+        T: Hash,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
+        H: BuildHasher + Clone,
+    > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
-    type Counter<'a> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a Self> where T: 'a, W: 'a, H: 'a;
+    type Counter<'a, 'b> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a Self> where T: 'a+'b, W: 'a+'b, H: 'a+'b;
 
     #[deny(unsafe_op_in_unsafe_fn)]
     #[inline(always)]
-    unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_> {
+    unsafe fn get_counter_from_shared<'b>(&self, index: usize) -> Self::Counter<'_, 'b>
+    where
+        T: 'b,
+        H: 'b,
+    {
         assert!(index < self.num_counters);
         let mut ptr = self.bits.as_ptr() as *mut W;
 
@@ -439,7 +442,14 @@ impl<
     }
 
     #[inline(always)]
-    fn get_thread_helper(&self) -> <Self::Counter<'_> as ThreadHelperCounter<'b>>::ThreadHelper {
+    fn get_thread_helper<'b>(
+        &self,
+    ) -> <Self::Counter<'_, 'b> as ThreadHelperCounter<'b>>::ThreadHelper
+    where
+        T: 'b,
+        W: 'b,
+        H: 'b,
+    {
         ThreadHelper {
             acc: Vec::with_capacity(self.words_per_counter),
             mask: Vec::with_capacity(self.words_per_counter),

@@ -378,14 +378,15 @@ impl<
 }
 
 /// An array of counter implementing [`HyperLogLog`].
-pub trait HyperLogLogArray<'a, T, W: Word> {
+pub trait HyperLogLogArray<T, W: Word> {
     /// The type of counter this array contains.
     ///
     /// Note how lifetime `'a` is the lifetime of the `ThreadHelper` reference
     /// while `'b` is the lifetime of the data pointed to by the borrowed counter.
-    type Counter<'b>: HyperLogLog<'a, T, W>
+    type Counter<'b, 'a>: HyperLogLog<'a, T, W>
     where
-        Self: 'b;
+        Self: 'b,
+        Self: 'a;
 
     /// Returns the borrowed counter at the specified index using an immutable reference
     /// to the underlying array.
@@ -403,13 +404,13 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
     /// by the counter and not shared with the underlying array.
     ///
     /// [undefined behavior]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_>;
+    unsafe fn get_counter_from_shared<'a>(&self, index: usize) -> Self::Counter<'_, 'a>;
 
     /// Returns the borrowed counter at the specified index.
     ///
     /// # Arguments
     /// * `index`: the index of the counter to get.
-    fn get_counter(&mut self, index: usize) -> Self::Counter<'_> {
+    fn get_counter<'a>(&mut self, index: usize) -> Self::Counter<'_, 'a> {
         unsafe {
             // Safety: We have a mutable reference so no other references exist
             self.get_counter_from_shared(index)
@@ -420,10 +421,10 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
     ///
     /// # Arguments
     /// * `index`: the index of the counter to get.
-    fn get_owned_counter(
+    fn get_owned_counter<'a>(
         &self,
         index: usize,
-    ) -> <Self::Counter<'_> as CachableCounter>::OwnedCounter {
+    ) -> <Self::Counter<'_, 'a> as CachableCounter>::OwnedCounter {
         unsafe {
             // Safety: the returned counter is owned, so no shared data exist.
             // Assumption: Counters created with get_counter_from_shared are used
@@ -434,7 +435,9 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
 
     /// Returns a new [`ThreadHelperCounter::ThreadHelper`] for [`Self::Counter`] by
     /// performing the necessary allocations.
-    fn get_thread_helper(&self) -> <Self::Counter<'_> as ThreadHelperCounter<'a>>::ThreadHelper;
+    fn get_thread_helper<'a>(
+        &self,
+    ) -> <Self::Counter<'_, 'a> as ThreadHelperCounter<'a>>::ThreadHelper;
 
     /// Returns the number of counters in the array.
     fn len(&self) -> usize;
