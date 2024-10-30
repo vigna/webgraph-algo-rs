@@ -344,15 +344,6 @@ impl HyperLogLogCounterArray<()> {
 }
 
 impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T, W, H> {
-    /// Resets all counters by writing zeroes in all words.
-    pub fn clear(&mut self) {
-        self.bits
-            .par_iter_mut()
-            .for_each(|v| v.store(W::ZERO, Ordering::Relaxed));
-    }
-}
-
-impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T, W, H> {
     /// Returns the number of words `W` per counter.
     #[inline(always)]
     pub fn words_per_counter(&self) -> usize {
@@ -423,12 +414,22 @@ impl<
 {
     type Counter<'a> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a Self> where T: 'a, W: 'a, H: 'a;
 
+    #[deny(unsafe_op_in_unsafe_fn)]
     #[inline(always)]
     unsafe fn get_counter_from_shared(&self, index: usize) -> Self::Counter<'_> {
         assert!(index < self.num_counters);
         let mut ptr = self.bits.as_ptr() as *mut W;
-        ptr = ptr.add(self.words_per_counter * index);
-        let bits = std::slice::from_raw_parts_mut(ptr, self.words_per_counter);
+
+        unsafe {
+            // Safety: bits are allocated so it can never be bigger than
+            // isize::MAX bytes.
+            ptr = ptr.add(self.words_per_counter * index);
+        }
+
+        let bits = unsafe {
+            // Safety: guaranteed by the caller (no data races to borrowed data)
+            std::slice::from_raw_parts_mut(ptr, self.words_per_counter)
+        };
         HyperLogLogCounter {
             array: self,
             bits,
@@ -443,5 +444,15 @@ impl<
             acc: Vec::with_capacity(self.words_per_counter),
             mask: Vec::with_capacity(self.words_per_counter),
         }
+    }
+
+    fn len(&self) -> usize {
+        self.num_counters
+    }
+
+    fn clear(&mut self) {
+        self.bits
+            .par_iter_mut()
+            .for_each(|v| v.store(W::ZERO, Ordering::Relaxed));
     }
 }

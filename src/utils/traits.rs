@@ -435,4 +435,14 @@ pub trait HyperLogLogArray<'a, T, W: Word> {
     /// Returns a new [`ThreadHelperCounter::ThreadHelper`] for [`Self::Counter`] by
     /// performing the necessary allocations.
     fn get_thread_helper(&self) -> <Self::Counter<'_> as ThreadHelperCounter<'a>>::ThreadHelper;
+
+    /// Returns the number of counters in the array.
+    fn len(&self) -> usize;
+
+    /// Resets all counters
+    fn clear(&mut self) {
+        for i in 0..self.len() {
+            self.get_counter(i).clear();
+        }
+    }
 }
