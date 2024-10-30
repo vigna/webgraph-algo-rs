@@ -336,7 +336,7 @@ pub trait BitwiseCounter<W: Word> {
 /// A counter capable of using external allocations during its lifetime in order to
 /// avoid to allocate all its data structures each time.
 ///
-/// You can obtain a [`Self::ThreadHelper`] by calling [`HyperLogLogArray::get_thread_helper`].
+/// You can obtain a `ThreadHelper` by calling [`HyperLogLogArray::get_thread_helper`].
 pub trait ThreadHelperCounter<'a, H> {
     /// Sets the counter to use the specified thread helper.
     fn use_thread_helper(&mut self, helper: &'a mut H);
@@ -436,7 +436,7 @@ pub trait HyperLogLogArray<T, W: Word> {
         }
     }
 
-    /// Returns a new [`ThreadHelperCounter::ThreadHelper`] for [`Self::Counter`] by
+    /// Returns a new [`Self::ThreadHelper`] by
     /// performing the necessary allocations.
     fn get_thread_helper(&self) -> Self::ThreadHelper;
 
