@@ -280,6 +280,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
+    #[allow(clippy::type_complexity)]
     pub fn build(
         self,
         pl: impl ProgressLog,
@@ -319,6 +320,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
+    #[allow(clippy::type_complexity)]
     pub fn build(
         self,
         pl: impl ProgressLog,

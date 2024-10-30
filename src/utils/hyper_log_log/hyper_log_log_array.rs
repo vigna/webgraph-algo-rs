@@ -401,6 +401,7 @@ impl<
     > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
     type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self> where T: 'd + 'h, W: 'd + 'h, H: 'd + 'h;
+    type OwnedCounter<'h> = HyperLogLogCounter<'h, 'h, T, W, H, Vec<W>, OwnedArray<W, H>> where T: 'h, W: 'h, H: 'h;
     type ThreadHelper = ThreadHelper<W>;
 
     #[deny(unsafe_op_in_unsafe_fn)]

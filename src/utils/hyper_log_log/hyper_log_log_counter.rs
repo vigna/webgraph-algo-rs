@@ -453,7 +453,7 @@ impl<
         T: 'b,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult> + 'b,
         H: BuildHasher + Clone + 'b,
-    > CachableCounter
+    > CachableCounter<HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>>>
     for HyperLogLogCounter<
         'a,
         'b,
@@ -464,16 +464,15 @@ impl<
         &'a HyperLogLogCounterArray<T, W, H>,
     >
 {
-    type OwnedCounter =
-        HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>>;
-
     #[inline(always)]
-    fn get_copy(&self) -> Self::OwnedCounter {
+    fn get_copy(
+        &self,
+    ) -> HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>> {
         let v = self.bits.as_slice().to_vec();
         let bit_field = unsafe {
             BitFieldVec::from_raw_parts(v, self.array.register_size, self.array.num_registers)
         };
-        Self::OwnedCounter {
+        HyperLogLogCounter {
             array: self.array.into(),
             thread_helper: None,
             bits: bit_field,
@@ -482,14 +481,16 @@ impl<
     }
 
     #[inline(always)]
-    fn into_owned(self) -> Self::OwnedCounter
+    fn into_owned(
+        self,
+    ) -> HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>>
     where
         Self: Sized,
     {
         let (v, width, len) = self.bits.into_raw_parts();
         let v = v.to_vec();
         let bit_field = unsafe { BitFieldVec::from_raw_parts(v, width, len) };
-        Self::OwnedCounter {
+        HyperLogLogCounter {
             array: self.array.into(),
             thread_helper: self.thread_helper,
             bits: bit_field,
@@ -498,7 +499,10 @@ impl<
     }
 
     #[inline(always)]
-    fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
+    fn copy_into_owned(
+        &self,
+        dst: &mut HyperLogLogCounter<'b, 'b, T, W, H, BitFieldVec<W, Vec<W>>, OwnedArray<W, H>>,
+    ) {
         dst.set_to_bitwise(self);
     }
 }
@@ -509,14 +513,12 @@ impl<
         T: 'b,
         W: Word + IntoAtomic + UpcastableInto<HashResult> + TryFrom<HashResult> + 'b,
         H: BuildHasher + Clone + 'b,
-    > CachableCounter
+    > CachableCounter<HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>>>
     for HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a HyperLogLogCounterArray<T, W, H>>
 {
-    type OwnedCounter = HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>>;
-
     #[inline(always)]
-    fn get_copy(&self) -> Self::OwnedCounter {
-        Self::OwnedCounter {
+    fn get_copy(&self) -> HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>> {
+        HyperLogLogCounter {
             array: self.array.into(),
             thread_helper: None,
             bits: self.bits.to_vec(),
@@ -525,11 +527,11 @@ impl<
     }
 
     #[inline(always)]
-    fn into_owned(self) -> Self::OwnedCounter
+    fn into_owned(self) -> HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>>
     where
         Self: Sized,
     {
-        Self::OwnedCounter {
+        HyperLogLogCounter {
             array: self.array.into(),
             thread_helper: self.thread_helper,
             bits: self.bits.to_vec(),
@@ -538,7 +540,10 @@ impl<
     }
 
     #[inline(always)]
-    fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
+    fn copy_into_owned(
+        &self,
+        dst: &mut HyperLogLogCounter<'b, 'b, T, W, H, Vec<W>, OwnedArray<W, H>>,
+    ) {
         dst.bits.copy_from_slice(self.bits);
     }
 }

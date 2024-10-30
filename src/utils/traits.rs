@@ -252,35 +252,32 @@ pub trait ApproximatedCounter<T>: Counter<T> {
 /// A cachable counter capable of copying the borrowed data it points to
 /// into an owned counter providing the same interface.
 ///
-/// Implementors should ensure that [`Self::OwnedCounter`] contains no references
+/// Implementors should ensure that the owned counter `C` contains no references
 /// to the borrowed data the original counter points to.
 ///
 /// Default implementations for [`Self::into_owned`] and [`Self::copy_into_owned`]
 /// are provided but should be overridden in case parts of the counter may
 /// be reused to avoid reallocations.
-pub trait CachableCounter {
-    /// The type of the owned counter with all the relevant data copied into itself.
-    type OwnedCounter;
-
+pub trait CachableCounter<C> {
     /// Get a copy of [`Self`] that can be modified freely without modified the original data.
-    fn get_copy(&self) -> Self::OwnedCounter;
+    fn get_copy(&self) -> C;
 
     /// Copies all the data from the borrowed counter into an instance of
-    /// [`Self::OwnedCounter`] and then drops it without modifying it.
+    /// `C` and then drops it without modifying it.
     #[inline(always)]
-    fn into_owned(self) -> Self::OwnedCounter
+    fn into_owned(self) -> C
     where
         Self: Sized,
     {
         self.get_copy()
     }
 
-    /// Copies the borrowed counter into the provided instance of [`Self::OwnedCounter`].
+    /// Copies the borrowed counter into the provided instance of `C`.
     ///
     /// # Arguments
-    /// * `dst`: a mutable reference to an instance of [`Self::OwnedCounter`].
+    /// * `dst`: a mutable reference to an instance of `C`.
     #[inline(always)]
-    fn copy_into_owned(&self, dst: &mut Self::OwnedCounter) {
+    fn copy_into_owned(&self, dst: &mut C) {
         *dst = self.get_copy()
     }
 }
@@ -348,10 +345,21 @@ pub trait ThreadHelperCounter<'a, H> {
 /// An HyperLogLogCounter.
 ///
 /// This represents a counter capable of performing the `HyperLogLog` algorithm.
-pub trait HyperLogLog<'a, T, W: Word, H>:
+pub trait HyperLogLog<
+    'a,
+    T,
+    W: Word,
+    H,
+    C: Counter<T>
+        + ApproximatedCounter<T>
+        + BitwiseCounter<W>
+        + ThreadHelperCounter<'a, H>
+        + PartialEq
+        + Eq,
+>:
     Counter<T>
     + ApproximatedCounter<T>
-    + CachableCounter
+    + CachableCounter<C>
     + BitwiseCounter<W>
     + ThreadHelperCounter<'a, H>
     + PartialEq
@@ -365,12 +373,18 @@ impl<
         H,
         C: Counter<T>
             + ApproximatedCounter<T>
-            + CachableCounter
             + BitwiseCounter<W>
             + ThreadHelperCounter<'a, H>
             + PartialEq
             + Eq,
-    > HyperLogLog<'a, T, W, H> for C
+        I: Counter<T>
+            + ApproximatedCounter<T>
+            + CachableCounter<C>
+            + BitwiseCounter<W>
+            + ThreadHelperCounter<'a, H>
+            + PartialEq
+            + Eq,
+    > HyperLogLog<'a, T, W, H, C> for I
 {
 }
 
@@ -380,9 +394,22 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// Note how lifetime `'h` is the lifetime of the `ThreadHelper` reference
     /// while `'d` is the lifetime of the data pointed to by the borrowed counter.
-    type Counter<'d, 'h>: HyperLogLog<'h, T, W, Self::ThreadHelper>
+    type Counter<'d, 'h>: HyperLogLog<'h, T, W, Self::ThreadHelper, Self::OwnedCounter<'h>>
     where
         Self: 'd,
+        Self: 'h;
+
+    /// The type of the owned counter with all the relevant data copied into itself.
+    ///
+    /// Obtained when calling [`CachableCounter::get_copy`], [`CachableCounter::into_owned`]
+    /// or [`CachableCounter::copy_into_owned`].
+    type OwnedCounter<'h>: Counter<T>
+        + ApproximatedCounter<T>
+        + BitwiseCounter<W>
+        + ThreadHelperCounter<'h, Self::ThreadHelper>
+        + PartialEq
+        + Eq
+    where
         Self: 'h;
 
     /// The type of the thread helper struct with all the data structures
@@ -431,10 +458,7 @@ pub trait HyperLogLogArray<T, W: Word> {
     /// # Arguments
     /// * `index`: the index of the counter to get.
     #[inline(always)]
-    fn get_owned_counter<'h>(
-        &self,
-        index: usize,
-    ) -> <Self::Counter<'_, 'h> as CachableCounter>::OwnedCounter {
+    fn get_owned_counter<'h>(&self, index: usize) -> Self::OwnedCounter<'h> {
         unsafe {
             // Safety: the returned counter is owned, so no shared data exist.
             // Assumption: Counters created with get_counter_from_shared are used
