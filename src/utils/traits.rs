@@ -410,6 +410,7 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// # Arguments
     /// * `index`: the index of the counter to get.
+    #[inline(always)]
     fn get_counter<'h>(&mut self, index: usize) -> Self::Counter<'_, 'h> {
         unsafe {
             // Safety: We have a mutable reference so no other references exist
@@ -421,6 +422,7 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// # Arguments
     /// * `index`: the index of the counter to get.
+    #[inline(always)]
     fn get_owned_counter<'h>(
         &self,
         index: usize,
@@ -443,9 +445,22 @@ pub trait HyperLogLogArray<T, W: Word> {
     fn len(&self) -> usize;
 
     /// Resets all counters
+    #[inline(always)]
     fn clear(&mut self) {
         for i in 0..self.len() {
             self.get_counter(i).clear();
         }
+    }
+
+    /// Swaps the contents of `self` with the contents of `other`.
+    ///
+    /// # Arguments
+    /// * `other`: the array to swap contents with.
+    #[inline(always)]
+    fn swap_with(&mut self, other: &mut Self)
+    where
+        Self: Sized,
+    {
+        std::mem::swap(self, other);
     }
 }

@@ -350,17 +350,6 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T,
         self.words_per_counter
     }
 
-    /// Swaps the undelying bits with those of another equivalent array.
-    ///
-    /// # Arguments
-    /// * `other`: the array to swap bits with
-    pub fn swap_with(&mut self, other: &mut Self) {
-        assert_eq!(self.num_counters, other.num_counters);
-        assert_eq!(self.num_registers, other.num_registers);
-        assert_eq!(self.register_size, other.register_size);
-        std::mem::swap(&mut self.bits, &mut other.bits);
-    }
-
     /// Returns the register size.
     #[inline(always)]
     pub fn register_size(&self) -> usize {
@@ -411,11 +400,7 @@ impl<
         H: BuildHasher + Clone,
     > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
-    type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self>
-    where 
-        T: 'd + 'h,
-        W: 'd + 'h,
-        H: 'd + 'h;
+    type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self> where T: 'd + 'h, W: 'd + 'h, H: 'd + 'h;
 
     #[deny(unsafe_op_in_unsafe_fn)]
     #[inline(always)]
@@ -468,5 +453,12 @@ impl<
         self.bits
             .par_iter_mut()
             .for_each(|v| v.store(W::ZERO, Ordering::Relaxed));
+    }
+
+    fn swap_with(&mut self, other: &mut Self) {
+        assert_eq!(self.num_counters, other.num_counters);
+        assert_eq!(self.num_registers, other.num_registers);
+        assert_eq!(self.register_size, other.register_size);
+        std::mem::swap(&mut self.bits, &mut other.bits);
     }
 }
