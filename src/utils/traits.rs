@@ -337,13 +337,9 @@ pub trait BitwiseCounter<W: Word> {
 /// avoid to allocate all its data structures each time.
 ///
 /// You can obtain a [`Self::ThreadHelper`] by calling [`HyperLogLogArray::get_thread_helper`].
-pub trait ThreadHelperCounter<'a> {
-    /// The type of the thread helper struct with all the data structures
-    /// already allocated.
-    type ThreadHelper;
-
+pub trait ThreadHelperCounter<'a, H> {
     /// Sets the counter to use the specified thread helper.
-    fn use_thread_helper(&mut self, helper: &'a mut Self::ThreadHelper);
+    fn use_thread_helper(&mut self, helper: &'a mut H);
 
     /// Stops the counter from using the thread helper.
     fn remove_thread_helper(&mut self);
@@ -352,12 +348,12 @@ pub trait ThreadHelperCounter<'a> {
 /// An HyperLogLogCounter.
 ///
 /// This represents a counter capable of performing the `HyperLogLog` algorithm.
-pub trait HyperLogLog<'a, T, W: Word>:
+pub trait HyperLogLog<'a, T, W: Word, H>:
     Counter<T>
     + ApproximatedCounter<T>
     + CachableCounter
     + BitwiseCounter<W>
-    + ThreadHelperCounter<'a>
+    + ThreadHelperCounter<'a, H>
     + PartialEq
     + Eq
 {
@@ -366,14 +362,15 @@ impl<
         'a,
         T,
         W: Word,
+        H,
         C: Counter<T>
             + ApproximatedCounter<T>
             + CachableCounter
             + BitwiseCounter<W>
-            + ThreadHelperCounter<'a>
+            + ThreadHelperCounter<'a, H>
             + PartialEq
             + Eq,
-    > HyperLogLog<'a, T, W> for C
+    > HyperLogLog<'a, T, W, H> for C
 {
 }
 
@@ -383,10 +380,14 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// Note how lifetime `'h` is the lifetime of the `ThreadHelper` reference
     /// while `'d` is the lifetime of the data pointed to by the borrowed counter.
-    type Counter<'d, 'h>: HyperLogLog<'h, T, W>
+    type Counter<'d, 'h>: HyperLogLog<'h, T, W, Self::ThreadHelper>
     where
         Self: 'd,
         Self: 'h;
+
+    /// The type of the thread helper struct with all the data structures
+    /// already allocated.
+    type ThreadHelper;
 
     /// Returns the borrowed counter at the specified index using an immutable reference
     /// to the underlying array.
@@ -437,9 +438,7 @@ pub trait HyperLogLogArray<T, W: Word> {
 
     /// Returns a new [`ThreadHelperCounter::ThreadHelper`] for [`Self::Counter`] by
     /// performing the necessary allocations.
-    fn get_thread_helper<'h>(
-        &self,
-    ) -> <Self::Counter<'_, 'h> as ThreadHelperCounter<'h>>::ThreadHelper;
+    fn get_thread_helper(&self) -> Self::ThreadHelper;
 
     /// Returns the number of counters in the array.
     fn len(&self) -> usize;

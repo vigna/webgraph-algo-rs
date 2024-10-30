@@ -401,6 +401,7 @@ impl<
     > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
     type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self> where T: 'd + 'h, W: 'd + 'h, H: 'd + 'h;
+    type ThreadHelper = ThreadHelper<W>;
 
     #[deny(unsafe_op_in_unsafe_fn)]
     #[inline(always)]
@@ -431,14 +432,7 @@ impl<
     }
 
     #[inline(always)]
-    fn get_thread_helper<'h>(
-        &self,
-    ) -> <Self::Counter<'_, 'h> as ThreadHelperCounter<'h>>::ThreadHelper
-    where
-        T: 'h,
-        W: 'h,
-        H: 'h,
-    {
+    fn get_thread_helper(&self) -> Self::ThreadHelper {
         ThreadHelper {
             acc: Vec::with_capacity(self.words_per_counter),
             mask: Vec::with_capacity(self.words_per_counter),

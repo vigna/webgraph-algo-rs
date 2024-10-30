@@ -708,12 +708,10 @@ impl<
         H: BuildHasher,
         B,
         A: ArrayInfo<W, H>,
-    > ThreadHelperCounter<'b> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
+    > ThreadHelperCounter<'b, ThreadHelper<W>> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
 {
-    type ThreadHelper = ThreadHelper<W>;
-
     #[inline(always)]
-    fn use_thread_helper(&mut self, helper: &'b mut Self::ThreadHelper) {
+    fn use_thread_helper(&mut self, helper: &'b mut ThreadHelper<W>) {
         self.thread_helper = Some(helper)
     }
 
