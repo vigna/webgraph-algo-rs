@@ -267,7 +267,7 @@ impl<
 impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
-        W: Word + IntoAtomic,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
         H: BuildHasher + Clone,
         G1: RandomAccessGraph,
         G2: RandomAccessGraph,
@@ -283,7 +283,9 @@ impl<
     pub fn build(
         self,
         pl: impl ProgressLog,
-    ) -> Result<HyperBall<'a, G1, G2, rayon::ThreadPool, D, W, H>> {
+    ) -> Result<
+        HyperBall<'a, G1, G2, rayon::ThreadPool, D, W, HyperLogLogCounterArray<G1::Label, W, H>>,
+    > {
         let builder = HyperBallBuilder {
             graph: self.graph,
             rev_graph: self.rev_graph,
@@ -303,7 +305,7 @@ impl<
 impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
-        W: Word + IntoAtomic,
+        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
         H: BuildHasher + Clone,
         T: Borrow<rayon::ThreadPool>,
         G1: RandomAccessGraph,
@@ -317,7 +319,10 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    pub fn build(self, pl: impl ProgressLog) -> Result<HyperBall<'a, G1, G2, T, D, W, H>> {
+    pub fn build(
+        self,
+        pl: impl ProgressLog,
+    ) -> Result<HyperBall<'a, G1, G2, T, D, W, HyperLogLogCounterArray<G1::Label, W, H>>> {
         let num_nodes = self.graph.num_nodes();
 
         pl.info(format_args!("Initializing HyperLogLogCounterArrays"));
@@ -408,6 +413,7 @@ impl<
             granularity,
             iteration_context: IterationContext::default(),
             threadpool: self.threadpool,
+            _phantom_data: std::marker::PhantomData,
         })
     }
 }
@@ -452,8 +458,8 @@ pub struct HyperBall<
     G2: RandomAccessGraph,
     T: Borrow<rayon::ThreadPool>,
     D: Succ<Input = usize, Output = usize>,
-    W: Word + IntoAtomic = usize,
-    H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
+    W: Word + IntoAtomic,
+    A: HyperLogLogArray<G1::Label, W>,
 > {
     /// The direct graph to analyze
     graph: &'a G1,
@@ -466,9 +472,9 @@ pub struct HyperBall<
     /// The base number of nodes per task. Must be a multiple of `bits.chuk_size()`
     granularity: usize,
     /// The current status of Hyperball
-    bits: HyperLogLogCounterArray<G1::Label, W, H>,
+    bits: A,
     /// The new status of Hyperball after an iteration
-    result_bits: HyperLogLogCounterArray<G1::Label, W, H>,
+    result_bits: A,
     /// The current iteration
     iteration: usize,
     /// `true` if the computation is over
@@ -511,6 +517,7 @@ pub struct HyperBall<
     iteration_context: IterationContext,
     /// The local threadpool to use
     threadpool: T,
+    _phantom_data: std::marker::PhantomData<W>,
 }
 
 impl<
@@ -520,8 +527,8 @@ impl<
         T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        H: BuildHasher + Sync + Send + Clone,
-    > HyperBall<'a, G1, G2, T, D, W, H>
+        A: HyperLogLogArray<G1::Label, W> + Sync + Send,
+    > HyperBall<'a, G1, G2, T, D, W, A>
 {
     /// Runs HyperBall.
     ///
@@ -769,8 +776,8 @@ impl<
         T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
-        H: BuildHasher + Clone,
-    > HyperBall<'a, G1, G2, T, D, W, H>
+        A: HyperLogLogArray<G1::Label, W>,
+    > HyperBall<'a, G1, G2, T, D, W, A>
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
@@ -790,8 +797,8 @@ impl<
         T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        H: BuildHasher + Sync + Send + Clone,
-    > HyperBall<'a, G1, G2, T, D, W, H>
+        A: HyperLogLogArray<G1::Label, W> + Sync + Send,
+    > HyperBall<'a, G1, G2, T, D, W, A>
 {
     /// Performs a new iteration of HyperBall.
     ///
