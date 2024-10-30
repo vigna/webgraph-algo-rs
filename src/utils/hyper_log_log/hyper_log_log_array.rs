@@ -411,14 +411,18 @@ impl<
         H: BuildHasher + Clone,
     > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
-    type Counter<'a, 'b> = HyperLogLogCounter<'a, 'b, T, W, H, &'a mut [W], &'a Self> where T: 'a+'b, W: 'a+'b, H: 'a+'b;
+    type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self>
+    where 
+        T: 'd + 'h,
+        W: 'd + 'h,
+        H: 'd + 'h;
 
     #[deny(unsafe_op_in_unsafe_fn)]
     #[inline(always)]
-    unsafe fn get_counter_from_shared<'b>(&self, index: usize) -> Self::Counter<'_, 'b>
+    unsafe fn get_counter_from_shared<'h>(&self, index: usize) -> Self::Counter<'_, 'h>
     where
-        T: 'b,
-        H: 'b,
+        T: 'h,
+        H: 'h,
     {
         assert!(index < self.num_counters);
         let mut ptr = self.bits.as_ptr() as *mut W;
@@ -442,13 +446,13 @@ impl<
     }
 
     #[inline(always)]
-    fn get_thread_helper<'b>(
+    fn get_thread_helper<'h>(
         &self,
-    ) -> <Self::Counter<'_, 'b> as ThreadHelperCounter<'b>>::ThreadHelper
+    ) -> <Self::Counter<'_, 'h> as ThreadHelperCounter<'h>>::ThreadHelper
     where
-        T: 'b,
-        W: 'b,
-        H: 'b,
+        T: 'h,
+        W: 'h,
+        H: 'h,
     {
         ThreadHelper {
             acc: Vec::with_capacity(self.words_per_counter),
