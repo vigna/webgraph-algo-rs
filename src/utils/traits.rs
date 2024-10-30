@@ -389,6 +389,13 @@ pub trait HyperLogLogArray<T, W: Word> {
     /// already allocated.
     type ThreadHelper;
 
+    /// Returns a new [`Self::ThreadHelper`] by
+    /// performing the necessary allocations.
+    fn get_thread_helper(&self) -> Self::ThreadHelper;
+
+    /// Returns the number of counters in the array.
+    fn len(&self) -> usize;
+
     /// Returns the borrowed counter at the specified index using an immutable reference
     /// to the underlying array.
     ///
@@ -436,12 +443,11 @@ pub trait HyperLogLogArray<T, W: Word> {
         }
     }
 
-    /// Returns a new [`Self::ThreadHelper`] by
-    /// performing the necessary allocations.
-    fn get_thread_helper(&self) -> Self::ThreadHelper;
-
-    /// Returns the number of counters in the array.
-    fn len(&self) -> usize;
+    /// Returns `true` if the vector contains no elements.
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     /// Resets all counters
     #[inline(always)]

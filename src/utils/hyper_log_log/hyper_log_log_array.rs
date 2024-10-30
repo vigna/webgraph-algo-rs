@@ -439,16 +439,19 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn len(&self) -> usize {
         self.num_counters
     }
 
+    #[inline(always)]
     fn clear(&mut self) {
         self.bits
             .par_iter_mut()
             .for_each(|v| v.store(W::ZERO, Ordering::Relaxed));
     }
 
+    #[inline(always)]
     fn swap_with(&mut self, other: &mut Self) {
         assert_eq!(self.num_counters, other.num_counters);
         assert_eq!(self.num_registers, other.num_registers);
