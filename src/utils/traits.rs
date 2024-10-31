@@ -414,6 +414,8 @@ pub trait HyperLogLogArray<T, W: Word> {
 
     /// The type of the thread helper struct with all the data structures
     /// already allocated.
+    ///
+    /// Used by [`ThreadHelperCounter::use_thread_helper`].
     type ThreadHelper;
 
     /// Returns a new [`Self::ThreadHelper`] by
@@ -467,7 +469,7 @@ pub trait HyperLogLogArray<T, W: Word> {
         }
     }
 
-    /// Returns `true` if the vector contains no elements.
+    /// Returns `true` if the vector contains no counters.
     #[inline(always)]
     fn is_empty(&self) -> bool {
         self.len() == 0
