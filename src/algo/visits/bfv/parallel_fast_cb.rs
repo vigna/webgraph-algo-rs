@@ -1,5 +1,4 @@
-use crate::{algo::visits::ParVisit, prelude::*};
-use bfv::Args;
+use crate::algo::visits::{bfv, ParVisit};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -7,8 +6,10 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A simple parallel Breadth First visit on a graph with low memory consumption but with a smaller
-/// frontier.
+/// A parallel visit where the
+/// callback is called during successor enumeration, allowing to store only the nodes without their parents.
+/// This leads to slowdowns and less parallelization in the case where the callback is not trascurable relative
+/// to the visit logic but to performance improvements in case it is.
 pub struct ParallelBreadthFirstVisitFastCB<
     G: RandomAccessGraph,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
@@ -20,8 +21,8 @@ pub struct ParallelBreadthFirstVisitFastCB<
 }
 
 impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool> {
-    /// Creates parallel top-down visit that uses less memory
-    /// but is less efficient with long callbacks.
+    /// Creates parallel top-down visit faster for quick callbacks but slower and less
+    /// for longer ones.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -31,8 +32,8 @@ impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool>
         Self::with_num_threads(graph, granularity, 0)
     }
 
-    /// Creates a parallel top-down visit that uses the specified number of threads, less memory
-    /// but is less efficient with long callbacks.
+    /// Creates a parallel top-down visit faster for quick callbacks but slower and less
+    /// for longer ones that uses the specified number of threads.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -49,8 +50,8 @@ impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool>
 }
 
 impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParallelBreadthFirstVisitFastCB<G, T> {
-    /// Creates a parallel top-down visit that uses the specified threadpool, less memory
-    /// but is less efficient with long callbacks.
+    /// Creates a parallel top-down visit faster for quick callbacks but slower and less
+    /// for longer ones that uses the specified threadpool.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -78,7 +79,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
         filter: F,
         pl: &mut impl ProgressLog,
     ) {
-        let args = Args {
+        let args = bfv::Args {
             node: root,
             parent: root,
             root,
@@ -109,7 +110,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
                     .for_each(|chunk| {
                         chunk.into_iter().for_each(|&node| {
                             self.graph.successors(node).into_iter().for_each(|succ| {
-                                let args = Args {
+                                let args = bfv::Args {
                                     node: succ,
                                     parent: node,
                                     root,

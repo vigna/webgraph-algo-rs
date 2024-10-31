@@ -1,3 +1,7 @@
+//! Module containing various utilities.
+//!
+//! Mostly for internal use, some structures may be useful outside of this crate.
+
 use webgraph::traits::RandomAccessGraph;
 
 mod argmax;
@@ -17,6 +21,8 @@ pub use mmap_helper::*;
 mod closure_vec;
 pub use closure_vec::closure_vec;
 
+/// Module containing implementations of the `HyperLogLog` algorithm
+/// and implementing efficient Vecs of counters.
 pub mod hyper_log_log;
 pub use hyper_log_log::{
     HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder,
@@ -25,6 +31,7 @@ pub use hyper_log_log::{
 mod threadpool;
 pub(crate) use threadpool::Threads;
 
+/// Module containing utility traits.
 pub mod traits;
 
 const MAX_NODES_ENV_VAR: &str = "MAX_TRANSPOSED_SIZE_DEBUG";

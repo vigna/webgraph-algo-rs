@@ -1,3 +1,16 @@
+//! Module containing traits and implementations of both depth-first and breadth-first
+//! visits on graphs.
+//!
+//! Breadth-first visits come in 3 flavours:
+//! * [`Sequential`](bfv::SingleThreadedBreadthFirstVisit): a single threaded visit.
+//! * [`Parallel`](bfv::ParallelBreadthFirstVisit): a parallel visit where at each iteration
+//!   the frontier is divided in chunks for the threads in order to call the callback and perform
+//!   the visit logic. In order to do so both the node and its parent must be enqued in the frontier.
+//! * [`Parallel with fast callbacks`](bfv::ParallelBreadthFirstVisitFastCB): a parallel visit where the
+//!   callback is called during successor enumeration, allowing to store only the nodes without their parents.
+//!   This leads to slowdowns and less parallelization in the case where the callback is not trascurable relative
+//!   to the visit logic but to performance improvements in case it is.
+
 pub mod bfv;
 pub mod dfv;
 

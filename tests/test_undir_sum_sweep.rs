@@ -1,4 +1,4 @@
-/*use anyhow::Result;
+use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::diameter::*;
@@ -19,7 +19,7 @@ fn test_path() -> Result<()> {
 
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
-            .build(Option::<ProgressLogger>::None)?;
+            .build(&mut Option::<ProgressLogger>::None);
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
@@ -66,7 +66,7 @@ fn test_star() -> Result<()> {
 
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
-            .build(Option::<ProgressLogger>::None)?;
+            .build(&mut Option::<ProgressLogger>::None);
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
@@ -111,7 +111,7 @@ fn test_lozenge() -> Result<()> {
 
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
-            .build(Option::<ProgressLogger>::None)?;
+            .build(&mut Option::<ProgressLogger>::None);
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(2));
@@ -143,7 +143,7 @@ fn test_cycle() -> Result<()> {
             &graph,
             SumSweepOutputLevel::RadiusDiameter,
         )
-        .build(Option::<ProgressLogger>::None)?;
+        .build(&mut Option::<ProgressLogger>::None);
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
         assert_eq!(sum_sweep.diameter(), Some(size / 2));
@@ -176,7 +176,7 @@ fn test_clique() -> Result<()> {
 
         let mut sum_sweep =
             SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
-                .build(Option::<ProgressLogger>::None)?;
+                .build(&mut Option::<ProgressLogger>::None);
         sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
         for i in 0..size {
@@ -199,7 +199,7 @@ fn test_no_edges() -> Result<()> {
 
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
-            .build(Option::<ProgressLogger>::None)?;
+            .build(&mut Option::<ProgressLogger>::None);
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(0));
@@ -224,7 +224,7 @@ fn test_sparse() -> Result<()> {
 
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
-            .build(Option::<ProgressLogger>::None)?;
+            .build(&mut Option::<ProgressLogger>::None);
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), Some(1));
@@ -240,7 +240,7 @@ fn test_empty() -> Result<()> {
 
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
-            .build(Option::<ProgressLogger>::None)?;
+            .build(&mut Option::<ProgressLogger>::None);
     sum_sweep.compute(Option::<ProgressLogger>::None)?;
 
     assert_eq!(sum_sweep.radius(), None);
@@ -248,4 +248,3 @@ fn test_empty() -> Result<()> {
 
     Ok(())
 }
-*/

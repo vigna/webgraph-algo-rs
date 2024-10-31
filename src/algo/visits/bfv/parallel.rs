@@ -1,5 +1,4 @@
-use crate::{algo::visits::ParVisit, prelude::*};
-use bfv::Args;
+use crate::algo::visits::{bfv, ParVisit};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -7,7 +6,9 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A simple parallel Breadth First visit on a graph.
+/// A parallel visit where at each iteration
+/// the frontier is divided in chunks for the threads in order to call the callback and perform
+/// the visit logic. In order to do so both the node and its parent must be enqued in the frontier.
 pub struct ParallelBreadthFirstVisit<
     'a,
     G: RandomAccessGraph,
@@ -74,7 +75,7 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv
         filter: F,
         pl: &mut impl ProgressLog,
     ) {
-        let args = Args {
+        let args = bfv::Args {
             node: root,
             parent: root,
             root,
@@ -106,14 +107,14 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv
                     .chunks(self.granularity)
                     .for_each(|chunk| {
                         chunk.into_iter().for_each(|&(node, parent)| {
-                            callback(Args {
+                            callback(bfv::Args {
                                 node,
                                 parent,
                                 root,
                                 distance,
                             });
                             self.graph.successors(node).into_iter().for_each(|succ| {
-                                if filter(&Args {
+                                if filter(&bfv::Args {
                                     node: succ,
                                     parent: node,
                                     root,

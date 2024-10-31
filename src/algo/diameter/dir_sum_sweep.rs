@@ -2,13 +2,12 @@ use crate::{
     algo::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
-        visits::{bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
+        visits::{bfv, bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
     },
     prelude::*,
     utils::*,
 };
 use anyhow::{Context, Result};
-use bfv::Args;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
@@ -279,6 +278,16 @@ impl<
 
 const VISIT_GRANULARITY: usize = 32;
 
+/// The implementation of the *SumSweep* algorithm on directed graphs.
+///
+/// The algorithm is started by calling [`Self::compute`] with a progress logger
+/// if desired.
+///
+/// Results can be accessed with methods [`Self::radius`], [`Self::diameter`],
+/// [`Self::radial_vertex`], [`Self::diametral_vertex`] and [`Self::eccentricity`].
+///
+/// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
+/// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
 pub struct SumSweepDirectedDiameterRadius<
     'a,
     G1: RandomAccessGraph + Sync,
@@ -1113,7 +1122,7 @@ impl<
 
                 bfs.visit_from_node(
                     p,
-                    |Args {
+                    |bfv::Args {
                          node,
                          parent: _parent,
                          root: _root,

@@ -6,6 +6,8 @@ use std::marker::PhantomData;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
+/// Implementation of Tarjan's algorithm to compute the strongly connected components
+/// on a graph.
 pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
     n_of_components: usize,
     component: Vec<usize>,

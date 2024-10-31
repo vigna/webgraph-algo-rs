@@ -452,7 +452,7 @@ impl Default for IterationContext {
     }
 }
 
-/// An algorithm thah computes an approximation of the neighbourhood function, of the size of the reachable sets,
+/// An algorithm that computes an approximation of the neighbourhood function, of the size of the reachable sets,
 /// and of (discounted) positive geometric centralities of a graph.
 pub struct HyperBall<
     'a,

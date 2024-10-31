@@ -5,7 +5,7 @@ use crate::{
             SumSweepOutputLevel,
         },
         scc::TarjanStronglyConnectedComponents,
-        visits::{bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
+        visits::{bfv, bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
     },
     prelude::*,
     utils::Threads,
@@ -35,6 +35,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         let output = match output {
             SumSweepOutputLevel::Radius => SumSweepOutputLevel::Radius,
             SumSweepOutputLevel::Diameter => SumSweepOutputLevel::Diameter,
+            SumSweepOutputLevel::RadiusDiameter => SumSweepOutputLevel::RadiusDiameter,
             _ => SumSweepOutputLevel::All,
         };
         Self {
@@ -167,6 +168,20 @@ impl<
     }
 }
 
+/// The implementation of the *SumSweep* algorithm on undirected graphs.
+///
+/// The algorithm is started by calling [`Self::compute`] with a progress logger
+/// if desired.
+///
+/// Results can be accessed with methods [`Self::radius`], [`Self::diameter`],
+/// [`Self::radial_vertex`], [`Self::diametral_vertex`] and [`Self::eccentricity`].
+///
+/// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
+/// [`Self::diameter_iterations`] and [`Self::all_iterations`].
+///
+/// *Implementation detail*: this is just a wrapper to the [`directed version`](SumSweepDirectedDiameterRadius)
+/// using the provided graph as both the direct and the transposed version,
+/// as it is actually faster than the original algorithm for undirected graphs.
 pub struct SumSweepUndirectedDiameterRadius<
     'a,
     G: RandomAccessGraph + Sync,
