@@ -12,19 +12,21 @@ pub use single_thread::*;
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Event {
     /// The node thas just been encountered for the first time.
-    ///
-    /// The color of the node is white, and will become grey
-    /// after this event.
     Unknown,
     /// The node has been encountered before.
     ///
-    /// The color of the node is grey or black, and will be
-    /// unchanged after this event.
-    Known,
+    /// If supported bt the visit, the Boolean value denotes
+    /// whether the node is currently on the visit stack.
+    Known(bool),
     /// The enumeration of the successors of the node has been completed.
-    ///
-    /// The color of the node is grey, and will turn black after this event.
     Completed,
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Color {
+    White,
+    Grey,
+    Black,
 }
 
 /// Convenience struct to pass arguments to the callback of a

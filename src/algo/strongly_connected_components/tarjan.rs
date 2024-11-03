@@ -57,7 +57,6 @@ struct Tarjan<G: RandomAccessGraph> {
     pub buckets: Option<Vec<bool>>,
     indexes: Vec<Option<NonMaxUsize>>,
     lowlinks: Vec<usize>,
-    on_stack: BitVec,
     terminal: Option<BitVec>,
     /// The first-Tarjan clock (incremented at each Tarjaned node).
     current_index: usize,
@@ -83,7 +82,6 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
             current_index: 0,
             indexes: vec![None; num_nodes],
             lowlinks: vec![usize::MAX; num_nodes],
-            on_stack: BitVec::new(num_nodes),
             number_of_components: 0,
             components: vec![0; num_nodes],
             stack: Vec::new(),
@@ -91,7 +89,7 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
     }
 
     fn run(&mut self, mut pl: impl ProgressLog) {
-        let mut visit = SingleThreadedDepthFirstVisit::new(&self.graph);
+        let mut visit = SingleThreadedDepthFirstVisit::<ThreeState, _>::new(&self.graph);
         pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
@@ -113,10 +111,10 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
                         self.lowlinks[node] = self.current_index;
                         self.current_index += 1;
                         self.stack.push(node);
-                        self.on_stack.set(node, true);
                     }
-                    Event::Known => {
-                        if self.on_stack[node] {
+                    Event::Known(on_stack) => {
+                        if on_stack {
+                            // TODO
                             self.lowlinks[pred] = std::cmp::min(
                                 self.lowlinks[pred],
                                 self.indexes[node].unwrap().into(),
@@ -132,7 +130,6 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
                                 let terminal = t[node];
                                 while let Some(v) = self.stack.pop() {
                                     self.components[v] = self.number_of_components;
-                                    self.on_stack.set(v, false);
                                     t.set(v, false);
                                     if terminal && self.graph.outdegree(v) != 0 {
                                         b[v] = true;
@@ -144,7 +141,6 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
                             } else {
                                 while let Some(v) = self.stack.pop() {
                                     self.components[v] = self.number_of_components;
-                                    self.on_stack.set(v, false);
                                     if v == node {
                                         break;
                                     }

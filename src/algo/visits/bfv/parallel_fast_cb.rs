@@ -21,8 +21,8 @@ pub struct ParallelBreadthFirstVisitFastCB<
 }
 
 impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool> {
-    /// Creates parallel top-down visit faster for quick callbacks but slower and less
-    /// for longer ones.
+    /// Creates parallel top-down visit that uses less memory
+    /// but is less efficient with long callbacks.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
