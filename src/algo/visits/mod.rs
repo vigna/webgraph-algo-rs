@@ -20,26 +20,28 @@ use dsi_progress_logger::ProgressLog;
 ///
 /// Implementation of this trait must provide the
 /// [`visit_from_node`](SeqVisit::visit_from_node) method, which should
-/// perform a depth-first visit of a graph starting from a given node, and the
-/// [`visit`](SeqVisit::visit) method, which should perform a depth-first
+/// perform a visit of a graph starting from a given node, and the
+/// [`visit`](SeqVisit::visit) method, which should perform a
 /// visit of the whole graph.
 ///
 /// For each node, the visit should invoke a callback with argument of type
-/// `A`. In particular, the callback will be called every time a new node
-/// is discovered, every time a node is revisited, and every time the
-/// enumeration of the successors of a node is completed. The callback will
-/// return a boolean value, and the subsequent behavior of the visit may very
-/// depending on the value. The specific behavior can be different for different
-/// implementations of this trait.
+/// `A`. The callback may be called multiple times depending on the implementation
+/// as long as information on the type of event is passed bundled with `A`.
+///
+/// In addition, before discovering a node the visit should invoke a filter
+/// callback with argument of type `&A` that returns a boolean.
+/// If the filter returns `false`, the node is not discovered but may be
+/// discovered in the future with a different arc.
+/// The filer can also be used to avoid calling the callback in other events
+/// or to implement other behavior that should be specified by the single implementation.
 ///
 pub trait SeqVisit<A> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
     /// * `root`: The node to start the visit from.
-    ///
     /// * `callback`: The callback function.
-    ///
+    /// * `filter`: The filter function
     /// * `pl`: A progress logger that implements
     ///   [`dsi_progress_logger::ProgressLog`] may be passed to the method to
     ///   log the progress of the visit. If
@@ -72,26 +74,28 @@ pub trait SeqVisit<A> {
 ///
 /// Implementation of this trait must provide the
 /// [`visit_from_node`](ParVisit::visit_from_node) method, which should
-/// perform a depth-first visit of a graph starting from a given node, and the
-/// [`visit`](ParVisit::visit) method, which should perform a depth-first
+/// perform a visit of a graph starting from a given node, and the
+/// [`visit`](ParVisit::visit) method, which should perform a
 /// visit of the whole graph.
 ///
 /// For each node, the visit should invoke a callback with argument of type
-/// `A`. In particular, the callback will be called every time a new node
-/// is discovered, every time a node is revisited, and every time the
-/// enumeration of the successors of a node is completed. The callback will
-/// return a boolean value, and the subsequent behavior of the visit may very
-/// depending on the value. The specific behavior can be different for different
-/// implementations of this trait.
+/// `A`. The callback may be called multiple times depending on the implementation
+/// as long as information on the type of event is passed bundled with `A`.
+///
+/// In addition, before discovering a node the visit should invoke a filter
+/// callback with argument of type `&A` that returns a boolean.
+/// If the filter returns `false`, the node is not discovered but may be
+/// discovered in the future with a different arc.
+/// The filer can also be used to avoid calling the callback in other events
+/// or to implement other behavior that should be specified by the single implementation.
 ///
 pub trait ParVisit<A> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
     /// * `root`: The node to start the visit from.
-    ///
     /// * `callback`: The callback function.
-    ///
+    /// * `filter`: The filter function
     /// * `pl`: A progress logger that implements
     ///   [`dsi_progress_logger::ProgressLog`] may be passed to the method to
     ///   log the progress of the visit. If

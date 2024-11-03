@@ -7,9 +7,9 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A sequential depth-first visit.
 ///
-/// In case the callback returns `false`, the visit behaves as follows:
-/// * If the event is [`Event::Unknown`], the node will be marked as discovered
-///   but ignored.
+/// In case the filter returns `false`, the visit behaves as follows:
+/// * If the event is [`Event::Unknown`], the node will be not marked as discovered
+///   and ignored.
 /// * If the event is [`Event::Known`], the successor enumeration will be
 ///   interrupted.
 /// * If the event is [`Event::Completed`], the visit will be terminated.
