@@ -282,7 +282,7 @@ pub trait CachableCounter<C> {
     }
 }
 
-/// A counter capable of performing offering a view of its data as a slice of words `W`
+/// A counter capable of offering a view of its data as a slice of words `W`
 /// and of performing efficient operations using bitwise logic.
 ///
 /// Implementors should ensure that panics conditions are respected and that [`Self::as_words`]
