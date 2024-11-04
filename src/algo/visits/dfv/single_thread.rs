@@ -8,10 +8,8 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A sequential depth-first visit.
 ///
-/// In case the filter returns `false`, the visit behaves as follows:
-/// * If the event is [`Event::Unknown`], the node will be marked as discovered
-///   but ignored.
-/// * If the event is [`Event::Known`], the visit will be interrupted.
+/// This is an iterative implementation that does not depend on large
+/// stack sizes to perform recursion.
 pub struct SingleThreadedDepthFirstVisit<'a, S: NodeState, G: RandomAccessGraph> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node

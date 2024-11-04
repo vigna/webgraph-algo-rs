@@ -1,9 +1,21 @@
 //! Depth-first visits.
 //!
-//! For each node, the visit should invoke a callback with argument of type
-//! [`Args`]. In particular, the callback will be called every time a new node
-//! is discovered, every time a node is revisited, and every time the
-//! enumeration of the successors of a node is completed (see [`Event`]).
+//! Implementations accept a callback function with argument [`Args`]. The
+//! callback will be called every time a new node is discovered, every time a
+//! node is revisited, and every time the enumeration of the successors of a
+//! node is completed (see [`Event`]).
+//!
+//! Additionally, implementations might accept a filter function that will be
+//! called before invoking the callback. The filter function should return
+//! `true` if the callback should be invoked, and `false` otherwise. Moreover,
+//! depending on the [event](`Event`) that triggered the callback, when the
+//! filter returns false the course of the visit will be altered as follows:
+//!
+//! - If the event is [Unknown](`Event::Unknown`), the node will be ignored and
+//!  not marked as known.
+//!
+//! - If the event is [Known](`Event::Known`) or [Completed](`Event::Completed`),
+//! the visit will be interrupted.
 
 mod single_thread;
 pub use single_thread::*;
@@ -20,13 +32,6 @@ pub enum Event {
     Known(bool),
     /// The enumeration of the successors of the node has been completed.
     Completed,
-}
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Color {
-    White,
-    Grey,
-    Black,
 }
 
 /// Convenience struct to pass arguments to the callback of a
