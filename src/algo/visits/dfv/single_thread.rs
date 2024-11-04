@@ -161,8 +161,7 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
         };
 
         if !filter(&args) {
-            // If the node is filtered, we consider its visit concluded
-            // TODO
+            // We ignore the node: it might be visited later
             return;
         }
 
@@ -187,7 +186,21 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
 
             for succ in iter {
                 // Check if node should be visited
-                if !state.known(succ) {
+                if state.known(succ) {
+                    // Node has already been visited
+                    let args = Args {
+                        node: succ,
+                        pred: current_node,
+                        root,
+                        depth: depth + 1,
+                        event: Event::Known(state.on_stack(succ)),
+                    };
+                    if !filter(&(args)) {
+                        // We interrupt the visit
+                        return;
+                    }
+                    callback(args);
+                } else {
                     // First time seeing node
                     let args = Args {
                         node: succ,
@@ -202,35 +215,24 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
                         // current_node is the parent of succ
                         self.stack
                             .push((self.graph.successors(succ).into_iter(), current_node));
-                        // At the next iteration, succ will be the current node
 
                         state.set_known(succ);
                         state.set_on_stack(succ);
 
+                        // At the next iteration, succ will be the current node
                         current_node = succ;
 
                         continue 'recurse;
                     }
-                } else {
-                    // Node has already been visited
-
-                    let args = Args {
-                        node: succ,
-                        pred: current_node,
-                        root,
-                        depth: depth + 1,
-                        event: Event::Known(state.on_stack(succ)),
-                    };
-                    if !filter(&(args)) {
-                        // We interrupt the visit
-                        // TODOs
-                        //return;
-                    }
-                    callback(args);
                 }
             }
 
             pl.light_update();
+
+            if !filter(&args) {
+                // We interrupt the visit
+                return;
+            }
 
             callback(Args {
                 node: current_node,
