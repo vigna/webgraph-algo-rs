@@ -1,5 +1,6 @@
 use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
+use std::convert::Infallible;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
     labels::Left,
@@ -94,10 +95,13 @@ macro_rules! test_bfv_algo {
                 for node in 0..graph.num_nodes() {
                     visit.visit_from_node(
                         node,
-                        |args| dists[args.node].store(args.distance, Ordering::Relaxed),
+                        |&args| {
+                            dists[args.node].store(args.distance, Ordering::Relaxed);
+                            Ok(())
+                        },
                         |_| true,
                         &mut Option::<ProgressLogger>::None,
-                    );
+                    )?;
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -120,10 +124,10 @@ macro_rules! test_bfv_algo {
                     let node = (i + 10000) % graph.num_nodes();
                     visit.visit_from_node(
                         node,
-                        |args| dists[args.node].store(args.distance, Ordering::Relaxed),
+                        |args| Ok(dists[args.node].store(args.distance, Ordering::Relaxed)),
                         |_| true,
                         &mut Option::<ProgressLogger>::None,
-                    );
+                    )?;
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -137,14 +141,14 @@ macro_rules! test_bfv_algo {
 }
 
 test_bfv_algo!(
-    webgraph_algo::prelude::bfv::SingleThreadedBreadthFirstVisit::new,
+    webgraph_algo::prelude::bfv::SingleThreadedBreadthFirstVisit::<Infallible, _>::new,
     sequential
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisit::new(g, 32),
+    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisit::<Infallible, _>::new(g, 32),
     parallel
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisitFastCB::new(g, 32),
+    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 32),
     parallel_fast_callback
 );

@@ -11,6 +11,7 @@ use webgraph::traits::RandomAccessGraph;
 /// This leads to slowdowns and less parallelization in the case where the callback is not trascurable relative
 /// to the visit logic but to performance improvements in case it is.
 pub struct ParallelBreadthFirstVisitFastCB<
+    E,
     G: RandomAccessGraph,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
 > {
@@ -18,9 +19,10 @@ pub struct ParallelBreadthFirstVisitFastCB<
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
+    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool> {
+impl<E, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<E, G, rayon::ThreadPool> {
     /// Creates parallel top-down visit that uses less memory
     /// but is less efficient with long callbacks.
     ///
@@ -49,7 +51,9 @@ impl<G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<G, rayon::ThreadPool>
     }
 }
 
-impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParallelBreadthFirstVisitFastCB<G, T> {
+impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
+    ParallelBreadthFirstVisitFastCB<E, G, T>
+{
     /// Creates a parallel top-down visit faster for quick callbacks but slower and less
     /// for longer ones that uses the specified threadpool.
     ///
@@ -65,20 +69,24 @@ impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParallelBreadthFirstVis
             granularity,
             visited: AtomicBitVec::new(num_nodes),
             threads,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args>
-    for ParallelBreadthFirstVisitFastCB<G, T>
+impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args, E>
+    for ParallelBreadthFirstVisitFastCB<E, G, T>
 {
-    fn visit_from_node<C: Fn(bfv::Args) + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+    fn visit_from_node<
+        C: Fn(&bfv::Args) -> Result<(), E> + Sync,
+        F: Fn(&bfv::Args) -> bool + Sync,
+    >(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         let args = bfv::Args {
             node: root,
             parent: root,
@@ -86,7 +94,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
             distance: 0,
         };
         if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
-            return;
+            return Ok(());
         }
 
         // We do not provide a capacity in the hope of allocating dyinamically
@@ -97,7 +105,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
         self.threads.borrow().install(|| curr_frontier.push(root));
 
         self.visited.set(root, true, Ordering::Relaxed);
-        callback(args);
+        callback(&args)?;
 
         let mut distance = 1;
 
@@ -107,25 +115,30 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .for_each(|chunk| {
-                        chunk.into_iter().for_each(|&node| {
-                            self.graph.successors(node).into_iter().for_each(|succ| {
-                                let args = bfv::Args {
-                                    node: succ,
-                                    parent: node,
-                                    root,
-                                    distance,
-                                };
-                                if filter(&args)
-                                    && !self.visited.swap(succ, true, Ordering::Relaxed)
-                                {
-                                    callback(args);
-                                    next_frontier.push(succ);
-                                }
-                            })
+                    .try_for_each(|chunk| {
+                        chunk.into_iter().try_for_each(|&node| {
+                            self.graph
+                                .successors(node)
+                                .into_iter()
+                                .try_for_each(|succ| {
+                                    let args = bfv::Args {
+                                        node: succ,
+                                        parent: node,
+                                        root,
+                                        distance,
+                                    };
+                                    if filter(&args)
+                                        && !self.visited.swap(succ, true, Ordering::Relaxed)
+                                    {
+                                        callback(&args)?;
+                                        next_frontier.push(succ);
+                                    }
+
+                                    Result::<(), E>::Ok(())
+                                })
                         })
-                    });
-            });
+                    })
+            })?;
             pl.update_with_count(curr_frontier.len());
             distance += 1;
             // Swap the frontiers
@@ -133,17 +146,21 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Ar
             // Clear the frontier we will fill in the next iteration
             next_frontier.clear();
         }
+
+        Ok(())
     }
 
-    fn visit<C: Fn(bfv::Args) + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+    fn visit<C: Fn(&bfv::Args) -> Result<(), E> + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &callback, &filter, pl);
+            self.visit_from_node(node, &callback, &filter, pl)?;
         }
+
+        Ok(())
     }
 
     fn reset(&mut self) {

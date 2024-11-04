@@ -11,6 +11,7 @@ use webgraph::traits::RandomAccessGraph;
 /// the visit logic. In order to do so both the node and its parent must be enqued in the frontier.
 pub struct ParallelBreadthFirstVisit<
     'a,
+    E,
     G: RandomAccessGraph,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
 > {
@@ -18,9 +19,10 @@ pub struct ParallelBreadthFirstVisit<
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
+    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G, rayon::ThreadPool> {
+impl<'a, E, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, E, G, rayon::ThreadPool> {
     /// Creates parallel top-down visit.
     ///
     /// # Arguments
@@ -47,7 +49,9 @@ impl<'a, G: RandomAccessGraph> ParallelBreadthFirstVisit<'a, G, rayon::ThreadPoo
     }
 }
 
-impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParallelBreadthFirstVisit<'a, G, T> {
+impl<'a, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
+    ParallelBreadthFirstVisit<'a, E, G, T>
+{
     /// Creates a parallel top-down visit that uses the specified threadpool.
     ///
     /// # Arguments
@@ -61,31 +65,36 @@ impl<'a, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParallelBreadthFirs
             granularity,
             visited: AtomicBitVec::new(graph.num_nodes()),
             threads,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args>
-    for ParallelBreadthFirstVisit<'a, G, T>
+impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args, E>
+    for ParallelBreadthFirstVisit<'a, E, G, T>
 {
-    fn visit_from_node<C: Fn(bfv::Args) + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+    fn visit_from_node<
+        C: Fn(&bfv::Args) -> Result<(), E> + Sync,
+        F: Fn(&bfv::Args) -> bool + Sync,
+    >(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         let args = bfv::Args {
             node: root,
             parent: root,
             root,
             distance: 0,
         };
+
         if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
-            return;
+            return Ok(());
         }
 
-        callback(args);
+        callback(&args)?;
 
         // We do not provide a capacity in the hope of allocating dyinamically
         // space as the frontiers grow.
@@ -105,14 +114,14 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .for_each(|chunk| {
-                        chunk.into_iter().for_each(|&(node, parent)| {
-                            callback(bfv::Args {
+                    .try_for_each(|chunk| {
+                        chunk.into_iter().try_for_each(|&(node, parent)| {
+                            callback(&bfv::Args {
                                 node,
                                 parent,
                                 root,
                                 distance,
-                            });
+                            })?;
                             self.graph.successors(node).into_iter().for_each(|succ| {
                                 if filter(&bfv::Args {
                                     node: succ,
@@ -123,10 +132,12 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv
                                 {
                                     next_frontier.push((succ, node));
                                 }
-                            })
+                            });
+
+                            Result::<(), E>::Ok(())
                         })
-                    });
-            });
+                    })
+            })?;
             pl.update_with_count(curr_frontier.len());
             distance += 1;
             // Swap the frontiers
@@ -134,17 +145,21 @@ impl<'a, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv
             // Clear the frontier we will fill in the next iteration
             next_frontier.clear();
         }
+
+        Ok(())
     }
 
-    fn visit<C: Fn(bfv::Args) + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+    fn visit<C: Fn(&bfv::Args) -> Result<(), E> + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &callback, &filter, pl);
+            self.visit_from_node(node, &callback, &filter, pl)?;
         }
+
+        Ok(())
     }
 
     fn reset(&mut self) {

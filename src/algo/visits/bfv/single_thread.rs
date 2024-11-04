@@ -16,16 +16,17 @@ use webgraph::traits::RandomAccessGraph;
 /// obtain this result in a compact way, nodes are represented using
 /// [`NonMaxUsize`], so the `None` variant of `Option<NonMaxUsize>`
 /// can be used as a separator.
-pub struct SingleThreadedBreadthFirstVisit<G: RandomAccessGraph> {
+pub struct SingleThreadedBreadthFirstVisit<E, G: RandomAccessGraph> {
     graph: G,
     visited: BitVec,
     /// The visit queue; to avoid storing distances, we use `None` as a
     /// separator between levels. [`NonMaxUsize`] is used to avoid
     /// storage for the option variant tag.
     queue: VecDeque<Option<NonMaxUsize>>,
+    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<G> {
+impl<E, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -36,18 +37,19 @@ impl<G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<G> {
             graph,
             visited: BitVec::new(num_nodes),
             queue: VecDeque::new(),
+            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVisit<G> {
-    fn visit_from_node<C: FnMut(bfv::Args), F: FnMut(&bfv::Args) -> bool>(
+impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFirstVisit<E, G> {
+    fn visit_from_node<C: FnMut(&bfv::Args) -> Result<(), E>, F: FnMut(&bfv::Args) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         let args = bfv::Args {
             node: root,
             parent: root,
@@ -55,7 +57,7 @@ impl<G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVis
             distance: 0,
         };
         if self.visited[root] || !filter(&args) {
-            return;
+            return Ok(());
         }
 
         self.visited.set(root, true);
@@ -78,7 +80,7 @@ impl<G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVis
                             distance,
                         };
                         if !self.visited[succ] && filter(&args) {
-                            callback(args);
+                            callback(&args)?;
                             self.visited.set(succ, true);
                             self.queue.push_back(Some(
                                 NonMaxUsize::new(succ)
@@ -98,17 +100,21 @@ impl<G: RandomAccessGraph> SeqVisit<bfv::Args> for SingleThreadedBreadthFirstVis
                 }
             }
         }
+
+        Ok(())
     }
 
-    fn visit<C: FnMut(bfv::Args), F: FnMut(&bfv::Args) -> bool>(
+    fn visit<C: FnMut(&bfv::Args) -> Result<(), E>, F: FnMut(&bfv::Args) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &mut callback, &mut filter, pl);
+            self.visit_from_node(node, &mut callback, &mut filter, pl)?;
         }
+
+        Ok(())
     }
 
     fn reset(&mut self) {

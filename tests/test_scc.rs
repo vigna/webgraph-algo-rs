@@ -1,5 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::ProgressLogger;
+use sux::bit_vec;
+use sux::prelude::BitVec;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 use webgraph_algo::algo::scc::*;
 use webgraph_algo::prelude::*;
@@ -42,11 +44,14 @@ macro_rules! test_scc_algo {
 
                 assert_eq!(components.component()[3], components.component()[4]);
 
-                let mut buckets = vec![false; graph.num_nodes()];
-                buckets[0] = true;
-                buckets[3] = true;
-                buckets[4] = true;
-                assert_eq!(components.buckets().clone().unwrap(), buckets);
+                let mut buckets = bit_vec![false; graph.num_nodes()];
+                buckets.set(0, true);
+                buckets.set(3, true);
+                buckets.set(4, true);
+                assert_eq!(
+                    components.buckets().clone().unwrap(),
+                    &buckets
+                );
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -71,9 +76,9 @@ macro_rules! test_scc_algo {
                 let mut components =
                     $scc::compute(&graph, true, &mut Option::<ProgressLogger>::None);
 
-                let mut buckets = vec![false; graph.num_nodes()];
-                buckets[3] = true;
-                assert_eq!(components.buckets().clone().unwrap(), buckets);
+                let mut buckets = BitVec::new(graph.num_nodes());
+                buckets.set(3, true);
+                assert_eq!(components.buckets().clone().unwrap(), &buckets);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -105,7 +110,7 @@ macro_rules! test_scc_algo {
 
                 assert_eq!(
                     components.buckets().clone().unwrap(),
-                    vec![true; graph.num_nodes()]
+                    &bit_vec![false; graph.num_nodes()]
                 );
 
                 for i in 0..5 {
@@ -135,7 +140,7 @@ macro_rules! test_scc_algo {
 
                 assert_eq!(
                     components.buckets().clone().unwrap(),
-                    vec![false; graph.num_nodes()]
+                    &bit_vec![false; graph.num_nodes()]
                 );
 
                 assert_eq!(components.number_of_components(), 7);
@@ -147,3 +152,4 @@ macro_rules! test_scc_algo {
 }
 
 test_scc_algo!(TarjanStronglyConnectedComponents, tarjan);
+test_scc_algo!(KKStronglyConnectedComponents, kk);

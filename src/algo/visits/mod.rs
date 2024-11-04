@@ -15,6 +15,18 @@ pub mod bfv;
 pub mod dfv;
 
 use dsi_progress_logger::ProgressLog;
+use std::fmt;
+use std::fmt::{Display, Formatter};
+
+#[derive(Debug)]
+pub struct Interrupted;
+impl std::error::Error for Interrupted {}
+impl Display for Interrupted {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let _ = f;
+        write!(f, "visit interrupted")
+    }
+}
 
 /// A sequential visit.
 ///
@@ -32,7 +44,7 @@ use dsi_progress_logger::ProgressLog;
 /// depending on the value. The specific behavior can be different for different
 /// implementations of this trait.
 ///
-pub trait SeqVisit<A> {
+pub trait SeqVisit<A, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -45,24 +57,24 @@ pub trait SeqVisit<A> {
     ///   log the progress of the visit. If
     ///   `Option::<dsi_progress_logger::ProgressLogger>::None` is passed,
     ///   logging code should be optimized away by the compiler.
-    fn visit_from_node<C: FnMut(A), F: FnMut(&A) -> bool>(
+    fn visit_from_node<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    );
+    ) -> Result<(), E>;
 
     /// Visits the whole graph.
     ///
     /// See [`visit_from_node`](SeqVisit::visit_from_node) for more
     /// details.
-    fn visit<C: FnMut(A), F: FnMut(&A) -> bool>(
+    fn visit<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
         &mut self,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    );
+    ) -> Result<(), E>;
 
     /// Resets the visit status, making it possible to reuse it.
     fn reset(&mut self);
@@ -84,7 +96,7 @@ pub trait SeqVisit<A> {
 /// depending on the value. The specific behavior can be different for different
 /// implementations of this trait.
 ///
-pub trait ParVisit<A> {
+pub trait ParVisit<A, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -97,24 +109,24 @@ pub trait ParVisit<A> {
     ///   log the progress of the visit. If
     ///   `Option::<dsi_progress_logger::ProgressLogger>::None` is passed,
     ///   logging code should be optimized away by the compiler.
-    fn visit_from_node<C: Fn(A) + Sync, F: Fn(&A) -> bool + Sync>(
+    fn visit_from_node<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    );
+    ) -> Result<(), E>;
 
     /// Visits the whole graph.
     ///
     /// See [`visit_from_node`](ParVisit::visit_from_node) for more
     /// details.
-    fn visit<C: Fn(A) + Sync, F: Fn(&A) -> bool + Sync>(
+    fn visit<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    );
+    ) -> Result<(), E>;
 
     /// Resets the visit status, making it possible to reuse it.
     fn reset(&mut self);

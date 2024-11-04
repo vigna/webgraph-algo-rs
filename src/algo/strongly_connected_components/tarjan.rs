@@ -2,22 +2,18 @@ use super::traits::StronglyConnectedComponents;
 use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
-use std::marker::PhantomData;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of Tarjan's algorithm to compute the strongly connected components
 /// on a graph.
-pub struct TarjanStronglyConnectedComponents<G: RandomAccessGraph> {
+pub struct TarjanStronglyConnectedComponents {
     n_of_components: usize,
     component: Vec<usize>,
-    buckets: Option<Vec<bool>>,
-    _phantom: PhantomData<G>,
+    buckets: Option<BitVec>,
 }
 
-impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
-    for TarjanStronglyConnectedComponents<G>
-{
+impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
     fn number_of_components(&self) -> usize {
         self.n_of_components
     }
@@ -30,14 +26,18 @@ impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
         self.component.as_mut()
     }
 
-    fn buckets(&self) -> Option<&[bool]> {
+    fn buckets(&self) -> Option<&BitVec> {
         match &self.buckets {
             Some(b) => Some(b),
             None => None,
         }
     }
 
-    fn compute(graph: &G, compute_buckets: bool, pl: &mut impl ProgressLog) -> Self {
+    fn compute(
+        graph: impl RandomAccessGraph,
+        compute_buckets: bool,
+        pl: &mut impl ProgressLog,
+    ) -> Self {
         let mut visit = Tarjan::new(graph, compute_buckets);
 
         visit.run(pl.clone());
@@ -46,7 +46,6 @@ impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
             buckets: visit.buckets,
             component: visit.components,
             n_of_components: visit.number_of_components,
-            _phantom: PhantomData,
         }
     }
 }
@@ -54,7 +53,7 @@ impl<G: RandomAccessGraph + Sync> StronglyConnectedComponents<G>
 struct Tarjan<G: RandomAccessGraph> {
     graph: G,
     pub components: Vec<usize>,
-    pub buckets: Option<Vec<bool>>,
+    pub buckets: Option<BitVec>,
     indexes: Vec<Option<NonMaxUsize>>,
     lowlinks: Vec<usize>,
     terminal: Option<BitVec>,
@@ -64,13 +63,13 @@ struct Tarjan<G: RandomAccessGraph> {
     stack: Vec<usize>,
 }
 
-impl<G: RandomAccessGraph + Sync> Tarjan<G> {
+impl<G: RandomAccessGraph> Tarjan<G> {
     fn new(graph: G, compute_buckets: bool) -> Tarjan<G> {
         let num_nodes = graph.num_nodes();
         Tarjan {
             graph,
             buckets: if compute_buckets {
-                Some(vec![false; num_nodes])
+                Some(BitVec::new(num_nodes))
             } else {
                 None
             },
@@ -89,13 +88,16 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
     }
 
     fn run(&mut self, mut pl: impl ProgressLog) {
-        let mut visit = SingleThreadedDepthFirstVisit::<ThreeState, _>::new(&self.graph);
+        let mut visit =
+            SingleThreadedDepthFirstVisit::<ThreeState, std::convert::Infallible, _>::new(
+                &self.graph,
+            );
         pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
 
         visit.visit(
-            |Args {
+            |&Args {
                  node,
                  pred,
                  root: _root,
@@ -132,7 +134,7 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
                                     self.components[v] = self.number_of_components;
                                     t.set(v, false);
                                     if terminal && self.graph.outdegree(v) != 0 {
-                                        b[v] = true;
+                                        b.set(v, true);
                                     }
                                     if v == node {
                                         break;
@@ -160,6 +162,7 @@ impl<G: RandomAccessGraph + Sync> Tarjan<G> {
                         }
                     }
                 }
+                Ok(())
             },
             |_| true,
             &mut pl,

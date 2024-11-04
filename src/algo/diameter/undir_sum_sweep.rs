@@ -13,14 +13,14 @@ use crate::{
 use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
+use std::convert::Infallible;
 use webgraph::traits::RandomAccessGraph;
-
 /// Builder for [`SumSweepUndirectedDiameterRadius`].
 pub struct SumSweepUndirectedDiameterRadiusBuilder<
     'a,
     G: RandomAccessGraph + Sync,
     T,
-    C: StronglyConnectedComponents<G>,
+    C: StronglyConnectedComponents,
 > {
     graph: &'a G,
     output: SumSweepOutputLevel,
@@ -29,7 +29,7 @@ pub struct SumSweepUndirectedDiameterRadiusBuilder<
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
-    SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, TarjanStronglyConnectedComponents<G>>
+    SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, TarjanStronglyConnectedComponents>
 {
     pub fn new(graph: &'a G, output: SumSweepOutputLevel) -> Self {
         let output = match output {
@@ -47,7 +47,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
+impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
     SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C>
 {
     /// Sets the [`SumSweepUndirectedDiameterRadius`] instance to use the default [`rayon::ThreadPool`].
@@ -94,7 +94,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
     }
 
     /// Sets the algorithm to use to compute the strongly connected components for the graph.
-    pub fn scc<C2: StronglyConnectedComponents<G>>(
+    pub fn scc<C2: StronglyConnectedComponents>(
         self,
     ) -> SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C2> {
         SumSweepUndirectedDiameterRadiusBuilder {
@@ -106,7 +106,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G>, T>
     }
 }
 
-impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
+impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
     SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, C>
 {
     /// Builds the [`SumSweepUndirectedDiameterRadius`] instance with the specified settings and
@@ -123,7 +123,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
         'a,
         G,
         C,
-        ParallelBreadthFirstVisitFastCB<&'a G, rayon::ThreadPool>,
+        ParallelBreadthFirstVisitFastCB<Infallible, &'a G, rayon::ThreadPool>,
         rayon::ThreadPool,
     > {
         let mut builder =
@@ -142,7 +142,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents<G> + Sync>
 impl<
         'a,
         G: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents<G> + Sync,
+        C: StronglyConnectedComponents + Sync,
         T: Borrow<rayon::ThreadPool> + Clone + Sync,
     > SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C>
 {
@@ -156,8 +156,13 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParallelBreadthFirstVisitFastCB<&'a G, T>, T>
-    {
+    ) -> SumSweepUndirectedDiameterRadius<
+        'a,
+        G,
+        C,
+        ParallelBreadthFirstVisitFastCB<Infallible, &'a G, T>,
+        T,
+    > {
         let builder =
             SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
                 .scc::<C>()
@@ -185,8 +190,8 @@ impl<
 pub struct SumSweepUndirectedDiameterRadius<
     'a,
     G: RandomAccessGraph + Sync,
-    C: StronglyConnectedComponents<G> + Sync,
-    V: ParVisit<bfv::Args> + Sync,
+    C: StronglyConnectedComponents + Sync,
+    V: ParVisit<bfv::Args, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 > {
     inner: SumSweepDirectedDiameterRadius<'a, G, G, C, V, V, T>,
@@ -195,8 +200,8 @@ pub struct SumSweepUndirectedDiameterRadius<
 impl<'a, G, C, V, T> SumSweepUndirectedDiameterRadius<'a, G, C, V, T>
 where
     G: RandomAccessGraph + Sync,
-    C: StronglyConnectedComponents<G> + Sync,
-    V: ParVisit<bfv::Args> + Sync,
+    C: StronglyConnectedComponents + Sync,
+    V: ParVisit<bfv::Args, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 {
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.

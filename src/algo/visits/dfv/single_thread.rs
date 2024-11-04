@@ -1,6 +1,6 @@
 use crate::algo::visits::{
     dfv::{Args, Event},
-    SeqVisit,
+    Interrupted, SeqVisit,
 };
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
@@ -8,9 +8,19 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A sequential depth-first visit.
 ///
-/// This is an iterative implementation that does not depend on large
-/// stack sizes to perform recursion.
-pub struct SingleThreadedDepthFirstVisit<'a, S: NodeState, G: RandomAccessGraph> {
+/// This is an iterative implementation that does not depend on large stack
+/// sizes to perform recursion.
+///
+/// There are two versions of the visit, selected by the parameter `S`. If `S`
+/// is [`TwoState`], the visit will use a single bit per node to remember known
+/// nodes, but events of type [`Event::Known`] will always have the associated
+/// Boolean equal to `false` (this type of visit is sufficient, for example, to
+/// compute a [topological sort](topsort)). If `S` is [`ThreeState`], instead,
+/// the visit will use two bits per node and  events of type [`Event::Known`]
+/// will provide information about whether the node associated with event is
+/// currently on the visit stack (this kind of visit is necessary, for example,
+/// to compute [acyclicity](aciclicity)).
+pub struct SingleThreadedDepthFirstVisit<'a, S, E, G: RandomAccessGraph> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
     /// and the parent of the node. This approach makes it possible to avoid
@@ -20,9 +30,10 @@ pub struct SingleThreadedDepthFirstVisit<'a, S: NodeState, G: RandomAccessGraph>
         usize,
     )>,
     state: S,
+    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, G> {
+impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -33,11 +44,12 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, G> 
             graph,
             stack: Vec::with_capacity(16),
             state: ThreeState::new(num_nodes),
+            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, G> {
+impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -48,6 +60,7 @@ impl<'a, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, G> {
             graph,
             stack: Vec::with_capacity(16),
             state: TwoState::new(num_nodes),
+            _phantom: std::marker::PhantomData,
         }
     }
 }
@@ -64,7 +77,7 @@ pub struct TwoState(BitVec);
 /// return the correct value for the `on_stack` method.
 pub struct ThreeState(BitVec);
 
-pub trait NodeState {
+trait NodeState {
     fn set_on_stack(&mut self, node: usize);
     fn set_off_stack(&mut self, node: usize);
     fn on_stack(&self, node: usize) -> bool;
@@ -134,20 +147,20 @@ impl NodeState for TwoState {
     }
 }
 
-impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
-    for SingleThreadedDepthFirstVisit<'a, S, G>
+impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
+    for SingleThreadedDepthFirstVisit<'a, S, E, G>
 {
-    fn visit_from_node<C: FnMut(Args), F: FnMut(&Args) -> bool>(
+    fn visit_from_node<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         let state = &mut self.state;
 
         if state.known(root) {
-            return;
+            return Ok(());
         }
 
         let args = Args {
@@ -160,15 +173,16 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
 
         if !filter(&args) {
             // We ignore the node: it might be visited later
-            return;
+            return Ok(());
         }
 
-        callback(args);
+        state.set_known(root);
+
+        callback(&args)?;
 
         self.stack
             .push((self.graph.successors(root).into_iter(), root));
 
-        state.set_known(root);
         state.set_on_stack(root);
 
         // This variable keeps track of the current node being visited; the
@@ -178,7 +192,7 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
         'recurse: loop {
             let depth = self.stack.len();
             let Some((iter, parent)) = self.stack.last_mut() else {
-                break;
+                return Ok(());
             };
             let parent = *parent;
 
@@ -193,11 +207,11 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
                         depth: depth + 1,
                         event: Event::Known(state.on_stack(succ)),
                     };
-                    if !filter(&(args)) {
+                    if !filter(&args) {
                         // We interrupt the visit
-                        return;
+                        return Ok(());
                     }
-                    callback(args);
+                    callback(&args)?;
                 } else {
                     // First time seeing node
                     let args = Args {
@@ -209,36 +223,39 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
                     };
 
                     if filter(&args) {
-                        callback(args);
+                        state.set_known(succ);
+
+                        callback(&args)?;
                         // current_node is the parent of succ
                         self.stack
                             .push((self.graph.successors(succ).into_iter(), current_node));
 
-                        state.set_known(succ);
                         state.set_on_stack(succ);
 
                         // At the next iteration, succ will be the current node
                         current_node = succ;
 
                         continue 'recurse;
-                    }
+                    } // Else we ignore the node: it might be visited later
                 }
             }
 
             pl.light_update();
 
-            if !filter(&args) {
-                // We interrupt the visit
-                return;
-            }
-
-            callback(Args {
+            let args = Args {
                 node: current_node,
                 pred: parent,
                 root,
                 depth,
                 event: Event::Completed,
-            });
+            };
+
+            if !filter(&args) {
+                // We interrupt the visit
+                return Ok(());
+            }
+
+            callback(&args);
 
             state.set_off_stack(current_node);
 
@@ -249,15 +266,17 @@ impl<'a, S: NodeState, G: RandomAccessGraph> SeqVisit<Args>
         }
     }
 
-    fn visit<C: FnMut(Args), F: FnMut(&Args) -> bool>(
+    fn visit<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) {
+    ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &mut callback, &mut filter, pl);
+            self.visit_from_node(node, &mut callback, &mut filter, pl)?;
         }
+
+        Ok(())
     }
 
     fn reset(&mut self) {

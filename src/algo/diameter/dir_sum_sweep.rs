@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
+use std::convert::Infallible;
 use std::{
     borrow::Borrow,
     sync::{
@@ -20,14 +21,13 @@ use std::{
 };
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
-
 /// Builder for [`SumSweepDirectedDiameterRadius`].
 pub struct SumSweepDirectedDiameterRadiusBuilder<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     T,
-    SCC: StronglyConnectedComponents<G1> = TarjanStronglyConnectedComponents<G1>,
+    SCC: StronglyConnectedComponents = TarjanStronglyConnectedComponents,
 > {
     graph: &'a G1,
     rev_graph: &'a G2,
@@ -38,13 +38,7 @@ pub struct SumSweepDirectedDiameterRadiusBuilder<
 }
 
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
-    SumSweepDirectedDiameterRadiusBuilder<
-        'a,
-        G1,
-        G2,
-        Threads,
-        TarjanStronglyConnectedComponents<G1>,
-    >
+    SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, TarjanStronglyConnectedComponents>
 {
     /// Creates a new builder with default parameters.
     ///
@@ -87,7 +81,7 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         T,
-        C: StronglyConnectedComponents<G1>,
+        C: StronglyConnectedComponents,
     > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C>
 {
     /// Sets the radial vertices with a bit vector.
@@ -157,7 +151,7 @@ impl<
     }
 
     /// Sets the algorithm to use to compute the strongly connected components for the graph.
-    pub fn scc<C2: StronglyConnectedComponents<G1>>(
+    pub fn scc<C2: StronglyConnectedComponents>(
         self,
     ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C2> {
         SumSweepDirectedDiameterRadiusBuilder {
@@ -175,7 +169,7 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        SCC: StronglyConnectedComponents<G1> + Sync,
+        SCC: StronglyConnectedComponents + Sync,
     > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, SCC>
 {
     /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
@@ -194,8 +188,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParallelBreadthFirstVisitFastCB<&'a G1, rayon::ThreadPool>,
-        ParallelBreadthFirstVisitFastCB<&'a G2, rayon::ThreadPool>,
+        ParallelBreadthFirstVisitFastCB<Infallible, &'a G1, rayon::ThreadPool>,
+        ParallelBreadthFirstVisitFastCB<Infallible, &'a G2, rayon::ThreadPool>,
         rayon::ThreadPool,
     >
     where
@@ -230,7 +224,7 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool> + Clone + Sync,
-        SCC: StronglyConnectedComponents<G1> + Sync,
+        SCC: StronglyConnectedComponents + Sync,
     > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, SCC>
 {
     /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
@@ -249,8 +243,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParallelBreadthFirstVisitFastCB<&'a G1, T>,
-        ParallelBreadthFirstVisitFastCB<&'a G2, T>,
+        ParallelBreadthFirstVisitFastCB<Infallible, &'a G1, T>,
+        ParallelBreadthFirstVisitFastCB<Infallible, &'a G2, T>,
         T,
     > {
         let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
@@ -292,9 +286,9 @@ pub struct SumSweepDirectedDiameterRadius<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
-    SCC: StronglyConnectedComponents<G1>,
-    V1: ParVisit<bfv::Args> + Sync,
-    V2: ParVisit<bfv::Args> + Sync,
+    SCC: StronglyConnectedComponents,
+    V1: ParVisit<bfv::Args, Infallible> + Sync,
+    V2: ParVisit<bfv::Args, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -341,9 +335,9 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        SCC: StronglyConnectedComponents<G1> + Sync,
-        V1: ParVisit<bfv::Args> + Sync,
-        V2: ParVisit<bfv::Args> + Sync,
+        SCC: StronglyConnectedComponents + Sync,
+        V1: ParVisit<bfv::Args, Infallible> + Sync,
+        V2: ParVisit<bfv::Args, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
@@ -427,9 +421,9 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents<G1> + Sync,
-        V1: ParVisit<bfv::Args> + Sync,
-        V2: ParVisit<bfv::Args> + Sync,
+        C: StronglyConnectedComponents + Sync,
+        V1: ParVisit<bfv::Args, Infallible> + Sync,
+        V2: ParVisit<bfv::Args, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -867,7 +861,7 @@ impl<
         let radial_vertices = &self.radial_vertices;
         self.transposed_visit.visit_from_node(
             v,
-            |args| radial_vertices.set(args.node, true, Ordering::Relaxed),
+            |args| Ok(radial_vertices.set(args.node, true, Ordering::Relaxed)),
             |_| true,
             &mut pl,
         );
@@ -965,6 +959,7 @@ impl<
                         }
                     }
                 }
+                Ok(())
             },
             |_| true,
             &mut pl,
@@ -1028,6 +1023,8 @@ impl<
                         *node_backward_lower_bound_ptr = distance;
                     }
                 }
+
+                Ok(())
             },
             |_| true,
             &mut pl,
@@ -1112,8 +1109,11 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs =
-                ParallelBreadthFirstVisitFastCB::with_threads(graph, VISIT_GRANULARITY, threadpool);
+            let mut bfs = ParallelBreadthFirstVisitFastCB::<Infallible, _, _>::with_threads(
+                graph,
+                VISIT_GRANULARITY,
+                threadpool,
+            );
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {
@@ -1122,7 +1122,7 @@ impl<
 
                 bfs.visit_from_node(
                     p,
-                    |bfv::Args {
+                    |&bfv::Args {
                          node,
                          parent: _parent,
                          root: _root,
@@ -1133,6 +1133,7 @@ impl<
                             dist_pivot_mut.write_once(node, distance);
                         }
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
+                        Ok(())
                     },
                     |args| components[args.node] == pivot_component,
                     &mut Option::<ProgressLogger>::None,

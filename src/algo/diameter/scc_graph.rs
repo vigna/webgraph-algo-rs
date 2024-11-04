@@ -15,11 +15,7 @@ pub struct SccGraphConnection {
     pub end: usize,
 }
 
-pub struct SccGraph<
-    G1: RandomAccessGraph + Sync,
-    G2: RandomAccessGraph + Sync,
-    C: StronglyConnectedComponents<G1>,
-> {
+pub struct SccGraph<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponents> {
     /// Slice of offsets where the `i`-th offset is how many elements to skip in [`Self::data`]
     /// in order to reach the first element relative to component `i`.
     segments_offset: Vec<usize>,
@@ -41,11 +37,8 @@ fn arc_value<G1: RandomAccessGraph, G2: RandomAccessGraph>(
     start_value + end_value
 }
 
-impl<
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents<G1>,
-    > SccGraph<G1, G2, C>
+impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponents>
+    SccGraph<G1, G2, C>
 {
     /// Creates a strongly connected components graph from provided graphs and strongly connected
     /// components.
