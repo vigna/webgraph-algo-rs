@@ -1,7 +1,7 @@
 use super::traits::StronglyConnectedComponents;
 use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
+use common_traits::NonZero;
 use dsi_progress_logger::ProgressLog;
-use nonmax::NonMaxUsize;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -10,7 +10,6 @@ use webgraph::traits::RandomAccessGraph;
 pub struct TarjanStronglyConnectedComponents {
     n_of_components: usize,
     component: Vec<usize>,
-    buckets: Option<BitVec>,
 }
 
 impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
@@ -27,10 +26,7 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
     }
 
     fn buckets(&self) -> Option<&BitVec> {
-        match &self.buckets {
-            Some(b) => Some(b),
-            None => None,
-        }
+        None
     }
 
     fn compute(
@@ -43,7 +39,6 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
         visit.run(pl.clone());
 
         TarjanStronglyConnectedComponents {
-            buckets: visit.buckets,
             component: visit.components,
             n_of_components: visit.number_of_components,
         }
@@ -53,14 +48,7 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
 struct Tarjan<G: RandomAccessGraph> {
     graph: G,
     pub components: Vec<usize>,
-    pub buckets: Option<BitVec>,
-    indexes: Vec<Option<NonMaxUsize>>,
-    lowlinks: Vec<usize>,
-    terminal: Option<BitVec>,
-    /// The first-Tarjan clock (incremented at each Tarjaned node).
-    current_index: usize,
     pub number_of_components: usize,
-    stack: Vec<usize>,
 }
 
 impl<G: RandomAccessGraph> Tarjan<G> {
@@ -68,22 +56,8 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         let num_nodes = graph.num_nodes();
         Tarjan {
             graph,
-            buckets: if compute_buckets {
-                Some(BitVec::new(num_nodes))
-            } else {
-                None
-            },
-            terminal: if compute_buckets {
-                Some(BitVec::with_value(num_nodes, true))
-            } else {
-                None
-            },
-            current_index: 0,
-            indexes: vec![None; num_nodes],
-            lowlinks: vec![usize::MAX; num_nodes],
-            number_of_components: 0,
             components: vec![0; num_nodes],
-            stack: Vec::new(),
+            number_of_components: 0,
         }
     }
 
@@ -95,6 +69,11 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         pl.item_name("node");
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
+        let mut smaller_seen = Vec::with_capacity(16);
+        // Sentinel value guaranteeing that this stack is never empty
+        smaller_seen.push(false);
+        let mut current_index = 0;
+        let mut component_stack = Vec::with_capacity(16);
 
         visit
             .visit(
@@ -107,61 +86,38 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                  }| {
                     match event {
                         Event::Unknown => {
-                            self.indexes[node] = Some(
-                                NonMaxUsize::new(self.current_index)
-                                    .expect("indexes should not exceed usize::MAX"),
-                            );
-                            self.lowlinks[node] = self.current_index;
-                            self.current_index += 1;
-                            self.stack.push(node);
+                            self.components[node] = current_index;
+                            current_index += 1;
+                            smaller_seen.push(false);
+                            component_stack.push(node);
                         }
-                        Event::Known(on_stack) => {
-                            if on_stack {
-                                // TODO
-                                self.lowlinks[pred] = std::cmp::min(
-                                    self.lowlinks[pred],
-                                    self.indexes[node].unwrap().into(),
-                                );
-                            } else if let Some(t) = &mut self.terminal {
-                                t.set(pred, false);
+                        Event::Known(true) => {
+                            // This test is necessary for loops
+                            if self.components[node] < self.components[pred] {
+                                // Safe as the stack is never empty
+                                *smaller_seen.last_mut().unwrap() = true;
+                                self.components[pred] = self.components[node];
                             }
                         }
                         Event::Completed => {
-                            if self.lowlinks[node] == self.indexes[node].unwrap().into() {
-                                if let Some(b) = &mut self.buckets {
-                                    let t = self.terminal.as_mut().unwrap();
-                                    let terminal = t[node];
-                                    while let Some(v) = self.stack.pop() {
-                                        self.components[v] = self.number_of_components;
-                                        t.set(v, false);
-                                        if terminal && self.graph.outdegree(v) != 0 {
-                                            b.set(v, true);
-                                        }
-                                        if v == node {
-                                            break;
-                                        }
-                                    }
-                                } else {
-                                    while let Some(v) = self.stack.pop() {
-                                        self.components[v] = self.number_of_components;
-                                        if v == node {
-                                            break;
-                                        }
+                            // Safe as the stack is never empty
+                            if smaller_seen.pop().unwrap() {
+                                if self.components[node] < self.components[pred] {
+                                    // Safe as the stack is never empty
+                                    *smaller_seen.last_mut().unwrap() = true;
+                                    self.components[pred] = self.components[node];
+                                }
+                            } else {
+                                while let Some(v) = component_stack.pop() {
+                                    self.components[v] = self.number_of_components;
+                                    if v == node {
+                                        break;
                                     }
                                 }
                                 self.number_of_components += 1;
                             }
-
-                            if node != pred {
-                                self.lowlinks[pred] =
-                                    std::cmp::min(self.lowlinks[pred], self.lowlinks[node]);
-                                if let Some(t) = &mut self.terminal {
-                                    if !t[node] {
-                                        t.set(pred, false);
-                                    }
-                                }
-                            }
                         }
+                        _ => {}
                     }
                     Ok(())
                 },

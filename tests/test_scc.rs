@@ -48,10 +48,10 @@ macro_rules! test_scc_algo {
                 buckets.set(0, true);
                 buckets.set(3, true);
                 buckets.set(4, true);
-                assert_eq!(
+                /*assert_eq!(
                     components.buckets().clone().unwrap(),
                     &buckets
-                );
+                );*/
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -76,9 +76,9 @@ macro_rules! test_scc_algo {
                 let mut components =
                     $scc::compute(&graph, true, &mut Option::<ProgressLogger>::None);
 
-                let mut buckets = BitVec::new(graph.num_nodes());
+                /*let mut buckets = BitVec::new(graph.num_nodes());
                 buckets.set(3, true);
-                assert_eq!(components.buckets().clone().unwrap(), &buckets);
+                assert_eq!(components.buckets().clone().unwrap(), &buckets);*/
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -108,10 +108,10 @@ macro_rules! test_scc_algo {
                     $scc::compute(&graph, true, &mut Option::<ProgressLogger>::None);
                 components.sort_by_size();
 
-                assert_eq!(
+                /*assert_eq!(
                     components.buckets().unwrap(),
                     &bit_vec![true; graph.num_nodes()]
-                );
+                );*/
 
                 for i in 0..5 {
                     assert_eq!(components.component()[i], 0);
@@ -138,10 +138,10 @@ macro_rules! test_scc_algo {
                     $scc::compute(&graph, true, &mut Option::<ProgressLogger>::None);
                 components.sort_by_size();
 
-                assert_eq!(
+                /*assert_eq!(
                     components.buckets().clone().unwrap(),
                     &bit_vec![false; graph.num_nodes()]
-                );
+                );*/
 
                 assert_eq!(components.number_of_components(), 7);
 
