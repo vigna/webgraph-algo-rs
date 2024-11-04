@@ -12,10 +12,10 @@
 //! filter returns false the course of the visit will be altered as follows:
 //!
 //! - If the event is [Unknown](`Event::Unknown`), the node will be ignored and
-//!  not marked as known.
+//!   not marked as known.
 //!
-//! - If the event is [Known](`Event::Known`) or [Completed](`Event::Completed`),
-//! the visit will be interrupted.
+//! - If the event is [Known](`Event::Known`) or
+//!   [Completed](`Event::Completed`), the visit will be interrupted.
 
 mod single_thread;
 pub use single_thread::*;

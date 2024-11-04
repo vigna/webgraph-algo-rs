@@ -1,6 +1,6 @@
 use crate::algo::visits::{
     dfv::{Args, Event},
-    Interrupted, SeqVisit,
+    SeqVisit,
 };
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
@@ -255,7 +255,7 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
                 return Ok(());
             }
 
-            callback(&args);
+            callback(&args)?;
 
             state.set_off_stack(current_node);
 

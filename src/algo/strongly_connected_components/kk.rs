@@ -94,45 +94,47 @@ impl<G: RandomAccessGraph> KK<G> {
 
         for &root in top_sort.iter().rev() {
             eprintln!("Visiting from {}", root);
-            visit.visit_from_node(
-                root,
-                |&Args {
-                     node,
-                     pred,
-                     root: _root,
-                     depth: _depth,
-                     event,
-                 }| {
-                    match event {
-                        Event::Unknown => {
-                            // TODO: debatable, we should be able to do it
-                            // just when necessary
-                            if node == pred {
-                                // New root, increase component index
-                                curr_comp = curr_comp.wrapping_add(1);
+            visit
+                .visit_from_node(
+                    root,
+                    |&Args {
+                         node,
+                         pred,
+                         root: _root,
+                         depth: _depth,
+                         event,
+                     }| {
+                        match event {
+                            Event::Unknown => {
+                                // TODO: debatable, we should be able to do it
+                                // just when necessary
+                                if node == pred {
+                                    // New root, increase component index
+                                    curr_comp = curr_comp.wrapping_add(1);
+                                }
+                                self.components[node] = curr_comp;
+                                if buckets {
+                                    component.push(node);
+                                }
                             }
-                            self.components[node] = curr_comp;
-                            if buckets {
-                                component.push(node);
+                            Event::Known(_b) => {
+                                if self.components[node] != curr_comp {
+                                    eprintln!(
+                                        "Found known node {node} of component {}",
+                                        self.components[node]
+                                    );
+                                    buckets = false;
+                                }
                             }
+                            _ => {}
                         }
-                        Event::Known(_b) => {
-                            if self.components[node] != curr_comp {
-                                eprintln!(
-                                    "Found known node {node} of component {}",
-                                    self.components[node]
-                                );
-                                buckets = false;
-                            }
-                        }
-                        _ => {}
-                    }
 
-                    Ok(())
-                },
-                |_| true,
-                pl,
-            );
+                        Ok(())
+                    },
+                    |_| true,
+                    pl,
+                )
+                .unwrap(); // Safe as infallible
 
             if buckets {
                 // SAFETY: if buckets is true, self.buckets.is_some() is true.

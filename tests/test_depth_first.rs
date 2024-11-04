@@ -32,24 +32,21 @@ fn test_top_sort() {
 
 #[test]
 fn test_acyclicity() {
-    assert_eq!(
-        true,
+    assert!(
         acyclicity::run(
             Left(VecGraph::from_arc_list([(1, 2), (0, 1)])),
             &mut Option::<ProgressLogger>::None
         )
     );
 
-    assert_eq!(
-        false,
-        acyclicity::run(
+    assert!(
+        !acyclicity::run(
             Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0)])),
             &mut Option::<ProgressLogger>::None
         )
     );
 
-    assert_eq!(
-        true,
+    assert!(
         acyclicity::run(
             Left(VecGraph::from_arc_list([(0, 1), (0, 2), (2, 3), (1, 3)])),
             &mut Option::<ProgressLogger>::None

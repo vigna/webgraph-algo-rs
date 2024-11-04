@@ -859,12 +859,17 @@ impl<
         pl.info(format_args!("Computing radial vertices set"));
 
         let radial_vertices = &self.radial_vertices;
-        self.transposed_visit.visit_from_node(
-            v,
-            |args| Ok(radial_vertices.set(args.node, true, Ordering::Relaxed)),
-            |_| true,
-            &mut pl,
-        );
+        self.transposed_visit
+            .visit_from_node(
+                v,
+                |args| {
+                    radial_vertices.set(args.node, true, Ordering::Relaxed);
+                    Ok(())
+                },
+                |_| true,
+                &mut pl,
+            )
+            .unwrap(); // Safe as infallible
         self.transposed_visit.reset();
 
         pl.done();
@@ -916,54 +921,56 @@ impl<
             .as_mut_slice_of_cells();
         let total_forward_distance = self.total_forward_distance.as_mut_slice_of_cells();
 
-        self.transposed_visit.visit_from_node(
-            start,
-            |args| {
-                let (distance, node) = (args.distance, args.node);
-                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                max_dist.fetch_max(distance, Ordering::Relaxed);
+        self.transposed_visit
+            .visit_from_node(
+                start,
+                |args| {
+                    let (distance, node) = (args.distance, args.node);
+                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                    max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                let node_forward_lower_bound_ptr =
-                    unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
-                let node_total_forward_distance_ptr =
-                    unsafe { total_forward_distance.get_mut_unsafe(node) };
+                    let node_forward_lower_bound_ptr =
+                        unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
+                    let node_total_forward_distance_ptr =
+                        unsafe { total_forward_distance.get_mut_unsafe(node) };
 
-                let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
-                let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
+                    let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
+                    let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
 
-                unsafe {
-                    *node_total_forward_distance_ptr += distance;
-                }
-                if node_forward_lower_bound != node_forward_upper_bound
-                    && node_forward_lower_bound < distance
-                {
                     unsafe {
-                        *node_forward_lower_bound_ptr = distance;
+                        *node_total_forward_distance_ptr += distance;
                     }
-
-                    if distance == node_forward_upper_bound && self.radial_vertices[node] {
-                        let mut update_radius = false;
-                        {
-                            let radius_lock = radius.read().unwrap();
-                            if distance < radius_lock.0 {
-                                update_radius = true;
-                            }
+                    if node_forward_lower_bound != node_forward_upper_bound
+                        && node_forward_lower_bound < distance
+                    {
+                        unsafe {
+                            *node_forward_lower_bound_ptr = distance;
                         }
 
-                        if update_radius {
-                            let mut radius_lock = radius.write().unwrap();
-                            if distance < radius_lock.0 {
-                                radius_lock.0 = distance;
-                                radius_lock.1 = node;
+                        if distance == node_forward_upper_bound && self.radial_vertices[node] {
+                            let mut update_radius = false;
+                            {
+                                let radius_lock = radius.read().unwrap();
+                                if distance < radius_lock.0 {
+                                    update_radius = true;
+                                }
+                            }
+
+                            if update_radius {
+                                let mut radius_lock = radius.write().unwrap();
+                                if distance < radius_lock.0 {
+                                    radius_lock.0 = distance;
+                                    radius_lock.1 = node;
+                                }
                             }
                         }
                     }
-                }
-                Ok(())
-            },
-            |_| true,
-            &mut pl,
-        );
+                    Ok(())
+                },
+                |_| true,
+                &mut pl,
+            )
+            .unwrap(); // Safe as infallible
 
         self.transposed_visit.reset();
 
@@ -998,37 +1005,39 @@ impl<
             .as_mut_slice_of_cells();
         let total_backward_distance = self.total_backward_distance.as_mut_slice_of_cells();
 
-        self.visit.visit_from_node(
-            start,
-            |args| {
-                let (distance, node) = (args.distance, args.node);
-                // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                max_dist.fetch_max(distance, Ordering::Relaxed);
+        self.visit
+            .visit_from_node(
+                start,
+                |args| {
+                    let (distance, node) = (args.distance, args.node);
+                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                    max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                let node_backward_lower_bound_ptr =
-                    unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
-                let node_total_backward_distance_ptr =
-                    unsafe { total_backward_distance.get_mut_unsafe(node) };
+                    let node_backward_lower_bound_ptr =
+                        unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
+                    let node_total_backward_distance_ptr =
+                        unsafe { total_backward_distance.get_mut_unsafe(node) };
 
-                let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
-                let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
+                    let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
+                    let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
 
-                unsafe {
-                    *node_total_backward_distance_ptr += distance;
-                }
-                if node_backward_lower_bound != node_backward_upper_bound
-                    && node_backward_lower_bound < distance
-                {
                     unsafe {
-                        *node_backward_lower_bound_ptr = distance;
+                        *node_total_backward_distance_ptr += distance;
                     }
-                }
+                    if node_backward_lower_bound != node_backward_upper_bound
+                        && node_backward_lower_bound < distance
+                    {
+                        unsafe {
+                            *node_backward_lower_bound_ptr = distance;
+                        }
+                    }
 
-                Ok(())
-            },
-            |_| true,
-            &mut pl,
-        );
+                    Ok(())
+                },
+                |_| true,
+                &mut pl,
+            )
+            .unwrap(); // Safe as infallible
         self.visit.reset();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
@@ -1137,7 +1146,8 @@ impl<
                     },
                     |args| components[args.node] == pivot_component,
                     &mut Option::<ProgressLogger>::None,
-                );
+                )
+                .unwrap(); // Safe as infallible
 
                 current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
             }

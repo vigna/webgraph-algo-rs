@@ -96,77 +96,79 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         pl.expected_updates(Some(self.graph.num_nodes()));
         pl.start("Computing strongly connected components");
 
-        visit.visit(
-            |&Args {
-                 node,
-                 pred,
-                 root: _root,
-                 depth: _depth,
-                 event,
-             }| {
-                match event {
-                    Event::Unknown => {
-                        self.indexes[node] = Some(
-                            NonMaxUsize::new(self.current_index)
-                                .expect("indexes should not exceed usize::MAX"),
-                        );
-                        self.lowlinks[node] = self.current_index;
-                        self.current_index += 1;
-                        self.stack.push(node);
-                    }
-                    Event::Known(on_stack) => {
-                        if on_stack {
-                            // TODO
-                            self.lowlinks[pred] = std::cmp::min(
-                                self.lowlinks[pred],
-                                self.indexes[node].unwrap().into(),
+        visit
+            .visit(
+                |&Args {
+                     node,
+                     pred,
+                     root: _root,
+                     depth: _depth,
+                     event,
+                 }| {
+                    match event {
+                        Event::Unknown => {
+                            self.indexes[node] = Some(
+                                NonMaxUsize::new(self.current_index)
+                                    .expect("indexes should not exceed usize::MAX"),
                             );
-                        } else if let Some(t) = &mut self.terminal {
-                            t.set(pred, false);
+                            self.lowlinks[node] = self.current_index;
+                            self.current_index += 1;
+                            self.stack.push(node);
                         }
-                    }
-                    Event::Completed => {
-                        if self.lowlinks[node] == self.indexes[node].unwrap().into() {
-                            if let Some(b) = &mut self.buckets {
-                                let t = self.terminal.as_mut().unwrap();
-                                let terminal = t[node];
-                                while let Some(v) = self.stack.pop() {
-                                    self.components[v] = self.number_of_components;
-                                    t.set(v, false);
-                                    if terminal && self.graph.outdegree(v) != 0 {
-                                        b.set(v, true);
-                                    }
-                                    if v == node {
-                                        break;
-                                    }
-                                }
-                            } else {
-                                while let Some(v) = self.stack.pop() {
-                                    self.components[v] = self.number_of_components;
-                                    if v == node {
-                                        break;
-                                    }
-                                }
+                        Event::Known(on_stack) => {
+                            if on_stack {
+                                // TODO
+                                self.lowlinks[pred] = std::cmp::min(
+                                    self.lowlinks[pred],
+                                    self.indexes[node].unwrap().into(),
+                                );
+                            } else if let Some(t) = &mut self.terminal {
+                                t.set(pred, false);
                             }
-                            self.number_of_components += 1;
                         }
+                        Event::Completed => {
+                            if self.lowlinks[node] == self.indexes[node].unwrap().into() {
+                                if let Some(b) = &mut self.buckets {
+                                    let t = self.terminal.as_mut().unwrap();
+                                    let terminal = t[node];
+                                    while let Some(v) = self.stack.pop() {
+                                        self.components[v] = self.number_of_components;
+                                        t.set(v, false);
+                                        if terminal && self.graph.outdegree(v) != 0 {
+                                            b.set(v, true);
+                                        }
+                                        if v == node {
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    while let Some(v) = self.stack.pop() {
+                                        self.components[v] = self.number_of_components;
+                                        if v == node {
+                                            break;
+                                        }
+                                    }
+                                }
+                                self.number_of_components += 1;
+                            }
 
-                        if node != pred {
-                            self.lowlinks[pred] =
-                                std::cmp::min(self.lowlinks[pred], self.lowlinks[node]);
-                            if let Some(t) = &mut self.terminal {
-                                if !t[node] {
-                                    t.set(pred, false);
+                            if node != pred {
+                                self.lowlinks[pred] =
+                                    std::cmp::min(self.lowlinks[pred], self.lowlinks[node]);
+                                if let Some(t) = &mut self.terminal {
+                                    if !t[node] {
+                                        t.set(pred, false);
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                Ok(())
-            },
-            |_| true,
-            &mut pl,
-        );
+                    Ok(())
+                },
+                |_| true,
+                &mut pl,
+            )
+            .unwrap(); // Safe as infallible
 
         pl.done();
     }

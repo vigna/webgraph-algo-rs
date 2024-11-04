@@ -109,8 +109,8 @@ macro_rules! test_scc_algo {
                 components.sort_by_size();
 
                 assert_eq!(
-                    components.buckets().clone().unwrap(),
-                    &bit_vec![false; graph.num_nodes()]
+                    components.buckets().unwrap(),
+                    &bit_vec![true; graph.num_nodes()]
                 );
 
                 for i in 0..5 {
