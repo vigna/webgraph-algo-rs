@@ -45,7 +45,7 @@ pub trait SeqVisit<A> {
     ///   log the progress of the visit. If
     ///   `Option::<dsi_progress_logger::ProgressLogger>::None` is passed,
     ///   logging code should be optimized away by the compiler.
-    fn visit_from_node<C: FnMut(A), F: Fn(&A) -> bool>(
+    fn visit_from_node<C: FnMut(A), F: FnMut(&A) -> bool>(
         &mut self,
         root: usize,
         callback: C,
@@ -57,7 +57,7 @@ pub trait SeqVisit<A> {
     ///
     /// See [`visit_from_node`](SeqVisit::visit_from_node) for more
     /// details.
-    fn visit<C: FnMut(A), F: Fn(&A) -> bool>(
+    fn visit<C: FnMut(A), F: FnMut(&A) -> bool>(
         &mut self,
         callback: C,
         filter: F,

@@ -6,6 +6,9 @@ pub mod diameter;
 
 mod strongly_connected_components;
 
+pub mod acyclicity;
+pub mod top_sort;
+
 pub mod hyperball;
 
 /// Algorithms used to compute and work with strongly connected
