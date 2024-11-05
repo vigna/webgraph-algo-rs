@@ -99,7 +99,6 @@ macro_rules! test_bfv_algo {
                             dists[args.node].store(args.distance, Ordering::Relaxed);
                             Ok(())
                         },
-                        |_| true,
                         &mut Option::<ProgressLogger>::None,
                     )?;
                 }
@@ -125,7 +124,6 @@ macro_rules! test_bfv_algo {
                     visit.visit_from_node(
                         node,
                         |args| Ok(dists[args.node].store(args.distance, Ordering::Relaxed)),
-                        |_| true,
                         &mut Option::<ProgressLogger>::None,
                     )?;
                 }

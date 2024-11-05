@@ -868,7 +868,6 @@ impl<
                     radial_vertices.set(args.node, true, Ordering::Relaxed);
                     Ok(())
                 },
-                |_| true,
                 &mut pl,
             )
             .unwrap_infallible();
@@ -969,7 +968,6 @@ impl<
                     }
                     Ok(())
                 },
-                |_| true,
                 &mut pl,
             )
             .unwrap_infallible();
@@ -1036,7 +1034,6 @@ impl<
 
                     Ok(())
                 },
-                |_| true,
                 &mut pl,
             )
             .unwrap_infallible();
@@ -1131,7 +1128,7 @@ impl<
                 let pivot_component = components[p];
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
-                bfs.visit_from_node(
+                bfs.visit_from_node_filtered(
                     p,
                     |&bfv::Args {
                          node,

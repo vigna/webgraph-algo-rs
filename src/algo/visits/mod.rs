@@ -47,17 +47,34 @@ impl Display for Interrupted {
 pub trait SeqVisit<A, E> {
     /// Visits the graph from the specified node.
     ///
+    /// This method just calls
+    /// [`visit_from_node_filtered`](SeqVisit::visit_from_node_filtered)
+    /// with a filter that always returns `true`.
+    fn visit_from_node<C: FnMut(&A) -> Result<(), E>>(
+        &mut self,
+        root: usize,
+        callback: C,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        self.visit_from_node_filtered(root, callback, |_| true, pl)
+    }
+
+    /// Visits the graph from the specified node.
+    ///
     /// # Arguments:
     /// * `root`: The node to start the visit from.
     ///
     /// * `callback`: The callback function.
+    ///
+    /// * `filter`: A filter function that will be called on each node to
+    ///    determine whether the node should be visited or not.
     ///
     /// * `pl`: A progress logger that implements
     ///   [`dsi_progress_logger::ProgressLog`] may be passed to the method to
     ///   log the progress of the visit. If
     ///   `Option::<dsi_progress_logger::ProgressLogger>::None` is passed,
     ///   logging code should be optimized away by the compiler.
-    fn visit_from_node<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
+    fn visit_from_node_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
         &mut self,
         root: usize,
         callback: C,
@@ -99,17 +116,35 @@ pub trait SeqVisit<A, E> {
 pub trait ParVisit<A, E> {
     /// Visits the graph from the specified node.
     ///
+    /// This method just calls
+    /// [`visit_from_node_filtered`](ParVisit::visit_from_node_filtered)
+    /// with a filter that always returns `true`.
+    #[inline(always)]
+    fn visit_from_node<C: Fn(&A) -> Result<(), E> + Sync>(
+        &mut self,
+        root: usize,
+        callback: C,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        self.visit_from_node_filtered(root, callback, |_| true, pl)
+    }
+
+    /// Visits the graph from the specified node.
+    ///
     /// # Arguments:
     /// * `root`: The node to start the visit from.
     ///
     /// * `callback`: The callback function.
+    ///
+    /// * `filter`: A filter function that will be called on each node to
+    ///    determine whether the node should be visited or not.
     ///
     /// * `pl`: A progress logger that implements
     ///   [`dsi_progress_logger::ProgressLog`] may be passed to the method to
     ///   log the progress of the visit. If
     ///   `Option::<dsi_progress_logger::ProgressLogger>::None` is passed,
     ///   logging code should be optimized away by the compiler.
-    fn visit_from_node<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
+    fn visit_from_node_filtered<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,

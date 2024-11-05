@@ -132,7 +132,6 @@ impl<G: RandomAccessGraph> KK<G> {
 
                         Ok(())
                     },
-                    |_| true,
                     pl,
                 )
                 .unwrap_infallible();

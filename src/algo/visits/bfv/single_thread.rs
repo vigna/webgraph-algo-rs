@@ -43,7 +43,10 @@ impl<E, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<E, G> {
 }
 
 impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFirstVisit<E, G> {
-    fn visit_from_node<C: FnMut(&bfv::Args) -> Result<(), E>, F: FnMut(&bfv::Args) -> bool>(
+    fn visit_from_node_filtered<
+        C: FnMut(&bfv::Args) -> Result<(), E>,
+        F: FnMut(&bfv::Args) -> bool,
+    >(
         &mut self,
         root: usize,
         mut callback: C,
@@ -111,7 +114,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFi
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &mut callback, &mut filter, pl)?;
+            self.visit_from_node_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
         Ok(())

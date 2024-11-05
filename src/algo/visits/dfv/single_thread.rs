@@ -150,7 +150,7 @@ impl NodeState for TwoState {
 impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
     for SingleThreadedDepthFirstVisit<'a, S, E, G>
 {
-    fn visit_from_node<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
+    fn visit_from_node_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -273,7 +273,7 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &mut callback, &mut filter, pl)?;
+            self.visit_from_node_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
         Ok(())

@@ -73,7 +73,7 @@ impl<'a, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
 impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args, E>
     for ParallelBreadthFirstVisit<'a, E, G, T>
 {
-    fn visit_from_node<
+    fn visit_from_node_filtered<
         C: Fn(&bfv::Args) -> Result<(), E> + Sync,
         F: Fn(&bfv::Args) -> bool + Sync,
     >(
@@ -156,7 +156,7 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Par
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node(node, &callback, &filter, pl)?;
+            self.visit_from_node_filtered(node, &callback, &filter, pl)?;
         }
 
         Ok(())

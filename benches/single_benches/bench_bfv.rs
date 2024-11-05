@@ -31,12 +31,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit_from_node(
-                                node,
-                                |_| Ok(()),
-                                |_| true,
-                                &mut Option::<ProgressLogger>::None,
-                            )
+                            .visit_from_node(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
                             .unwrap();
                     }
                 });
@@ -52,12 +47,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit_from_node(
-                                node,
-                                |_| Ok(()),
-                                |_| true,
-                                &mut Option::<ProgressLogger>::None,
-                            )
+                            .visit_from_node(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
                             .unwrap();
                     }
                 });
@@ -73,12 +63,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit_from_node(
-                                node,
-                                |_| Ok(()),
-                                |_| true,
-                                &mut Option::<ProgressLogger>::None,
-                            )
+                            .visit_from_node(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
                             .unwrap();
                     }
                 });
@@ -94,12 +79,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit_from_node(
-                                node,
-                                |_| Ok(()),
-                                |_| true,
-                                &mut Option::<ProgressLogger>::None,
-                            )
+                            .visit_from_node(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
                             .unwrap();
                     }
                 });
@@ -115,12 +95,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit_from_node(
-                                node,
-                                |_| Ok(()),
-                                |_| true,
-                                &mut Option::<ProgressLogger>::None,
-                            )
+                            .visit_from_node(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
                             .unwrap();
                     }
                 });
