@@ -1,8 +1,8 @@
 use super::traits::StronglyConnectedComponents;
 use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
-use common_traits::NonZero;
 use dsi_progress_logger::ProgressLog;
 use sux::bits::BitVec;
+use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of Tarjan's algorithm to compute the strongly connected components
@@ -103,6 +103,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                             // Safe as the stack is never empty
                             if smaller_seen.pop().unwrap() {
                                 if self.components[node] < self.components[pred] {
+                                    // Propagate knowledge to the parent
                                     // Safe as the stack is never empty
                                     *smaller_seen.last_mut().unwrap() = true;
                                     self.components[pred] = self.components[node];
@@ -124,7 +125,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                 |_| true,
                 &mut pl,
             )
-            .unwrap(); // Safe as infallible
+            .unwrap_infallible();
 
         pl.done();
     }

@@ -20,7 +20,9 @@ use std::{
     },
 };
 use sux::bits::AtomicBitVec;
+use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
+
 /// Builder for [`SumSweepDirectedDiameterRadius`].
 pub struct SumSweepDirectedDiameterRadiusBuilder<
     'a,
@@ -869,7 +871,7 @@ impl<
                 |_| true,
                 &mut pl,
             )
-            .unwrap(); // Safe as infallible
+            .unwrap_infallible();
         self.transposed_visit.reset();
 
         pl.done();
@@ -970,7 +972,7 @@ impl<
                 |_| true,
                 &mut pl,
             )
-            .unwrap(); // Safe as infallible
+            .unwrap_infallible();
 
         self.transposed_visit.reset();
 
@@ -1037,7 +1039,7 @@ impl<
                 |_| true,
                 &mut pl,
             )
-            .unwrap(); // Safe as infallible
+            .unwrap_infallible();
         self.visit.reset();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
@@ -1147,7 +1149,7 @@ impl<
                     |args| components[args.node] == pivot_component,
                     &mut Option::<ProgressLogger>::None,
                 )
-                .unwrap(); // Safe as infallible
+                .unwrap_infallible();
 
                 current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
             }

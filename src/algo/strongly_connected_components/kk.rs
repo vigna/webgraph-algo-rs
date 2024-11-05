@@ -6,6 +6,7 @@ use crate::algo::{
 use common_traits::Integer;
 use dsi_progress_logger::ProgressLog;
 use sux::bits::BitVec;
+use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of KK's algorithm to compute the strongly connected components
@@ -134,7 +135,7 @@ impl<G: RandomAccessGraph> KK<G> {
                     |_| true,
                     pl,
                 )
-                .unwrap(); // Safe as infallible
+                .unwrap_infallible();
 
             if buckets {
                 // SAFETY: if buckets is true, self.buckets.is_some() is true.

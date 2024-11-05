@@ -1,6 +1,7 @@
 use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
 use dsi_progress_logger::ProgressLog;
 use std::mem::MaybeUninit;
+use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Returns the node of the graph in topological-sort order, if the graph is acyclic.
@@ -36,7 +37,7 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
             |_| true,
             pl,
         )
-        .unwrap(); // Safe as infallible
+        .unwrap_infallible();
 
     pl.done();
     // SAFETY: we write in each element of top_sort
