@@ -360,7 +360,7 @@ impl<
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        let scc = SCC::compute(graph, false, pl);
+        let scc = SCC::compute(graph, pl);
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {

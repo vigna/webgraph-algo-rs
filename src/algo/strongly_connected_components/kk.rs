@@ -5,21 +5,19 @@ use crate::algo::{
 };
 use common_traits::Integer;
 use dsi_progress_logger::ProgressLog;
-use sux::bits::BitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of KK's algorithm to compute the strongly connected components
 /// on a graph.
 pub struct KKStronglyConnectedComponents {
-    n_of_components: usize,
+    num_components: usize,
     component: Vec<usize>,
-    buckets: Option<BitVec>,
 }
 
 impl StronglyConnectedComponents for KKStronglyConnectedComponents {
     fn number_of_components(&self) -> usize {
-        self.n_of_components
+        self.num_components
     }
 
     fn component(&self) -> &[usize] {
@@ -30,26 +28,14 @@ impl StronglyConnectedComponents for KKStronglyConnectedComponents {
         self.component.as_mut()
     }
 
-    fn buckets(&self) -> Option<&BitVec> {
-        match &self.buckets {
-            Some(b) => Some(b),
-            None => None,
-        }
-    }
-
-    fn compute(
-        graph: impl RandomAccessGraph,
-        compute_buckets: bool,
-        pl: &mut impl ProgressLog,
-    ) -> Self {
-        let mut visit = KK::new(graph, compute_buckets);
+    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
+        let mut visit = KK::new(graph);
 
         visit.run(pl);
 
         KKStronglyConnectedComponents {
-            buckets: visit.buckets,
             component: visit.components,
-            n_of_components: visit.number_of_components,
+            num_components: visit.number_of_components,
         }
     }
 }
@@ -57,20 +43,14 @@ impl StronglyConnectedComponents for KKStronglyConnectedComponents {
 struct KK<G: RandomAccessGraph> {
     graph: G,
     pub components: Vec<usize>,
-    pub buckets: Option<BitVec>,
     pub number_of_components: usize,
 }
 
 impl<G: RandomAccessGraph> KK<G> {
-    fn new(graph: G, compute_buckets: bool) -> KK<G> {
+    fn new(graph: G) -> KK<G> {
         let num_nodes = graph.num_nodes();
         KK {
             graph,
-            buckets: if compute_buckets {
-                Some(BitVec::new(num_nodes))
-            } else {
-                None
-            },
             number_of_components: 0,
             components: vec![0; num_nodes],
         }
@@ -90,8 +70,7 @@ impl<G: RandomAccessGraph> KK<G> {
         );
 
         let mut curr_comp = 0.wrapping_sub(1);
-        let mut buckets = self.buckets.is_some();
-        let mut component = Vec::with_capacity(16);
+        let mut component = Vec::<usize>::with_capacity(16);
 
         for &root in top_sort.iter().rev() {
             eprintln!("Visiting from {}", root);
@@ -114,9 +93,6 @@ impl<G: RandomAccessGraph> KK<G> {
                                     curr_comp = curr_comp.wrapping_add(1);
                                 }
                                 self.components[curr] = curr_comp;
-                                if buckets {
-                                    component.push(curr);
-                                }
                             }
                             Event::Revisit(_b) => {
                                 if self.components[curr] != curr_comp {
@@ -124,7 +100,6 @@ impl<G: RandomAccessGraph> KK<G> {
                                         "Found known node {curr} of component {}",
                                         self.components[curr]
                                     );
-                                    buckets = false;
                                 }
                             }
                             _ => {}
@@ -135,14 +110,6 @@ impl<G: RandomAccessGraph> KK<G> {
                     pl,
                 )
                 .unwrap_infallible();
-
-            if buckets {
-                // SAFETY: if buckets is true, self.buckets.is_some() is true.
-                let buckets = self.buckets.as_mut().unwrap();
-                for &node in component.iter() {
-                    buckets.set(node, true);
-                }
-            }
 
             component.clear();
         }

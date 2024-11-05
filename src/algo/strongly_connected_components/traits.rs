@@ -14,12 +14,6 @@ pub trait StronglyConnectedComponents {
     /// The mutable reference to the component index of each node.
     fn component_mut(&mut self) -> &mut [usize];
 
-    /// The bit vector for buckets, or `None`, in which case buckets have not been computed.
-    ///
-    /// Buckets are defined as the nodes belonging to components that are terminal, but not dangling,
-    /// in the component DAG.
-    fn buckets(&self) -> Option<&BitVec>;
-
     /// Computes the strongly connected components of a given graph.
     ///
     /// # Arguments:
@@ -28,11 +22,7 @@ pub trait StronglyConnectedComponents {
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the visit. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn compute(
-        graph: impl RandomAccessGraph,
-        compute_buckets: bool,
-        pl: &mut impl ProgressLog,
-    ) -> Self;
+    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self;
 
     /// Returns the size array for this set of strongly connected components.
     fn compute_sizes(&self) -> Vec<usize> {
@@ -92,14 +82,7 @@ mod test {
     }
 
     impl<G: RandomAccessGraph> StronglyConnectedComponents for MockStronglyConnectedComponent<G> {
-        fn buckets(&self) -> Option<&BitVec> {
-            panic!()
-        }
-        fn compute(
-            _graph: impl RandomAccessGraph,
-            _compute_buckets: bool,
-            _pl: &mut impl ProgressLog,
-        ) -> Self {
+        fn compute(_graph: impl RandomAccessGraph, _pl: &mut impl ProgressLog) -> Self {
             panic!()
         }
         fn component(&self) -> &[usize] {

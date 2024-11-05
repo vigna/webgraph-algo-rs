@@ -33,7 +33,7 @@ fn main() -> Result<()> {
         .as_str()
     {
         "tarjan" => {
-            TarjanStronglyConnectedComponents::compute(&graph, false, &mut main_pl);
+            TarjanStronglyConnectedComponents::compute(&graph, &mut main_pl);
         }
         "diameter" => {
             let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new(
