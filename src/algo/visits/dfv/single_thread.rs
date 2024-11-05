@@ -49,6 +49,18 @@ impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, 
     }
 }
 
+pub struct StackIterator<'a, S, E, G: RandomAccessGraph> {
+    visit: SingleThreadedDepthFirstVisit<'a, S, E, G>,
+}
+
+impl<'a, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, S, E, G> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<usize> {
+        self.visit.stack.pop().map(|(_, parent)| parent)
+    }
+}
+
 impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, E, G> {
     /// Creates a new sequential visit.
     ///
@@ -62,6 +74,16 @@ impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, E,
             state: TwoState::new(num_nodes),
             _phantom: std::marker::PhantomData,
         }
+    }
+}
+
+impl<'a, S, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, S, E, G> {
+    /// Consumes self and returns an iterator over the nodes on the
+    /// path visit.
+    ///
+    /// This method is useful only in the case of interrupted visits.
+    pub fn stack(self) -> StackIterator<'a, S, E, G> {
+        StackIterator { visit: self }
     }
 }
 
@@ -164,11 +186,11 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
         }
 
         let args = Args {
-            node: root,
+            curr: root,
             pred: root,
             root,
             depth: 0,
-            event: Event::Unknown,
+            event: Event::Previsit,
         };
 
         if !filter(&args) {
@@ -201,11 +223,11 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
                 if state.known(succ) {
                     // Node has already been visited
                     let args = Args {
-                        node: succ,
+                        curr: succ,
                         pred: current_node,
                         root,
                         depth: depth + 1,
-                        event: Event::Known(state.on_stack(succ)),
+                        event: Event::Revisit(state.on_stack(succ)),
                     };
                     if !filter(&args) {
                         // We interrupt the visit
@@ -215,11 +237,11 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
                 } else {
                     // First time seeing node
                     let args = Args {
-                        node: succ,
+                        curr: succ,
                         pred: current_node,
                         root,
                         depth: depth + 1,
-                        event: Event::Unknown,
+                        event: Event::Previsit,
                     };
 
                     if filter(&args) {
@@ -243,11 +265,11 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
             pl.light_update();
 
             let args = Args {
-                node: current_node,
+                curr: current_node,
                 pred: parent,
                 root,
                 depth,
-                event: Event::Completed,
+                event: Event::Postvisit,
             };
 
             if !filter(&args) {

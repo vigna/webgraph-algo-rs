@@ -99,30 +99,30 @@ impl<G: RandomAccessGraph> KK<G> {
                 .visit_from_node(
                     root,
                     |&Args {
-                         node,
+                         curr,
                          pred,
                          root: _root,
                          depth: _depth,
                          event,
                      }| {
                         match event {
-                            Event::Unknown => {
+                            Event::Previsit => {
                                 // TODO: debatable, we should be able to do it
                                 // just when necessary
-                                if node == pred {
+                                if curr == pred {
                                     // New root, increase component index
                                     curr_comp = curr_comp.wrapping_add(1);
                                 }
-                                self.components[node] = curr_comp;
+                                self.components[curr] = curr_comp;
                                 if buckets {
-                                    component.push(node);
+                                    component.push(curr);
                                 }
                             }
-                            Event::Known(_b) => {
-                                if self.components[node] != curr_comp {
+                            Event::Revisit(_b) => {
+                                if self.components[curr] != curr_comp {
                                     eprintln!(
-                                        "Found known node {node} of component {}",
-                                        self.components[node]
+                                        "Found known node {curr} of component {}",
+                                        self.components[curr]
                                     );
                                     buckets = false;
                                 }

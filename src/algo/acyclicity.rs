@@ -1,12 +1,10 @@
-use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
+use crate::{algo::visits::dfv::*, algo::visits::SeqVisit, algo::visits::StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 use webgraph::traits::RandomAccessGraph;
 
-use super::visits::Interrupted;
-
 /// Runs an acyclicity test.
 pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
-    let mut visit = SingleThreadedDepthFirstVisit::<ThreeState, Interrupted, _>::new(&graph);
+    let mut visit = SingleThreadedDepthFirstVisit::<ThreeState, StoppedWhenDone, _>::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
@@ -14,15 +12,15 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
 
     let acyclic = visit.visit(
         |&Args {
-             node: _node,
+             curr: _curr,
              pred: _pred,
              root: _root,
              depth: _depth,
              event,
          }| {
             // Stop the visit as soon as a back edge is found.
-            if event == Event::Known(true) {
-                Err(Interrupted)
+            if event == Event::Revisit(true) {
+                Err(StoppedWhenDone {})
             } else {
                 Ok(())
             }

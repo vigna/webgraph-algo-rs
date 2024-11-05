@@ -15,18 +15,18 @@ pub mod bfv;
 pub mod dfv;
 
 use dsi_progress_logger::ProgressLog;
-use std::fmt;
-use std::fmt::{Display, Formatter};
+use thiserror::Error;
 
-#[derive(Debug)]
-pub struct Interrupted;
-impl std::error::Error for Interrupted {}
-impl Display for Interrupted {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let _ = f;
-        write!(f, "visit interrupted")
-    }
-}
+#[derive(Error, Debug)]
+/// The visit was interrupted.
+#[error("The visit was interrupted")]
+pub struct Interrupted {}
+
+#[derive(Error, Debug)]
+/// This error is returned by visit which can complete their computation
+/// without completing the visit (“stop when done”).
+#[error("Stopped when done")]
+pub struct StoppedWhenDone {}
 
 /// A sequential visit.
 ///
