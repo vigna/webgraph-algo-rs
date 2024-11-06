@@ -23,6 +23,9 @@ pub enum Event {
     Unknown,
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
+    ///
+    /// Note how in parallel contexts this does not guarantee that the callback
+    /// with [`Unknown`](`Event::Unknown`) has already been called.
     Known,
 }
 
