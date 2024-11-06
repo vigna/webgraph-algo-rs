@@ -1,8 +1,7 @@
 use super::traits::StronglyConnectedComponents;
-use crate::algo::visits::{depth_first::*, Interrupted, SeqVisit, StoppedWhenDone};
+use crate::algo::visits::{depth_first::*, SeqVisit, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
-use sux::bits::BitVec;
-use unwrap_infallible::UnwrapInfallible;
+
 use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of Tarjan's algorithm to compute the strongly connected components
@@ -54,8 +53,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
     }
 
     fn run(&mut self, mut pl: impl ProgressLog) {
-        let mut visit =
-            SingleThreadedDepthFirstVisit::<ThreeState, StoppedWhenDone, _>::new(&self.graph);
+        let mut visit = Seq::<ThreeState, StoppedWhenDone, _>::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));

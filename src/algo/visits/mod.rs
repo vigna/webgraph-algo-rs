@@ -79,9 +79,9 @@ pub trait SeqVisit<A, E> {
 
     /// Visits the graph from the specified node without a filter.
     ///
-    /// This method just calls
-    /// [`visit_filtered`](SeqVisit::visit_filtered)
-    /// with a filter that always returns true.
+    /// The default implementation calls
+    /// [`visit_filtered`](SeqVisit::visit_filtered) with a filter that always
+    /// returns true.
     #[inline(always)]
     fn visit<C: FnMut(&A) -> Result<(), E>>(
         &mut self,
@@ -104,7 +104,10 @@ pub trait SeqVisit<A, E> {
 
     /// Visits the whole graph without a filter.
     ///
-    /// See [`visit`](SeqVisit::visit) for more details.
+    /// The default implementation calls
+    /// [`visit_all_filtered`](SeqVisit::visit_all_filtered) with a filter that
+    /// always returns true.
+    #[inline(always)]
     fn visit_all<C: FnMut(&A) -> Result<(), E>>(
         &mut self,
         callback: C,
@@ -171,11 +174,13 @@ pub trait ParVisit<A, E> {
 
     /// Visits the whole graph without a filter.
     ///
-    /// See [`visit`](ParVisit::visit) for more details.
-    fn visit_all<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
+    /// The default implementation calls
+    /// [`visit_all_filtered`](ParVisit::visit_all_filtered) with a filter that
+    /// always returns true.
+    #[inline(always)]
+    fn visit_all<C: Fn(&A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
-        filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         self.visit_all_filtered(callback, |_| true, pl)

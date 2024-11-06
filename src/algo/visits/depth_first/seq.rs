@@ -13,14 +13,44 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 ///
 /// There are two versions of the visit, selected by the parameter `S`. If `S`
 /// is [`TwoState`], the visit will use a single bit per node to remember known
-/// nodes, but events of type [`Event::Known`] will always have the associated
-/// Boolean equal to `false` (this type of visit is sufficient, for example, to
-/// compute a [topological sort](topsort)). If `S` is [`ThreeState`], instead,
-/// the visit will use two bits per node and  events of type [`Event::Known`]
-/// will provide information about whether the node associated with event is
-/// currently on the visit stack (this kind of visit is necessary, for example,
-/// to compute [acyclicity](aciclicity)).
-pub struct SingleThreadedDepthFirstVisit<'a, S, E, G: RandomAccessGraph> {
+/// nodes, but events of type [`Revisit`](`Event::Revisit`) will always have the
+/// associated Boolean equal to false (this type of visit is sufficient, for
+/// example, to compute a [topological sort](crate::algo::top_sort)). If `S` is
+/// [`ThreeState`], instead, the visit will use two bits per node and  events of
+/// type [`Revisit`](`Event::Revisit`) will provide information about whether the
+/// node associated with event is currently on the visit path (this kind of
+/// visit is necessary, for example, to compute
+/// [acyclicity](crate::algo::acyclicity)).
+///
+/// # Examples
+///
+/// ```rust
+/// use webgraph_algo::algo::visits;
+/// use webgraph_algo::algo::visits::SeqVisit;
+/// use webgraph_algo::algo::visits::depth_first;
+/// use dsi_progress_logger::ProgressLogger;
+/// use webgraph::graphs::vec_graph::VecGraph;
+/// use webgraph::labels::proj::Left;
+///
+/// // Let's test acyclicity.
+///
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+/// let mut visit = depth_first::Seq::<depth_first::ThreeState, _, _>::new(&graph);
+///
+/// assert!(visit.visit_all(
+///        |&args|
+///          {
+///            // Stop the visit as soon as a back edge is found.
+///            if args.event == depth_first::Event::Revisit(true) {
+///                Err(visits::StoppedWhenDone {})
+///            } else {
+///                Ok(())
+///            }
+///        },
+///        &mut Option::<ProgressLogger>::None
+///    ).is_err()); // As the graph is not acyclic
+///
+pub struct Seq<'a, S, E, G: RandomAccessGraph> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
     /// and the parent of the node. This approach makes it possible to avoid
@@ -33,7 +63,7 @@ pub struct SingleThreadedDepthFirstVisit<'a, S, E, G: RandomAccessGraph> {
     _phantom: std::marker::PhantomData<E>,
 }
 
-impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, E, G> {
+impl<'a, E, G: RandomAccessGraph> Seq<'a, ThreeState, E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -49,8 +79,9 @@ impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, 
     }
 }
 
+/// The iterator returned by the [`stack`](Seq::stack).
 pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
-    visit: &'b mut SingleThreadedDepthFirstVisit<'a, S, E, G>,
+    visit: &'b mut Seq<'a, S, E, G>,
 }
 
 impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E, G> {
@@ -61,7 +92,7 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, E, G> {
+impl<'a, E, G: RandomAccessGraph> Seq<'a, TwoState, E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -77,27 +108,14 @@ impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, TwoState, E,
     }
 }
 
-impl<'a, S, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, S, E, G> {
-    /// Consumes self and returns an iterator over the nodes on the
-    /// path visit.
+impl<'a, S, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
+    /// Returns an iterator over the nodes stil on the visit path.
     ///
     /// This method is useful only in the case of interrupted visits.
     pub fn stack(&mut self) -> StackIterator<'a, '_, S, E, G> {
         StackIterator { visit: self }
     }
 }
-
-/// A two-state implementation of [`NodeState`].
-///
-/// This implementation does not keep track of nodes on the stack,
-/// and will always return `false` for the `on_stack` method.
-pub struct TwoState(BitVec);
-
-/// A three-state implementation of [`NodeState`].
-///
-/// This implementation does keep track of nodes on the stack, and will always
-/// return the correct value for the `on_stack` method.
-pub struct ThreeState(BitVec);
 
 trait NodeState {
     fn set_on_stack(&mut self, node: usize);
@@ -108,11 +126,26 @@ trait NodeState {
     fn reset(&mut self);
 }
 
+/// A two-state selector type for [sequential depth-first visits](Seq).
+///
+/// This implementation does not keep track of nodes on the stack,
+/// so events of type [`Revisit`](`Event::Revisit`) will always have the
+/// associated Boolean equal to false.
+pub struct TwoState(BitVec);
+
+/// A three-state selector type for [sequential depth-first visits](Seq).
+///
+/// This implementation does keep track of nodes on the stack, so events of type
+/// [`Revisit`](`Event::Revisit`) will provide information about whether the
+/// node associated with event is currently on the visit path.
+pub struct ThreeState(BitVec);
+
 impl ThreeState {
     fn new(n: usize) -> ThreeState {
         ThreeState(BitVec::new(2 * n))
     }
 }
+
 impl NodeState for ThreeState {
     #[inline(always)]
     fn set_on_stack(&mut self, node: usize) {
@@ -169,9 +202,7 @@ impl NodeState for TwoState {
     }
 }
 
-impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E>
-    for SingleThreadedDepthFirstVisit<'a, S, E, G>
-{
+impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S, E, G> {
     fn visit_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         root: usize,

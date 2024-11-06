@@ -3,13 +3,7 @@
 //! Implementations accept a callback function with argument [`Args`]. The
 //! callback will be called at the start of a visit, every time a new node is
 //! discovered, every time a node is revisited, and every time the enumeration
-//! of the successors of a node is completed (see [`Event`]). If a callback
-//! returns an error, the visit will be interrupted. Uninterruptible visits
-//! should use the [`Infallible`](std::convert::Infallible) error type.
-//!
-//! Additionally, implementations might accept a filter function that will be
-//! called when a new node is discovered. If the filter returns false,
-//! the node will be ignored.
+//! of the successors of a node is completed (see [`Event`]).
 
 mod seq;
 pub use seq::*;
@@ -24,21 +18,20 @@ pub enum Event {
     Previsit,
     /// The node has been encountered before.
     ///
-    /// If supported bt the visit, the Boolean value denotes
-    /// whether the node is currently on the visit stack.
+    /// If supported by the visit, the Boolean value denotes
+    /// whether the node is currently on the visit path.
     Revisit(bool),
     /// The enumeration of the successors of the node has been completed.
     Postvisit,
 }
 
-/// Convenience struct to pass arguments to the callback of a
-/// depth-first visit.
+/// Arguments for the callback of a depth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Args {
     /// The current node.
     pub curr: usize,
     /// The predecessor of [curr](`Self::curr`); if [event](`Self::event`) is
-    /// [Unknown](`Event::Unknown`), this is the parent of [curr](`Self::curr`)
+    /// [`Previsit`](`Event::Previsit`), this is the parent of [curr](`Self::curr`)
     /// in the visit tree.
     pub pred: usize,
     /// The root of the current visit tree.
