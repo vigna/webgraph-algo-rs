@@ -1,7 +1,7 @@
 //! Breadth-first visits.
 //!
-//! For each node, the visit should invoke a callback with argument of type
-//! [`Args`] when the node is visited.
+//! Implementations must accept a callback function with argument [`Args`]
+//! that will be called when visiting the node.
 
 mod seq;
 pub use seq::*;

@@ -18,10 +18,13 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// associated Boolean equal to false (this type of visit is sufficient, for
 /// example, to compute a [topological sort](crate::algo::top_sort)). If `S` is
 /// [`ThreeState`], instead, the visit will use two bits per node and  events of
-/// type [`Revisit`](`Event::Revisit`) will provide information about whether the
-/// node associated with event is currently on the visit path (this kind of
+/// type [`Revisit`](`Event::Revisit`) will provide information about whether
+/// the node associated with event is currently on the visit path (this kind of
 /// visit is necessary, for example, to compute
 /// [acyclicity](crate::algo::acyclicity)).
+///
+/// If the visit was interrupted, the nodes still on the visit path can be
+/// retrieved using the [`stack`](Seq::stack) method.
 ///
 /// # Examples
 ///
@@ -41,7 +44,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// assert!(visit.visit_all(
 ///        |&args|
 ///          {
-///            // Stop the visit as soon as a back edge is found.
+///            // Stop the visit as soon as a back edge is found
 ///            if args.event == depth_first::Event::Revisit(true) {
 ///                Err(visits::StoppedWhenDone {})
 ///            } else {
@@ -112,7 +115,10 @@ impl<'a, E, G: RandomAccessGraph> Seq<'a, TwoState, E, G> {
 impl<'a, S, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
     /// Returns an iterator over the nodes stil on the visit path.
     ///
-    /// This method is useful only in the case of interrupted visits.
+    /// Node will be returned in reverse order of visit.
+    ///
+    /// This method is useful only in the case of interrupted visits,
+    /// as in a completed visit the stack will be empty.
     pub fn stack(&mut self) -> StackIterator<'a, '_, S, E, G> {
         StackIterator { visit: self }
     }
