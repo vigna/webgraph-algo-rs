@@ -1,6 +1,5 @@
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
-use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// The strongly connected components on a graph.

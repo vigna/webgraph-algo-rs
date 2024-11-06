@@ -283,7 +283,7 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<
         HyperBall<'a, G1, G2, rayon::ThreadPool, D, W, HyperLogLogCounterArray<G1::Label, W, H>>,
     > {
@@ -323,7 +323,7 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<HyperBall<'a, G1, G2, T, D, W, HyperLogLogCounterArray<G1::Label, W, H>>> {
         let num_nodes = self.graph.num_nodes();
 
@@ -545,11 +545,11 @@ impl<
         &mut self,
         upper_bound: usize,
         threshold: Option<f64>,
-        mut pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
 
-        self.init(pl.clone())
+        self.init(pl)
             .with_context(|| "Could not initialize approximator")?;
 
         pl.item_name("iteration");
@@ -560,7 +560,7 @@ impl<
         ));
 
         for i in 0..upper_bound {
-            self.iterate(pl.clone())
+            self.iterate(pl)
                 .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
             pl.update();
@@ -594,7 +594,11 @@ impl<
     ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
-    pub fn run_until_stable(&mut self, upper_bound: usize, pl: impl ProgressLog) -> Result<()> {
+    pub fn run_until_stable(
+        &mut self,
+        upper_bound: usize,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()> {
         self.run(upper_bound, None, pl)
             .with_context(|| "Could not complete run_until_stable")
     }
@@ -606,7 +610,7 @@ impl<
     ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
-    pub fn run_until_done(&mut self, pl: impl ProgressLog) -> Result<()> {
+    pub fn run_until_done(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         self.run_until_stable(usize::MAX, pl)
             .with_context(|| "Could not complete run_until_done")
     }
@@ -808,7 +812,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the iteration. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn iterate(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+    fn iterate(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration + 1));
 
         // Let us record whether the previous computation was systolic or local.
@@ -1222,7 +1226,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress of the initialization. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn init(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+    fn init(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
         self.threadpool

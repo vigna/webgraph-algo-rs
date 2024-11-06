@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dsi_progress_logger::ProgressLogger;
+use dsi_progress_logger::prelude::*;
 use std::convert::Infallible;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
@@ -99,7 +99,7 @@ macro_rules! test_bfv_algo {
                             dists[args.node].store(args.distance, Ordering::Relaxed);
                             Ok(())
                         },
-                        &mut Option::<ProgressLogger>::None,
+                        no_logging![],
                     )?;
                 }
 
@@ -124,7 +124,7 @@ macro_rules! test_bfv_algo {
                     visit.visit(
                         node,
                         |args| Ok(dists[args.node].store(args.distance, Ordering::Relaxed)),
-                        &mut Option::<ProgressLogger>::None,
+                        no_logging![],
                     )?;
                 }
 

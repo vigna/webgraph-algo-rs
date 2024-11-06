@@ -2,6 +2,7 @@ use crate::algo::visits::{
     depth_first::{Args, Event},
     SeqVisit,
 };
+use dsi_progress_logger::ProgressLog;
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
@@ -47,7 +48,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 ///                Ok(())
 ///            }
 ///        },
-///        &mut Option::<ProgressLogger>::None
+///        no_logging![]
 ///    ).is_err()); // As the graph is not acyclic
 ///
 pub struct Seq<'a, S, E, G: RandomAccessGraph> {
@@ -208,7 +209,7 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S,
         root: usize,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl dsi_progress_logger::ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         let state = &mut self.state;
 
@@ -323,7 +324,7 @@ impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S,
         &mut self,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl dsi_progress_logger::ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;

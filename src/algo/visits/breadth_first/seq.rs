@@ -4,7 +4,6 @@ use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
-
 /// A simple sequential Breadth First visit on a graph.
 ///
 /// This implementation uses an algorithm that is slightly different from the
@@ -116,7 +115,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
         &mut self,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl dsi_progress_logger::ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;

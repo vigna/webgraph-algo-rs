@@ -1,6 +1,6 @@
 use anyhow::Result;
 use common_traits::{AsBytes, Float};
-use dsi_progress_logger::ProgressLogger;
+use dsi_progress_logger::prelude::no_logging;
 use epserde::deser::{Deserialize, Flags};
 use std::hash::*;
 use webgraph::{
@@ -236,9 +236,9 @@ fn test_cnr_2000() -> Result<()> {
         )
         .sum_of_distances(true)
         .sum_of_inverse_distances(true)
-        .build(Option::<ProgressLogger>::None)?;
+        .build(no_logging![])?;
 
-    hyperball.run_until_done(Option::<ProgressLogger>::None)?;
+    hyperball.run_until_done(no_logging![])?;
 
     let actual_sum_of_distances = hyperball.sum_of_distances()?;
     let actual_harmonic_cetralities = hyperball.harmonic_centralities()?;

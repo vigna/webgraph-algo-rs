@@ -1,6 +1,6 @@
 use super::params::*;
 use criterion::{BenchmarkId, Criterion, Throughput};
-use dsi_progress_logger::ProgressLogger;
+use dsi_progress_logger::prelude::*;
 use std::convert::Infallible;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
@@ -30,9 +30,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = SingleThreadedBreadthFirstVisit::<Infallible, _>::new(g);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
                     }
                 });
             },
@@ -46,9 +44,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisit::<Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
                     }
                 });
             },
@@ -62,9 +58,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisit::<Infallible, _>::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
                     }
                 });
             },
@@ -78,9 +72,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
                     }
                 });
             },
@@ -94,9 +86,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit(node, |_| Ok(()), &mut Option::<ProgressLogger>::None)
-                            .unwrap();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
                     }
                 });
             },

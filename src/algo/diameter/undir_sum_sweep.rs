@@ -280,7 +280,7 @@ where
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
     #[inline(always)]
-    pub fn compute(&mut self, pl: impl ProgressLog) -> Result<()> {
+    pub fn compute(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         self.inner.compute(pl)
     }
 }

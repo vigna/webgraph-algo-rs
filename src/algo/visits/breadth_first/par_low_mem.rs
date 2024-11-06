@@ -157,7 +157,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         &mut self,
         callback: C,
         filter: F,
-        pl: &mut impl dsi_progress_logger::ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &callback, &filter, pl)?;

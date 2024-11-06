@@ -8,6 +8,7 @@ use crate::{
     utils::*,
 };
 use anyhow::{Context, Result};
+use dsi_progress_logger::prelude::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
@@ -22,7 +23,6 @@ use std::{
 use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
-
 /// Builder for [`SumSweepDirectedDiameterRadius`].
 pub struct SumSweepDirectedDiameterRadiusBuilder<
     'a,
@@ -475,13 +475,13 @@ impl<
         &mut self,
         start: usize,
         iterations: usize,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<()> {
         pl.info(format_args!(
             "Performing initial SumSweep visit from {}.",
             start
         ));
-        self.step_sum_sweep(Some(start), true, pl.clone())
+        self.step_sum_sweep(Some(start), true, pl)
             .with_context(|| "Could not perform initial SumSweep visit")?;
 
         for i in 2..=iterations {
@@ -495,7 +495,7 @@ impl<
                     "Performing backwards SumSweep visit from {:?}",
                     v
                 ));
-                self.step_sum_sweep(v, false, pl.clone())
+                self.step_sum_sweep(v, false, pl)
                     .with_context(|| format!("Could not perform backwards visit from {:?}", v))?;
             } else {
                 let v = math::filtered_argmax(
@@ -507,7 +507,7 @@ impl<
                     "Performing forward SumSweep visit from {:?}.",
                     v
                 ));
-                self.step_sum_sweep(v, true, pl.clone())
+                self.step_sum_sweep(v, true, pl)
                     .with_context(|| format!("Could not perform forward visit from {:?}", v))?;
             }
         }
@@ -524,14 +524,14 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    pub fn compute(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+    pub fn compute(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         if self.number_of_nodes == 0 {
             return Ok(());
         }
         pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
-            self.compute_radial_vertices(pl.clone())
+            self.compute_radial_vertices(pl)
                 .with_context(|| "Could not compute radial vertices")?;
         }
 
@@ -556,12 +556,12 @@ impl<
             });
         });
 
-        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl.clone())
+        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl)
             .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
 
         let mut points = [self.graph.num_nodes() as f64; 5];
         let mut missing_nodes = self
-            .find_missing_nodes(pl.clone())
+            .find_missing_nodes(pl)
             .with_context(|| "Could not compute missing nodes")?;
         let mut old_missing_nodes;
 
@@ -579,9 +579,9 @@ impl<
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
                     let pivot = self
-                        .find_best_pivot(pl.clone())
+                        .find_best_pivot(pl)
                         .with_context(|| "Could not find best pivot for allCCUpperBound")?;
-                    self.all_cc_upper_bound(pivot, pl.clone())
+                    self.all_cc_upper_bound(pivot, pl)
                         .with_context(|| "Could not perform allCCUpperBound")?
                 }
                 1 => {
@@ -593,7 +593,7 @@ impl<
                         &self.total_forward_distance,
                         |i, _| self.incomplete_forward_vertex(i),
                     );
-                    self.step_sum_sweep(v, true, pl.clone())
+                    self.step_sum_sweep(v, true, pl)
                         .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 2 => {
@@ -605,7 +605,7 @@ impl<
                         &self.total_forward_distance,
                         |i, _| self.radial_vertices[i],
                     );
-                    self.step_sum_sweep(v, true, pl.clone())
+                    self.step_sum_sweep(v, true, pl)
                         .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 3 => {
@@ -617,7 +617,7 @@ impl<
                         &self.total_backward_distance,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
+                    self.step_sum_sweep(v, false, pl).with_context(|| {
                         format!("Could not perform backwards visit from {:?}", v)
                     })?
                 }
@@ -630,7 +630,7 @@ impl<
                         &self.upper_bound_backward_eccentricities,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, pl.clone()).with_context(|| {
+                    self.step_sum_sweep(v, false, pl).with_context(|| {
                         format!("Could not perform backwards visit from {:?}", v)
                     })?
                 }
@@ -639,7 +639,7 @@ impl<
 
             old_missing_nodes = missing_nodes;
             missing_nodes = self
-                .find_missing_nodes(pl.clone())
+                .find_missing_nodes(pl)
                 .with_context(|| "Could not compute missing nodes")?;
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
@@ -764,7 +764,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn find_best_pivot(&self, mut pl: impl ProgressLog) -> Result<Vec<usize>> {
+    fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Result<Vec<usize>> {
         debug_assert!(self.number_of_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> =
@@ -830,7 +830,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn compute_radial_vertices(&mut self, mut pl: impl ProgressLog) -> Result<()> {
+    fn compute_radial_vertices(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         if self.number_of_nodes == 0 {
             return Ok(());
         }
@@ -868,7 +868,7 @@ impl<
                     radial_vertices.set(args.node, true, Ordering::Relaxed);
                     Ok(())
                 },
-                &mut pl,
+                pl,
             )
             .unwrap_infallible();
         self.transposed_visit.reset();
@@ -892,7 +892,7 @@ impl<
         &mut self,
         start: Option<usize>,
         forward: bool,
-        pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<()> {
         if let Some(start) = start {
             if forward {
@@ -908,7 +908,7 @@ impl<
     }
 
     #[inline(always)]
-    fn backwards_step_sum_sweep(&mut self, start: usize, mut pl: impl ProgressLog) -> Result<()> {
+    fn backwards_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) -> Result<()> {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -968,7 +968,7 @@ impl<
                     }
                     Ok(())
                 },
-                &mut pl,
+                pl,
             )
             .unwrap_infallible();
 
@@ -992,7 +992,7 @@ impl<
     }
 
     #[inline(always)]
-    fn forward_step_sum_sweep(&mut self, start: usize, mut pl: impl ProgressLog) -> Result<()> {
+    fn forward_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) -> Result<()> {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -1034,7 +1034,7 @@ impl<
 
                     Ok(())
                 },
-                &mut pl,
+                pl,
             )
             .unwrap_infallible();
         self.visit.reset();
@@ -1080,7 +1080,7 @@ impl<
         &self,
         pivot: &[usize],
         forward: bool,
-        mut pl: impl ProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Result<(Vec<usize>, Vec<usize>)> {
         pl.expected_updates(None);
         pl.display_memory(false);
@@ -1144,7 +1144,7 @@ impl<
                         Ok(())
                     },
                     |args| components[args.node] == pivot_component,
-                    &mut Option::<ProgressLogger>::None,
+                    no_logging![],
                 )
                 .unwrap_infallible();
 
@@ -1171,7 +1171,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, mut pl: impl ProgressLog) -> Result<()> {
+    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: &mut impl ProgressLog) -> Result<()> {
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
@@ -1182,10 +1182,10 @@ impl<
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
         let dist_ecc_f = self
-            .compute_dist_pivot(&pivot, true, pl.clone())
+            .compute_dist_pivot(&pivot, true, pl)
             .with_context(|| "Could not compute forward dist pivot")?;
         let dist_ecc_b = self
-            .compute_dist_pivot(&pivot, false, pl.clone())
+            .compute_dist_pivot(&pivot, false, pl)
             .with_context(|| "Could not compute backward dist pivot")?;
         let dist_pivot_f = dist_ecc_f.0;
         let mut ecc_pivot_f = dist_ecc_f.1;
@@ -1311,7 +1311,7 @@ impl<
     /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
     ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
     ///   passed, logging code should be optimized away by the compiler.
-    fn find_missing_nodes(&mut self, mut pl: impl ProgressLog) -> Result<usize> {
+    fn find_missing_nodes(&mut self, pl: &mut impl ProgressLog) -> Result<usize> {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(Some(self.number_of_nodes));

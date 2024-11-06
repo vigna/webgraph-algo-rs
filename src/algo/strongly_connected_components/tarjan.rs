@@ -27,7 +27,7 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
     fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
         let mut visit = Tarjan::new(graph);
 
-        visit.run(pl.clone());
+        visit.run(pl);
 
         TarjanStronglyConnectedComponents {
             component: visit.component,
@@ -52,7 +52,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         }
     }
 
-    fn run(&mut self, mut pl: impl ProgressLog) {
+    fn run(&mut self, pl: &mut impl ProgressLog) {
         let mut visit = Seq::<ThreeState, StoppedWhenDone, _>::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
         pl.item_name("node");
@@ -139,7 +139,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                     }
                     Ok(())
                 },
-                &mut pl,
+                pl,
             )
             .is_err()
         {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dsi_progress_logger::ProgressLogger;
+use dsi_progress_logger::prelude::*;
 use sux::bit_vec;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 use webgraph_algo::algo::scc::*;
@@ -31,7 +31,7 @@ macro_rules! test_scc_algo {
                 ]));
 
                 let mut components =
-                    $scc::compute(&graph, &mut Option::<ProgressLogger>::None);
+                    $scc::compute(&graph, no_logging![]);
 
                 assert_eq!(components.component()[3], components.component()[4]);
 
@@ -53,7 +53,7 @@ macro_rules! test_scc_algo {
                 let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
 
                 let mut components =
-                    $scc::compute(&graph, &mut Option::<ProgressLogger>::None);
+                    $scc::compute(&graph, no_logging![]);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -68,7 +68,7 @@ macro_rules! test_scc_algo {
                 let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0)]));
 
                 let mut components =
-                    $scc::compute(&graph, &mut Option::<ProgressLogger>::None);
+                    $scc::compute(&graph, no_logging![]);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -95,7 +95,7 @@ macro_rules! test_scc_algo {
                 let graph = Left(g);
 
                 let mut components =
-                    $scc::compute(&graph, &mut Option::<ProgressLogger>::None);
+                    $scc::compute(&graph, no_logging![]);
                 components.sort_by_size();
 
                 for i in 0..5 {
@@ -110,7 +110,7 @@ macro_rules! test_scc_algo {
             fn test_tree() -> Result<()> {
                 let graph = Left(VecGraph::from_arc_list([(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6)]));
                 let mut components =
-                    $scc::compute(&graph, &mut Option::<ProgressLogger>::None);
+                    $scc::compute(&graph, no_logging![]);
                 components.sort_by_size();
 
                 assert_eq!(components.number_of_components(), 7);

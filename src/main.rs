@@ -42,7 +42,7 @@ fn main() -> Result<()> {
                 SumSweepOutputLevel::RadiusDiameter,
             )
             .build(&mut main_pl);
-            diameter.compute(main_pl.clone())?;
+            diameter.compute(&mut main_pl)?;
         }
         "hyperball" => {
             let log2m = std::env::args()
@@ -61,8 +61,8 @@ fn main() -> Result<()> {
                 .sum_of_distances(true)
                 .sum_of_inverse_distances(true)
                 .transposed(Some(&reversed_graph))
-                .build(main_pl.clone())?;
-            hyperball.run_until_done(main_pl)?;
+                .build(&mut main_pl)?;
+            hyperball.run_until_done(&mut main_pl)?;
         }
         _ => panic!(),
     }
