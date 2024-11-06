@@ -29,10 +29,8 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// # Examples
 ///
 /// ```rust
-/// use webgraph_algo::algo::visits;
-/// use webgraph_algo::algo::visits::SeqVisit;
-/// use webgraph_algo::algo::visits::depth_first;
-/// use dsi_progress_logger::ProgressLogger;
+/// use webgraph_algo::algo::visits::*;
+/// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 ///
@@ -46,7 +44,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 ///          {
 ///            // Stop the visit as soon as a back edge is found
 ///            if args.event == depth_first::Event::Revisit(true) {
-///                Err(visits::StoppedWhenDone {})
+///                Err(StoppedWhenDone {})
 ///            } else {
 ///                Ok(())
 ///            }

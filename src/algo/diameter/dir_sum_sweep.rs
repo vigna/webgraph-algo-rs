@@ -865,7 +865,9 @@ impl<
             .visit(
                 v,
                 |args| {
-                    radial_vertices.set(args.curr, true, Ordering::Relaxed);
+                    if args.event == breadth_first::Event::Unknown {
+                        radial_vertices.set(args.curr, true, Ordering::Relaxed);
+                    }
                     Ok(())
                 },
                 pl,
@@ -926,42 +928,45 @@ impl<
             .visit(
                 start,
                 |args| {
-                    let (distance, node) = (args.distance, args.curr);
-                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                    max_dist.fetch_max(distance, Ordering::Relaxed);
+                    if args.event == breadth_first::Event::Unknown {
+                        let (distance, node) = (args.distance, args.curr);
+                        // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                        max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                    let node_forward_lower_bound_ptr =
-                        unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
-                    let node_total_forward_distance_ptr =
-                        unsafe { total_forward_distance.get_mut_unsafe(node) };
+                        let node_forward_lower_bound_ptr =
+                            unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
+                        let node_total_forward_distance_ptr =
+                            unsafe { total_forward_distance.get_mut_unsafe(node) };
 
-                    let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
-                    let node_forward_upper_bound = self.upper_bound_forward_eccentricities[node];
+                        let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
+                        let node_forward_upper_bound =
+                            self.upper_bound_forward_eccentricities[node];
 
-                    unsafe {
-                        *node_total_forward_distance_ptr += distance;
-                    }
-                    if node_forward_lower_bound != node_forward_upper_bound
-                        && node_forward_lower_bound < distance
-                    {
                         unsafe {
-                            *node_forward_lower_bound_ptr = distance;
+                            *node_total_forward_distance_ptr += distance;
                         }
-
-                        if distance == node_forward_upper_bound && self.radial_vertices[node] {
-                            let mut update_radius = false;
-                            {
-                                let radius_lock = radius.read().unwrap();
-                                if distance < radius_lock.0 {
-                                    update_radius = true;
-                                }
+                        if node_forward_lower_bound != node_forward_upper_bound
+                            && node_forward_lower_bound < distance
+                        {
+                            unsafe {
+                                *node_forward_lower_bound_ptr = distance;
                             }
 
-                            if update_radius {
-                                let mut radius_lock = radius.write().unwrap();
-                                if distance < radius_lock.0 {
-                                    radius_lock.0 = distance;
-                                    radius_lock.1 = node;
+                            if distance == node_forward_upper_bound && self.radial_vertices[node] {
+                                let mut update_radius = false;
+                                {
+                                    let radius_lock = radius.read().unwrap();
+                                    if distance < radius_lock.0 {
+                                        update_radius = true;
+                                    }
+                                }
+
+                                if update_radius {
+                                    let mut radius_lock = radius.write().unwrap();
+                                    if distance < radius_lock.0 {
+                                        radius_lock.0 = distance;
+                                        radius_lock.1 = node;
+                                    }
                                 }
                             }
                         }
@@ -1009,26 +1014,29 @@ impl<
             .visit(
                 start,
                 |args| {
-                    let (distance, node) = (args.distance, args.curr);
-                    // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
-                    max_dist.fetch_max(distance, Ordering::Relaxed);
+                    if args.event == breadth_first::Event::Unknown {
+                        let (distance, node) = (args.distance, args.curr);
+                        // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                        max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                    let node_backward_lower_bound_ptr =
-                        unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
-                    let node_total_backward_distance_ptr =
-                        unsafe { total_backward_distance.get_mut_unsafe(node) };
+                        let node_backward_lower_bound_ptr =
+                            unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
+                        let node_total_backward_distance_ptr =
+                            unsafe { total_backward_distance.get_mut_unsafe(node) };
 
-                    let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
-                    let node_backward_upper_bound = self.upper_bound_backward_eccentricities[node];
+                        let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
+                        let node_backward_upper_bound =
+                            self.upper_bound_backward_eccentricities[node];
 
-                    unsafe {
-                        *node_total_backward_distance_ptr += distance;
-                    }
-                    if node_backward_lower_bound != node_backward_upper_bound
-                        && node_backward_lower_bound < distance
-                    {
                         unsafe {
-                            *node_backward_lower_bound_ptr = distance;
+                            *node_total_backward_distance_ptr += distance;
+                        }
+                        if node_backward_lower_bound != node_backward_upper_bound
+                            && node_backward_lower_bound < distance
+                        {
+                            unsafe {
+                                *node_backward_lower_bound_ptr = distance;
+                            }
                         }
                     }
 
@@ -1135,12 +1143,15 @@ impl<
                          parent: _parent,
                          root: _root,
                          distance,
+                         event,
                      }| {
-                        // Safety: each node is accessed exactly once
-                        unsafe {
-                            dist_pivot_mut.write_once(node, distance);
+                        if event == breadth_first::Event::Unknown {
+                            // Safety: each node is accessed exactly once
+                            unsafe {
+                                dist_pivot_mut.write_once(node, distance);
+                            }
+                            component_ecc_pivot.store(distance, Ordering::Relaxed);
                         }
-                        component_ecc_pivot.store(distance, Ordering::Relaxed);
                         Ok(())
                     },
                     |args| components[args.curr] == pivot_component,

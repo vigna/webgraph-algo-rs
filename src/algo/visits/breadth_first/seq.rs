@@ -59,6 +59,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
             parent: root,
             root,
             distance: 0,
+            event: breadth_first::Event::Unknown,
         };
         if self.visited[root] || !filter(&args) {
             return Ok(());
@@ -82,14 +83,25 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
                             parent: node,
                             root,
                             distance,
+                            event: breadth_first::Event::Unknown,
                         };
-                        if !self.visited[succ] && filter(&args) {
-                            callback(&args)?;
-                            self.visited.set(succ, true);
-                            self.queue.push_back(Some(
-                                NonMaxUsize::new(succ)
-                                    .expect("node index should never be usize::MAX"),
-                            ))
+                        if filter(&args) {
+                            if !self.visited[succ] {
+                                callback(&args)?;
+                                self.visited.set(succ, true);
+                                self.queue.push_back(Some(
+                                    NonMaxUsize::new(succ)
+                                        .expect("node index should never be usize::MAX"),
+                                ))
+                            } else {
+                                callback(&breadth_first::Args {
+                                    curr: succ,
+                                    parent: node,
+                                    root,
+                                    distance,
+                                    event: breadth_first::Event::Known,
+                                })?;
+                            }
                         }
                     }
                     pl.light_update();

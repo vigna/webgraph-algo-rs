@@ -88,6 +88,7 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
             parent: root,
             root,
             distance: 0,
+            event: breadth_first::Event::Unknown,
         };
 
         if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
@@ -121,18 +122,34 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 parent,
                                 root,
                                 distance,
+                                event: breadth_first::Event::Unknown,
                             })?;
-                            self.graph.successors(curr).into_iter().for_each(|succ| {
-                                if filter(&breadth_first::Args {
-                                    curr: succ,
-                                    parent: curr,
-                                    root,
-                                    distance: distance_plus_one,
-                                }) && !self.visited.swap(succ, true, Ordering::Relaxed)
-                                {
-                                    next_frontier.push((succ, curr));
-                                }
-                            });
+                            self.graph
+                                .successors(curr)
+                                .into_iter()
+                                .try_for_each(|succ| {
+                                    if filter(&breadth_first::Args {
+                                        curr: succ,
+                                        parent: curr,
+                                        root,
+                                        distance: distance_plus_one,
+                                        event: breadth_first::Event::Unknown,
+                                    }) {
+                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                            next_frontier.push((succ, curr));
+                                        } else {
+                                            callback(&breadth_first::Args {
+                                                curr: succ,
+                                                parent: curr,
+                                                root,
+                                                distance: distance_plus_one,
+                                                event: breadth_first::Event::Known,
+                                            })?;
+                                        }
+                                    }
+
+                                    Result::<(), E>::Ok(())
+                                })?;
 
                             Result::<(), E>::Ok(())
                         })

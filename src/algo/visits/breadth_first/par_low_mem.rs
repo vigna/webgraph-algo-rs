@@ -92,6 +92,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
             parent: root,
             root,
             distance: 0,
+            event: breadth_first::Event::Unknown,
         };
         if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
             return Ok(());
@@ -126,12 +127,21 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                         parent: node,
                                         root,
                                         distance,
+                                        event: breadth_first::Event::Unknown,
                                     };
-                                    if filter(&args)
-                                        && !self.visited.swap(succ, true, Ordering::Relaxed)
-                                    {
-                                        callback(&args)?;
-                                        next_frontier.push(succ);
+                                    if filter(&args) {
+                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                            callback(&args)?;
+                                            next_frontier.push(succ);
+                                        } else {
+                                            callback(&breadth_first::Args {
+                                                curr: succ,
+                                                parent: node,
+                                                root,
+                                                distance,
+                                                event: breadth_first::Event::Known,
+                                            })?;
+                                        }
                                     }
 
                                     Result::<(), E>::Ok(())
