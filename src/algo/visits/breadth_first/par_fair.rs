@@ -70,10 +70,10 @@ impl<'a, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
     }
 }
 
-impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<breadth_first::Args, E>
-    for ParallelBreadthFirstVisit<'a, E, G, T>
+impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
+    ParVisit<breadth_first::Args, E> for ParallelBreadthFirstVisit<'a, E, G, T>
 {
-    fn visit_from_node_filtered<
+    fn visit_filtered<
         C: Fn(&breadth_first::Args) -> Result<(), E> + Sync,
         F: Fn(&breadth_first::Args) -> bool + Sync,
     >(
@@ -149,14 +149,17 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Par
         Ok(())
     }
 
-    fn visit<C: Fn(&breadth_first::Args) -> Result<(), E> + Sync, F: Fn(&breadth_first::Args) -> bool + Sync>(
+    fn visit_all_filtered<
+        C: Fn(&breadth_first::Args) -> Result<(), E> + Sync,
+        F: Fn(&breadth_first::Args) -> bool + Sync,
+    >(
         &mut self,
         callback: C,
         filter: F,
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_from_node_filtered(node, &callback, &filter, pl)?;
+            self.visit_filtered(node, &callback, &filter, pl)?;
         }
 
         Ok(())

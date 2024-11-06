@@ -10,7 +10,7 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
     pl.expected_updates(Some(num_nodes));
     pl.start("Checking acyclicity");
 
-    let acyclic = visit.visit(
+    let acyclic = visit.visit_all(
         |&Args {
              curr: _curr,
              pred: _pred,
@@ -25,7 +25,6 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
                 Ok(())
             }
         },
-        |_| true,
         pl,
     );
 

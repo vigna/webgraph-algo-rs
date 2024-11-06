@@ -75,7 +75,7 @@ impl<G: RandomAccessGraph> KK<G> {
         for &root in top_sort.iter().rev() {
             eprintln!("Visiting from {}", root);
             visit
-                .visit_from_node(
+                .visit(
                     root,
                     |&Args {
                          curr,

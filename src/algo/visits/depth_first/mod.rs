@@ -1,21 +1,15 @@
 //! Depth-first visits.
 //!
 //! Implementations accept a callback function with argument [`Args`]. The
-//! callback will be called every time a new node is discovered, every time a
-//! node is revisited, and every time the enumeration of the successors of a
-//! node is completed (see [`Event`]).
+//! callback will be called at the start of a visit, every time a new node is
+//! discovered, every time a node is revisited, and every time the enumeration
+//! of the successors of a node is completed (see [`Event`]). If a callback
+//! returns an error, the visit will be interrupted. Uninterruptible visits
+//! should use the [`Infallible`](std::convert::Infallible) error type.
 //!
 //! Additionally, implementations might accept a filter function that will be
-//! called before invoking the callback. The filter function should return
-//! `true` if the callback should be invoked, and `false` otherwise. Moreover,
-//! depending on the [event](`Event`) that triggered the callback, when the
-//! filter returns false the course of the visit will be altered as follows:
-//!
-//! - If the event is [Unknown](`Event::Unknown`), the node will be ignored and
-//!   not marked as known.
-//!
-//! - If the event is [Known](`Event::Known`) or
-//!   [Completed](`Event::Completed`), the visit will be interrupted.
+//! called when a new node is discovered. If the filter returns false,
+//! the node will be ignored.
 
 mod seq;
 pub use seq::*;
@@ -30,7 +24,7 @@ pub enum Event {
     Previsit,
     /// The node has been encountered before.
     ///
-    /// If support  ed bt the visit, the Boolean value denotes
+    /// If supported bt the visit, the Boolean value denotes
     /// whether the node is currently on the visit stack.
     Revisit(bool),
     /// The enumeration of the successors of the node has been completed.
@@ -49,7 +43,8 @@ pub struct Args {
     pub pred: usize,
     /// The root of the current visit tree.
     pub root: usize,
-    /// The depth of the visit, that is, the length of the visit path from the [root](`Self::root`) to [curr](`Self::curr`).
+    /// The depth of the visit, that is, the length of the visit path from the
+    /// [root](`Self::root`) to [curr](`Self::curr`).
     pub depth: usize,
     /// The event that triggered the callback.
     pub event: Event,

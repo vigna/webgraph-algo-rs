@@ -862,7 +862,7 @@ impl<
 
         let radial_vertices = &self.radial_vertices;
         self.transposed_visit
-            .visit_from_node(
+            .visit(
                 v,
                 |args| {
                     radial_vertices.set(args.node, true, Ordering::Relaxed);
@@ -923,7 +923,7 @@ impl<
         let total_forward_distance = self.total_forward_distance.as_mut_slice_of_cells();
 
         self.transposed_visit
-            .visit_from_node(
+            .visit(
                 start,
                 |args| {
                     let (distance, node) = (args.distance, args.node);
@@ -1006,7 +1006,7 @@ impl<
         let total_backward_distance = self.total_backward_distance.as_mut_slice_of_cells();
 
         self.visit
-            .visit_from_node(
+            .visit(
                 start,
                 |args| {
                     let (distance, node) = (args.distance, args.node);
@@ -1128,7 +1128,7 @@ impl<
                 let pivot_component = components[p];
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
-                bfs.visit_from_node_filtered(
+                bfs.visit_filtered(
                     p,
                     |&breadth_first::Args {
                          node,

@@ -19,7 +19,7 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
     let mut pos = num_nodes;
 
     visit
-        .visit(
+        .visit_all(
             |&Args {
                  curr,
                  pred: _pred,
@@ -34,7 +34,6 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
 
                 Ok(())
             },
-            |_| true,
             pl,
         )
         .unwrap_infallible();

@@ -93,7 +93,7 @@ macro_rules! test_bfv_algo {
                 let expected_dists = correct_dists(&graph, 0);
 
                 for node in 0..graph.num_nodes() {
-                    visit.visit_from_node(
+                    visit.visit(
                         node,
                         |&args| {
                             dists[args.node].store(args.distance, Ordering::Relaxed);
@@ -121,7 +121,7 @@ macro_rules! test_bfv_algo {
 
                 for i in 0..graph.num_nodes() {
                     let node = (i + 10000) % graph.num_nodes();
-                    visit.visit_from_node(
+                    visit.visit(
                         node,
                         |args| Ok(dists[args.node].store(args.distance, Ordering::Relaxed)),
                         &mut Option::<ProgressLogger>::None,
@@ -143,10 +143,16 @@ test_bfv_algo!(
     sequential
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisit::<Infallible, _>::new(g, 32),
+    |g| webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisit::<Infallible, _>::new(
+        g, 32
+    ),
     parallel
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 32),
+    |g| {
+        webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(
+            g, 32,
+        )
+    },
     parallel_fast_callback
 );

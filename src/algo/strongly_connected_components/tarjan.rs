@@ -69,7 +69,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         let mut root_low_link = 0;
 
         if visit
-            .visit(
+            .visit_all(
                 |&Args {
                      curr,
                      pred,
@@ -141,7 +141,6 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                     }
                     Ok(())
                 },
-                |_| true,
                 &mut pl,
             )
             .is_err()
