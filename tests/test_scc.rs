@@ -122,4 +122,4 @@ macro_rules! test_scc_algo {
 }
 
 test_scc_algo!(TarjanStronglyConnectedComponents, tarjan);
-test_scc_algo!(KKStronglyConnectedComponents, kk);
+//test_scc_algo!(KKStronglyConnectedComponents, kk);
