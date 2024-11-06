@@ -76,9 +76,9 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
         let mut distance = 1;
 
         while let Some(current_node) = self.queue.pop_front() {
-            let current_node = current_node.map(|n| n.into());
             match current_node {
                 Some(node) => {
+                    let node = node.into();
                     for succ in self.graph.successors(node) {
                         let args = breadth_first::Args {
                             curr: succ,
