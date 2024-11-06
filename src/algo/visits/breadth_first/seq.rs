@@ -65,6 +65,8 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
             return Ok(());
         }
 
+        callback(&args)?;
+
         self.visited.set(root, true);
         self.queue.push_back(Some(
             NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
