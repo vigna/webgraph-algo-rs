@@ -1,6 +1,6 @@
 use anyhow::Result;
 use common_traits::{AsBytes, Float};
-use dsi_progress_logger::prelude::no_logging;
+use dsi_progress_logger::no_logging;
 use epserde::deser::{Deserialize, Flags};
 use std::hash::*;
 use webgraph::{

@@ -84,7 +84,7 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         let args = breadth_first::Args {
-            node: root,
+            curr: root,
             parent: root,
             root,
             distance: 0,
@@ -115,22 +115,22 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                     .par_iter()
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
-                        chunk.into_iter().try_for_each(|&(node, parent)| {
+                        chunk.into_iter().try_for_each(|&(curr, parent)| {
                             callback(&breadth_first::Args {
-                                node,
+                                curr,
                                 parent,
                                 root,
                                 distance,
                             })?;
-                            self.graph.successors(node).into_iter().for_each(|succ| {
+                            self.graph.successors(curr).into_iter().for_each(|succ| {
                                 if filter(&breadth_first::Args {
-                                    node: succ,
-                                    parent: node,
+                                    curr: succ,
+                                    parent: curr,
                                     root,
                                     distance: distance_plus_one,
                                 }) && !self.visited.swap(succ, true, Ordering::Relaxed)
                                 {
-                                    next_frontier.push((succ, node));
+                                    next_frontier.push((succ, curr));
                                 }
                             });
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dsi_progress_logger::prelude::no_logging;
+use dsi_progress_logger::no_logging;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::diameter::*;
 

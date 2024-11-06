@@ -17,7 +17,7 @@ pub use par_low_mem::*;
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Args {
     /// The node.
-    pub node: usize,
+    pub curr: usize,
     /// The parent of [node](`Self::node`) in the visit tree.
     pub parent: usize,
     /// The root of the current visit tree.

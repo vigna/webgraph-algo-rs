@@ -55,7 +55,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         let args = breadth_first::Args {
-            node: root,
+            curr: root,
             parent: root,
             root,
             distance: 0,
@@ -78,7 +78,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
                 Some(node) => {
                     for succ in self.graph.successors(node) {
                         let args = breadth_first::Args {
-                            node: succ,
+                            curr: succ,
                             parent: node,
                             root,
                             distance,

@@ -8,7 +8,7 @@ use crate::{
     utils::*,
 };
 use anyhow::{Context, Result};
-use dsi_progress_logger::prelude::no_logging;
+use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
@@ -865,7 +865,7 @@ impl<
             .visit(
                 v,
                 |args| {
-                    radial_vertices.set(args.node, true, Ordering::Relaxed);
+                    radial_vertices.set(args.curr, true, Ordering::Relaxed);
                     Ok(())
                 },
                 pl,
@@ -926,7 +926,7 @@ impl<
             .visit(
                 start,
                 |args| {
-                    let (distance, node) = (args.distance, args.node);
+                    let (distance, node) = (args.distance, args.curr);
                     // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                     max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -1009,7 +1009,7 @@ impl<
             .visit(
                 start,
                 |args| {
-                    let (distance, node) = (args.distance, args.node);
+                    let (distance, node) = (args.distance, args.curr);
                     // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                     max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -1131,7 +1131,7 @@ impl<
                 bfs.visit_filtered(
                     p,
                     |&breadth_first::Args {
-                         node,
+                         curr: node,
                          parent: _parent,
                          root: _root,
                          distance,
@@ -1143,7 +1143,7 @@ impl<
                         component_ecc_pivot.store(distance, Ordering::Relaxed);
                         Ok(())
                     },
-                    |args| components[args.node] == pivot_component,
+                    |args| components[args.curr] == pivot_component,
                     no_logging![],
                 )
                 .unwrap_infallible();

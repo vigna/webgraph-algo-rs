@@ -96,7 +96,7 @@ macro_rules! test_bfv_algo {
                     visit.visit(
                         node,
                         |&args| {
-                            dists[args.node].store(args.distance, Ordering::Relaxed);
+                            dists[args.curr].store(args.distance, Ordering::Relaxed);
                             Ok(())
                         },
                         no_logging![],
@@ -123,7 +123,7 @@ macro_rules! test_bfv_algo {
                     let node = (i + 10000) % graph.num_nodes();
                     visit.visit(
                         node,
-                        |args| Ok(dists[args.node].store(args.distance, Ordering::Relaxed)),
+                        |args| Ok(dists[args.curr].store(args.distance, Ordering::Relaxed)),
                         no_logging![],
                     )?;
                 }

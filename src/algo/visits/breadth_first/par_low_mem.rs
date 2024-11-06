@@ -88,7 +88,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         let args = breadth_first::Args {
-            node: root,
+            curr: root,
             parent: root,
             root,
             distance: 0,
@@ -122,7 +122,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 .into_iter()
                                 .try_for_each(|succ| {
                                     let args = breadth_first::Args {
-                                        node: succ,
+                                        curr: succ,
                                         parent: node,
                                         root,
                                         distance,
