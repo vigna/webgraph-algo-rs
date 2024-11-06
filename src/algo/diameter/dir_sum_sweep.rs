@@ -2,7 +2,7 @@ use crate::{
     algo::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
-        visits::{bfv, bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
+        visits::{breadth_first, breadth_first::ParallelBreadthFirstVisitFastCB, ParVisit},
     },
     prelude::*,
     utils::*,
@@ -289,8 +289,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
-    V1: ParVisit<bfv::Args, Infallible> + Sync,
-    V2: ParVisit<bfv::Args, Infallible> + Sync,
+    V1: ParVisit<breadth_first::Args, Infallible> + Sync,
+    V2: ParVisit<breadth_first::Args, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -338,8 +338,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         SCC: StronglyConnectedComponents + Sync,
-        V1: ParVisit<bfv::Args, Infallible> + Sync,
-        V2: ParVisit<bfv::Args, Infallible> + Sync,
+        V1: ParVisit<breadth_first::Args, Infallible> + Sync,
+        V2: ParVisit<breadth_first::Args, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
@@ -424,8 +424,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
-        V1: ParVisit<bfv::Args, Infallible> + Sync,
-        V2: ParVisit<bfv::Args, Infallible> + Sync,
+        V1: ParVisit<breadth_first::Args, Infallible> + Sync,
+        V2: ParVisit<breadth_first::Args, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -1130,7 +1130,7 @@ impl<
 
                 bfs.visit_from_node_filtered(
                     p,
-                    |&bfv::Args {
+                    |&breadth_first::Args {
                          node,
                          parent: _parent,
                          root: _root,

@@ -1,4 +1,4 @@
-use crate::algo::visits::{bfv, SeqVisit};
+use crate::algo::visits::{breadth_first, SeqVisit};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
@@ -42,10 +42,12 @@ impl<E, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<E, G> {
     }
 }
 
-impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFirstVisit<E, G> {
+impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
+    for SingleThreadedBreadthFirstVisit<E, G>
+{
     fn visit_from_node_filtered<
-        C: FnMut(&bfv::Args) -> Result<(), E>,
-        F: FnMut(&bfv::Args) -> bool,
+        C: FnMut(&breadth_first::Args) -> Result<(), E>,
+        F: FnMut(&breadth_first::Args) -> bool,
     >(
         &mut self,
         root: usize,
@@ -53,7 +55,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFi
         mut filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = bfv::Args {
+        let args = breadth_first::Args {
             node: root,
             parent: root,
             root,
@@ -76,7 +78,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFi
             match current_node {
                 Some(node) => {
                     for succ in self.graph.successors(node) {
-                        let args = bfv::Args {
+                        let args = breadth_first::Args {
                             node: succ,
                             parent: node,
                             root,
@@ -107,7 +109,10 @@ impl<E, G: RandomAccessGraph> SeqVisit<bfv::Args, E> for SingleThreadedBreadthFi
         Ok(())
     }
 
-    fn visit<C: FnMut(&bfv::Args) -> Result<(), E>, F: FnMut(&bfv::Args) -> bool>(
+    fn visit<
+        C: FnMut(&breadth_first::Args) -> Result<(), E>,
+        F: FnMut(&breadth_first::Args) -> bool,
+    >(
         &mut self,
         mut callback: C,
         mut filter: F,

@@ -11,8 +11,8 @@
 //!   This leads to slowdowns and less parallelization in the case where the callback is not trascurable relative
 //!   to the visit logic but to performance improvements in case it is.
 
-pub mod bfv;
-pub mod dfv;
+pub mod breadth_first;
+pub mod depth_first;
 
 use dsi_progress_logger::ProgressLog;
 use thiserror::Error;

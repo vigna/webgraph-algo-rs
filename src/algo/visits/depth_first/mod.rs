@@ -17,8 +17,8 @@
 //! - If the event is [Known](`Event::Known`) or
 //!   [Completed](`Event::Completed`), the visit will be interrupted.
 
-mod single_thread;
-pub use single_thread::*;
+mod seq;
+pub use seq::*;
 
 /// Types of callback events generated during a depth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]

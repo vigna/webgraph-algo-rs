@@ -1,4 +1,4 @@
-use crate::algo::visits::{bfv, ParVisit};
+use crate::algo::visits::{breadth_first, ParVisit};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -70,12 +70,12 @@ impl<'a, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
     }
 }
 
-impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args, E>
+impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<breadth_first::Args, E>
     for ParallelBreadthFirstVisit<'a, E, G, T>
 {
     fn visit_from_node_filtered<
-        C: Fn(&bfv::Args) -> Result<(), E> + Sync,
-        F: Fn(&bfv::Args) -> bool + Sync,
+        C: Fn(&breadth_first::Args) -> Result<(), E> + Sync,
+        F: Fn(&breadth_first::Args) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -83,7 +83,7 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Par
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = bfv::Args {
+        let args = breadth_first::Args {
             node: root,
             parent: root,
             root,
@@ -116,14 +116,14 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Par
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
                         chunk.into_iter().try_for_each(|&(node, parent)| {
-                            callback(&bfv::Args {
+                            callback(&breadth_first::Args {
                                 node,
                                 parent,
                                 root,
                                 distance,
                             })?;
                             self.graph.successors(node).into_iter().for_each(|succ| {
-                                if filter(&bfv::Args {
+                                if filter(&breadth_first::Args {
                                     node: succ,
                                     parent: node,
                                     root,
@@ -149,7 +149,7 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Par
         Ok(())
     }
 
-    fn visit<C: Fn(&bfv::Args) -> Result<(), E> + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+    fn visit<C: Fn(&breadth_first::Args) -> Result<(), E> + Sync, F: Fn(&breadth_first::Args) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,

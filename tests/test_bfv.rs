@@ -139,14 +139,14 @@ macro_rules! test_bfv_algo {
 }
 
 test_bfv_algo!(
-    webgraph_algo::prelude::bfv::SingleThreadedBreadthFirstVisit::<Infallible, _>::new,
+    webgraph_algo::prelude::breadth_first::SingleThreadedBreadthFirstVisit::<Infallible, _>::new,
     sequential
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisit::<Infallible, _>::new(g, 32),
+    |g| webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisit::<Infallible, _>::new(g, 32),
     parallel
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::bfv::ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 32),
+    |g| webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 32),
     parallel_fast_callback
 );

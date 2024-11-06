@@ -5,7 +5,7 @@ use crate::{
             SumSweepOutputLevel,
         },
         scc::TarjanStronglyConnectedComponents,
-        visits::{bfv, bfv::ParallelBreadthFirstVisitFastCB, ParVisit},
+        visits::{breadth_first, breadth_first::ParallelBreadthFirstVisitFastCB, ParVisit},
     },
     prelude::*,
     utils::Threads,
@@ -192,7 +192,7 @@ pub struct SumSweepUndirectedDiameterRadius<
     'a,
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
-    V: ParVisit<bfv::Args, Infallible> + Sync,
+    V: ParVisit<breadth_first::Args, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 > {
     inner: SumSweepDirectedDiameterRadius<'a, G, G, C, V, V, T>,
@@ -202,7 +202,7 @@ impl<'a, G, C, V, T> SumSweepUndirectedDiameterRadius<'a, G, C, V, T>
 where
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
-    V: ParVisit<bfv::Args, Infallible> + Sync,
+    V: ParVisit<breadth_first::Args, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 {
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.

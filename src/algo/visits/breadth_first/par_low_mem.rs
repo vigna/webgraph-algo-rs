@@ -1,4 +1,4 @@
-use crate::algo::visits::{bfv, ParVisit};
+use crate::algo::visits::{breadth_first, ParVisit};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -74,12 +74,12 @@ impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
     }
 }
 
-impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<bfv::Args, E>
+impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisit<breadth_first::Args, E>
     for ParallelBreadthFirstVisitFastCB<E, G, T>
 {
     fn visit_from_node_filtered<
-        C: Fn(&bfv::Args) -> Result<(), E> + Sync,
-        F: Fn(&bfv::Args) -> bool + Sync,
+        C: Fn(&breadth_first::Args) -> Result<(), E> + Sync,
+        F: Fn(&breadth_first::Args) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -87,7 +87,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisi
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = bfv::Args {
+        let args = breadth_first::Args {
             node: root,
             parent: root,
             root,
@@ -121,7 +121,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisi
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let args = bfv::Args {
+                                    let args = breadth_first::Args {
                                         node: succ,
                                         parent: node,
                                         root,
@@ -150,7 +150,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> ParVisi
         Ok(())
     }
 
-    fn visit<C: Fn(&bfv::Args) -> Result<(), E> + Sync, F: Fn(&bfv::Args) -> bool + Sync>(
+    fn visit<C: Fn(&breadth_first::Args) -> Result<(), E> + Sync, F: Fn(&breadth_first::Args) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,

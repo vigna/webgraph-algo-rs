@@ -3,14 +3,14 @@
 //! For each node, the visit should invoke a callback with argument of type
 //! [`Args`] when the node is visited.
 
-mod single_thread;
-pub use single_thread::*;
+mod seq;
+pub use seq::*;
 
-mod parallel;
-pub use parallel::*;
+mod par_fair;
+pub use par_fair::*;
 
-mod parallel_fast_cb;
-pub use parallel_fast_cb::*;
+mod par_low_mem;
+pub use par_low_mem::*;
 
 /// Convenience struct to pass arguments to the callback of a
 /// breadth-first visit.

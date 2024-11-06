@@ -1,5 +1,5 @@
 use crate::algo::visits::{
-    dfv::{Args, Event},
+    depth_first::{Args, Event},
     SeqVisit,
 };
 use sux::bits::BitVec;

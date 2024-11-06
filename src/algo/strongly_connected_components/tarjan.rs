@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::algo::visits::{dfv::*, Interrupted, SeqVisit, StoppedWhenDone};
+use crate::algo::visits::{depth_first::*, Interrupted, SeqVisit, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 use sux::bits::BitVec;
 use unwrap_infallible::UnwrapInfallible;

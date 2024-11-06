@@ -1,4 +1,4 @@
-use crate::{algo::visits::dfv::*, algo::visits::SeqVisit};
+use crate::{algo::visits::depth_first::*, algo::visits::SeqVisit};
 use dsi_progress_logger::ProgressLog;
 use std::mem::MaybeUninit;
 use unwrap_infallible::UnwrapInfallible;
