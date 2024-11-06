@@ -49,11 +49,11 @@ impl<'a, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, ThreeState, 
     }
 }
 
-pub struct StackIterator<'a, S, E, G: RandomAccessGraph> {
-    visit: SingleThreadedDepthFirstVisit<'a, S, E, G>,
+pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
+    visit: &'b mut SingleThreadedDepthFirstVisit<'a, S, E, G>,
 }
 
-impl<'a, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, S, E, G> {
+impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E, G> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
@@ -82,7 +82,7 @@ impl<'a, S, E, G: RandomAccessGraph> SingleThreadedDepthFirstVisit<'a, S, E, G> 
     /// path visit.
     ///
     /// This method is useful only in the case of interrupted visits.
-    pub fn stack(self) -> StackIterator<'a, S, E, G> {
+    pub fn stack(&mut self) -> StackIterator<'a, '_, S, E, G> {
         StackIterator { visit: self }
     }
 }
