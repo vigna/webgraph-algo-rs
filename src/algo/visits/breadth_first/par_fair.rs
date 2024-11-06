@@ -95,8 +95,6 @@ impl<'a, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
             return Ok(());
         }
 
-        callback(&args)?;
-
         // We do not provide a capacity in the hope of allocating dyinamically
         // space as the frontiers grow.
         let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
