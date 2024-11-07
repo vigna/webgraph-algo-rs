@@ -8,7 +8,7 @@ use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
-use super::EventPred;
+use super::{ArgsPred, EventPred};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
 pub type Seq<'a, E, G> = SeqIter<'a, Node, TwoStates, E, G, ()>;
@@ -32,7 +32,7 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 ///   can be used, for example, to compute a [topological
 ///   sort](crate::algo::top_sort).
 /// * [`SeqPath`] keeps track of predecessors and nodes on the stack; it can be
-/// used, for example, to establish [acyclicity](crate::algo::acyclicity).
+///   used, for example, to establish [acyclicity](crate::algo::acyclicity).
 ///
 /// Each type of visit uses incrementally more space:
 /// * [`Seq`] uses one bit per node to remember known nodes and a stack of
@@ -51,6 +51,13 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 ///   is always false.
 /// * [`SeqPath`] generates events of type [`EventPred`].
 ///
+/// The arguments for callbacks are of type [`Args`] (default type parameters) for
+/// [`Seq`] and of type [`ArgsPred`] (which is just [`Args`] with type
+/// parameters [`NodePred`] and [`EventPred`]) for [`SeqPred`] and [`SeqPath`].
+/// With respect to [`Args`], [`ArgsPred`] adds the predecessor of the current
+/// node to the data field, and its event field is of type [`EventPred`],
+/// which contains a [postvisit event](EventPred::Postvisit).
+///
 /// All visits accept two type parameters: an error type to be returned in case
 /// the visit must be interrupted (for example,
 /// [`StoppedWhenDone`](crate::algo::visits::StoppedWhenDone) when completing
@@ -61,7 +68,8 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 /// usually taken care of by type inference.
 ///
 /// If the visit was interrupted, the nodes still on the visit path can be
-/// retrieved using the [`stack`](Seq::stack) method.
+/// retrieved using the [`stack`](Seq::stack) method (only for [`SeqPred`] and
+/// [`SeqPath`]).
 ///
 /// # Examples
 ///
@@ -89,9 +97,8 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 ///        },
 ///        no_logging![]
 ///    ).is_err()); // As the graph is not acyclic
-/// General depth-first visit implementation. The user shouldn't see this.
-///
 
+// General depth-first visit implementation. The user shouldn't see this.
 // Allowed combinations for `D`, `S` and `P` are:
 // * `Node`, `TwoStates` and `()` (no predecessors, no stack tracking)
 // * `NodePred`, `TwoStates` and `usize` (predecessors, no stack tracking)
@@ -236,13 +243,10 @@ impl NodeStates for TwoStates {
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args<NodePred, EventPred>, E>
+impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
     for SeqIter<'a, NodePred, S, E, G, usize>
 {
-    fn visit_filtered<
-        C: FnMut(&Args<NodePred, EventPred>) -> Result<(), E>,
-        F: FnMut(&Args<NodePred, EventPred>) -> bool,
-    >(
+    fn visit_filtered<C: FnMut(&ArgsPred) -> Result<(), E>, F: FnMut(&ArgsPred) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -343,10 +347,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args<NodePred, Event
         }
     }
 
-    fn visit_all_filtered<
-        C: FnMut(&Args<NodePred, EventPred>) -> Result<(), E>,
-        F: FnMut(&Args<NodePred, EventPred>) -> bool,
-    >(
+    fn visit_all_filtered<C: FnMut(&ArgsPred) -> Result<(), E>, F: FnMut(&ArgsPred) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,
@@ -368,10 +369,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args<NodePred, Event
 impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
     for SeqIter<'a, Node, TwoStates, E, G, ()>
 {
-    fn visit_filtered<
-        C: FnMut(&Args<Node, Event>) -> Result<(), E>,
-        F: FnMut(&Args<Node, Event>) -> bool,
-    >(
+    fn visit_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -417,7 +415,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
                         data: Node { curr: succ },
                         root,
                         depth: depth + 1,
-                        event: Event::Revisit(false),
+                        event: Event::Revisit,
                     })?;
                 } else {
                     // First time seeing node
@@ -449,10 +447,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
         }
     }
 
-    fn visit_all_filtered<
-        C: FnMut(&Args<Node, Event>) -> Result<(), E>,
-        F: FnMut(&Args<Node, Event>) -> bool,
-    >(
+    fn visit_all_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,

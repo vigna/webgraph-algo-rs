@@ -8,10 +8,10 @@
 //! Some visits require more additional space (usually, double) to pass
 //! predecessors to callbacks (this is the case, e.g., of [`ParFair`]). Since
 //! not all algorithms require this information, [`Args`] has a type parameter
-//! `D` (for “data”) that can be either [`Node`] or [`NodePred`]. The same
-//! parameter is used to parameterize visit implementations (see, e.g.,
-//! [`ParFair`]), so implementations can tune their behavior and space usage to
-//! support just `D`.
+//! `D` (for “data”) that can be either [`Node`](super::Node) or
+//! [`NodePred`](super::NodePred). The same parameter is used to parameterize
+//! visit implementations (see, e.g., [`ParFair`]), so implementations can tune
+//! their behavior and space usage to support just `D`.
 //!
 //! Visit that can always provide the predecessor (e.g., [`Seq`]) use directly
 //! `Args<NodePred>`. In general, can tell the fixed choice of `D` of an
@@ -48,12 +48,13 @@ pub enum Event {
 
 /// Arguments for the callback of a breadth-first visit.
 ///
-/// The type parameter `D` can be either [`Node`] or [`NodePred`]
-/// (see the [module documentation](super::breadth_first)).
+/// The type parameter `D` can be either [`Node`](super::Node) or
+/// [`NodePred`](super::NodePred) (see the [module
+/// documentation](super::breadth_first)).
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Args<D: Data> {
     /// The available data, that is, the current node and possibly its
-    /// predecessor (if `D` is [`NodePred`]). When [`event`](`Self::event`) is
+    /// predecessor (if `D` is [`NodePred`](super::NodePred)). When [`event`](`Self::event`) is
     /// [`Unknown`](`Event::Unknown`), the predecessor is the parent of the
     /// current node in the visit tree.
     pub data: D,
