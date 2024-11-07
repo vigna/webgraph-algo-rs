@@ -41,6 +41,7 @@ pub mod depth_first;
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
 use thiserror::Error;
+
 #[derive(Error, Debug)]
 /// The visit was interrupted.
 #[error("The visit was interrupted")]

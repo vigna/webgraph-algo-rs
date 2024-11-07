@@ -1,13 +1,10 @@
-use crate::traits::SliceInteriorMutability;
-use crate::traits::UnsafeSliceWrite;
 use crate::{
     algo::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{breadth_first::Event, breadth_first::ParFair, Data, Node, Parallel},
     },
-    prelude::breadth_first::Args,
-    traits::StronglyConnectedComponents,
+    traits::{SliceInteriorMutability, StronglyConnectedComponents, UnsafeSliceWrite},
     utils::*,
 };
 use dsi_progress_logger::no_logging;
@@ -275,8 +272,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
-    V1: Parallel<Args<Node>, Infallible> + Sync,
-    V2: Parallel<Args<Node>, Infallible> + Sync,
+    V1: Parallel<Event<Node>, Infallible> + Sync,
+    V2: Parallel<Event<Node>, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -324,8 +321,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         SCC: StronglyConnectedComponents + Sync,
-        V1: Parallel<Args<Node>, Infallible> + Sync,
-        V2: Parallel<Args<Node>, Infallible> + Sync,
+        V1: Parallel<Event<Node>, Infallible> + Sync,
+        V2: Parallel<Event<Node>, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
@@ -410,8 +407,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
-        V1: Parallel<Args<Node>, Infallible> + Sync,
-        V2: Parallel<Args<Node>, Infallible> + Sync,
+        V1: Parallel<Event<Node>, Infallible> + Sync,
+        V2: Parallel<Event<Node>, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -827,8 +824,8 @@ impl<
             .visit(
                 v,
                 |args| {
-                    if args.event == Event::Unknown {
-                        radial_vertices.set(args.data.curr(), true, Ordering::Relaxed);
+                    if let Event::Unknown { data, .. } = args {
+                        radial_vertices.set(data.curr(), true, Ordering::Relaxed)
                     }
                     Ok(())
                 },
@@ -877,9 +874,9 @@ impl<
         self.transposed_visit
             .visit(
                 start,
-                |args| {
-                    if args.event == Event::Unknown {
-                        let (distance, node) = (args.distance, args.data.curr());
+                |&args| {
+                    if let Event::Unknown { data, distance, .. } = args {
+                        let node = data.curr();
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -902,7 +899,9 @@ impl<
                                 *node_forward_lower_bound_ptr = distance;
                             }
 
-                            if distance == node_forward_upper_bound && self.radial_vertices[node] {
+                            if distance == node_forward_upper_bound
+                                && self.radial_vertices[node]
+                            {
                                 let mut update_radius = false;
                                 {
                                     let radius_lock = radius.read().unwrap();
@@ -920,7 +919,7 @@ impl<
                                 }
                             }
                         }
-                    }
+                    };
                     Ok(())
                 },
                 pl,
@@ -961,9 +960,9 @@ impl<
         self.visit
             .visit(
                 start,
-                |args| {
-                    if args.event == Event::Unknown {
-                        let (distance, node) = (args.distance, args.data.curr());
+                |&args| {
+                    if let Event::Unknown { data, distance, .. } = args {
+                        let node = data.curr();
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -972,7 +971,8 @@ impl<
                         let node_total_backward_distance_ptr =
                             unsafe { total_backward_distance.get_mut_unsafe(node) };
 
-                        let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
+                        let node_backward_lower_bound =
+                            unsafe { *node_backward_lower_bound_ptr };
                         let node_backward_upper_bound =
                             self.upper_bound_backward_eccentricities[node];
 
@@ -987,7 +987,6 @@ impl<
                             }
                         }
                     }
-
                     Ok(())
                 },
                 pl,
@@ -1080,22 +1079,22 @@ impl<
 
                 bfs.visit_filtered(
                     p,
-                    |&Args::<Node> {
-                         data: item,
-                         root: _root,
-                         distance,
-                         event,
-                     }| {
-                        if event == Event::Unknown {
+                    |&args| {
+                        if let Event::Unknown { data, distance, .. } = args {
                             // Safety: each node is accessed exactly once
                             unsafe {
-                                dist_pivot_mut.write_once(item.curr(), distance);
+                                dist_pivot_mut.write_once(data.curr(), distance);
                             }
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
-                        }
+                        };
                         Ok(())
                     },
-                    |args| components[args.data.curr()] == pivot_component,
+                    |args| match args {
+                        Event::Unknown { data, .. } => components[data.curr()] == pivot_component,
+                        _ => {
+                            panic!()
+                        }
+                    },
                     no_logging![],
                 )
                 .unwrap_infallible();

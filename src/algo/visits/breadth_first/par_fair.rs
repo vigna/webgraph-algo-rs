@@ -1,12 +1,10 @@
-use crate::algo::visits::{breadth_first, Parallel};
+use crate::algo::visits::{breadth_first::Event, Data, Parallel};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
 use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
-
-use super::{Args, Data};
 
 /// A fair parallel breadth-first visit.
 ///
@@ -32,7 +30,6 @@ use super::{Args, Data};
 /// ```rust
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use breadth_first::Args;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -46,16 +43,14 @@ use super::{Args, Data};
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
-///     |&Args{
-///         data,
-///         root: _root,
-///         distance,
-///         event,
-///     }|
+///     |&args|
 ///         {
 ///             // Set distance from 0
-///             if event == breadth_first::Event::Unknown {
-///                 d[data.curr()].store(distance, Ordering::Relaxed);
+///             match args {
+///                 breadth_first::Event::Unknown {data, distance, ..} => {
+///                     d[data.curr()].store(distance, Ordering::Relaxed);
+///                 },
+///                 _ => {}
 ///             }
 ///             Ok(())
 ///         },
@@ -136,20 +131,19 @@ impl<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParFair<D, E, G, 
 }
 
 impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
-    Parallel<Args<D>, E> for ParFair<D, E, G, T>
+    Parallel<Event<D>, E> for ParFair<D, E, G, T>
 {
-    fn visit_filtered<C: Fn(&Args<D>) -> Result<(), E> + Sync, F: Fn(&Args<D>) -> bool + Sync>(
+    fn visit_filtered<C: Fn(&Event<D>) -> Result<(), E> + Sync, F: Fn(&Event<D>) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = breadth_first::Args::<D> {
+        let args = Event::Unknown {
             data: D::new(root, root),
             root,
             distance: 0,
-            event: breadth_first::Event::Unknown,
         };
 
         if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
@@ -176,31 +170,27 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
                         chunk.into_iter().try_for_each(|&data| {
-                            callback(&breadth_first::Args::<D> {
+                            callback(&Event::Unknown {
                                 data,
                                 root,
                                 distance,
-                                event: breadth_first::Event::Unknown,
                             })?;
                             let curr = data.curr();
                             self.graph
                                 .successors(curr)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    if filter(&breadth_first::Args {
+                                    if filter(&Event::Unknown {
                                         data: D::new(succ, curr),
                                         root,
                                         distance: distance_plus_one,
-                                        event: breadth_first::Event::Unknown,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             next_frontier.push(D::new(succ, curr));
                                         } else {
-                                            callback(&breadth_first::Args {
+                                            callback(&Event::Known {
                                                 data: D::new(succ, curr),
                                                 root,
-                                                distance: distance_plus_one,
-                                                event: breadth_first::Event::Known,
                                             })?;
                                         }
                                     }
@@ -224,8 +214,8 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
     }
 
     fn visit_all_filtered<
-        C: Fn(&Args<D>) -> Result<(), E> + Sync,
-        F: Fn(&Args<D>) -> bool + Sync,
+        C: Fn(&Event<D>) -> Result<(), E> + Sync,
+        F: Fn(&Event<D>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

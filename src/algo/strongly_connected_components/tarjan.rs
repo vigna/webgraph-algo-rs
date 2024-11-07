@@ -80,29 +80,27 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                         }
                         EventPred::Revisit { on_stack, data, .. } => {
                             let (curr, pred) = (data.curr, data.pred);
-                            if on_stack {
-                                if low_link[curr] < low_link[pred] {
-                                    // Safe as the stack is never empty
-                                    *lead.last_mut().unwrap() = false;
-                                    low_link[pred] = low_link[curr];
+                            if on_stack && low_link[curr] < low_link[pred] {
+                                // Safe as the stack is never empty
+                                *lead.last_mut().unwrap() = false;
+                                low_link[pred] = low_link[curr];
 
-                                    if low_link[pred] == root_low_link && current_index == num_nodes
-                                    {
-                                        // All nodes have been discovered, and we
-                                        // found a low link identical to that of the
-                                        // root: thus, the current node, all nodes
-                                        // on the visit path and all nodes in the
-                                        // component stack belong to the same
-                                        // component.
+                                if low_link[pred] == root_low_link && current_index == num_nodes
+                                {
+                                    // All nodes have been discovered, and we
+                                    // found a low link identical to that of the
+                                    // root: thus, the current node, all nodes
+                                    // on the visit path and all nodes in the
+                                    // component stack belong to the same
+                                    // component.
 
-                                        low_link[curr] = self.number_of_components;
-                                        for &node in component_stack.iter() {
-                                            low_link[node] = self.number_of_components;
-                                        }
-                                        // Nodes on the visit path will be assigned
-                                        // to the same component later
-                                        return Err(StoppedWhenDone {});
+                                    low_link[curr] = self.number_of_components;
+                                    for &node in component_stack.iter() {
+                                        low_link[node] = self.number_of_components;
                                     }
+                                    // Nodes on the visit path will be assigned
+                                    // to the same component later
+                                    return Err(StoppedWhenDone {});
                                 }
                             }
                         }

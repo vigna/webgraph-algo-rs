@@ -1,4 +1,4 @@
-use crate::algo::visits::{breadth_first, Data, NodePred, Parallel};
+use crate::algo::visits::{breadth_first::Event, Data, NodePred, Parallel};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -26,7 +26,6 @@ use webgraph::traits::RandomAccessGraph;
 /// ```rust
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use breadth_first::Args;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -40,16 +39,14 @@ use webgraph::traits::RandomAccessGraph;
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
-///     |&Args{
-///         data,
-///         root: _root,
-///         distance,
-///         event,
-///     }|
+///     |&args|
 ///         {
 ///             // Set distance from 0
-///             if event == breadth_first::Event::Unknown {
-///                 d[data.curr()].store(distance, Ordering::Relaxed);
+///             match args {
+///                 breadth_first::Event::Unknown {data, distance, ..} => {
+///                     d[data.curr()].store(distance, Ordering::Relaxed);
+///                 },
+///                 _ => {}
 ///             }
 ///             Ok(())
 ///         },
@@ -128,11 +125,11 @@ impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<E, G, T> {
 }
 
 impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
-    Parallel<breadth_first::Args<NodePred>, E> for ParLowMem<E, G, T>
+    Parallel<Event<NodePred>, E> for ParLowMem<E, G, T>
 {
     fn visit_filtered<
-        C: Fn(&breadth_first::Args<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(&breadth_first::Args<NodePred>) -> bool + Sync,
+        C: Fn(&Event<NodePred>) -> Result<(), E> + Sync,
+        F: Fn(&Event<NodePred>) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -140,11 +137,10 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = breadth_first::Args::<NodePred> {
+        let args = Event::Unknown {
             data: NodePred::new(root, root),
             root,
             distance: 0,
-            event: breadth_first::Event::Unknown,
         };
         if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
             return Ok(());
@@ -175,22 +171,19 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let args = breadth_first::Args::<NodePred> {
+                                    let args = Event::Unknown {
                                         data: NodePred::new(succ, node),
                                         root,
                                         distance,
-                                        event: breadth_first::Event::Unknown,
                                     };
                                     if filter(&args) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             callback(&args)?;
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(&breadth_first::Args {
+                                            callback(&Event::Known {
                                                 data: NodePred::new(succ, node),
                                                 root,
-                                                distance,
-                                                event: breadth_first::Event::Known,
                                             })?;
                                         }
                                     }
@@ -212,8 +205,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
     }
 
     fn visit_all_filtered<
-        C: Fn(&breadth_first::Args<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(&breadth_first::Args<NodePred>) -> bool + Sync,
+        C: Fn(&Event<NodePred>) -> Result<(), E> + Sync,
+        F: Fn(&Event<NodePred>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

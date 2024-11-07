@@ -83,17 +83,22 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 /// let mut visit = depth_first::SeqPath::new(&graph);
 ///
 /// assert!(visit.visit_all(
-///        |args|
-///          {
-///            // Stop the visit as soon as a back edge is found
-///            if args.event == EventPred::Revisit(true) {
-///                Err(StoppedWhenDone {})
-///            } else {
-///                Ok(())
-///            }
-///        },
-///        no_logging![]
-///    ).is_err()); // As the graph is not acyclic
+///     |&args|
+///         {
+///             // Stop the visit as soon as a back edge is found
+///             match args {
+///                 EventPred::Revisit {on_stack, ..} => {
+///                     if on_stack {
+///                         Err(StoppedWhenDone {})
+///                     } else {
+///                         Ok(())
+///                     }
+///                 },
+///                 _ => {Ok(())}
+///             }
+///         },
+///         no_logging![]
+///     ).is_err()); // As the graph is not acyclic
 
 // General depth-first visit implementation. The user shouldn't see this.
 // Allowed combinations for `D`, `S` and `P` are:
