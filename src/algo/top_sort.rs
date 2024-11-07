@@ -21,9 +21,12 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
     visit
         .visit_all(
             |args| {
-                if args.event == EventPred::Postvisit {
-                    pos -= 1;
-                    topol_sort[pos].write(args.data.curr);
+                match args {
+                    EventPred::Postvisit { data, .. } => {
+                        pos -= 1;
+                        topol_sort[pos].write(data.curr);
+                    }
+                    _ => {}
                 }
 
                 Ok(())
