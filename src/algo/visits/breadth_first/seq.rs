@@ -24,7 +24,7 @@ use super::{Data, NodePred};
 /// ```rust
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use breadth_first::{Args, Data};
+/// use breadth_first::{Args, Data, Node};
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -52,6 +52,34 @@ use super::{Data, NodePred};
 ///    no_logging![]
 /// );
 /// assert_eq!(d, [0, 1, 2, 2]);
+///
+/// // Now let's do it in parallel--we will not need parents
+///
+/// let mut visit = breadth_first::ParFair::<Node, Infallible, _>::new(&graph, 1);
+/// use std::sync::atomic::AtomicUsize;
+/// use std::sync::atomic::Ordering;
+/// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
+/// visit.visit(
+///     0,
+///     |&Args{
+///         data,
+///         root: _root,
+///         distance,
+///         event,
+///     }|
+///         {
+///             // Set distance from 0
+///             if event == breadth_first::Event::Unknown {
+///                 d[data.curr()].store(distance, Ordering::Relaxed);
+///             }
+///             Ok(())
+///         },
+///    no_logging![]
+/// );
+/// assert_eq!(d[0].load(Ordering::Relaxed), 0);
+/// assert_eq!(d[1].load(Ordering::Relaxed), 1);
+/// assert_eq!(d[2].load(Ordering::Relaxed), 2);
+/// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 
 pub struct Seq<E, G: RandomAccessGraph> {
     graph: G,
