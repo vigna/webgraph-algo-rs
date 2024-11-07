@@ -4,11 +4,9 @@ use crate::{
 use dsi_progress_logger::ProgressLog;
 use webgraph::traits::RandomAccessGraph;
 
-use super::visits::NodePred;
-
 /// Runs an acyclicity test.
 pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
-    let mut visit = Seq::<NodePred, ThreeStates, StoppedWhenDone, _, _>::new(&graph);
+    let mut visit = SeqPath::<StoppedWhenDone, _>::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));

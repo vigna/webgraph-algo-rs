@@ -3,8 +3,8 @@
 //! Implementations must accept a callback function with argument [`Args`]. The
 //! callback must be called at the [start of a visit](Event::Init), [every time
 //! a new node is discovered](Event::Previsit), [every time a node is
-//! revisited](Event::Revisit), and [every time the enumeration of the
-//! successors of a node is completed](Event::Postvisit).
+//! revisited](Event::Revisit), and, if supported, [every time the enumeration
+//! of the successors of a node is completed](Event::Postvisit).
 //!
 //! Note that since [`Args`] contains the predecessor of the visited node, all
 //! post-start visit events can be interpreted as arc events. The only exception

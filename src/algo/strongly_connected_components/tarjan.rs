@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::algo::visits::{depth_first::*, Data, NodePred, Sequential, StoppedWhenDone};
+use crate::algo::visits::{depth_first::*, Data, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 
 use webgraph::traits::RandomAccessGraph;
@@ -53,7 +53,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
     }
 
     fn run(&mut self, pl: &mut impl ProgressLog) {
-        let mut visit = Seq::<NodePred, ThreeStates, StoppedWhenDone, _, _>::new(&self.graph);
+        let mut visit = SeqPath::<StoppedWhenDone, _>::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));

@@ -10,21 +10,55 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 use super::EventPred;
 
-/// A sequential depth-first visit.
+/// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
+pub type Seq<'a, E, G> = SeqIter<'a, Node, TwoStates, E, G, ()>;
+
+/// A depth-first visit which keeps track of predecessors, but not nodes on the stack.
+pub type SeqPred<'a, E, G> = SeqIter<'a, NodePred, TwoStates, E, G, usize>;
+
+/// A depth-first visit which keeps track of predecessors and nodes on the stack.
+pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
+
+/// Sequential depth-first visits.
 ///
-/// This is an iterative implementation that does not depend on large stack
-/// sizes to perform recursion.
+/// This is an iterative implementation that does not need a large stack size.
 ///
-/// There are two versions of the visit, selected by the parameter `S`. If `S`
-/// is [`TwoStates`], the visit will use a single bit per node to remember known
-/// nodes, but events of type [`Revisit`](`Event::Revisit`) will always have the
-/// associated Boolean equal to false (this type of visit is sufficient, for
-/// example, to compute a [topological sort](crate::algo::top_sort)). If `S` is
-/// [`ThreeStates`], instead, the visit will use two bits per node and  events of
-/// type [`Revisit`](`Event::Revisit`) will provide information about whether
-/// the node associated with event is currently on the visit path (this kind of
-/// visit is necessary, for example, to compute
-/// [acyclicity](crate::algo::acyclicity)).
+/// There are three version of the visit, which are type aliases to the same
+/// common implementation: [`Seq`], [`SeqPred`] and [`SeqPath`].
+///
+/// * [`Seq`] does not keep track of predecessors, nor of nodes on the stack; it
+///   can be used, for example, to compute reachability information.
+/// * [`SeqPred`] keeps track of predecessors, but not of nodes on the stack; it
+///   can be used, for example, to compute a [topological
+///   sort](crate::algo::top_sort).
+/// * [`SeqPath`] keeps track of predecessors and nodes on the stack; it can be
+/// used, for example, to establish [acyclicity](crate::algo::acyclicity).
+///
+/// Each type of visit uses incrementally more space:
+/// * [`Seq`] uses one bit per node to remember known nodes and a stack of
+///   iterators, one for each node on the visit path.
+/// * [`SeqPred`] uses one bit per node to remember known nodes and a stack of
+///   pairs made of an iterator and a predecessor, one for each node on the
+///   visit path.
+/// * [`SeqPath`] uses two bits per node to remember known nodes and whether the
+///   node is on the visit path, and a stack of pairs made of an iterator and a
+///   predecessor, one for each node on the visit path.
+///
+/// The visits differ also in the type of events they generate:
+/// * [`Seq`] generates events of type [`Event`].
+/// * [`SeqPred`] generates events of type [`EventPred`], with the proviso that
+///   the Boolean associated with events of type [`Revisit`](`Event::Revisit`)
+///   is always false.
+/// * [`SeqPath`] generates events of type [`EventPred`].
+///
+/// All visits accept two type parameters: an error type to be returned in case
+/// the visit must be interrupted (for example,
+/// [`StoppedWhenDone`](crate::algo::visits::StoppedWhenDone) when completing
+/// early, [`Interrupted`](crate::algo::visits::Interrupted) when interrupted or
+/// [`Infallible`](std::convert::Infallible) if the visit cannot be
+/// interrupted), and a
+/// [`RandomAccessGraph`](webgraph::traits::RandomAccessGraph). These are
+/// usually taken care of by type inference.
 ///
 /// If the visit was interrupted, the nodes still on the visit path can be
 /// retrieved using the [`stack`](Seq::stack) method.
@@ -41,7 +75,7 @@ use super::EventPred;
 /// // Let's test acyclicity.
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = depth_first::Seq::<NodePred, ThreeStates, _, _, _>::new(&graph);
+/// let mut visit = depth_first::SeqPath::new(&graph);
 ///
 /// assert!(visit.visit_all(
 ///        |args|
@@ -55,8 +89,14 @@ use super::EventPred;
 ///        },
 ///        no_logging![]
 ///    ).is_err()); // As the graph is not acyclic
+/// General depth-first visit implementation. The user shouldn't see this.
+///
 
-pub struct Seq<'a, D, S, E, G: RandomAccessGraph, P> {
+// Allowed combinations for `D`, `S` and `P` are:
+// * `Node`, `TwoStates` and `()` (no predecessors, no stack tracking)
+// * `NodePred`, `TwoStates` and `usize` (predecessors, no stack tracking)
+// * `NodePred`, `ThreeStates` and `usize` (predecessors, stack tracking)
+pub struct SeqIter<'a, D, S, E, G: RandomAccessGraph, P> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
     /// and the parent of the node. This approach makes it possible to avoid
@@ -69,9 +109,9 @@ pub struct Seq<'a, D, S, E, G: RandomAccessGraph, P> {
     _phantom: std::marker::PhantomData<(D, E)>,
 }
 
-/// The iterator returned by the [`stack`](Seq::stack).
+/// The iterator returned by [`stack`](Seq::stack).
 pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
-    visit: &'b mut Seq<'a, NodePred, S, E, G, usize>,
+    visit: &'b mut SeqIter<'a, NodePred, S, E, G, usize>,
 }
 
 impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E, G> {
@@ -82,12 +122,12 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, D, S: NodeStates, E, G: RandomAccessGraph, P> Seq<'a, D, S, E, G, P> {
+impl<'a, D, S: NodeStates, E, G: RandomAccessGraph, P> SeqIter<'a, D, S, E, G, P> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> Seq<'a, D, S, E, G, P> {
+    pub fn new(graph: &'a G) -> SeqIter<'a, D, S, E, G, P> {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
@@ -98,7 +138,7 @@ impl<'a, D, S: NodeStates, E, G: RandomAccessGraph, P> Seq<'a, D, S, E, G, P> {
     }
 }
 
-impl<'a, S, E, G: RandomAccessGraph> Seq<'a, NodePred, S, E, G, usize> {
+impl<'a, S, E, G: RandomAccessGraph> SeqIter<'a, NodePred, S, E, G, usize> {
     /// Returns an iterator over the nodes stil on the visit path.
     ///
     /// Node will be returned in reverse order of visit.
@@ -122,6 +162,7 @@ pub trait NodeStates {
     fn reset(&mut self);
 }
 
+#[doc(hidden)]
 /// A two-state selector type for [sequential depth-first visits](Seq).
 ///
 /// This implementation does not keep track of nodes on the stack,
@@ -129,6 +170,7 @@ pub trait NodeStates {
 /// associated Boolean equal to false.
 pub struct TwoStates(BitVec);
 
+#[doc(hidden)]
 /// A three-state selector type for [sequential depth-first visits](Seq).
 ///
 /// This implementation does keep track of nodes on the stack, so events of type
@@ -195,7 +237,7 @@ impl NodeStates for TwoStates {
 }
 
 impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args<NodePred, EventPred>, E>
-    for Seq<'a, NodePred, S, E, G, usize>
+    for SeqIter<'a, NodePred, S, E, G, usize>
 {
     fn visit_filtered<
         C: FnMut(&Args<NodePred, EventPred>) -> Result<(), E>,
@@ -324,7 +366,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args<NodePred, Event
 }
 
 impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
-    for Seq<'a, Node, TwoStates, E, G, ()>
+    for SeqIter<'a, Node, TwoStates, E, G, ()>
 {
     fn visit_filtered<
         C: FnMut(&Args<Node, Event>) -> Result<(), E>,

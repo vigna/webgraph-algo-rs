@@ -1,4 +1,3 @@
-use super::visits::NodePred;
 use crate::{algo::visits::depth_first::*, algo::visits::Sequential};
 use dsi_progress_logger::ProgressLog;
 use std::convert::Infallible;
@@ -10,7 +9,7 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// Otherwise, the order reflects the exit times from a depth-first visit of the graph.
 pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usize]> {
-    let mut visit = Seq::<NodePred, TwoStates, Infallible, _, _>::new(&graph);
+    let mut visit = SeqPred::<Infallible, _>::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
