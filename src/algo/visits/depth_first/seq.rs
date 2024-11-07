@@ -283,20 +283,15 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a,
 
             pl.light_update();
 
-            let args = Args {
-                curr: current_node,
-                pred: *parent,
-                root,
-                depth,
-                event: Event::Postvisit,
-            };
-
-            if !filter(&args) {
-                // We interrupt the visit
-                return Ok(());
-            }
-
-            callback(&args)?;
+            callback(
+                &(Args {
+                    curr: current_node,
+                    pred: *parent,
+                    root,
+                    depth,
+                    event: Event::Postvisit,
+                }),
+            )?;
 
             state.set_off_stack(current_node);
 
