@@ -899,9 +899,7 @@ impl<
                                 *node_forward_lower_bound_ptr = distance;
                             }
 
-                            if distance == node_forward_upper_bound
-                                && self.radial_vertices[node]
-                            {
+                            if distance == node_forward_upper_bound && self.radial_vertices[node] {
                                 let mut update_radius = false;
                                 {
                                     let radius_lock = radius.read().unwrap();
@@ -971,8 +969,7 @@ impl<
                         let node_total_backward_distance_ptr =
                             unsafe { total_backward_distance.get_mut_unsafe(node) };
 
-                        let node_backward_lower_bound =
-                            unsafe { *node_backward_lower_bound_ptr };
+                        let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
                         let node_backward_upper_bound =
                             self.upper_bound_backward_eccentricities[node];
 
