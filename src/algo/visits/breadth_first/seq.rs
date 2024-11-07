@@ -18,6 +18,40 @@ use super::{Data, NodePred};
 /// different distances: to obtain this result in a compact way, nodes are
 /// represented using [`NonMaxUsize`], so the `None` variant of
 /// `Option<NonMaxUsize>` can be used as a separator.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::convert::Infallible;
+/// use webgraph_algo::algo::visits::*;
+/// use breadth_first::{Args, Data};
+/// use dsi_progress_logger::no_logging;
+/// use webgraph::graphs::vec_graph::VecGraph;
+/// use webgraph::labels::proj::Left;
+///
+/// // Let's compute the distances from 0
+///
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+/// let mut visit = breadth_first::Seq::<Infallible, _>::new(&graph);
+/// let mut d = [0; 4];
+/// visit.visit(
+///     0,
+///     |&Args{
+///         data,
+///         root: _root,
+///         distance,
+///         event,
+///     }|
+///         {
+///             // Set distance from 0
+///             if event == breadth_first::Event::Unknown {
+///                 d[data.curr()] = distance;
+///             }
+///             Ok(())
+///         },
+///    no_logging![]
+/// );
+/// assert_eq!(d, [0, 1, 2, 2]);
 
 pub struct Seq<E, G: RandomAccessGraph> {
     graph: G,
