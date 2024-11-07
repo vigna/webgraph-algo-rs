@@ -85,8 +85,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 *lead.last_mut().unwrap() = false;
                                 low_link[pred] = low_link[curr];
 
-                                if low_link[pred] == root_low_link && current_index == num_nodes
-                                {
+                                if low_link[pred] == root_low_link && current_index == num_nodes {
                                     // All nodes have been discovered, and we
                                     // found a low link identical to that of the
                                     // root: thus, the current node, all nodes
