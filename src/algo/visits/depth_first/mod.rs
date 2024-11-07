@@ -16,21 +16,6 @@ pub use seq::*;
 use super::{Node, NodePred};
 
 /// Types of callback events generated during a depth-first visit
-/// not keeping track of parent nodes.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Event {
-    /// Initialization: all node fields are equal to the root and depth is 0.
-    /// This event should be used to set up state at the start of the visit.
-    Init,
-    /// The node has been encountered for the first time: we are traversing a
-    /// new tree arc, unless all fields or [`Args`] are equal to the root.
-    Previsit,
-    /// The node has been encountered before: we are traversing a back arc, a
-    /// forward arc, or a cross arc.
-    Revisit,
-}
-
-/// Types of callback events generated during a depth-first visit
 /// keeping track of parent nodes (and possibly of the visit path).
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum EventPred {
@@ -110,10 +95,6 @@ pub enum Event {
     },
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
-    ///
-    /// If supported by the visit, the Boolean value denotes whether the node is
-    /// currently on the visit path, that is, if we are traversing a back arc,
-    /// and retreating from it.
     Revisit {
         /// The available data, that is, the current node.
         data: Node,
@@ -122,12 +103,5 @@ pub enum Event {
         /// The depth of the visit, that is, the length of the visit path from the
         /// [root](`Event::Revisit::root`) to [curr](`Event::Revisit::curr`).
         depth: usize,
-        /// Whether the node is currently on the visit path, that is, if we are
-        /// traversing a back arc, and retreating from it.
-        on_stack: bool,
     },
 }
-
-/// The type of arguments for a depth-first visi
-/// keeping track of parent nodes (and possibly of the visit path).
-pub type ArgsPred = Args<NodePred, EventPred>;

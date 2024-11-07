@@ -1,11 +1,12 @@
-use crate::algo::visits::{depth_first::Event, Data, Node, NodePred, Sequential};
+use crate::algo::visits::{
+    depth_first::{Event, EventPred},
+    Data, Node, NodePred, Sequential,
+};
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
-
-use super::{ArgsPred, EventPred};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
 pub type Seq<'a, E, G> = SeqIter<'a, Node, TwoStates, E, G, ()>;
@@ -409,7 +410,6 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, Node, Two
                         data: Node { curr: succ },
                         root,
                         depth: depth + 1,
-                        on_stack: false,
                     })?;
                 } else {
                     // First time seeing node
