@@ -54,6 +54,7 @@ pub struct Interrupted {}
 #[error("Stopped when done")]
 pub struct StoppedWhenDone {}
 
+/// Trait for types usable as arguments for the callbacks in visits
 pub trait VisitEventArgs {
     type FilterEventArgs;
 }
@@ -76,7 +77,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
     /// * `filter`: The filter function.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A::FilterEventArgs) -> bool>(
+    fn visit_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterEventArgs) -> bool>(
         &mut self,
         root: usize,
         callback: C,
@@ -90,7 +91,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
     /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
     /// returns true.
     #[inline(always)]
-    fn visit<C: FnMut(&A) -> Result<(), E>>(
+    fn visit<C: FnMut(A) -> Result<(), E>>(
         &mut self,
         root: usize,
         callback: C,
@@ -102,7 +103,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit_filtered`](Sequential::visit) for more details.
-    fn visit_all_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A::FilterEventArgs) -> bool>(
+    fn visit_all_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterEventArgs) -> bool>(
         &mut self,
         callback: C,
         filter: F,
@@ -115,7 +116,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
     /// [`visit_all_filtered`](Sequential::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn visit_all<C: FnMut(&A) -> Result<(), E>>(
+    fn visit_all<C: FnMut(A) -> Result<(), E>>(
         &mut self,
         callback: C,
         pl: &mut impl ProgressLog,
@@ -146,10 +147,7 @@ pub trait Parallel<A: VisitEventArgs, E> {
     ///    determine whether the node should be visited or not.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<
-        C: Fn(&A) -> Result<(), E> + Sync,
-        F: Fn(&A::FilterEventArgs) -> bool + Sync,
-    >(
+    fn visit_filtered<C: Fn(A) -> Result<(), E> + Sync, F: Fn(A::FilterEventArgs) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,
@@ -163,7 +161,7 @@ pub trait Parallel<A: VisitEventArgs, E> {
     /// [`visit_filtered`](Parallel::visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
-    fn visit<C: Fn(&A) -> Result<(), E> + Sync>(
+    fn visit<C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         root: usize,
         callback: C,
@@ -176,8 +174,8 @@ pub trait Parallel<A: VisitEventArgs, E> {
     ///
     /// See [`visit`](Parallel::visit_filtered) for more details.
     fn visit_all_filtered<
-        C: Fn(&A) -> Result<(), E> + Sync,
-        F: Fn(&A::FilterEventArgs) -> bool + Sync,
+        C: Fn(A) -> Result<(), E> + Sync,
+        F: Fn(A::FilterEventArgs) -> bool + Sync,
     >(
         &mut self,
         callback: C,
@@ -191,7 +189,7 @@ pub trait Parallel<A: VisitEventArgs, E> {
     /// [`visit_all_filtered`](Parallel::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn visit_all<C: Fn(&A) -> Result<(), E> + Sync>(
+    fn visit_all<C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
         pl: &mut impl ProgressLog,

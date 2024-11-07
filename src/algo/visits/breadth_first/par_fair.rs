@@ -46,7 +46,7 @@ use webgraph::traits::RandomAccessGraph;
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
-///     |&args|
+///     |args|
 ///         {
 ///             // Set distance from 0
 ///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
@@ -135,8 +135,8 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
     Parallel<Event<D>, E> for ParFair<D, E, G, T>
 {
     fn visit_filtered<
-        C: Fn(&Event<D>) -> Result<(), E> + Sync,
-        F: Fn(&FilterArgs<D>) -> bool + Sync,
+        C: Fn(Event<D>) -> Result<(), E> + Sync,
+        F: Fn(FilterArgs<D>) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -145,7 +145,7 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
-            || !filter(&FilterArgs {
+            || !filter(FilterArgs {
                 data: D::new(root, root),
                 root,
                 distance: 0,
@@ -174,7 +174,7 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
                         chunk.into_iter().try_for_each(|&data| {
-                            callback(&Event::Unknown {
+                            callback(Event::Unknown {
                                 data,
                                 root,
                                 distance,
@@ -184,18 +184,16 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
                                 .successors(curr)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    if filter(&FilterArgs {
-                                        data: D::new(succ, curr),
+                                    let data = D::new(succ, curr);
+                                    if filter(FilterArgs {
+                                        data,
                                         root,
                                         distance: distance_plus_one,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             next_frontier.push(D::new(succ, curr));
                                         } else {
-                                            callback(&Event::Known {
-                                                data: D::new(succ, curr),
-                                                root,
-                                            })?;
+                                            callback(Event::Known { data, root })?;
                                         }
                                     }
 
@@ -218,8 +216,8 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
     }
 
     fn visit_all_filtered<
-        C: Fn(&Event<D>) -> Result<(), E> + Sync,
-        F: Fn(&FilterArgs<D>) -> bool + Sync,
+        C: Fn(Event<D>) -> Result<(), E> + Sync,
+        F: Fn(FilterArgs<D>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

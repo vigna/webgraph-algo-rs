@@ -68,7 +68,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
 
         if visit
             .visit_all(
-                |&args| {
+                |args| {
                     match args {
                         EventPred::Init { .. } => {
                             root_low_link = current_index;

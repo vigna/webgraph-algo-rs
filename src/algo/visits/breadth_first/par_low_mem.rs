@@ -42,7 +42,7 @@ use webgraph::traits::RandomAccessGraph;
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
-///     |&args|
+///     |args|
 ///         {
 ///             // Set distance from 0
 ///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
@@ -129,8 +129,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
     Parallel<Event<NodePred>, E> for ParLowMem<E, G, T>
 {
     fn visit_filtered<
-        C: Fn(&Event<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(&FilterArgs<NodePred>) -> bool + Sync,
+        C: Fn(Event<NodePred>) -> Result<(), E> + Sync,
+        F: Fn(FilterArgs<NodePred>) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -138,9 +138,10 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
+        let data = NodePred::new(root, root);
         if self.visited.get(root, Ordering::Relaxed)
-            || !filter(&FilterArgs {
-                data: NodePred::new(root, root),
+            || !filter(FilterArgs {
+                data,
                 root,
                 distance: 0,
             })
@@ -157,8 +158,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
 
         self.visited.set(root, true, Ordering::Relaxed);
 
-        callback(&Event::Unknown {
-            data: NodePred::new(root, root),
+        callback(Event::Unknown {
+            data,
             root,
             distance: 0,
         })?;
@@ -177,23 +178,21 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    if filter(&FilterArgs {
-                                        data: NodePred::new(succ, node),
+                                    let data = NodePred::new(succ, node);
+                                    if filter(FilterArgs {
+                                        data,
                                         root,
                                         distance,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            callback(&Event::Unknown {
-                                                data: NodePred::new(succ, node),
+                                            callback(Event::Unknown {
+                                                data,
                                                 root,
                                                 distance,
                                             })?;
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(&Event::Known {
-                                                data: NodePred::new(succ, node),
-                                                root,
-                                            })?;
+                                            callback(Event::Known { data, root })?;
                                         }
                                     }
 
@@ -214,8 +213,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
     }
 
     fn visit_all_filtered<
-        C: Fn(&Event<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(&FilterArgs<NodePred>) -> bool + Sync,
+        C: Fn(Event<NodePred>) -> Result<(), E> + Sync,
+        F: Fn(FilterArgs<NodePred>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

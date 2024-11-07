@@ -874,7 +874,7 @@ impl<
         self.transposed_visit
             .visit(
                 start,
-                |&args| {
+                |args| {
                     if let Event::Unknown { data, distance, .. } = args {
                         let node = data.curr();
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
@@ -958,7 +958,7 @@ impl<
         self.visit
             .visit(
                 start,
-                |&args| {
+                |args| {
                     if let Event::Unknown { data, distance, .. } = args {
                         let node = data.curr();
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
@@ -1076,7 +1076,7 @@ impl<
 
                 bfs.visit_filtered(
                     p,
-                    |&args| {
+                    |args| {
                         if let Event::Unknown { data, distance, .. } = args {
                             // Safety: each node is accessed exactly once
                             unsafe {
