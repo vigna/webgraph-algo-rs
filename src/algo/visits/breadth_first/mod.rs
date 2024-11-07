@@ -30,38 +30,38 @@ use super::Data;
 
 /// Types of callback events generated during a breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Event {
+pub enum Event<D: Data> {
     /// Initialization: all node fields are equal to the root and distance is 0.
     /// This event should be used to set up state at the start of the visit.
-    Init,
+    Init {
+        /// The available data, that is, the current node and possibly its
+        /// predecessor (if `D` is [`NodePred`](super::NodePred)).
+        data: D,
+        /// The root of the current visit tree.
+        root: usize,
+    },
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all fields or [`Args`] are equal to the root.
-    Unknown,
+    Unknown {
+        /// The available data, that is, the current node and possibly its
+        /// predecessor (if `D` is [`NodePred`](super::NodePred)).
+        data: D,
+        /// The root of the current visit tree.
+        root: usize,
+        /// The distance of the current node from the [root](`Event::Unknown::root`).
+        distance: usize,
+    },
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
     ///
     /// Note however that in parallel contexts it might happen that callback
     /// with event [`Unknown`](`Event::Unknown`) has not been called yet by the
     /// thread who discovered the node.
-    Known,
-}
-
-/// Arguments for the callback of a breadth-first visit.
-///
-/// The type parameter `D` can be either [`Node`](super::Node) or
-/// [`NodePred`](super::NodePred) (see the [module
-/// documentation](super::breadth_first)).
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Args<D: Data> {
-    /// The available data, that is, the current node and possibly its
-    /// predecessor (if `D` is [`NodePred`](super::NodePred)). When [`event`](`Self::event`) is
-    /// [`Unknown`](`Event::Unknown`), the predecessor is the parent of the
-    /// current node in the visit tree.
-    pub data: D,
-    /// The root of the current visit tree.
-    pub root: usize,
-    /// The distance of the current node from the [root](`Self::root`).
-    pub distance: usize,
-    /// The event that triggered the callback.
-    pub event: Event,
+    Known {
+        /// The available data, that is, the current node and possibly its
+        /// predecessor (if `D` is [`NodePred`](super::NodePred)).
+        data: D,
+        /// The root of the current visit tree.
+        root: usize,
+    },
 }

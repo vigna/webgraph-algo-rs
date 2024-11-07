@@ -1,16 +1,13 @@
 use crate::{
     algo::{
-        diameter::{
-            SumSweepDirectedDiameterRadius, SumSweepDirectedDiameterRadiusBuilder,
-            SumSweepOutputLevel,
-        },
+        diameter::*,
         scc::TarjanStronglyConnectedComponents,
-        visits::{Node, Parallel},
+        visits::{
+            breadth_first::{Event, ParFair},
+            Node, Parallel,
+        },
     },
-    prelude::{
-        breadth_first::{Args, ParFair},
-        *,
-    },
+    prelude::*,
     utils::Threads,
 };
 use dsi_progress_logger::ProgressLog;
@@ -184,7 +181,7 @@ pub struct SumSweepUndirectedDiameterRadius<
     'a,
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
-    V: Parallel<Args<Node>, Infallible> + Sync,
+    V: Parallel<Event<Node>, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 > {
     inner: SumSweepDirectedDiameterRadius<'a, G, G, C, V, V, T>,
@@ -194,7 +191,7 @@ impl<'a, G, C, V, T> SumSweepUndirectedDiameterRadius<'a, G, C, V, T>
 where
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
-    V: Parallel<Args<Node>, Infallible> + Sync,
+    V: Parallel<Event<Node>, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 {
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.

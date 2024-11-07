@@ -94,14 +94,11 @@ macro_rules! test_bfv_algo {
                 for node in 0..graph.num_nodes() {
                     visit.visit(
                         node,
-                        |args| {
-                            match args.event {
-                                breadth_first::Event::Unknown => {
-                                    dists[args.data.curr()].store(args.distance, Ordering::Relaxed);
-                                }
-                                _ => {}
+                        |&args| match args {
+                            breadth_first::Event::Unknown { data, distance, .. } => {
+                                Ok(dists[data.curr()].store(distance, Ordering::Relaxed))
                             }
-                            Ok(())
+                            _ => Ok(()),
                         },
                         no_logging![],
                     )?;
@@ -127,9 +124,9 @@ macro_rules! test_bfv_algo {
                     let node = (i + 10000) % graph.num_nodes();
                     visit.visit(
                         node,
-                        |args| match args.event {
-                            breadth_first::Event::Unknown => {
-                                Ok(dists[args.data.curr()].store(args.distance, Ordering::Relaxed))
+                        |&args| match args {
+                            breadth_first::Event::Unknown { data, distance, .. } => {
+                                Ok(dists[data.curr()].store(distance, Ordering::Relaxed))
                             }
                             _ => Ok(()),
                         },
