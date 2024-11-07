@@ -20,7 +20,7 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
 /// use dsi_progress_logger::no_logging;
@@ -37,17 +37,15 @@ use webgraph::traits::RandomAccessGraph;
 ///     |&args|
 ///         {
 ///             // Set distance from 0
-///             match args {
-///                 breadth_first::Event::Unknown {data, distance, ..} => {
-///                     d[data.curr()] = distance;
-///                 },
-///                 _ => {}
+///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
+///                 d[data.curr()] = distance;
 ///             }
 ///             Ok(())
 ///         },
 ///    no_logging![]
 /// );
 /// assert_eq!(d, [0, 1, 2, 2]);
+/// ```
 
 pub struct Seq<E, G: RandomAccessGraph> {
     graph: G,
