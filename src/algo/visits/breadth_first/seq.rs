@@ -64,7 +64,7 @@ pub struct Seq<E, G: RandomAccessGraph> {
 }
 
 impl<E, G: RandomAccessGraph> Seq<E, G> {
-    /// Creates a new Sequential visit.
+    /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.

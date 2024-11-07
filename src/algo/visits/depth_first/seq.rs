@@ -80,7 +80,7 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
 }
 
 impl<'a, S: NodeStates, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
-    /// Creates a new Sequential visit.
+    /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -119,14 +119,14 @@ pub trait NodeStates {
     fn reset(&mut self);
 }
 
-/// A two-state selector type for [Sequential depth-first visits](Seq).
+/// A two-state selector type for [sequential depth-first visits](Seq).
 ///
 /// This implementation does not keep track of nodes on the stack,
 /// so events of type [`Revisit`](`Event::Revisit`) will always have the
 /// associated Boolean equal to false.
 pub struct TwoStates(BitVec);
 
-/// A three-state selector type for [Sequential depth-first visits](Seq).
+/// A three-state selector type for [sequential depth-first visits](Seq).
 ///
 /// This implementation does keep track of nodes on the stack, so events of type
 /// [`Revisit`](`Event::Revisit`) will provide information about whether the

@@ -15,13 +15,15 @@
 //! visits are `Fn(&A) -> Result<(), E> + Sync`, and analogously for the filter
 //! functions.
 //!
-//! In case of interruption Sequential visits usually return immediately to the
+//! In case of interruption sequential visits usually return immediately to the
 //! caller, whereas in general parallel visits might need to complete part of
 //! their subtasks before returning to the caller.
 //!
 //! Additionally, implementations accepts a filter function that will be called
 //! when a new node is discovered. If the filter returns false, the node will be
-//! ignored, that is, not even marked as known.
+//! ignored, that is, not even marked as known. Note that in case of parallel
+//! visits the filter might be called multiple times on the same node (and
+//! with a different predecessor, if available) due to race conditions.
 //!
 //! All visits accept also a mutable reference to an implementation of
 //! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) to log the progress of
