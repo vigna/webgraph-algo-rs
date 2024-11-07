@@ -73,13 +73,17 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                         EventPred::Init { .. } => {
                             root_low_link = current_index;
                         }
-                        EventPred::Previsit { data, .. } => {
-                            low_link[data.curr] = current_index;
+                        EventPred::Previsit { curr, .. } => {
+                            low_link[curr] = current_index;
                             current_index += 1;
                             lead.push(true);
                         }
-                        EventPred::Revisit { on_stack, data, .. } => {
-                            let (curr, pred) = (data.curr, data.pred);
+                        EventPred::Revisit {
+                            on_stack,
+                            curr,
+                            pred,
+                            ..
+                        } => {
                             if on_stack && low_link[curr] < low_link[pred] {
                                 // Safe as the stack is never empty
                                 *lead.last_mut().unwrap() = false;
@@ -103,8 +107,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 }
                             }
                         }
-                        EventPred::Postvisit { data, .. } => {
-                            let (curr, pred) = (data.curr, data.pred);
+                        EventPred::Postvisit { curr, pred, .. } => {
                             // Safe as the stack is never empty
                             if lead.pop().unwrap() {
                                 // Set the component index of nodes in the component

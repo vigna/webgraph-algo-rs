@@ -1,6 +1,6 @@
 use crate::algo::visits::{
     depth_first::{Event, EventPred, FilterArgs, FilterArgsPred},
-    Data, Node, NodePred, Sequential,
+    Sequential,
 };
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
@@ -9,13 +9,13 @@ use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
-pub type Seq<'a, E, G> = SeqIter<'a, Node, TwoStates, E, G, ()>;
+pub type Seq<'a, E, G> = SeqIter<'a, TwoStates, E, G, (), false>;
 
 /// A depth-first visit which keeps track of predecessors, but not nodes on the stack.
-pub type SeqPred<'a, E, G> = SeqIter<'a, NodePred, TwoStates, E, G, usize>;
+pub type SeqPred<'a, E, G> = SeqIter<'a, TwoStates, E, G, usize, true>;
 
 /// A depth-first visit which keeps track of predecessors and nodes on the stack.
-pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
+pub type SeqPath<'a, E, G> = SeqIter<'a, ThreeStates, E, G, usize, true>;
 
 /// Sequential depth-first visits.
 ///
@@ -99,11 +99,11 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 /// ```
 
 // General depth-first visit implementation. The user shouldn't see this.
-// Allowed combinations for `D`, `S` and `P` are:
-// * `Node`, `TwoStates` and `()` (no predecessors, no stack tracking)
-// * `NodePred`, `TwoStates` and `usize` (predecessors, no stack tracking)
-// * `NodePred`, `ThreeStates` and `usize` (predecessors, stack tracking)
-pub struct SeqIter<'a, D, S, E, G: RandomAccessGraph, P> {
+// Allowed combinations for `PRED`, `S` and `P` are:
+// * `false`, `TwoStates` and `()` (no predecessors, no stack tracking)
+// * `true`, `TwoStates` and `usize` (predecessors, no stack tracking)
+// * `true`, `ThreeStates` and `usize` (predecessors, stack tracking)
+pub struct SeqIter<'a, S, E, G: RandomAccessGraph, P, const PRED: bool> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
     /// and the parent of the node. This approach makes it possible to avoid
@@ -113,12 +113,12 @@ pub struct SeqIter<'a, D, S, E, G: RandomAccessGraph, P> {
         P,
     )>,
     state: S,
-    _phantom: std::marker::PhantomData<(D, E)>,
+    _phantom: std::marker::PhantomData<E>,
 }
 
 /// The iterator returned by [`stack`](Seq::stack).
 pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
-    visit: &'b mut SeqIter<'a, NodePred, S, E, G, usize>,
+    visit: &'b mut SeqIter<'a, S, E, G, usize, true>,
 }
 
 impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E, G> {
@@ -129,12 +129,14 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, D, S: NodeStates, E, G: RandomAccessGraph, P> SeqIter<'a, D, S, E, G, P> {
+impl<'a, S: NodeStates, E, G: RandomAccessGraph, P, const PRED: bool>
+    SeqIter<'a, S, E, G, P, PRED>
+{
     /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> SeqIter<'a, D, S, E, G, P> {
+    pub fn new(graph: &'a G) -> SeqIter<'a, S, E, G, P, PRED> {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
@@ -145,7 +147,7 @@ impl<'a, D, S: NodeStates, E, G: RandomAccessGraph, P> SeqIter<'a, D, S, E, G, P
     }
 }
 
-impl<'a, S, E, G: RandomAccessGraph> SeqIter<'a, NodePred, S, E, G, usize> {
+impl<'a, S, E, G: RandomAccessGraph> SeqIter<'a, S, E, G, usize, true> {
     /// Returns an iterator over the nodes stil on the visit path.
     ///
     /// Node will be returned in reverse order of visit.
@@ -244,7 +246,7 @@ impl NodeStates for TwoStates {
 }
 
 impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
-    for SeqIter<'a, NodePred, S, E, G, usize>
+    for SeqIter<'a, S, E, G, usize, true>
 {
     fn visit_filtered<C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
         &mut self,
@@ -272,7 +274,8 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
         state.set_known(root);
 
         callback(EventPred::Previsit {
-            data: NodePred::new(root, root),
+            curr: root,
+            pred: root,
             root,
             depth: 0,
         })?;
@@ -297,7 +300,8 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
                 if state.known(succ) {
                     // Node has already been discovered
                     callback(EventPred::Revisit {
-                        data: NodePred::new(succ, current_node),
+                        curr: succ,
+                        pred: current_node,
                         root,
                         depth: depth + 1,
                         on_stack: state.on_stack(succ),
@@ -313,7 +317,8 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
                         state.set_known(succ);
 
                         callback(EventPred::Previsit {
-                            data: NodePred::new(succ, current_node),
+                            curr: succ,
+                            pred: current_node,
                             root,
                             depth: depth + 1,
                         })?;
@@ -334,7 +339,8 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
             pl.light_update();
 
             callback(EventPred::Postvisit {
-                data: NodePred::new(current_node, *parent),
+                curr: current_node,
+                pred: *parent,
                 root,
                 depth,
             })?;
@@ -370,7 +376,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
     }
 }
 
-impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, Node, TwoStates, E, G, ()> {
+impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, TwoStates, E, G, (), false> {
     fn visit_filtered<C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
         &mut self,
         root: usize,
@@ -396,7 +402,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, Node, Two
         state.set_known(root);
 
         callback(Event::Previsit {
-            data: Node { curr: root },
+            curr: root,
             root,
             depth: 0,
         })?;
@@ -415,7 +421,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, Node, Two
                 if state.known(succ) {
                     // Node has already been discovered
                     callback(Event::Revisit {
-                        data: Node { curr: succ },
+                        curr: succ,
                         root,
                         depth: depth + 1,
                     })?;
@@ -429,7 +435,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, Node, Two
                         state.set_known(succ);
 
                         callback(Event::Previsit {
-                            data: Node { curr: succ },
+                            curr: succ,
                             root,
                             depth: depth + 1,
                         })?;

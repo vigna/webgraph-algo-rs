@@ -39,7 +39,6 @@ pub mod breadth_first;
 pub mod depth_first;
 
 use dsi_progress_logger::ProgressLog;
-use sealed::sealed;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -56,6 +55,7 @@ pub struct StoppedWhenDone {}
 
 /// Trait for types usable as arguments for the callbacks in visits
 pub trait VisitEventArgs {
+    /// The type passed as input to the filter.
     type FilterEventArgs;
 }
 
@@ -199,62 +199,4 @@ pub trait Parallel<A: VisitEventArgs, E> {
 
     /// Resets the visit status, making it possible to reuse it.
     fn reset(&mut self);
-}
-
-#[sealed]
-pub trait Data: Copy + Send + Sync {
-    #[doc(hidden)]
-    fn new(curr: usize, pred: usize) -> Self;
-    /// Returns the current node.
-    fn curr(&self) -> usize;
-}
-
-/// Data containing only the current node.
-///
-/// The only available method is [`curr`](`Data::curr`).
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Node {
-    pub curr: usize,
-}
-
-#[sealed]
-impl Data for Node {
-    #[inline(always)]
-    fn new(curr: usize, _ignored: usize) -> Self {
-        Self { curr }
-    }
-    #[inline(always)]
-    fn curr(&self) -> usize {
-        self.curr
-    }
-}
-
-/// Data containing the current node and its predecessor.
-///
-/// With respect to [`Node`], there is an additional method
-/// [`pred`](`NodePred::pred`) available.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct NodePred {
-    pub curr: usize,
-    pub pred: usize,
-}
-
-#[sealed]
-impl Data for NodePred {
-    #[inline(always)]
-    fn new(curr: usize, pred: usize) -> Self {
-        Self { curr, pred }
-    }
-    #[inline(always)]
-    fn curr(&self) -> usize {
-        self.curr
-    }
-}
-
-impl NodePred {
-    /// Returns the predecessor of current node.
-    #[inline(always)]
-    pub fn pred(&self) -> usize {
-        self.pred
-    }
 }

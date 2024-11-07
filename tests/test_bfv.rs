@@ -95,8 +95,8 @@ macro_rules! test_bfv_algo {
                     visit.visit(
                         node,
                         |args| {
-                            if let breadth_first::Event::Unknown { data, distance, .. } = args {
-                                dists[data.curr()].store(distance, Ordering::Relaxed);
+                            if let breadth_first::EventPred::Unknown { curr, distance, .. } = args {
+                                dists[curr].store(distance, Ordering::Relaxed);
                             }
                             Ok(())
                         },
@@ -125,8 +125,8 @@ macro_rules! test_bfv_algo {
                     visit.visit(
                         node,
                         |args| {
-                            if let breadth_first::Event::Unknown { data, distance, .. } = args {
-                                dists[data.curr()].store(distance, Ordering::Relaxed);
+                            if let breadth_first::EventPred::Unknown { curr, distance, .. } = args {
+                                dists[curr].store(distance, Ordering::Relaxed);
                             }
                             Ok(())
                         },
@@ -149,7 +149,7 @@ test_bfv_algo!(
     sequential
 );
 test_bfv_algo!(
-    |g| { webgraph_algo::prelude::breadth_first::ParFair::<Node, Infallible, _>::new(g, 32,) },
+    |g| { webgraph_algo::prelude::breadth_first::ParFair::<Infallible, _>::new(g, 32,) },
     parallel
 );
 test_bfv_algo!(

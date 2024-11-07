@@ -1,6 +1,6 @@
 use crate::algo::visits::{
-    breadth_first::{Event, FilterArgs},
-    Data, NodePred, Parallel,
+    breadth_first::{EventPred, FilterArgsPred},
+    Parallel,
 };
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
@@ -45,8 +45,8 @@ use webgraph::traits::RandomAccessGraph;
 ///     |args|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
-///                 d[data.curr()].store(distance, Ordering::Relaxed);
+///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
+///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
 ///             Ok(())
 ///         },
@@ -57,7 +57,6 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-
 pub struct ParLowMem<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
     graph: G,
     granularity: usize,
@@ -125,12 +124,12 @@ impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<E, G, T> {
     }
 }
 
-impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
-    Parallel<Event<NodePred>, E> for ParLowMem<E, G, T>
+impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
+    for ParLowMem<E, G, T>
 {
     fn visit_filtered<
-        C: Fn(Event<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(FilterArgs<NodePred>) -> bool + Sync,
+        C: Fn(EventPred) -> Result<(), E> + Sync,
+        F: Fn(FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -138,10 +137,10 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let data = NodePred::new(root, root);
         if self.visited.get(root, Ordering::Relaxed)
-            || !filter(FilterArgs {
-                data,
+            || !filter(FilterArgsPred {
+                curr: root,
+                pred: root,
                 root,
                 distance: 0,
             })
@@ -158,8 +157,9 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
 
         self.visited.set(root, true, Ordering::Relaxed);
 
-        callback(Event::Unknown {
-            data,
+        callback(EventPred::Unknown {
+            curr: root,
+            pred: root,
             root,
             distance: 0,
         })?;
@@ -178,21 +178,23 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let data = NodePred::new(succ, node);
-                                    if filter(FilterArgs {
-                                        data,
+                                    let (curr, pred) = (succ, node);
+                                    if filter(FilterArgsPred {
+                                        curr,
+                                        pred,
                                         root,
                                         distance,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            callback(Event::Unknown {
-                                                data,
+                                            callback(EventPred::Unknown {
+                                                curr,
+                                                pred,
                                                 root,
                                                 distance,
                                             })?;
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(Event::Known { data, root })?;
+                                            callback(EventPred::Known { curr, pred, root })?;
                                         }
                                     }
 
@@ -213,8 +215,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
     }
 
     fn visit_all_filtered<
-        C: Fn(Event<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(FilterArgs<NodePred>) -> bool + Sync,
+        C: Fn(EventPred) -> Result<(), E> + Sync,
+        F: Fn(FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
         callback: C,

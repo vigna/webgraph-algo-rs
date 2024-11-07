@@ -13,7 +13,7 @@
 mod seq;
 pub use seq::*;
 
-use super::{Node, NodePred, VisitEventArgs};
+use super::VisitEventArgs;
 
 /// Types of callback events generated during a depth-first visit
 /// keeping track of parent nodes (and possibly of the visit path).
@@ -22,8 +22,10 @@ pub enum EventPred {
     /// Initialization: all node fields are equal to the root and depth is 0.
     /// This event should be used to set up state at the start of the visit.
     Init {
-        /// The available data, that is, the current node and its predecessor.
-        data: NodePred,
+        /// The current node.
+        curr: usize,
+        /// The parent of [curr](`EventPred::Init::curr`) in the visit tree.
+        pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
@@ -33,8 +35,10 @@ pub enum EventPred {
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all fields or [`Args`] are equal to the root.
     Previsit {
-        /// The available data, that is, the current node and its predecessor.
-        data: NodePred,
+        /// The current node.
+        curr: usize,
+        /// The parent of [curr](`EventPred::Previsit::curr`) in the visit tree.
+        pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
@@ -44,8 +48,10 @@ pub enum EventPred {
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
     Revisit {
-        /// The available data, that is, the current node and its predecessor.
-        data: NodePred,
+        /// The current node.
+        curr: usize,
+        /// The parent of [curr](`EventPred::Revisit::curr`) in the visit tree.
+        pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
@@ -59,8 +65,10 @@ pub enum EventPred {
     /// retreating from a tree arc, unless all fields or [`Args`] are equal to
     /// the root.
     Postvisit {
-        /// The available data, that is, the current node and its predecessor.
-        data: NodePred,
+        /// The current node.
+        curr: usize,
+        /// The parent of [curr](`EventPred::Postvisit::curr`) in the visit tree.
+        pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
@@ -76,8 +84,8 @@ pub enum Event {
     /// Initialization: all node fields are equal to the root and depth is 0.
     /// This event should be used to set up state at the start of the visit.
     Init {
-        /// The available data, that is, the current node.
-        data: Node,
+        /// The current node.
+        curr: usize,
         /// The root of the current visit tree.
         root: usize,
         depth: usize,
@@ -85,8 +93,8 @@ pub enum Event {
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all fields or [`Args`] are equal to the root.
     Previsit {
-        /// The available data, that is, the current node.
-        data: Node,
+        /// The current node.
+        curr: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
@@ -96,8 +104,8 @@ pub enum Event {
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
     Revisit {
-        /// The available data, that is, the current node.
-        data: Node,
+        /// The current node.
+        curr: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
