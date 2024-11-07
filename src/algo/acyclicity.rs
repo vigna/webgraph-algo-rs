@@ -4,25 +4,18 @@ use webgraph::traits::RandomAccessGraph;
 
 /// Runs an acyclicity test.
 pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
-    let mut visit = Seq::<ThreeState, StoppedWhenDone, _>::new(&graph);
+    let mut visit = Seq::<ThreeStates, StoppedWhenDone, _>::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
     pl.start("Checking acyclicity");
 
     let acyclic = visit.visit_all(
-        |&Args {
-             curr: _curr,
-             pred: _pred,
-             root: _root,
-             depth: _depth,
-             event,
-         }| {
+        |args| {
             // Stop the visit as soon as a back edge is found.
-            if event == Event::Revisit(true) {
-                Err(StoppedWhenDone {})
-            } else {
-                Ok(())
+            match args.event {
+                Event::Revisit(true) => Err(StoppedWhenDone {}),
+                _ => Ok(()),
             }
         },
         pl,

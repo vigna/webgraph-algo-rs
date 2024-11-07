@@ -65,7 +65,7 @@ impl<G: RandomAccessGraph> KK<G> {
 
         let top_sort = top_sort::run(&self.graph, pl);
         dbg!(&top_sort);
-        let mut visit = Seq::<TwoState, std::convert::Infallible, _>::new(&self.graph);
+        let mut visit = Seq::<TwoStates, std::convert::Infallible, _>::new(&self.graph);
 
         let mut curr_comp = 0.wrapping_sub(1);
         let mut component = Vec::<usize>::with_capacity(16);

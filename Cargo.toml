@@ -22,6 +22,7 @@ webgraph = { git = "https://github.com/vigna/webgraph-rs" }
 parallel_frontier = { git = "https://github.com/zommiommy/parallel_frontier" }
 unwrap-infallible = "0.1.5"
 thiserror = "1.0.68"
+sealed = "0.6.0"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

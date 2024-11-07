@@ -95,7 +95,7 @@ macro_rules! test_bfv_algo {
                 for node in 0..graph.num_nodes() {
                     visit.visit(
                         node,
-                        |&args| {
+                        |args| {
                             match args.event {
                                 breadth_first::Event::Unknown => {
                                     dists[args.item.curr()].store(args.distance, Ordering::Relaxed);

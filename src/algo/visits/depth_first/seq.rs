@@ -3,6 +3,7 @@ use crate::algo::visits::{
     SeqVisit,
 };
 use dsi_progress_logger::ProgressLog;
+use sealed::sealed;
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
@@ -40,7 +41,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// let mut visit = depth_first::Seq::<depth_first::ThreeState, _, _>::new(&graph);
 ///
 /// assert!(visit.visit_all(
-///        |&args|
+///        |args|
 ///          {
 ///            // Stop the visit as soon as a back edge is found
 ///            if args.event == depth_first::Event::Revisit(true) {
@@ -78,7 +79,7 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, S: NodeState, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
+impl<'a, S: NodeStates, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -106,7 +107,9 @@ impl<'a, S, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
     }
 }
 
-trait NodeState {
+#[doc(hidden)]
+#[sealed]
+pub trait NodeStates {
     fn new(n: usize) -> Self;
     fn set_on_stack(&mut self, node: usize);
     fn set_off_stack(&mut self, node: usize);
@@ -121,18 +124,19 @@ trait NodeState {
 /// This implementation does not keep track of nodes on the stack,
 /// so events of type [`Revisit`](`Event::Revisit`) will always have the
 /// associated Boolean equal to false.
-pub struct TwoState(BitVec);
+pub struct TwoStates(BitVec);
 
 /// A three-state selector type for [sequential depth-first visits](Seq).
 ///
 /// This implementation does keep track of nodes on the stack, so events of type
 /// [`Revisit`](`Event::Revisit`) will provide information about whether the
 /// node associated with event is currently on the visit path.
-pub struct ThreeState(BitVec);
+pub struct ThreeStates(BitVec);
 
-impl NodeState for ThreeState {
-    fn new(n: usize) -> ThreeState {
-        ThreeState(BitVec::new(2 * n))
+#[sealed]
+impl NodeStates for ThreeStates {
+    fn new(n: usize) -> ThreeStates {
+        ThreeStates(BitVec::new(2 * n))
     }
     #[inline(always)]
     fn set_on_stack(&mut self, node: usize) {
@@ -160,9 +164,10 @@ impl NodeState for ThreeState {
     }
 }
 
-impl NodeState for TwoState {
-    fn new(n: usize) -> TwoState {
-        TwoState(BitVec::new(n))
+#[sealed]
+impl NodeStates for TwoStates {
+    fn new(n: usize) -> TwoStates {
+        TwoStates(BitVec::new(n))
     }
     #[inline(always)]
     fn set_on_stack(&mut self, _node: usize) {}
@@ -186,7 +191,7 @@ impl NodeState for TwoState {
     }
 }
 
-impl<'a, S: NodeState, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S, E, G> {
+impl<'a, S: NodeStates, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S, E, G> {
     fn visit_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         root: usize,

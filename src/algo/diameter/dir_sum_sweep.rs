@@ -1147,12 +1147,15 @@ impl<
                          distance,
                          event,
                      }| {
-                        if event == Event::Unknown {
-                            // Safety: each node is accessed exactly once
-                            unsafe {
-                                dist_pivot_mut.write_once(item.curr(), distance);
+                        match event {
+                            Event::Unknown => {
+                                // Safety: each node is accessed exactly once
+                                unsafe {
+                                    dist_pivot_mut.write_once(item.curr(), distance);
+                                }
+                                component_ecc_pivot.store(distance, Ordering::Relaxed);
                             }
-                            component_ecc_pivot.store(distance, Ordering::Relaxed);
+                            _ => (),
                         }
                         Ok(())
                     },

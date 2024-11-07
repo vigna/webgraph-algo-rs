@@ -8,7 +8,7 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// Otherwise, the order reflects the exit times from a depth-first visit of the graph.
 pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usize]> {
-    let mut visit = Seq::<TwoState, std::convert::Infallible, _>::new(&graph);
+    let mut visit = Seq::<TwoStates, std::convert::Infallible, _>::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
@@ -19,16 +19,13 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
 
     visit
         .visit_all(
-            |&Args {
-                 curr,
-                 pred: _pred,
-                 root: _root,
-                 depth: _depth,
-                 event,
-             }| {
-                if event == Event::Postvisit {
-                    pos -= 1;
-                    topol_sort[pos].write(curr);
+            |args| {
+                match args.event {
+                    Event::Postvisit => {
+                        pos -= 1;
+                        topol_sort[pos].write(args.curr);
+                    }
+                    _ => {}
                 }
 
                 Ok(())
