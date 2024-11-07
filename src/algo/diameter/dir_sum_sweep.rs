@@ -190,8 +190,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParFairNoPred<Infallible, &'a G1, rayon::ThreadPool>,
-        ParFairNoPred<Infallible, &'a G2, rayon::ThreadPool>,
+        ParFairNoPred<&'a G1, Infallible, rayon::ThreadPool>,
+        ParFairNoPred<&'a G2, Infallible, rayon::ThreadPool>,
         rayon::ThreadPool,
     >
     where
@@ -237,8 +237,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParFairNoPred<Infallible, &'a G1, T>,
-        ParFairNoPred<Infallible, &'a G2, T>,
+        ParFairNoPred<&'a G1, Infallible, T>,
+        ParFairNoPred<&'a G2, Infallible, T>,
         T,
     > {
         let direct_visit =
@@ -1074,11 +1074,7 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = ParFairNoPred::<Infallible, _, _>::with_threads(
-                graph,
-                VISIT_GRANULARITY,
-                threadpool,
-            );
+            let mut bfs = ParFairNoPred::with_threads(graph, VISIT_GRANULARITY, threadpool);
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {

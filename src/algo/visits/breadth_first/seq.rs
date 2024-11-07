@@ -33,7 +33,7 @@ use webgraph::traits::RandomAccessGraph;
 /// // Let's compute the distances from 0
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::Seq::<Infallible, _>::new(&graph);
+/// let mut visit = breadth_first::Seq::<_>::new(&graph);
 /// let mut d = [0; 4];
 /// visit.visit(
 ///     0,
@@ -46,10 +46,10 @@ use webgraph::traits::RandomAccessGraph;
 ///             Ok(())
 ///         },
 ///    no_logging![]
-/// );
+/// ).unwrap();
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
-pub struct Seq<E, G: RandomAccessGraph> {
+pub struct Seq<G: RandomAccessGraph, E = std::convert::Infallible> {
     graph: G,
     visited: BitVec,
     /// The visit queue; to avoid storing distances, we use `None` as a
@@ -59,7 +59,7 @@ pub struct Seq<E, G: RandomAccessGraph> {
     _phantom: std::marker::PhantomData<E>,
 }
 
-impl<E, G: RandomAccessGraph> Seq<E, G> {
+impl<G: RandomAccessGraph, E> Seq<G, E> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -75,7 +75,7 @@ impl<E, G: RandomAccessGraph> Seq<E, G> {
     }
 }
 
-impl<E, G: RandomAccessGraph> Sequential<EventPred, E> for Seq<E, G> {
+impl<G: RandomAccessGraph, E> Sequential<EventPred, E> for Seq<G, E> {
     fn visit_filtered<C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
         &mut self,
         root: usize,

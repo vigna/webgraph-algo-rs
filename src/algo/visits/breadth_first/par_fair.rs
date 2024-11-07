@@ -39,7 +39,7 @@ use webgraph::traits::RandomAccessGraph;
 /// // Let's compute the distances from 0
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::ParFair::<Infallible, _>::new(&graph, 1);
+/// let mut visit = breadth_first::ParFair::<_>::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
@@ -52,15 +52,15 @@ use webgraph::traits::RandomAccessGraph;
 ///             Ok(())
 ///         },
 ///    no_logging![]
-/// );
+/// ).unwrap();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(d[1].load(Ordering::Relaxed), 1);
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
 pub struct ParFair<
-    E,
     G: RandomAccessGraph,
+    E = std::convert::Infallible,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
     const PRED: bool = true,
 > {
@@ -71,9 +71,10 @@ pub struct ParFair<
     _phantom: std::marker::PhantomData<E>,
 }
 
-pub type ParFairNoPred<E, G, T = rayon::ThreadPool> = ParFair<E, G, T, false>;
+pub type ParFairNoPred<G, E = std::convert::Infallible, T = rayon::ThreadPool> =
+    ParFair<G, E, T, false>;
 
-impl<E, G: RandomAccessGraph, const P: bool> ParFair<E, G, rayon::ThreadPool, P> {
+impl<G: RandomAccessGraph, E, const P: bool> ParFair<G, E, rayon::ThreadPool, P> {
     /// Creates a fair parallel breadth-first visit with the [default number of
     /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
@@ -109,7 +110,7 @@ impl<E, G: RandomAccessGraph, const P: bool> ParFair<E, G, rayon::ThreadPool, P>
     }
 }
 
-impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>, const P: bool> ParFair<E, G, T, P> {
+impl<G: RandomAccessGraph, E, T: Borrow<rayon::ThreadPool>, const P: bool> ParFair<G, E, T, P> {
     /// Creates a fair parallel top-down visit that uses the specified number of threads.
     ///
     ///
@@ -134,8 +135,8 @@ impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>, const P: bool> ParFa
     }
 }
 
-impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event, E>
-    for ParFair<E, G, T, false>
+impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Parallel<Event, E>
+    for ParFair<G, E, T, false>
 {
     fn visit_filtered<C: Fn(Event) -> Result<(), E> + Sync, F: Fn(FilterArgs) -> bool + Sync>(
         &mut self,
@@ -235,8 +236,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Paralle
     }
 }
 
-impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
-    for ParFair<E, G, T, true>
+impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
+    for ParFair<G, E, T, true>
 {
     fn visit_filtered<
         C: Fn(EventPred) -> Result<(), E> + Sync,

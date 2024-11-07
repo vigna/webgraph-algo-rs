@@ -9,13 +9,13 @@ use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
-pub type Seq<'a, E, G> = SeqIter<'a, TwoStates, E, G, (), false>;
+pub type Seq<'a, G, E = std::convert::Infallible> = SeqIter<'a, TwoStates, E, G, (), false>;
 
 /// A depth-first visit which keeps track of predecessors, but not nodes on the stack.
-pub type SeqPred<'a, E, G> = SeqIter<'a, TwoStates, E, G, usize, true>;
+pub type SeqPred<'a, G, E = std::convert::Infallible> = SeqIter<'a, TwoStates, E, G, usize, true>;
 
 /// A depth-first visit which keeps track of predecessors and nodes on the stack.
-pub type SeqPath<'a, E, G> = SeqIter<'a, ThreeStates, E, G, usize, true>;
+pub type SeqPath<'a, G, E = std::convert::Infallible> = SeqIter<'a, ThreeStates, E, G, usize, true>;
 
 /// Sequential depth-first visits.
 ///
