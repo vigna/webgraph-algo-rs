@@ -125,6 +125,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         self.threads.borrow().install(|| curr_frontier.push(root));
 
         self.visited.set(root, true, Ordering::Relaxed);
+
         callback(&args)?;
 
         let mut distance = 1;

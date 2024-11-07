@@ -118,8 +118,6 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
             return Ok(());
         }
 
-        callback(&args)?;
-
         // We do not provide a capacity in the hope of allocating dynamically
         // space as the frontiers grow.
         let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);

@@ -128,7 +128,12 @@ macro_rules! test_bfv_algo {
                     let node = (i + 10000) % graph.num_nodes();
                     visit.visit(
                         node,
-                        |args| Ok(dists[args.item.curr()].store(args.distance, Ordering::Relaxed)),
+                        |args| match args.event {
+                            breadth_first::Event::Unknown => {
+                                Ok(dists[args.item.curr()].store(args.distance, Ordering::Relaxed))
+                            }
+                            _ => Ok(()),
+                        },
                         no_logging![],
                     )?;
                 }
