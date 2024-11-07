@@ -18,9 +18,10 @@ use super::{Args, Data};
 /// chunk, which might differ significantly between chunks.
 ///
 /// The visit is parameterized by the type of the data associated with each
-/// node: when using [`Node`], the visit queue will contain only nodes, whereas
-/// when using [`NodePred`], the visit queue will contain pairs of nodes and
-/// their predecessors, thus doubling the amount of additional memory required.
+/// node: when using [`Node`](super::Node), the visit queue will contain only
+/// nodes, whereas when using [`NodePred`](super::NodePred), the visit queue
+/// will contain pairs of nodes and their predecessors, thus doubling the amount
+/// of additional memory required.
 ///
 /// If you need predecessors but the cost of the callbacks is not significant
 /// you can use a [low-memory parallel
