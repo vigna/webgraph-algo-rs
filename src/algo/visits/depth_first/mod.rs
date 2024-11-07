@@ -27,10 +27,6 @@ pub enum Event {
     Previsit,
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
-    ///
-    /// If supported by the visit, the Boolean value denotes whether the node is
-    /// currently on the visit path, that is, if we are traversing a back arc,
-    /// and retreating from it.
     Revisit,
 }
 
