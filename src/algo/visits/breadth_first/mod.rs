@@ -1,7 +1,22 @@
 //! Breadth-first visits.
 //!
-//! Implementations must accept a callback function with argument [`Args`]
-//! that will be called when visiting the node.
+//! Implementations must accept a callback function with argument [`Args`]. The
+//! callback must be called at the [start of a visit](Event::Init), [every time
+//! a new node is discovered](Event::Unknown), and [every time a known node is
+//! rediscovered](Event::Known).
+//!
+//! Some visits require more additional space (usually, double) to pass
+//! predecessors to callbacks (this is the case, e.g., of [`ParFair`]). Since
+//! not all algorithms require this information, [`Args`] has a type parameter
+//! `D` (for “data”) that can be either [`Node`] or [`NodePred`]. The same
+//! parameter is used to parameterize visit implementations (see, e.g.,
+//! [`ParFair`]), so implementations can tune their behavior and space usage to
+//! support just `D`.
+//!
+//! Visit that can always provide the predecessor (e.g., [`Seq`]) use directly
+//! `Args<NodePred>`. In general, can tell the fixed choice of `D` of an
+//! implementation by looking at the type of the argument of its callbacks.
+use sealed::sealed;
 
 mod seq;
 pub use seq::*;
@@ -24,70 +39,84 @@ pub enum Event {
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
     ///
-    /// Note how in parallel contexts this does not guarantee that the callback
-    /// with [`Unknown`](`Event::Unknown`) has already been called.
+    /// Note however that in parallel contexts it might happen that callback
+    /// with event [`Unknown`](`Event::Unknown`) has not been called yet by the
+    /// thread who discovered the node.
     Known,
 }
-pub trait QueueItem: Copy + Send + Sync {
+
+#[sealed]
+pub trait Data: Copy + Send + Sync {
+    #[doc(hidden)]
     fn new(curr: usize, pred: usize) -> Self;
+    /// Returns the current node.
     fn curr(&self) -> usize;
-    fn pred(&self) -> usize;
 }
 
+/// Data containing only the current node.
+///
+/// The only available method is [`curr`](`Data::curr`).
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct CurrItem {
+pub struct Node {
     curr: usize,
 }
 
-impl QueueItem for CurrItem {
+#[sealed]
+impl Data for Node {
     #[inline(always)]
     fn new(curr: usize, _ignored: usize) -> Self {
         Self { curr }
     }
-
     #[inline(always)]
     fn curr(&self) -> usize {
         self.curr
     }
-
-    #[inline(always)]
-    fn pred(&self) -> usize {
-        unimplemented!()
-    }
 }
 
+/// Data containing the current node and its predecessor.
+///
+/// With respect to [`Node`], there is an additional method
+/// [`pred`](`NodePred::pred`) available.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct CurrPredItem {
-    curr: usize,
+pub struct NodePred {
+    node: usize,
     pred: usize,
 }
 
-impl QueueItem for CurrPredItem {
+#[sealed]
+impl Data for NodePred {
     #[inline(always)]
-    fn new(curr: usize, pred: usize) -> Self {
-        Self { curr, pred }
+    fn new(node: usize, pred: usize) -> Self {
+        Self { node, pred }
     }
-
     #[inline(always)]
     fn curr(&self) -> usize {
-        self.curr
+        self.node
     }
+}
 
+impl NodePred {
+    /// Returns the predecessor of current node.
     #[inline(always)]
-    fn pred(&self) -> usize {
+    pub fn pred(&self) -> usize {
         self.pred
     }
 }
 
-/// Convenience struct to pass arguments to the callback of a
-/// breadth-first visit.
+/// Arguments for the callback of a breadth-first visit.
+///
+/// The type parameter `D` can be either [`Node`] or [`NodePred`]
+/// (see the [module documentation](super::breadth_first)).
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Args<I: QueueItem> {
-    /// The node (and possibly its predecessor) being visited.
-    pub item: I,
+pub struct Args<D: Data> {
+    /// The available data, that is, the current node and possibly its
+    /// predecessor (if `D` is [`NodePred`]). When [`event`](`Self::event`) is
+    /// [`Unknown`](`Event::Unknown`), the predecessor is the parent of the
+    /// current node.
+    pub data: D,
     /// The root of the current visit tree.
     pub root: usize,
-    /// The distance of [node](`Self::node`) from the [root](`Self::root`).
+    /// The distance of the current node from the [root](`Self::root`).
     pub distance: usize,
     /// The event that triggered the callback.
     pub event: Event,

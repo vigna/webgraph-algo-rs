@@ -8,7 +8,7 @@ use webgraph::{
     traits::{RandomAccessGraph, SequentialLabeling},
 };
 use webgraph_algo::algo::visits::*;
-use webgraph_algo::prelude::breadth_first::{CurrItem, QueueItem};
+use webgraph_algo::prelude::breadth_first::{Data, Node};
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
     let mut visits = vec![-1; graph.num_nodes()];
@@ -98,7 +98,7 @@ macro_rules! test_bfv_algo {
                         |args| {
                             match args.event {
                                 breadth_first::Event::Unknown => {
-                                    dists[args.item.curr()].store(args.distance, Ordering::Relaxed);
+                                    dists[args.data.curr()].store(args.distance, Ordering::Relaxed);
                                 }
                                 _ => {}
                             }
@@ -130,7 +130,7 @@ macro_rules! test_bfv_algo {
                         node,
                         |args| match args.event {
                             breadth_first::Event::Unknown => {
-                                Ok(dists[args.item.curr()].store(args.distance, Ordering::Relaxed))
+                                Ok(dists[args.data.curr()].store(args.distance, Ordering::Relaxed))
                             }
                             _ => Ok(()),
                         },
@@ -149,22 +149,14 @@ macro_rules! test_bfv_algo {
 }
 
 test_bfv_algo!(
-    webgraph_algo::prelude::breadth_first::SingleThreadedBreadthFirstVisit::<Infallible, _>::new,
+    webgraph_algo::prelude::breadth_first::Seq::<Infallible, _>::new,
     sequential
 );
 test_bfv_algo!(
-    |g| {
-        webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisit::<CurrItem, Infallible, _>::new(
-        g, 32
-    )
-    },
+    |g| { webgraph_algo::prelude::breadth_first::ParFair::<Node, Infallible, _>::new(g, 32,) },
     parallel
 );
 test_bfv_algo!(
-    |g| {
-        webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(
-            g, 32,
-        )
-    },
+    |g| { webgraph_algo::prelude::breadth_first::ParLowMem::<Infallible, _>::new(g, 32,) },
     parallel_fast_callback
 );

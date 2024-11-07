@@ -1,4 +1,4 @@
-use crate::algo::visits::{breadth_first, ParVisit};
+use crate::algo::visits::{breadth_first, Parallel};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -6,7 +6,7 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-use super::{Args, QueueItem};
+use super::{Args, Data};
 
 /// A fair parallel breadth-first visit.
 ///
@@ -17,25 +17,24 @@ use super::{Args, QueueItem};
 /// enumeration of successors depends on the sum of the outdegrees nodes in a
 /// chunk, which might differ significantly between chunks.
 ///
-/// If the cost of the callbacks is not significant, you can use a [low-memory
-/// parallel
-/// visit](crate::algo::visits::breadth_first::ParallelBreadthFirstVisitFastCB)
-/// to reduce the memory usage.
+/// The visit is parameterized by the type of the data associated with each
+/// node: when using [`Node`], the visit queue will contain only nodes, whereas
+/// when using [`NodePred`], the visit queue will contain pairs of nodes and
+/// their predecessors, thus doubling the amount of additional memory required.
 ///
-pub struct ParallelBreadthFirstVisit<
-    I,
-    E,
-    G: RandomAccessGraph,
-    T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
-> {
+/// If you need predecessors but the cost of the callbacks is not significant
+/// you can use a [low-memory parallel
+/// visit](crate::algo::visits::breadth_first::ParLowMem) instead.
+
+pub struct ParFair<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
-    _phantom: std::marker::PhantomData<(I, E)>,
+    _phantom: std::marker::PhantomData<(D, E)>,
 }
 
-impl<I, E, G: RandomAccessGraph> ParallelBreadthFirstVisit<I, E, G, rayon::ThreadPool> {
+impl<D, E, G: RandomAccessGraph> ParFair<D, E, G, rayon::ThreadPool> {
     /// Creates a fair parallel breadth-first visit.
     ///
     /// # Arguments
@@ -70,9 +69,7 @@ impl<I, E, G: RandomAccessGraph> ParallelBreadthFirstVisit<I, E, G, rayon::Threa
     }
 }
 
-impl<I, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
-    ParallelBreadthFirstVisit<I, E, G, T>
-{
+impl<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParFair<D, E, G, T> {
     /// Creates a fair parallel top-down visit that uses the specified number of threads.
     ///
     ///
@@ -97,18 +94,18 @@ impl<I, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
     }
 }
 
-impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
-    ParVisit<Args<I>, E> for ParallelBreadthFirstVisit<I, E, G, T>
+impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
+    Parallel<Args<D>, E> for ParFair<D, E, G, T>
 {
-    fn visit_filtered<C: Fn(&Args<I>) -> Result<(), E> + Sync, F: Fn(&Args<I>) -> bool + Sync>(
+    fn visit_filtered<C: Fn(&Args<D>) -> Result<(), E> + Sync, F: Fn(&Args<D>) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = breadth_first::Args::<I> {
-            item: I::new(root, root),
+        let args = breadth_first::Args::<D> {
+            data: D::new(root, root),
             root,
             distance: 0,
             event: breadth_first::Event::Unknown,
@@ -124,7 +121,7 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
         let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
 
         self.threads.borrow().install(|| {
-            curr_frontier.push(I::new(root, root));
+            curr_frontier.push(D::new(root, root));
         });
 
         self.visited.set(root, true, Ordering::Relaxed);
@@ -137,29 +134,29 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
                     .par_iter()
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
-                        chunk.into_iter().try_for_each(|item| {
-                            callback(&breadth_first::Args::<I> {
-                                item: *item,
+                        chunk.into_iter().try_for_each(|&data| {
+                            callback(&breadth_first::Args::<D> {
+                                data,
                                 root,
                                 distance,
                                 event: breadth_first::Event::Unknown,
                             })?;
-                            let curr = item.curr();
+                            let curr = data.curr();
                             self.graph
                                 .successors(curr)
                                 .into_iter()
                                 .try_for_each(|succ| {
                                     if filter(&breadth_first::Args {
-                                        item: I::new(succ, curr),
+                                        data: D::new(succ, curr),
                                         root,
                                         distance: distance_plus_one,
                                         event: breadth_first::Event::Unknown,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            next_frontier.push(I::new(succ, curr));
+                                            next_frontier.push(D::new(succ, curr));
                                         } else {
                                             callback(&breadth_first::Args {
-                                                item: I::new(succ, curr),
+                                                data: D::new(succ, curr),
                                                 root,
                                                 distance: distance_plus_one,
                                                 event: breadth_first::Event::Known,
@@ -186,8 +183,8 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
     }
 
     fn visit_all_filtered<
-        C: Fn(&Args<I>) -> Result<(), E> + Sync,
-        F: Fn(&Args<I>) -> bool + Sync,
+        C: Fn(&Args<D>) -> Result<(), E> + Sync,
+        F: Fn(&Args<D>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

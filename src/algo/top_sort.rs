@@ -1,4 +1,4 @@
-use crate::{algo::visits::depth_first::*, algo::visits::SeqVisit};
+use crate::{algo::visits::depth_first::*, algo::visits::Sequential};
 use dsi_progress_logger::ProgressLog;
 use std::mem::MaybeUninit;
 use unwrap_infallible::UnwrapInfallible;
@@ -20,12 +20,9 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
     visit
         .visit_all(
             |args| {
-                match args.event {
-                    Event::Postvisit => {
-                        pos -= 1;
-                        topol_sort[pos].write(args.curr);
-                    }
-                    _ => {}
+                if args.event == Event::Postvisit {
+                    pos -= 1;
+                    topol_sort[pos].write(args.curr);
                 }
 
                 Ok(())

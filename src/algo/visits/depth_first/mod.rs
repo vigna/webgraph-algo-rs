@@ -40,9 +40,9 @@ pub enum Event {
 pub struct Args {
     /// The current node.
     pub curr: usize,
-    /// The predecessor of [curr](`Self::curr`); if [event](`Self::event`) is
-    /// [`Previsit`](`Event::Previsit`), this is the parent of [curr](`Self::curr`)
-    /// in the visit tree.
+    /// The predecessor of [curr](`Self::curr`); when [`event`](`Self::event`)
+    /// is [`Previsit`](`Event::Previsit`) or [`Postvisit`](`Event::Postvisit`),
+    /// this is the parent of [`curr`](`Self::curr`) in the visit tree.
     pub pred: usize,
     /// The root of the current visit tree.
     pub root: usize,

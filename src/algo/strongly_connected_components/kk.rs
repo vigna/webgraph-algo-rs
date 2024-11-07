@@ -1,7 +1,7 @@
 use super::traits::StronglyConnectedComponents;
 use crate::algo::{
     top_sort,
-    visits::{depth_first::*, SeqVisit},
+    visits::{depth_first::*, Sequential},
 };
 use common_traits::Integer;
 use dsi_progress_logger::ProgressLog;

@@ -1,6 +1,6 @@
 use crate::algo::visits::{
     depth_first::{Args, Event},
-    SeqVisit,
+    Sequential,
 };
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
@@ -14,11 +14,11 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// sizes to perform recursion.
 ///
 /// There are two versions of the visit, selected by the parameter `S`. If `S`
-/// is [`TwoState`], the visit will use a single bit per node to remember known
+/// is [`TwoStates`], the visit will use a single bit per node to remember known
 /// nodes, but events of type [`Revisit`](`Event::Revisit`) will always have the
 /// associated Boolean equal to false (this type of visit is sufficient, for
 /// example, to compute a [topological sort](crate::algo::top_sort)). If `S` is
-/// [`ThreeState`], instead, the visit will use two bits per node and  events of
+/// [`ThreeStates`], instead, the visit will use two bits per node and  events of
 /// type [`Revisit`](`Event::Revisit`) will provide information about whether
 /// the node associated with event is currently on the visit path (this kind of
 /// visit is necessary, for example, to compute
@@ -80,7 +80,7 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
 }
 
 impl<'a, S: NodeStates, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
-    /// Creates a new sequential visit.
+    /// Creates a new Sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
@@ -119,14 +119,14 @@ pub trait NodeStates {
     fn reset(&mut self);
 }
 
-/// A two-state selector type for [sequential depth-first visits](Seq).
+/// A two-state selector type for [Sequential depth-first visits](Seq).
 ///
 /// This implementation does not keep track of nodes on the stack,
 /// so events of type [`Revisit`](`Event::Revisit`) will always have the
 /// associated Boolean equal to false.
 pub struct TwoStates(BitVec);
 
-/// A three-state selector type for [sequential depth-first visits](Seq).
+/// A three-state selector type for [Sequential depth-first visits](Seq).
 ///
 /// This implementation does keep track of nodes on the stack, so events of type
 /// [`Revisit`](`Event::Revisit`) will provide information about whether the
@@ -191,7 +191,7 @@ impl NodeStates for TwoStates {
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S, E, G> {
+impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a, S, E, G> {
     fn visit_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
         &mut self,
         root: usize,
@@ -236,7 +236,6 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S
             let Some((iter, parent)) = self.stack.last_mut() else {
                 return Ok(());
             };
-            let parent = *parent;
 
             for succ in iter {
                 // Check if node should be visited
@@ -286,7 +285,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S
 
             let args = Args {
                 curr: current_node,
-                pred: parent,
+                pred: *parent,
                 root,
                 depth,
                 event: Event::Postvisit,
@@ -303,7 +302,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> SeqVisit<Args, E> for Seq<'a, S
 
             // We're going up one stack level, so the next current_node
             // is the current parent.
-            current_node = parent;
+            current_node = *parent;
             self.stack.pop();
         }
     }

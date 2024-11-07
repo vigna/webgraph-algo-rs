@@ -8,14 +8,14 @@
 //! interruption does not necessarily denote an error condition (see, e.g.,
 //! [`StoppedWhenDone`]).
 //!
-//! [Sequential visits](SeqVisit) are visits that are executed in a single
-//! thread, whereas [parallel visits](ParVisit) use multiple threads. The
-//! signature of callbacks and filter reflects this difference: the callbacks of
-//! sequential visits are `FnMut(&A) -> Result<(), E>`, whereas the callbacks of
-//! parallel visits are `Fn(&A) -> Result<(), E> + Sync`, and analogously for
-//! the filter functions.
+//! [Sequential visits](Sequential) are visits that are executed in a single
+//! thread, whereas [parallel visits](Parallel) use multiple threads. The
+//! signature of callbacks reflects this difference: the callbacks of Sequential
+//! visits are `FnMut(&A) -> Result<(), E>`, whereas the callbacks of parallel
+//! visits are `Fn(&A) -> Result<(), E> + Sync`, and analogously for the filter
+//! functions.
 //!
-//! In case of interruption sequential visits usually return immediately to the
+//! In case of interruption Sequential visits usually return immediately to the
 //! caller, whereas in general parallel visits might need to complete part of
 //! their subtasks before returning to the caller.
 //!
@@ -23,11 +23,11 @@
 //! when a new node is discovered. If the filter returns false, the node will be
 //! ignored, that is, not even marked as known.
 //!
-//! All visits accept also a mutable reference to an implementation
-//! of [`ProgressLog`](`dsi_progress_logger::ProgressLog`) to log the progress of
+//! All visits accept also a mutable reference to an implementation of
+//! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) to log the progress of
 //! the visit: [`ProgressLog::light_update`] will be called when completing the
-//! visit of a node. As usual, when passing `&mut
-//! Option::<dsi_progress_logger::ProgressLogger>::None` the logging code should
+//! visit of a node. As usual, when passing
+//! [`no_logging![]`](dsi_progress_logger::no_logging) the logging code should
 //! be optimized away by the compiler.
 //!
 //! Visit must provide a `reset` method that makes it possible to reuse the
@@ -54,11 +54,11 @@ pub struct StoppedWhenDone {}
 /// A sequential visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_filtered`](SeqVisit::visit_filtered) method, which should perform a
+/// [`visit_filtered`](Sequential::visit_filtered) method, which should perform a
 /// visit of a graph starting from a given node, and the
-/// [`visit_all_filtered`](SeqVisit::visit_all_filtered) method, which should
+/// [`visit_all_filtered`](Sequential::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait SeqVisit<A, E> {
+pub trait Sequential<A, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -80,7 +80,7 @@ pub trait SeqVisit<A, E> {
     /// Visits the graph from the specified node without a filter.
     ///
     /// The default implementation calls
-    /// [`visit_filtered`](SeqVisit::visit_filtered) with a filter that always
+    /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
     /// returns true.
     #[inline(always)]
     fn visit<C: FnMut(&A) -> Result<(), E>>(
@@ -94,7 +94,7 @@ pub trait SeqVisit<A, E> {
 
     /// Visits the whole graph.
     ///
-    /// See [`visit_filtered`](SeqVisit::visit) for more details.
+    /// See [`visit_filtered`](Sequential::visit) for more details.
     fn visit_all_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
         &mut self,
         callback: C,
@@ -105,7 +105,7 @@ pub trait SeqVisit<A, E> {
     /// Visits the whole graph without a filter.
     ///
     /// The default implementation calls
-    /// [`visit_all_filtered`](SeqVisit::visit_all_filtered) with a filter that
+    /// [`visit_all_filtered`](Sequential::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
     fn visit_all<C: FnMut(&A) -> Result<(), E>>(
@@ -123,11 +123,11 @@ pub trait SeqVisit<A, E> {
 /// A parallel visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_filtered`](ParVisit::visit_filtered) method, which should perform a
+/// [`visit_filtered`](Parallel::visit_filtered) method, which should perform a
 /// visit of a graph starting from a given node, and the
-/// [`visit_all_filtered`](ParVisit::visit_all_filtered) method, which should
+/// [`visit_all_filtered`](Parallel::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait ParVisit<A, E> {
+pub trait Parallel<A, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -150,7 +150,7 @@ pub trait ParVisit<A, E> {
     /// Visits the graph from the specified node without a filter.
     ///
     /// This method just calls
-    /// [`visit_filtered`](ParVisit::visit_filtered)
+    /// [`visit_filtered`](Parallel::visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
     fn visit<C: Fn(&A) -> Result<(), E> + Sync>(
@@ -164,7 +164,7 @@ pub trait ParVisit<A, E> {
 
     /// Visits the whole graph.
     ///
-    /// See [`visit`](ParVisit::visit_filtered) for more details.
+    /// See [`visit`](Parallel::visit_filtered) for more details.
     fn visit_all_filtered<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
         &mut self,
         callback: C,
@@ -175,7 +175,7 @@ pub trait ParVisit<A, E> {
     /// Visits the whole graph without a filter.
     ///
     /// The default implementation calls
-    /// [`visit_all_filtered`](ParVisit::visit_all_filtered) with a filter that
+    /// [`visit_all_filtered`](Parallel::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
     fn visit_all<C: Fn(&A) -> Result<(), E> + Sync>(

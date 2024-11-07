@@ -1,4 +1,6 @@
-use crate::{algo::visits::depth_first::*, algo::visits::SeqVisit, algo::visits::StoppedWhenDone};
+use crate::{
+    algo::visits::depth_first::*, algo::visits::Sequential, algo::visits::StoppedWhenDone,
+};
 use dsi_progress_logger::ProgressLog;
 use webgraph::traits::RandomAccessGraph;
 

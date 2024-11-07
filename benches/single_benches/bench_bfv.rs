@@ -5,7 +5,7 @@ use std::convert::Infallible;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::visits::breadth_first::*;
-use webgraph_algo::algo::visits::{ParVisit, SeqVisit};
+use webgraph_algo::algo::visits::{Parallel, Sequential};
 
 pub fn bench_bfv(c: &mut Criterion) {
     let mut group = c.benchmark_group("Breadth first visit");
@@ -27,7 +27,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = SingleThreadedBreadthFirstVisit::<Infallible, _>::new(g);
+                    let mut visit = Seq::<Infallible, _>::new(g);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -41,7 +41,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParallelBreadthFirstVisit::<CurrItem, Infallible, _>::new(g, 1);
+                    let mut visit = ParFair::<Node, Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -55,8 +55,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit =
-                        ParallelBreadthFirstVisit::<CurrItem, Infallible, _>::new(g, 64);
+                    let mut visit = ParFair::<Node, Infallible, _>::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -70,7 +69,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 1);
+                    let mut visit = ParLowMem::<Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -84,7 +83,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParallelBreadthFirstVisitFastCB::<Infallible, _>::new(g, 1);
+                    let mut visit = ParLowMem::<Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();

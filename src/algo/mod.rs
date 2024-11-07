@@ -23,5 +23,5 @@ pub mod traits {
     use super::*;
 
     pub use strongly_connected_components::traits::*;
-    pub use visits::{ParVisit, SeqVisit};
+    pub use visits::{Parallel, Sequential};
 }

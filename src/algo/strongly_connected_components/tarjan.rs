@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::algo::visits::{depth_first::*, SeqVisit, StoppedWhenDone};
+use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 
 use webgraph::traits::RandomAccessGraph;
