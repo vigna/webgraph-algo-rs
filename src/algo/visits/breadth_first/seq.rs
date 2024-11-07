@@ -121,22 +121,22 @@ impl<E, G: RandomAccessGraph> Sequential<Args<NodePred>, E> for Seq<E, G> {
                             distance,
                             event: breadth_first::Event::Unknown,
                         };
-                        if filter(&args) {
-                            if !self.visited[succ] {
+                        if !self.visited[succ] {
+                            if filter(&args) {
                                 callback(&args)?;
                                 self.visited.set(succ, true);
                                 self.queue.push_back(Some(
                                     NonMaxUsize::new(succ)
                                         .expect("node index should never be usize::MAX"),
                                 ))
-                            } else {
-                                callback(&Args {
-                                    data: Data::new(succ, node),
-                                    root,
-                                    distance,
-                                    event: breadth_first::Event::Known,
-                                })?;
                             }
+                        } else {
+                            callback(&Args {
+                                data: Data::new(succ, node),
+                                root,
+                                distance,
+                                event: breadth_first::Event::Known,
+                            })?;
                         }
                     }
                     pl.light_update();
