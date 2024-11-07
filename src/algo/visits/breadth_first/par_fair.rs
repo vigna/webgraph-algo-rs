@@ -75,7 +75,8 @@ pub struct ParFair<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = ra
 }
 
 impl<D, E, G: RandomAccessGraph> ParFair<D, E, G, rayon::ThreadPool> {
-    /// Creates a fair parallel breadth-first visit.
+    /// Creates a fair parallel breadth-first visit with the [default number of
+    /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
     /// # Arguments
     ///

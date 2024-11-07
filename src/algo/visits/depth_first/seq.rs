@@ -38,7 +38,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// // Let's test acyclicity.
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = depth_first::Seq::<depth_first::ThreeState, _, _>::new(&graph);
+/// let mut visit = depth_first::Seq::<depth_first::ThreeStates, _, _>::new(&graph);
 ///
 /// assert!(visit.visit_all(
 ///        |args|

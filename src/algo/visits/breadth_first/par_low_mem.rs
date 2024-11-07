@@ -71,7 +71,8 @@ pub struct ParLowMem<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = ray
 }
 
 impl<E, G: RandomAccessGraph> ParLowMem<E, G, rayon::ThreadPool> {
-    /// Creates a low-memory parallel breadth-first visit.
+    /// Creates a low-memory parallel breadth-first visit with the [default number of
+    /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
     /// # Arguments
     ///
