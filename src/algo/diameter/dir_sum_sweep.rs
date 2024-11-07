@@ -2,7 +2,10 @@ use crate::{
     algo::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
-        visits::{breadth_first::Event, breadth_first::ParFair, Data, Node, Parallel},
+        visits::{
+            breadth_first::{Event, ParFairNoPred},
+            Parallel,
+        },
     },
     traits::{SliceInteriorMutability, StronglyConnectedComponents, UnsafeSliceWrite},
     utils::*,
@@ -187,8 +190,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParFair<Node, Infallible, &'a G1, rayon::ThreadPool>,
-        ParFair<Node, Infallible, &'a G2, rayon::ThreadPool>,
+        ParFairNoPred<Infallible, &'a G1, rayon::ThreadPool>,
+        ParFairNoPred<Infallible, &'a G2, rayon::ThreadPool>,
         rayon::ThreadPool,
     >
     where
@@ -196,9 +199,9 @@ impl<
         G2: 'a,
     {
         let direct_visit =
-            ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
+            ParFairNoPred::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
         let transposed_visit =
-            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
+            ParFairNoPred::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
         SumSweepDirectedDiameterRadius::new(
             self.graph,
             self.transpose,
@@ -234,14 +237,14 @@ impl<
         G1,
         G2,
         SCC,
-        ParFair<Node, Infallible, &'a G1, T>,
-        ParFair<Node, Infallible, &'a G2, T>,
+        ParFairNoPred<Infallible, &'a G1, T>,
+        ParFairNoPred<Infallible, &'a G2, T>,
         T,
     > {
         let direct_visit =
-            ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
+            ParFairNoPred::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
         let transposed_visit =
-            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
+            ParFairNoPred::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
         SumSweepDirectedDiameterRadius::new(
             self.graph,
             self.transpose,
@@ -272,8 +275,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
-    V1: Parallel<Event<Node>, Infallible> + Sync,
-    V2: Parallel<Event<Node>, Infallible> + Sync,
+    V1: Parallel<Event, Infallible> + Sync,
+    V2: Parallel<Event, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -321,8 +324,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         SCC: StronglyConnectedComponents + Sync,
-        V1: Parallel<Event<Node>, Infallible> + Sync,
-        V2: Parallel<Event<Node>, Infallible> + Sync,
+        V1: Parallel<Event, Infallible> + Sync,
+        V2: Parallel<Event, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
@@ -407,8 +410,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
-        V1: Parallel<Event<Node>, Infallible> + Sync,
-        V2: Parallel<Event<Node>, Infallible> + Sync,
+        V1: Parallel<Event, Infallible> + Sync,
+        V2: Parallel<Event, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -824,8 +827,8 @@ impl<
             .visit(
                 v,
                 |args| {
-                    if let Event::Unknown { data, .. } = args {
-                        radial_vertices.set(data.curr(), true, Ordering::Relaxed)
+                    if let Event::Unknown { curr, .. } = args {
+                        radial_vertices.set(curr, true, Ordering::Relaxed)
                     }
                     Ok(())
                 },
@@ -875,8 +878,12 @@ impl<
             .visit(
                 start,
                 |args| {
-                    if let Event::Unknown { data, distance, .. } = args {
-                        let node = data.curr();
+                    if let Event::Unknown {
+                        curr: node,
+                        distance,
+                        ..
+                    } = args
+                    {
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -959,8 +966,12 @@ impl<
             .visit(
                 start,
                 |args| {
-                    if let Event::Unknown { data, distance, .. } = args {
-                        let node = data.curr();
+                    if let Event::Unknown {
+                        curr: node,
+                        distance,
+                        ..
+                    } = args
+                    {
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -1063,7 +1074,7 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = ParFair::<Node, Infallible, _, _>::with_threads(
+            let mut bfs = ParFairNoPred::<Infallible, _, _>::with_threads(
                 graph,
                 VISIT_GRANULARITY,
                 threadpool,
@@ -1077,16 +1088,16 @@ impl<
                 bfs.visit_filtered(
                     p,
                     |args| {
-                        if let Event::Unknown { data, distance, .. } = args {
+                        if let Event::Unknown { curr, distance, .. } = args {
                             // Safety: each node is accessed exactly once
                             unsafe {
-                                dist_pivot_mut.write_once(data.curr(), distance);
+                                dist_pivot_mut.write_once(curr, distance);
                             }
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         };
                         Ok(())
                     },
-                    |args| components[args.data.curr()] == pivot_component,
+                    |args| components[args.curr] == pivot_component,
                     no_logging![],
                 )
                 .unwrap_infallible();

@@ -1,6 +1,6 @@
 use crate::algo::visits::{
-    breadth_first::{Event, FilterArgs},
-    Data, NodePred, Sequential,
+    breadth_first::{EventPred, FilterArgsPred},
+    Sequential,
 };
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
@@ -40,8 +40,8 @@ use webgraph::traits::RandomAccessGraph;
 ///     |args|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
-///                 d[data.curr()] = distance;
+///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
+///                 d[curr] = distance;
 ///             }
 ///             Ok(())
 ///         },
@@ -49,7 +49,6 @@ use webgraph::traits::RandomAccessGraph;
 /// );
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
-
 pub struct Seq<E, G: RandomAccessGraph> {
     graph: G,
     visited: BitVec,
@@ -76,21 +75,18 @@ impl<E, G: RandomAccessGraph> Seq<E, G> {
     }
 }
 
-impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
-    fn visit_filtered<
-        C: FnMut(Event<NodePred>) -> Result<(), E>,
-        F: FnMut(FilterArgs<NodePred>) -> bool,
-    >(
+impl<E, G: RandomAccessGraph> Sequential<EventPred, E> for Seq<E, G> {
+    fn visit_filtered<C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let data = NodePred::new(root, root);
         if self.visited[root]
-            || !filter(FilterArgs {
-                data,
+            || !filter(FilterArgsPred {
+                curr: root,
+                pred: root,
                 root,
                 distance: 0,
             })
@@ -98,8 +94,9 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
             return Ok(());
         }
 
-        callback(Event::Unknown {
-            data,
+        callback(EventPred::Unknown {
+            curr: root,
+            pred: root,
             root,
             distance: 0,
         })?;
@@ -117,15 +114,17 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
                 Some(node) => {
                     let node = node.into();
                     for succ in self.graph.successors(node) {
-                        let data = NodePred::new(succ, node);
+                        let (curr, pred) = (succ, node);
                         if !self.visited[succ] {
-                            if filter(FilterArgs {
-                                data,
+                            if filter(FilterArgsPred {
+                                curr,
+                                pred,
                                 root,
                                 distance,
                             }) {
-                                callback(Event::Unknown {
-                                    data,
+                                callback(EventPred::Unknown {
+                                    curr,
+                                    pred,
                                     root,
                                     distance,
                                 })?;
@@ -136,7 +135,7 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
                                 ))
                             }
                         } else {
-                            callback(Event::Known { data, root })?;
+                            callback(EventPred::Known { curr, pred, root })?;
                         }
                     }
                     pl.light_update();
@@ -156,8 +155,8 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
     }
 
     fn visit_all_filtered<
-        C: FnMut(Event<NodePred>) -> Result<(), E>,
-        F: FnMut(FilterArgs<NodePred>) -> bool,
+        C: FnMut(EventPred) -> Result<(), E>,
+        F: FnMut(FilterArgsPred) -> bool,
     >(
         &mut self,
         mut callback: C,

@@ -26,26 +26,24 @@ pub use par_fair::*;
 mod par_low_mem;
 pub use par_low_mem::*;
 
-use super::{Data, VisitEventArgs};
+use super::VisitEventArgs;
 
 /// Types of callback events generated during a breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Event<D: Data> {
+pub enum Event {
     /// Initialization: all node fields are equal to the root and distance is 0.
     /// This event should be used to set up state at the start of the visit.
     Init {
-        /// The available data, that is, the current node and possibly its
-        /// predecessor (if `D` is [`NodePred`](super::NodePred)).
-        data: D,
+        /// The current node.
+        curr: usize,
         /// The root of the current visit tree.
         root: usize,
     },
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all fields or [`Args`] are equal to the root.
     Unknown {
-        /// The available data, that is, the current node and possibly its
-        /// predecessor (if `D` is [`NodePred`](super::NodePred)).
-        data: D,
+        /// The current node.
+        curr: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The distance of the current node from the [root](`Event::Unknown::root`).
@@ -58,25 +56,80 @@ pub enum Event<D: Data> {
     /// with event [`Unknown`](`Event::Unknown`) has not been called yet by the
     /// thread who discovered the node.
     Known {
-        /// The available data, that is, the current node and possibly its
-        /// predecessor (if `D` is [`NodePred`](super::NodePred)).
-        data: D,
+        /// The current node.
+        curr: usize,
+        /// The root of the current visit tree.
+        root: usize,
+    },
+}
+
+/// Types of callback events generated during a breadth-first visit
+/// keeping track of parent nodes.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum EventPred {
+    /// Initialization: all node fields are equal to the root and distance is 0.
+    /// This event should be used to set up state at the start of the visit.
+    Init {
+        /// The current node.
+        curr: usize,
+        /// The predecessor of [curr](`EventPred::Init::curr`).
+        pred: usize,
+        /// The root of the current visit tree.
+        root: usize,
+    },
+    /// The node has been encountered for the first time: we are traversing a
+    /// new tree arc, unless all fields or [`Args`] are equal to the root.
+    Unknown {
+        /// The current node.
+        curr: usize,
+        /// The predecessor of [curr](`EventPred::Unknown::curr`).
+        pred: usize,
+        /// The root of the current visit tree.
+        root: usize,
+        /// The distance of the current node from the [root](`EventPred::Unknown::root`).
+        distance: usize,
+    },
+    /// The node has been encountered before: we are traversing a back arc, a
+    /// forward arc, or a cross arc.
+    ///
+    /// Note however that in parallel contexts it might happen that callback
+    /// with event [`Unknown`](`Event::Unknown`) has not been called yet by the
+    /// thread who discovered the node.
+    Known {
+        /// The current node.
+        curr: usize,
+        /// The predecessor of [curr](`EventPred::Known::curr`).
+        pred: usize,
         /// The root of the current visit tree.
         root: usize,
     },
 }
 
 /// Type of struct used as input for the filter in breadth-first visits.
-pub struct FilterArgs<D: Data> {
-    /// The available data, that is, the current node and possibly its
-    /// predecessor (if `D` is [`NodePred`](super::NodePred)).
-    pub data: D,
+pub struct FilterArgs {
+    /// The current node.
+    pub curr: usize,
     /// The root of the current visit tree.
     pub root: usize,
-    /// The distance of the current node from the [root](`Event::Unknown::root`).
+    /// The distance of the current node from the [root](`Self::root`).
     pub distance: usize,
 }
 
-impl<D: Data> VisitEventArgs for Event<D> {
-    type FilterEventArgs = FilterArgs<D>;
+pub struct FilterArgsPred {
+    /// The current node.
+    pub curr: usize,
+    /// The predecessor of [curr](`Self::curr`).
+    pub pred: usize,
+    /// The root of the current visit tree.
+    pub root: usize,
+    /// The distance of the current node from the [root](`Self::root`).
+    pub distance: usize,
+}
+
+impl VisitEventArgs for Event {
+    type FilterEventArgs = FilterArgs;
+}
+
+impl VisitEventArgs for EventPred {
+    type FilterEventArgs = FilterArgsPred;
 }

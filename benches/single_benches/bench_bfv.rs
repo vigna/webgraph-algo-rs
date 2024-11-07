@@ -4,7 +4,7 @@ use dsi_progress_logger::prelude::*;
 use std::convert::Infallible;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::visits::{breadth_first::*, Node};
+use webgraph_algo::algo::visits::breadth_first::*;
 use webgraph_algo::algo::visits::{Parallel, Sequential};
 
 pub fn bench_bfv(c: &mut Criterion) {
@@ -41,7 +41,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFair::<Node, Infallible, _>::new(g, 1);
+                    let mut visit = ParFairNoPred::<Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -55,7 +55,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFair::<Node, Infallible, _>::new(g, 64);
+                    let mut visit = ParFairNoPred::<Infallible, _>::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();

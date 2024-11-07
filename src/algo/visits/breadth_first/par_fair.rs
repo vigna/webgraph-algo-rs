@@ -1,7 +1,4 @@
-use crate::algo::visits::{
-    breadth_first::{Event, FilterArgs},
-    Data, Parallel,
-};
+use crate::algo::visits::{breadth_first::*, Parallel};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -42,15 +39,15 @@ use webgraph::traits::RandomAccessGraph;
 /// // Let's compute the distances from 0
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::ParFair::<Node, Infallible, _>::new(&graph, 1);
+/// let mut visit = breadth_first::ParFair::<Infallible, _>::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
 ///     |args|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
-///                 d[data.curr()].store(distance, Ordering::Relaxed);
+///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
+///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
 ///             Ok(())
 ///         },
@@ -61,16 +58,22 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-
-pub struct ParFair<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
+pub struct ParFair<
+    E,
+    G: RandomAccessGraph,
+    T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
+    const PRED: bool = true,
+> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
-    _phantom: std::marker::PhantomData<(D, E)>,
+    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<D, E, G: RandomAccessGraph> ParFair<D, E, G, rayon::ThreadPool> {
+pub type ParFairNoPred<E, G, T = rayon::ThreadPool> = ParFair<E, G, T, false>;
+
+impl<E, G: RandomAccessGraph, const P: bool> ParFair<E, G, rayon::ThreadPool, P> {
     /// Creates a fair parallel breadth-first visit with the [default number of
     /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
@@ -106,7 +109,7 @@ impl<D, E, G: RandomAccessGraph> ParFair<D, E, G, rayon::ThreadPool> {
     }
 }
 
-impl<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParFair<D, E, G, T> {
+impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>, const P: bool> ParFair<E, G, T, P> {
     /// Creates a fair parallel top-down visit that uses the specified number of threads.
     ///
     ///
@@ -131,13 +134,10 @@ impl<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParFair<D, E, G, 
     }
 }
 
-impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
-    Parallel<Event<D>, E> for ParFair<D, E, G, T>
+impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event, E>
+    for ParFair<E, G, T, false>
 {
-    fn visit_filtered<
-        C: Fn(Event<D>) -> Result<(), E> + Sync,
-        F: Fn(FilterArgs<D>) -> bool + Sync,
-    >(
+    fn visit_filtered<C: Fn(Event) -> Result<(), E> + Sync, F: Fn(FilterArgs) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,
@@ -146,7 +146,7 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgs {
-                data: D::new(root, root),
+                curr: root,
                 root,
                 distance: 0,
             })
@@ -160,7 +160,7 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
         let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
 
         self.threads.borrow().install(|| {
-            curr_frontier.push(D::new(root, root));
+            curr_frontier.push(root);
         });
 
         self.visited.set(root, true, Ordering::Relaxed);
@@ -173,27 +173,26 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
                     .par_iter()
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
-                        chunk.into_iter().try_for_each(|&data| {
+                        chunk.into_iter().try_for_each(|&curr| {
                             callback(Event::Unknown {
-                                data,
+                                curr,
                                 root,
                                 distance,
                             })?;
-                            let curr = data.curr();
                             self.graph
                                 .successors(curr)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let data = D::new(succ, curr);
+                                    let curr = succ;
                                     if filter(FilterArgs {
-                                        data,
+                                        curr,
                                         root,
                                         distance: distance_plus_one,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            next_frontier.push(D::new(succ, curr));
+                                            next_frontier.push(succ);
                                         } else {
-                                            callback(Event::Known { data, root })?;
+                                            callback(Event::Known { curr, root })?;
                                         }
                                     }
 
@@ -216,8 +215,115 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
     }
 
     fn visit_all_filtered<
-        C: Fn(Event<D>) -> Result<(), E> + Sync,
-        F: Fn(FilterArgs<D>) -> bool + Sync,
+        C: Fn(Event) -> Result<(), E> + Sync,
+        F: Fn(FilterArgs) -> bool + Sync,
+    >(
+        &mut self,
+        callback: C,
+        filter: F,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        for node in 0..self.graph.num_nodes() {
+            self.visit_filtered(node, &callback, &filter, pl)?;
+        }
+
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.visited.fill(false, Ordering::Relaxed);
+    }
+}
+
+impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
+    for ParFair<E, G, T, true>
+{
+    fn visit_filtered<
+        C: Fn(EventPred) -> Result<(), E> + Sync,
+        F: Fn(<EventPred as VisitEventArgs>::FilterEventArgs) -> bool + Sync,
+    >(
+        &mut self,
+        root: usize,
+        callback: C,
+        filter: F,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        if self.visited.get(root, Ordering::Relaxed)
+            || !filter(FilterArgsPred {
+                curr: root,
+                pred: root,
+                root,
+                distance: 0,
+            })
+        {
+            return Ok(());
+        }
+
+        // We do not provide a capacity in the hope of allocating dynamically
+        // space as the frontiers grow.
+        let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
+        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
+
+        self.threads.borrow().install(|| {
+            curr_frontier.push((root, root));
+        });
+
+        self.visited.set(root, true, Ordering::Relaxed);
+        let mut distance = 0;
+
+        while !curr_frontier.is_empty() {
+            let distance_plus_one = distance + 1;
+            self.threads.borrow().install(|| {
+                curr_frontier
+                    .par_iter()
+                    .chunks(self.granularity)
+                    .try_for_each(|chunk| {
+                        chunk.into_iter().try_for_each(|&(curr, pred)| {
+                            callback(EventPred::Unknown {
+                                curr,
+                                pred,
+                                root,
+                                distance,
+                            })?;
+                            self.graph
+                                .successors(curr)
+                                .into_iter()
+                                .try_for_each(|succ| {
+                                    let (curr, pred) = (succ, curr);
+                                    if filter(FilterArgsPred {
+                                        curr,
+                                        pred,
+                                        root,
+                                        distance: distance_plus_one,
+                                    }) {
+                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                            next_frontier.push((curr, pred));
+                                        } else {
+                                            callback(EventPred::Known { curr, pred, root })?;
+                                        }
+                                    }
+
+                                    Result::<(), E>::Ok(())
+                                })?;
+
+                            Result::<(), E>::Ok(())
+                        })
+                    })
+            })?;
+            pl.update_with_count(curr_frontier.len());
+            distance += 1;
+            // Swap the frontiers
+            std::mem::swap(&mut curr_frontier, &mut next_frontier);
+            // Clear the frontier we will fill in the next iteration
+            next_frontier.clear();
+        }
+
+        Ok(())
+    }
+
+    fn visit_all_filtered<
+        C: Fn(EventPred) -> Result<(), E> + Sync,
+        F: Fn(FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
         callback: C,
