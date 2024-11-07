@@ -117,9 +117,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
@@ -154,9 +152,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
@@ -273,9 +269,7 @@ where
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn compute(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         self.inner.compute(pl)

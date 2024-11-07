@@ -181,9 +181,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
@@ -230,9 +228,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
@@ -459,9 +455,7 @@ impl<
     /// # Arguments
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn sum_sweep_heuristic(
         &mut self,
         start: usize,
@@ -512,9 +506,7 @@ impl<
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     pub fn compute(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         if self.number_of_nodes == 0 {
             return Ok(());
@@ -752,9 +744,7 @@ impl<
     /// component, in order to perform the [`Self::all_cc_upper_bound`] method.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger..
     fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Result<Vec<usize>> {
         debug_assert!(self.number_of_nodes < usize::MAX);
 
@@ -818,9 +808,7 @@ impl<
     /// the biggest strongly connected component.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger..
     fn compute_radial_vertices(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         if self.number_of_nodes == 0 {
             return Ok(());
@@ -878,9 +866,7 @@ impl<
     /// * `start`: The starting vertex of the BFS. If [`None`], no visit happens.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn step_sum_sweep(
         &mut self,
         start: Option<usize>,
@@ -1065,9 +1051,7 @@ impl<
     ///   component.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     ///
     /// # Return
     /// Two arrays.
@@ -1169,9 +1153,7 @@ impl<
     ///
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: &mut impl ProgressLog) -> Result<()> {
         pl.item_name("elements");
         pl.display_memory(false);
@@ -1309,9 +1291,7 @@ impl<
     /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn find_missing_nodes(&mut self, pl: &mut impl ProgressLog) -> Result<usize> {
         pl.item_name("nodes");
         pl.display_memory(false);

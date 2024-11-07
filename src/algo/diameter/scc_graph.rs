@@ -47,9 +47,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
     /// * `graph`: An immutable reference to the graph.
     /// * `reversed_graph`: An immutable reference to `graph` transposed.
     /// * `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     pub fn new(graph: &G1, reversed_graph: &G2, scc: &C, pl: &mut impl ProgressLog) -> Self {
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -99,9 +97,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
     /// in the graph. This edge is used in the [`Self::all_cc_upper_bound`] method.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn find_edges_through_scc(
         graph: &G1,
         reversed_graph: &G2,

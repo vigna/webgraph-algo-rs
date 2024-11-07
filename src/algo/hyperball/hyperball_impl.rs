@@ -277,9 +277,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
@@ -317,9 +315,7 @@ impl<
     /// logs progress with the provided logger.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the build process. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
     pub fn build(
         self,
@@ -538,9 +534,7 @@ impl<
     /// * `upper_bound`: an upper bound to the number of iterations.
     /// * `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
     ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     pub fn run(
         &mut self,
         upper_bound: usize,
@@ -590,9 +584,7 @@ impl<
     ///
     /// # Arguments
     /// * `upper_bound`: an upper bound to the number of iterations.
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_stable(
         &mut self,
@@ -606,9 +598,7 @@ impl<
     /// Runs HyperBall until no counters are modified with no upper bound on the number of iterations.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the run. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_done(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         self.run_until_stable(usize::MAX, pl)
@@ -809,9 +799,7 @@ impl<
     /// Performs a new iteration of HyperBall.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the iteration. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn iterate(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration + 1));
 
@@ -1223,9 +1211,7 @@ impl<
     /// Initialises the approximator.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger that implements [`dsi_progress_logger::ProgressLog`] may be passed to the
-    ///   method to log the progress of the initialization. If `Option::<dsi_progress_logger::ProgressLogger>::None` is
-    ///   passed, logging code should be optimized away by the compiler.
+    /// * `pl`: A progress logger.
     fn init(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
