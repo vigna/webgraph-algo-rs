@@ -124,7 +124,7 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
         let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
 
         self.threads.borrow().install(|| {
-            curr_frontier.push((root, root));
+            curr_frontier.push(I::new(root, root));
         });
 
         self.visited.set(root, true, Ordering::Relaxed);
@@ -137,13 +137,14 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
                     .par_iter()
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
-                        chunk.into_iter().try_for_each(|&(curr, parent)| {
+                        chunk.into_iter().try_for_each(|item| {
                             callback(&breadth_first::Args::<I> {
-                                item: I::new(curr, parent),
+                                item: *item,
                                 root,
                                 distance,
                                 event: breadth_first::Event::Unknown,
                             })?;
+                            let curr = item.curr();
                             self.graph
                                 .successors(curr)
                                 .into_iter()
@@ -155,7 +156,7 @@ impl<I: QueueItem, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::Thread
                                         event: breadth_first::Event::Unknown,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            next_frontier.push((succ, curr));
+                                            next_frontier.push(I::new(succ, curr));
                                         } else {
                                             callback(&breadth_first::Args {
                                                 item: I::new(succ, curr),

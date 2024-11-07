@@ -28,7 +28,7 @@ pub enum Event {
     /// with [`Unknown`](`Event::Unknown`) has already been called.
     Known,
 }
-pub trait QueueItem {
+pub trait QueueItem: Copy + Send + Sync {
     fn new(curr: usize, pred: usize) -> Self;
     fn curr(&self) -> usize;
     fn pred(&self) -> usize;
