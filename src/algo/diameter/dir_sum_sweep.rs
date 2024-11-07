@@ -35,7 +35,7 @@ pub struct SumSweepDirectedDiameterRadiusBuilder<
     SCC: StronglyConnectedComponents = TarjanStronglyConnectedComponents,
 > {
     graph: &'a G1,
-    rev_graph: &'a G2,
+    transpose: &'a G2,
     output: SumSweepOutputLevel,
     radial_vertices: Option<AtomicBitVec>,
     threads: T,
@@ -72,7 +72,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         );
         Self {
             graph,
-            rev_graph: transposed_graph,
+            transpose: transposed_graph,
             output,
             radial_vertices: None,
             threads: Threads::Default,
@@ -110,7 +110,7 @@ impl<
     ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C> {
         SumSweepDirectedDiameterRadiusBuilder {
             graph: self.graph,
-            rev_graph: self.rev_graph,
+            transpose: self.transpose,
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads: Threads::Default,
@@ -129,7 +129,7 @@ impl<
     ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C> {
         SumSweepDirectedDiameterRadiusBuilder {
             graph: self.graph,
-            rev_graph: self.rev_graph,
+            transpose: self.transpose,
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads: Threads::NumThreads(num_threads),
@@ -147,7 +147,7 @@ impl<
     ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T2, C> {
         SumSweepDirectedDiameterRadiusBuilder {
             graph: self.graph,
-            rev_graph: self.rev_graph,
+            transpose: self.transpose,
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads,
@@ -161,7 +161,7 @@ impl<
     ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C2> {
         SumSweepDirectedDiameterRadiusBuilder {
             graph: self.graph,
-            rev_graph: self.rev_graph,
+            transpose: self.transpose,
             output: self.output,
             radial_vertices: self.radial_vertices,
             threads: self.threads,
@@ -204,10 +204,10 @@ impl<
         let direct_visit =
             ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
         let transposed_visit =
-            ParFair::with_threads(self.rev_graph, VISIT_GRANULARITY, self.threads.build());
+            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
         SumSweepDirectedDiameterRadius::new(
             self.graph,
-            self.rev_graph,
+            self.transpose,
             self.output,
             direct_visit,
             transposed_visit,
@@ -249,10 +249,10 @@ impl<
         let direct_visit =
             ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
         let transposed_visit =
-            ParFair::with_threads(self.rev_graph, VISIT_GRANULARITY, self.threads.clone());
+            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
         SumSweepDirectedDiameterRadius::new(
             self.graph,
-            self.rev_graph,
+            self.transpose,
             self.output,
             direct_visit,
             transposed_visit,
