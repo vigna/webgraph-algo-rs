@@ -1,4 +1,7 @@
-use crate::algo::visits::{breadth_first::Event, Data, Parallel};
+use crate::algo::visits::{
+    breadth_first::{Event, FilterArgs},
+    Data, Parallel,
+};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -131,20 +134,23 @@ impl<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParFair<D, E, G, 
 impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
     Parallel<Event<D>, E> for ParFair<D, E, G, T>
 {
-    fn visit_filtered<C: Fn(&Event<D>) -> Result<(), E> + Sync, F: Fn(&Event<D>) -> bool + Sync>(
+    fn visit_filtered<
+        C: Fn(&Event<D>) -> Result<(), E> + Sync,
+        F: Fn(&FilterArgs<D>) -> bool + Sync,
+    >(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = Event::Unknown {
-            data: D::new(root, root),
-            root,
-            distance: 0,
-        };
-
-        if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
+        if self.visited.get(root, Ordering::Relaxed)
+            || !filter(&FilterArgs {
+                data: D::new(root, root),
+                root,
+                distance: 0,
+            })
+        {
             return Ok(());
         }
 
@@ -178,7 +184,7 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
                                 .successors(curr)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    if filter(&Event::Unknown {
+                                    if filter(&FilterArgs {
                                         data: D::new(succ, curr),
                                         root,
                                         distance: distance_plus_one,
@@ -213,7 +219,7 @@ impl<D: Data, E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>
 
     fn visit_all_filtered<
         C: Fn(&Event<D>) -> Result<(), E> + Sync,
-        F: Fn(&Event<D>) -> bool + Sync,
+        F: Fn(&FilterArgs<D>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

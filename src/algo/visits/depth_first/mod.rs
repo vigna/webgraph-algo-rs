@@ -13,7 +13,7 @@
 mod seq;
 pub use seq::*;
 
-use super::{Node, NodePred};
+use super::{Node, NodePred, VisitEventArgs};
 
 /// Types of callback events generated during a depth-first visit
 /// keeping track of parent nodes (and possibly of the visit path).
@@ -104,4 +104,35 @@ pub enum Event {
         /// [root](`Event::Revisit::root`) to [curr](`Event::Revisit::curr`).
         depth: usize,
     },
+}
+
+pub struct FilterArgs {
+    /// The current node.
+    pub curr: usize,
+    /// The root of the current visit tree.
+    pub root: usize,
+    /// The depth of the visit, that is, the length of the visit path from the
+    /// [root](`Self::root`) to [curr](`Self::curr`).
+    pub depth: usize,
+}
+
+/// Type of struct used as input for the filter in depth-first visits.
+pub struct FilterArgsPred {
+    /// The current node.
+    pub curr: usize,
+    /// The parent of [curr](`Self::curr`) in the visit tree.
+    pub pred: usize,
+    /// The root of the current visit tree.
+    pub root: usize,
+    /// The depth of the visit, that is, the length of the visit path from the
+    /// [root](`Self::root`) to [curr](`Self::curr`).
+    pub depth: usize,
+}
+
+impl VisitEventArgs for Event {
+    type FilterEventArgs = FilterArgs;
+}
+
+impl VisitEventArgs for EventPred {
+    type FilterEventArgs = FilterArgsPred;
 }
