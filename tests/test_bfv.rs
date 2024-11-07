@@ -1,6 +1,5 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
-use std::convert::Infallible;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
     labels::Left,
@@ -145,14 +144,14 @@ macro_rules! test_bfv_algo {
 }
 
 test_bfv_algo!(
-    webgraph_algo::prelude::breadth_first::Seq::<Infallible, _>::new,
+    webgraph_algo::prelude::breadth_first::Seq::<_>::new,
     sequential
 );
 test_bfv_algo!(
-    |g| { webgraph_algo::prelude::breadth_first::ParFair::<Infallible, _>::new(g, 32,) },
+    |g| { webgraph_algo::prelude::breadth_first::ParFair::<_>::new(g, 32,) },
     parallel
 );
 test_bfv_algo!(
-    |g| { webgraph_algo::prelude::breadth_first::ParLowMem::<Infallible, _>::new(g, 32,) },
+    |g| { webgraph_algo::prelude::breadth_first::ParLowMem::<_>::new(g, 32,) },
     parallel_fast_callback
 );

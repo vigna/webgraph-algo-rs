@@ -38,7 +38,7 @@ use webgraph::traits::RandomAccessGraph;
 /// // Let's compute the distances from 0
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::ParLowMem::<Infallible, _>::new(&graph, 1);
+/// let mut visit = breadth_first::ParLowMem::<_>::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
@@ -51,13 +51,17 @@ use webgraph::traits::RandomAccessGraph;
 ///             Ok(())
 ///         },
 ///    no_logging![]
-/// );
+/// ).unwrap();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(d[1].load(Ordering::Relaxed), 1);
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-pub struct ParLowMem<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
+pub struct ParLowMem<
+    G: RandomAccessGraph,
+    E = std::convert::Infallible,
+    T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
+> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
@@ -65,7 +69,7 @@ pub struct ParLowMem<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = ray
     _phantom: std::marker::PhantomData<E>,
 }
 
-impl<E, G: RandomAccessGraph> ParLowMem<E, G, rayon::ThreadPool> {
+impl<G: RandomAccessGraph, E> ParLowMem<G, E, rayon::ThreadPool> {
     /// Creates a low-memory parallel breadth-first visit with the [default number of
     /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
@@ -100,7 +104,7 @@ impl<E, G: RandomAccessGraph> ParLowMem<E, G, rayon::ThreadPool> {
     }
 }
 
-impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<E, G, T> {
+impl<G: RandomAccessGraph, E, T: Borrow<rayon::ThreadPool>> ParLowMem<G, E, T> {
     /// Creates a low-memory parallel top-down visit that uses the specified number of threads.
     ///
     /// # Arguments
@@ -124,8 +128,8 @@ impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<E, G, T> {
     }
 }
 
-impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
-    for ParLowMem<E, G, T>
+impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
+    for ParLowMem<G, E, T>
 {
     fn visit_filtered<
         C: Fn(EventPred) -> Result<(), E> + Sync,

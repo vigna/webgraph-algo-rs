@@ -121,7 +121,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
         'a,
         G,
         C,
-        ParFairNoPred<Infallible, &'a G, rayon::ThreadPool>,
+        ParFairNoPred<&'a G, Infallible, rayon::ThreadPool>,
         rayon::ThreadPool,
     > {
         let mut builder =
@@ -152,7 +152,7 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParFairNoPred<Infallible, &'a G, T>, T> {
+    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParFairNoPred<&'a G, Infallible, T>, T> {
         let builder =
             SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
                 .scc::<C>()
