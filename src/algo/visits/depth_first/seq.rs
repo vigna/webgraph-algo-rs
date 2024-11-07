@@ -1,7 +1,4 @@
-use crate::algo::visits::{
-    depth_first::{Args, Event},
-    Data, Node, NodePred, Sequential,
-};
+use crate::algo::visits::{depth_first::Event, Data, Node, NodePred, Sequential};
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
 use sux::bits::BitVec;
@@ -243,10 +240,10 @@ impl NodeStates for TwoStates {
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
+impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
     for SeqIter<'a, NodePred, S, E, G, usize>
 {
-    fn visit_filtered<C: FnMut(&ArgsPred) -> Result<(), E>, F: FnMut(&ArgsPred) -> bool>(
+    fn visit_filtered<C: FnMut(&EventPred) -> Result<(), E>, F: FnMut(&EventPred) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -259,11 +256,10 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
             return Ok(());
         }
 
-        let args = Args {
+        let args = EventPred::Previsit {
             data: NodePred::new(root, root),
             root,
             depth: 0,
-            event: EventPred::Previsit,
         };
 
         if !filter(&args) {
@@ -294,19 +290,18 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
                 // Check if node should be visited
                 if state.known(succ) {
                     // Node has already been discovered
-                    callback(&Args {
+                    callback(&EventPred::Revisit {
                         data: NodePred::new(succ, current_node),
                         root,
                         depth: depth + 1,
-                        event: EventPred::Revisit(state.on_stack(succ)),
+                        on_stack: state.on_stack(succ),
                     })?;
                 } else {
                     // First time seeing node
-                    let args = Args {
+                    let args = EventPred::Previsit {
                         data: NodePred::new(succ, current_node),
                         root,
                         depth: depth + 1,
-                        event: EventPred::Previsit,
                     };
 
                     if filter(&args) {
@@ -329,14 +324,11 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
 
             pl.light_update();
 
-            callback(
-                &(Args {
-                    data: NodePred::new(current_node, *parent),
-                    root,
-                    depth,
-                    event: EventPred::Postvisit,
-                }),
-            )?;
+            callback(&EventPred::Postvisit {
+                data: NodePred::new(current_node, *parent),
+                root,
+                depth,
+            })?;
 
             state.set_off_stack(current_node);
 
@@ -347,7 +339,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
         }
     }
 
-    fn visit_all_filtered<C: FnMut(&ArgsPred) -> Result<(), E>, F: FnMut(&ArgsPred) -> bool>(
+    fn visit_all_filtered<C: FnMut(&EventPred) -> Result<(), E>, F: FnMut(&EventPred) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,
@@ -366,10 +358,8 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<ArgsPred, E>
     }
 }
 
-impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
-    for SeqIter<'a, Node, TwoStates, E, G, ()>
-{
-    fn visit_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
+impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, Node, TwoStates, E, G, ()> {
+    fn visit_filtered<C: FnMut(&Event) -> Result<(), E>, F: FnMut(&Event) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -382,11 +372,10 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
             return Ok(());
         }
 
-        let args = Args {
+        let args = Event::Previsit {
             data: Node { curr: root },
             root,
             depth: 0,
-            event: Event::Previsit,
         };
 
         if !filter(&args) {
@@ -411,19 +400,18 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
                 // Check if node should be visited
                 if state.known(succ) {
                     // Node has already been discovered
-                    callback(&Args {
+                    callback(&Event::Revisit {
                         data: Node { curr: succ },
                         root,
                         depth: depth + 1,
-                        event: Event::Revisit,
+                        on_stack: false,
                     })?;
                 } else {
                     // First time seeing node
-                    let args = Args {
+                    let args = Event::Previsit {
                         data: Node { curr: succ },
                         root,
                         depth: depth + 1,
-                        event: Event::Previsit,
                     };
 
                     if filter(&args) {
@@ -447,7 +435,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
         }
     }
 
-    fn visit_all_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
+    fn visit_all_filtered<C: FnMut(&Event) -> Result<(), E>, F: FnMut(&Event) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,

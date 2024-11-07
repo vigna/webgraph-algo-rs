@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::algo::visits::{depth_first::*, Data, Sequential, StoppedWhenDone};
+use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 
 use webgraph::traits::RandomAccessGraph;
@@ -68,48 +68,46 @@ impl<G: RandomAccessGraph> Tarjan<G> {
 
         if visit
             .visit_all(
-                |&Args {
-                     data,
-                     root: _root,
-                     depth: _depth,
-                     event,
-                 }| {
-                    let curr = data.curr();
-                    let pred = data.pred();
-                    match event {
-                        EventPred::Init => {
+                |&args| {
+                    match args {
+                        EventPred::Init { .. } => {
                             root_low_link = current_index;
                         }
-                        EventPred::Previsit => {
-                            low_link[curr] = current_index;
+                        EventPred::Previsit { data, .. } => {
+                            low_link[data.curr] = current_index;
                             current_index += 1;
                             lead.push(true);
                         }
-                        EventPred::Revisit(true) => {
-                            if low_link[curr] < low_link[pred] {
-                                // Safe as the stack is never empty
-                                *lead.last_mut().unwrap() = false;
-                                low_link[pred] = low_link[curr];
+                        EventPred::Revisit { on_stack, data, .. } => {
+                            let (curr, pred) = (data.curr, data.pred);
+                            if on_stack {
+                                if low_link[curr] < low_link[pred] {
+                                    // Safe as the stack is never empty
+                                    *lead.last_mut().unwrap() = false;
+                                    low_link[pred] = low_link[curr];
 
-                                if low_link[pred] == root_low_link && current_index == num_nodes {
-                                    // All nodes have been discovered, and we
-                                    // found a low link identical to that of the
-                                    // root: thus, the current node, all nodes
-                                    // on the visit path and all nodes in the
-                                    // component stack belong to the same
-                                    // component.
+                                    if low_link[pred] == root_low_link && current_index == num_nodes
+                                    {
+                                        // All nodes have been discovered, and we
+                                        // found a low link identical to that of the
+                                        // root: thus, the current node, all nodes
+                                        // on the visit path and all nodes in the
+                                        // component stack belong to the same
+                                        // component.
 
-                                    low_link[curr] = self.number_of_components;
-                                    for &node in component_stack.iter() {
-                                        low_link[node] = self.number_of_components;
+                                        low_link[curr] = self.number_of_components;
+                                        for &node in component_stack.iter() {
+                                            low_link[node] = self.number_of_components;
+                                        }
+                                        // Nodes on the visit path will be assigned
+                                        // to the same component later
+                                        return Err(StoppedWhenDone {});
                                     }
-                                    // Nodes on the visit path will be assigned
-                                    // to the same component later
-                                    return Err(StoppedWhenDone {});
                                 }
                             }
                         }
-                        EventPred::Postvisit => {
+                        EventPred::Postvisit { data, .. } => {
+                            let (curr, pred) = (data.curr, data.pred);
                             // Safe as the stack is never empty
                             if lead.pop().unwrap() {
                                 // Set the component index of nodes in the component
@@ -136,7 +134,6 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 }
                             }
                         }
-                        _ => {}
                     }
                     Ok(())
                 },
