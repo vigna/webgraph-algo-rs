@@ -54,6 +54,10 @@ pub struct Interrupted {}
 #[error("Stopped when done")]
 pub struct StoppedWhenDone {}
 
+pub trait VisitEventArgs {
+    type FilterEventArgs;
+}
+
 /// A sequential visit.
 ///
 /// Implementation of this trait must provide the
@@ -61,7 +65,7 @@ pub struct StoppedWhenDone {}
 /// visit of a graph starting from a given node, and the
 /// [`visit_all_filtered`](Sequential::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait Sequential<A, E> {
+pub trait Sequential<A: VisitEventArgs, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -72,7 +76,7 @@ pub trait Sequential<A, E> {
     /// * `filter`: The filter function.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
+    fn visit_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A::FilterEventArgs) -> bool>(
         &mut self,
         root: usize,
         callback: C,
@@ -98,7 +102,7 @@ pub trait Sequential<A, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit_filtered`](Sequential::visit) for more details.
-    fn visit_all_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A) -> bool>(
+    fn visit_all_filtered<C: FnMut(&A) -> Result<(), E>, F: FnMut(&A::FilterEventArgs) -> bool>(
         &mut self,
         callback: C,
         filter: F,
@@ -130,7 +134,7 @@ pub trait Sequential<A, E> {
 /// visit of a graph starting from a given node, and the
 /// [`visit_all_filtered`](Parallel::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait Parallel<A, E> {
+pub trait Parallel<A: VisitEventArgs, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -142,7 +146,10 @@ pub trait Parallel<A, E> {
     ///    determine whether the node should be visited or not.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
+    fn visit_filtered<
+        C: Fn(&A) -> Result<(), E> + Sync,
+        F: Fn(&A::FilterEventArgs) -> bool + Sync,
+    >(
         &mut self,
         root: usize,
         callback: C,
@@ -168,7 +175,10 @@ pub trait Parallel<A, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit`](Parallel::visit_filtered) for more details.
-    fn visit_all_filtered<C: Fn(&A) -> Result<(), E> + Sync, F: Fn(&A) -> bool + Sync>(
+    fn visit_all_filtered<
+        C: Fn(&A) -> Result<(), E> + Sync,
+        F: Fn(&A::FilterEventArgs) -> bool + Sync,
+    >(
         &mut self,
         callback: C,
         filter: F,

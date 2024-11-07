@@ -1,4 +1,7 @@
-use crate::algo::visits::{breadth_first::Event, Data, NodePred, Parallel};
+use crate::algo::visits::{
+    breadth_first::{Event, FilterArgs},
+    Data, NodePred, Parallel,
+};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
@@ -127,7 +130,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
 {
     fn visit_filtered<
         C: Fn(&Event<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(&Event<NodePred>) -> bool + Sync,
+        F: Fn(&FilterArgs<NodePred>) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -135,12 +138,13 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = Event::Unknown {
-            data: NodePred::new(root, root),
-            root,
-            distance: 0,
-        };
-        if self.visited.get(root, Ordering::Relaxed) || !filter(&args) {
+        if self.visited.get(root, Ordering::Relaxed)
+            || !filter(&FilterArgs {
+                data: NodePred::new(root, root),
+                root,
+                distance: 0,
+            })
+        {
             return Ok(());
         }
 
@@ -153,7 +157,11 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
 
         self.visited.set(root, true, Ordering::Relaxed);
 
-        callback(&args)?;
+        callback(&Event::Unknown {
+            data: NodePred::new(root, root),
+            root,
+            distance: 0,
+        })?;
 
         let mut distance = 1;
 
@@ -169,14 +177,17 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let args = Event::Unknown {
+                                    if filter(&FilterArgs {
                                         data: NodePred::new(succ, node),
                                         root,
                                         distance,
-                                    };
-                                    if filter(&args) {
+                                    }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            callback(&args)?;
+                                            callback(&Event::Unknown {
+                                                data: NodePred::new(succ, node),
+                                                root,
+                                                distance,
+                                            })?;
                                             next_frontier.push(succ);
                                         } else {
                                             callback(&Event::Known {
@@ -204,7 +215,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
 
     fn visit_all_filtered<
         C: Fn(&Event<NodePred>) -> Result<(), E> + Sync,
-        F: Fn(&Event<NodePred>) -> bool + Sync,
+        F: Fn(&FilterArgs<NodePred>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

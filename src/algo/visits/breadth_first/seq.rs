@@ -1,4 +1,7 @@
-use crate::algo::visits::{breadth_first::Event, Data, NodePred, Sequential};
+use crate::algo::visits::{
+    breadth_first::{Event, FilterArgs},
+    Data, NodePred, Sequential,
+};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
@@ -76,7 +79,7 @@ impl<E, G: RandomAccessGraph> Seq<E, G> {
 impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
     fn visit_filtered<
         C: FnMut(&Event<NodePred>) -> Result<(), E>,
-        F: FnMut(&Event<NodePred>) -> bool,
+        F: FnMut(&FilterArgs<NodePred>) -> bool,
     >(
         &mut self,
         root: usize,
@@ -84,16 +87,21 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
         mut filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = Event::Unknown {
-            data: NodePred::new(root, root),
-            root,
-            distance: 0,
-        };
-        if self.visited[root] || !filter(&args) {
+        if self.visited[root]
+            || !filter(&FilterArgs {
+                data: NodePred::new(root, root),
+                root,
+                distance: 0,
+            })
+        {
             return Ok(());
         }
 
-        callback(&args)?;
+        callback(&Event::Unknown {
+            data: NodePred::new(root, root),
+            root,
+            distance: 0,
+        })?;
 
         self.visited.set(root, true);
         self.queue.push_back(Some(
@@ -109,13 +117,16 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
                     let node = node.into();
                     for succ in self.graph.successors(node) {
                         if !self.visited[succ] {
-                            let args = Event::Unknown {
+                            if filter(&FilterArgs {
                                 data: NodePred::new(succ, node),
                                 root,
                                 distance,
-                            };
-                            if filter(&args) {
-                                callback(&args)?;
+                            }) {
+                                callback(&Event::Unknown {
+                                    data: NodePred::new(succ, node),
+                                    root,
+                                    distance,
+                                })?;
                                 self.visited.set(succ, true);
                                 self.queue.push_back(Some(
                                     NonMaxUsize::new(succ)
@@ -147,7 +158,7 @@ impl<E, G: RandomAccessGraph> Sequential<Event<NodePred>, E> for Seq<E, G> {
 
     fn visit_all_filtered<
         C: FnMut(&Event<NodePred>) -> Result<(), E>,
-        F: FnMut(&Event<NodePred>) -> bool,
+        F: FnMut(&FilterArgs<NodePred>) -> bool,
     >(
         &mut self,
         mut callback: C,

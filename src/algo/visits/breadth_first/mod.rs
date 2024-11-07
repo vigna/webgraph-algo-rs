@@ -26,7 +26,7 @@ pub use par_fair::*;
 mod par_low_mem;
 pub use par_low_mem::*;
 
-use super::Data;
+use super::{Data, VisitEventArgs};
 
 /// Types of callback events generated during a breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -64,4 +64,19 @@ pub enum Event<D: Data> {
         /// The root of the current visit tree.
         root: usize,
     },
+}
+
+/// Type of struct used as input for the filter in breadth-first visits.
+pub struct FilterArgs<D: Data> {
+    /// The available data, that is, the current node and possibly its
+    /// predecessor (if `D` is [`NodePred`](super::NodePred)).
+    pub data: D,
+    /// The root of the current visit tree.
+    pub root: usize,
+    /// The distance of the current node from the [root](`Event::Unknown::root`).
+    pub distance: usize,
+}
+
+impl<D: Data> VisitEventArgs for Event<D> {
+    type FilterEventArgs = FilterArgs<D>;
 }

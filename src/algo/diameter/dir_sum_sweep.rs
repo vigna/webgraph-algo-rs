@@ -1086,12 +1086,7 @@ impl<
                         };
                         Ok(())
                     },
-                    |args| match args {
-                        Event::Unknown { data, .. } => components[data.curr()] == pivot_component,
-                        _ => {
-                            panic!()
-                        }
-                    },
+                    |args| components[args.data.curr()] == pivot_component,
                     no_logging![],
                 )
                 .unwrap_infallible();
