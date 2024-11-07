@@ -42,7 +42,7 @@ fn main() -> Result<()> {
                 SumSweepOutputLevel::RadiusDiameter,
             )
             .build(&mut main_pl);
-            diameter.compute(&mut main_pl)?;
+            diameter.compute(&mut main_pl);
         }
         "hyperball" => {
             let log2m = std::env::args()

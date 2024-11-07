@@ -26,7 +26,7 @@ fn test_path() -> Result<()> {
     let mut sum_sweep =
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.eccentricity(0, true), Some(2));
     assert_eq!(sum_sweep.eccentricity(1, true), Some(1));
@@ -79,7 +79,7 @@ fn test_many_scc() -> Result<()> {
         SumSweepOutputLevel::Radius,
     )
     .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(2));
     assert_eq!(sum_sweep.radial_vertex(), Some(1));
@@ -110,7 +110,7 @@ fn test_lozenge() -> Result<()> {
         SumSweepOutputLevel::Radius,
     )
     .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(2));
     assert!(sum_sweep.radial_vertex() == Some(0) || sum_sweep.radial_vertex() == Some(1));
@@ -159,7 +159,7 @@ fn test_many_dir_path() -> Result<()> {
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .radial_vertices(Some(radial_vertices))
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.diameter(), Some(6));
     assert_eq!(sum_sweep.radius(), Some(1));
@@ -195,7 +195,7 @@ fn test_cycle() -> Result<()> {
             SumSweepOutputLevel::RadiusDiameter,
         )
         .build(no_logging![]);
-        sum_sweep.compute(no_logging![])?;
+        sum_sweep.compute(no_logging![]);
 
         assert_eq!(sum_sweep.diameter(), Some(size - 1));
         assert_eq!(sum_sweep.radius(), Some(size - 1));
@@ -247,7 +247,7 @@ fn test_clique() -> Result<()> {
         )
         .radial_vertices(Some(radial_vertices))
         .build(no_logging![]);
-        sum_sweep.compute(no_logging![])?;
+        sum_sweep.compute(no_logging![]);
 
         for i in 0..size {
             assert_eq!(sum_sweep.eccentricity(i, true), Some(1));
@@ -272,7 +272,7 @@ fn test_empty() -> Result<()> {
     let mut sum_sweep =
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(0));
     assert_eq!(sum_sweep.diameter(), Some(0));
@@ -300,7 +300,7 @@ fn test_sparse() -> Result<()> {
     let mut sum_sweep =
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(1));
     assert_eq!(sum_sweep.radial_vertex(), Some(10));
@@ -330,7 +330,7 @@ fn test_no_radial_vertices() -> Result<()> {
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .radial_vertices(Some(radial_vertices))
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(usize::MAX));
 
@@ -349,7 +349,7 @@ fn test_empty_graph() -> Result<()> {
     let mut sum_sweep =
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), None);
     assert_eq!(sum_sweep.diameter(), None);
@@ -372,7 +372,7 @@ fn test_graph_no_edges() -> Result<()> {
     let mut sum_sweep =
         SumSweepDirectedDiameterRadiusBuilder::new(&graph, &transposed, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(0));
     assert_eq!(sum_sweep.diameter(), Some(0));

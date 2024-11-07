@@ -13,7 +13,6 @@ use crate::{
     },
     utils::Threads,
 };
-use anyhow::Result;
 use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
 use std::convert::Infallible;
@@ -271,7 +270,7 @@ where
     /// # Arguments
     /// * `pl`: A progress logger.
     #[inline(always)]
-    pub fn compute(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
+    pub fn compute(&mut self, pl: &mut impl ProgressLog) {
         self.inner.compute(pl)
     }
 }

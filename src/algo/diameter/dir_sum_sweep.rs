@@ -10,7 +10,6 @@ use crate::{
     traits::StronglyConnectedComponents,
     utils::*,
 };
-use anyhow::{Context, Result};
 use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
@@ -416,16 +415,19 @@ impl<
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
+    #[inline(always)]
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
         self.lower_bound_forward_eccentricities[index]
             != self.upper_bound_forward_eccentricities[index]
     }
 
+    #[inline(always)]
     fn incomplete_backward_vertex(&self, index: usize) -> bool {
         self.lower_bound_backward_eccentricities[index]
             != self.upper_bound_backward_eccentricities[index]
     }
 
+    #[inline(always)]
     fn forward_eccentricity(&self, index: usize) -> Option<usize> {
         if self.incomplete_forward_vertex(index) {
             None
@@ -438,6 +440,7 @@ impl<
         }
     }
 
+    #[inline(always)]
     fn backward_eccentricity(&self, index: usize) -> Option<usize> {
         if self.incomplete_backward_vertex(index) {
             None
@@ -456,18 +459,12 @@ impl<
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
     /// * `pl`: A progress logger.
-    fn sum_sweep_heuristic(
-        &mut self,
-        start: usize,
-        iterations: usize,
-        pl: &mut impl ProgressLog,
-    ) -> Result<()> {
+    fn sum_sweep_heuristic(&mut self, start: usize, iterations: usize, pl: &mut impl ProgressLog) {
         pl.info(format_args!(
             "Performing initial SumSweep visit from {}.",
             start
         ));
-        self.step_sum_sweep(Some(start), true, pl)
-            .with_context(|| "Could not perform initial SumSweep visit")?;
+        self.step_sum_sweep(Some(start), true, pl);
 
         for i in 2..=iterations {
             if i % 2 == 0 {
@@ -480,8 +477,7 @@ impl<
                     "Performing backwards SumSweep visit from {:?}",
                     v
                 ));
-                self.step_sum_sweep(v, false, pl)
-                    .with_context(|| format!("Could not perform backwards visit from {:?}", v))?;
+                self.step_sum_sweep(v, false, pl);
             } else {
                 let v = math::filtered_argmax(
                     &self.total_forward_distance,
@@ -492,12 +488,9 @@ impl<
                     "Performing forward SumSweep visit from {:?}.",
                     v
                 ));
-                self.step_sum_sweep(v, true, pl)
-                    .with_context(|| format!("Could not perform forward visit from {:?}", v))?;
+                self.step_sum_sweep(v, true, pl);
             }
         }
-
-        Ok(())
     }
 
     /// Computes diameter, radius, and/or all eccentricities.
@@ -507,15 +500,14 @@ impl<
     ///
     /// # Arguments
     /// * `pl`: A progress logger.
-    pub fn compute(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
+    pub fn compute(&mut self, pl: &mut impl ProgressLog) {
         if self.number_of_nodes == 0 {
-            return Ok(());
+            return;
         }
         pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
-            self.compute_radial_vertices(pl)
-                .with_context(|| "Could not compute radial vertices")?;
+            self.compute_radial_vertices(pl);
         }
 
         let max_outdegree_vertex = AtomicUsize::new(0);
@@ -539,13 +531,10 @@ impl<
             });
         });
 
-        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl)
-            .with_context(|| "Could not perform first 6 iterations of SumSweep heuristic.")?;
+        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl);
 
         let mut points = [self.graph.num_nodes() as f64; 5];
-        let mut missing_nodes = self
-            .find_missing_nodes(pl)
-            .with_context(|| "Could not compute missing nodes")?;
+        let mut missing_nodes = self.find_missing_nodes(pl);
         let mut old_missing_nodes;
 
         pl.info(format_args!(
@@ -555,17 +544,13 @@ impl<
         ));
 
         while missing_nodes > 0 {
-            let step_to_perform =
-                math::argmax(&points).with_context(|| "Could not find step to perform")?;
+            let step_to_perform = math::argmax(&points).expect("Could not find step to perform");
 
             match step_to_perform {
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
-                    let pivot = self
-                        .find_best_pivot(pl)
-                        .with_context(|| "Could not find best pivot for allCCUpperBound")?;
+                    let pivot = self.find_best_pivot(pl);
                     self.all_cc_upper_bound(pivot, pl)
-                        .with_context(|| "Could not perform allCCUpperBound")?
                 }
                 1 => {
                     pl.info(format_args!(
@@ -577,7 +562,6 @@ impl<
                         |i, _| self.incomplete_forward_vertex(i),
                     );
                     self.step_sum_sweep(v, true, pl)
-                        .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 2 => {
                     pl.info(format_args!(
@@ -589,7 +573,6 @@ impl<
                         |i, _| self.radial_vertices[i],
                     );
                     self.step_sum_sweep(v, true, pl)
-                        .with_context(|| format!("Could not perform forward visit from {:?}", v))?
                 }
                 3 => {
                     pl.info(format_args!(
@@ -600,9 +583,7 @@ impl<
                         &self.total_backward_distance,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, pl).with_context(|| {
-                        format!("Could not perform backwards visit from {:?}", v)
-                    })?
+                    self.step_sum_sweep(v, false, pl)
                 }
                 4 => {
                     pl.info(format_args!(
@@ -613,17 +594,13 @@ impl<
                         &self.upper_bound_backward_eccentricities,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, pl).with_context(|| {
-                        format!("Could not perform backwards visit from {:?}", v)
-                    })?
+                    self.step_sum_sweep(v, false, pl)
                 }
                 5.. => panic!(),
             }
 
             old_missing_nodes = missing_nodes;
-            missing_nodes = self
-                .find_missing_nodes(pl)
-                .with_context(|| "Could not compute missing nodes")?;
+            missing_nodes = self.find_missing_nodes(pl);
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             // This is to make rust-analyzer happy as it cannot recognize mut reference
@@ -662,11 +639,10 @@ impl<
             ));
         }
         pl.done();
-
-        Ok(())
     }
 
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn radius(&self) -> Option<usize> {
         if self.radius_iterations.is_none() {
             None
@@ -676,6 +652,7 @@ impl<
     }
 
     /// Returns the diameter of the graph if is has already been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn diameter(&self) -> Option<usize> {
         if self.diameter_iterations.is_none() {
             None
@@ -685,6 +662,7 @@ impl<
     }
 
     /// Returns a radial vertex if it has already been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn radial_vertex(&self) -> Option<usize> {
         if self.radius_iterations.is_none() {
             None
@@ -694,6 +672,7 @@ impl<
     }
 
     /// Returns a diametral vertex if it has already been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn diametral_vertex(&self) -> Option<usize> {
         if self.diameter_iterations.is_none() {
             None
@@ -708,6 +687,7 @@ impl<
     /// * `vertex`: The vertex.
     /// * `forward`: Whether to return the forward eccentricity (if `true`) or the backward
     ///   eccentricity (if `false`).
+    #[inline(always)]
     pub fn eccentricity(&self, vertex: usize, forward: bool) -> Option<usize> {
         if forward {
             self.forward_eccentricity(vertex)
@@ -718,24 +698,28 @@ impl<
 
     /// Returns the number of iterations needed to compute the radius if it has already
     /// been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn radius_iterations(&self) -> Option<usize> {
         self.radius_iterations.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute the diameter if it has already
     /// been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn diameter_iterations(&self) -> Option<usize> {
         self.diameter_iterations.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute all forward eccentricities
     /// if they have already been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn all_forward_iterations(&self) -> Option<usize> {
         self.forward_eccentricities_iterations.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute all eccentricities if they
     /// have already been computed, [`None`] otherwise.
+    #[inline(always)]
     pub fn all_iterations(&self) -> Option<usize> {
         self.all_eccentricities_iterations.map(|v| v.into())
     }
@@ -745,7 +729,7 @@ impl<
     ///
     /// # Arguments
     /// * `pl`: A progress logger..
-    fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Result<Vec<usize>> {
+    fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Vec<usize> {
         debug_assert!(self.number_of_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> =
@@ -800,7 +784,7 @@ impl<
 
         pl.done();
 
-        Ok(pivot.into_iter().map(|x| x.unwrap().into()).collect())
+        pivot.into_iter().map(|x| x.unwrap().into()).collect()
     }
 
     /// Computes and stores in variable [`Self::radial_vertices`] the set of vertices that are
@@ -809,9 +793,9 @@ impl<
     ///
     /// # Arguments
     /// * `pl`: A progress logger..
-    fn compute_radial_vertices(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
+    fn compute_radial_vertices(&mut self, pl: &mut impl ProgressLog) {
         if self.number_of_nodes == 0 {
-            return Ok(());
+            return;
         }
 
         pl.expected_updates(None);
@@ -821,8 +805,7 @@ impl<
 
         let component = self.strongly_connected_components.component();
         let scc_sizes = self.strongly_connected_components.compute_sizes();
-        let max_size_scc =
-            math::argmax(&scc_sizes).with_context(|| "Could not find max size scc.")?;
+        let max_size_scc = math::argmax(&scc_sizes).expect("Could not find max size scc.");
 
         pl.info(format_args!(
             "Searching for biggest strongly connected component"
@@ -855,8 +838,6 @@ impl<
         self.transposed_visit.reset();
 
         pl.done();
-
-        Ok(())
     }
 
     /// Performs a (forward or backward) BFS, updating lower bounds on the eccentricities
@@ -867,27 +848,19 @@ impl<
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
     /// * `pl`: A progress logger.
-    fn step_sum_sweep(
-        &mut self,
-        start: Option<usize>,
-        forward: bool,
-        pl: &mut impl ProgressLog,
-    ) -> Result<()> {
+    fn step_sum_sweep(&mut self, start: Option<usize>, forward: bool, pl: &mut impl ProgressLog) {
         if let Some(start) = start {
             if forward {
-                self.forward_step_sum_sweep(start, pl)
-                    .with_context(|| format!("Cannot perform forward visit from {}", start))?;
+                self.forward_step_sum_sweep(start, pl);
             } else {
-                self.backwards_step_sum_sweep(start, pl)
-                    .with_context(|| format!("Cannot perform backwards visit from {}", start))?;
+                self.backwards_step_sum_sweep(start, pl);
             }
             self.iterations += 1;
         }
-        Ok(())
     }
 
     #[inline(always)]
-    fn backwards_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) -> Result<()> {
+    fn backwards_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -969,12 +942,10 @@ impl<
         }
 
         pl.done();
-
-        Ok(())
     }
 
     #[inline(always)]
-    fn forward_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) -> Result<()> {
+    fn forward_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -1039,8 +1010,6 @@ impl<
         }
 
         pl.done();
-
-        Ok(())
     }
 
     /// Performs a (forward or backward) BFS inside each strongly connected component, starting
@@ -1064,23 +1033,21 @@ impl<
         pivot: &[usize],
         forward: bool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(Vec<usize>, Vec<usize>)> {
+    ) -> (Vec<usize>, Vec<usize>) {
         pl.expected_updates(None);
         pl.display_memory(false);
 
         let (dist_pivot, usize_ecc_pivot) = if forward {
             pl.start("Computing forward dist pivots");
             self.compute_dist_pivot_from_graph(pivot, self.graph)
-                .with_context(|| "Could not compute forward dist pivots")?
         } else {
             pl.start("Computing backwards dist pivots");
             self.compute_dist_pivot_from_graph(pivot, self.reversed_graph)
-                .with_context(|| "Could not compute backwards dist pivots")?
         };
 
         pl.done();
 
-        Ok((dist_pivot, usize_ecc_pivot))
+        (dist_pivot, usize_ecc_pivot)
     }
 
     #[inline(always)]
@@ -1088,7 +1055,7 @@ impl<
         &self,
         pivot: &[usize],
         graph: &(impl RandomAccessGraph + Sync),
-    ) -> Result<(Vec<usize>, Vec<usize>)> {
+    ) -> (Vec<usize>, Vec<usize>) {
         let components = self.strongly_connected_components.component();
         let ecc_pivot = closure_vec(
             || AtomicUsize::new(0),
@@ -1146,7 +1113,7 @@ impl<
             )
         };
 
-        Ok((dist_pivot, usize_ecc_pivot))
+        (dist_pivot, usize_ecc_pivot)
     }
 
     /// Performs a step of the ExactSumSweep algorithm.
@@ -1154,7 +1121,7 @@ impl<
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
     /// * `pl`: A progress logger.
-    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: &mut impl ProgressLog) -> Result<()> {
+    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: &mut impl ProgressLog) {
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
@@ -1164,12 +1131,8 @@ impl<
         ));
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
-        let dist_ecc_f = self
-            .compute_dist_pivot(&pivot, true, pl)
-            .with_context(|| "Could not compute forward dist pivot")?;
-        let dist_ecc_b = self
-            .compute_dist_pivot(&pivot, false, pl)
-            .with_context(|| "Could not compute backward dist pivot")?;
+        let dist_ecc_f = self.compute_dist_pivot(&pivot, true, pl);
+        let dist_ecc_b = self.compute_dist_pivot(&pivot, false, pl);
         let dist_pivot_f = dist_ecc_f.0;
         let mut ecc_pivot_f = dist_ecc_f.1;
         let dist_pivot_b = dist_ecc_b.0;
@@ -1284,15 +1247,13 @@ impl<
         self.iterations += 3;
 
         pl.done();
-
-        Ok(())
     }
 
     /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
     /// * `pl`: A progress logger.
-    fn find_missing_nodes(&mut self, pl: &mut impl ProgressLog) -> Result<usize> {
+    fn find_missing_nodes(&mut self, pl: &mut impl ProgressLog) -> usize {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(Some(self.number_of_nodes));
@@ -1364,7 +1325,7 @@ impl<
 
         pl.done();
 
-        Ok(match self.output {
+        match self.output {
             SumSweepOutputLevel::Radius => missing_r,
             SumSweepOutputLevel::Diameter => std::cmp::min(missing_df, missing_db),
             SumSweepOutputLevel::RadiusDiameter => {
@@ -1372,6 +1333,6 @@ impl<
             }
             SumSweepOutputLevel::AllForward => missing_all_forward,
             SumSweepOutputLevel::All => missing_all_backward + missing_all_forward,
-        })
+        }
     }
 }

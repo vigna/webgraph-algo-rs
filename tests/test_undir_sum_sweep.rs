@@ -20,7 +20,7 @@ fn test_path() -> Result<()> {
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
     assert_eq!(sum_sweep.eccentricity(1), Some(1));
@@ -67,7 +67,7 @@ fn test_star() -> Result<()> {
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
     assert_eq!(sum_sweep.eccentricity(1), Some(3));
@@ -112,7 +112,7 @@ fn test_lozenge() -> Result<()> {
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(2));
     assert!(sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap()) == sum_sweep.radius());
@@ -144,7 +144,7 @@ fn test_cycle() -> Result<()> {
             SumSweepOutputLevel::RadiusDiameter,
         )
         .build(no_logging![]);
-        sum_sweep.compute(no_logging![])?;
+        sum_sweep.compute(no_logging![]);
 
         assert_eq!(sum_sweep.diameter(), Some(size / 2));
         assert_eq!(sum_sweep.radius(), Some(size / 2));
@@ -177,7 +177,7 @@ fn test_clique() -> Result<()> {
         let mut sum_sweep =
             SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
                 .build(no_logging![]);
-        sum_sweep.compute(no_logging![])?;
+        sum_sweep.compute(no_logging![]);
 
         for i in 0..size {
             assert_eq!(sum_sweep.eccentricity(i), Some(1));
@@ -200,7 +200,7 @@ fn test_no_edges() -> Result<()> {
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::All)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(0));
     assert_eq!(sum_sweep.diameter(), Some(0));
@@ -225,7 +225,7 @@ fn test_sparse() -> Result<()> {
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(1));
 
@@ -241,7 +241,7 @@ fn test_empty() -> Result<()> {
     let mut sum_sweep =
         SumSweepUndirectedDiameterRadiusBuilder::new(&graph, SumSweepOutputLevel::Radius)
             .build(no_logging![]);
-    sum_sweep.compute(no_logging![])?;
+    sum_sweep.compute(no_logging![]);
 
     assert_eq!(sum_sweep.radius(), None);
     assert_eq!(sum_sweep.diameter(), None);
