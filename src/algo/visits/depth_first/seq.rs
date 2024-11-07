@@ -52,7 +52,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 ///        },
 ///        no_logging![]
 ///    ).is_err()); // As the graph is not acyclic
-///
+
 pub struct Seq<'a, S, E, G: RandomAccessGraph> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node

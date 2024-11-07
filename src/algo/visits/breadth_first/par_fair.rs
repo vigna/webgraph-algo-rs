@@ -25,6 +25,45 @@ use super::{Args, Data};
 /// If you need predecessors but the cost of the callbacks is not significant
 /// you can use a [low-memory parallel
 /// visit](crate::algo::visits::breadth_first::ParLowMem) instead.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::convert::Infallible;
+/// use webgraph_algo::algo::visits::*;
+/// use breadth_first::{Args, Data, Node};
+/// use dsi_progress_logger::no_logging;
+/// use webgraph::graphs::vec_graph::VecGraph;
+/// use webgraph::labels::proj::Left;
+/// use std::sync::atomic::AtomicUsize;
+/// use std::sync::atomic::Ordering;
+///
+/// // Let's compute the distances from 0
+///
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+/// let mut visit = breadth_first::ParFair::<Node, Infallible, _>::new(&graph, 1);
+/// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
+/// visit.visit(
+///     0,
+///     |&Args{
+///         data,
+///         root: _root,
+///         distance,
+///         event,
+///     }|
+///         {
+///             // Set distance from 0
+///             if event == breadth_first::Event::Unknown {
+///                 d[data.curr()].store(distance, Ordering::Relaxed);
+///             }
+///             Ok(())
+///         },
+///    no_logging![]
+/// );
+/// assert_eq!(d[0].load(Ordering::Relaxed), 0);
+/// assert_eq!(d[1].load(Ordering::Relaxed), 1);
+/// assert_eq!(d[2].load(Ordering::Relaxed), 2);
+/// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 
 pub struct ParFair<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
     graph: G,
