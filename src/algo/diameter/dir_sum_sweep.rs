@@ -4,9 +4,9 @@ use crate::{
     algo::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
-        visits::{breadth_first::Event, breadth_first::ParFair, Parallel},
+        visits::{breadth_first::Event, breadth_first::ParFair, Data, Node, Parallel},
     },
-    prelude::breadth_first::{Args, Data, Node},
+    prelude::breadth_first::Args,
     traits::StronglyConnectedComponents,
     utils::*,
 };

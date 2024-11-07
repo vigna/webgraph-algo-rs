@@ -32,7 +32,7 @@ use super::{Args, Data};
 /// ```rust
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use breadth_first::{Args, Data, Node};
+/// use breadth_first::Args;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;

@@ -1,5 +1,5 @@
 use super::traits::StronglyConnectedComponents;
-use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
+use crate::algo::visits::{depth_first::*, Data, NodePred, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 
 use webgraph::traits::RandomAccessGraph;
@@ -53,7 +53,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
     }
 
     fn run(&mut self, pl: &mut impl ProgressLog) {
-        let mut visit = Seq::<ThreeStates, StoppedWhenDone, _>::new(&self.graph);
+        let mut visit = Seq::<NodePred, ThreeStates, StoppedWhenDone, _, _>::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));
@@ -69,22 +69,23 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         if visit
             .visit_all(
                 |&Args {
-                     curr,
-                     pred,
+                     data,
                      root: _root,
                      depth: _depth,
                      event,
                  }| {
+                    let curr = data.curr();
+                    let pred = data.pred();
                     match event {
-                        Event::Init => {
+                        EventPred::Init => {
                             root_low_link = current_index;
                         }
-                        Event::Previsit => {
+                        EventPred::Previsit => {
                             low_link[curr] = current_index;
                             current_index += 1;
                             lead.push(true);
                         }
-                        Event::Revisit(true) => {
+                        EventPred::Revisit(true) => {
                             if low_link[curr] < low_link[pred] {
                                 // Safe as the stack is never empty
                                 *lead.last_mut().unwrap() = false;
@@ -108,7 +109,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 }
                             }
                         }
-                        Event::Postvisit => {
+                        EventPred::Postvisit => {
                             // Safe as the stack is never empty
                             if lead.pop().unwrap() {
                                 // Set the component index of nodes in the component

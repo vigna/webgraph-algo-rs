@@ -1,12 +1,10 @@
-use crate::algo::visits::{breadth_first, Parallel};
+use crate::algo::visits::{breadth_first, Data, NodePred, Parallel};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::prelude::*;
 use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
-
-use super::{Data, NodePred};
 
 /// A low-memory parallel breadth-first visit.
 ///
@@ -28,7 +26,7 @@ use super::{Data, NodePred};
 /// ```rust
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use breadth_first::{Args, Data, Node};
+/// use breadth_first::Args;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;

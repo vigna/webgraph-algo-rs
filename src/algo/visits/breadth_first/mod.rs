@@ -16,7 +16,6 @@
 //! Visit that can always provide the predecessor (e.g., [`Seq`]) use directly
 //! `Args<NodePred>`. In general, can tell the fixed choice of `D` of an
 //! implementation by looking at the type of the argument of its callbacks.
-use sealed::sealed;
 
 mod seq;
 pub use seq::*;
@@ -26,6 +25,8 @@ pub use par_fair::*;
 
 mod par_low_mem;
 pub use par_low_mem::*;
+
+use super::Data;
 
 /// Types of callback events generated during a breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -45,64 +46,6 @@ pub enum Event {
     Known,
 }
 
-#[sealed]
-pub trait Data: Copy + Send + Sync {
-    #[doc(hidden)]
-    fn new(curr: usize, pred: usize) -> Self;
-    /// Returns the current node.
-    fn curr(&self) -> usize;
-}
-
-/// Data containing only the current node.
-///
-/// The only available method is [`curr`](`Data::curr`).
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Node {
-    curr: usize,
-}
-
-#[sealed]
-impl Data for Node {
-    #[inline(always)]
-    fn new(curr: usize, _ignored: usize) -> Self {
-        Self { curr }
-    }
-    #[inline(always)]
-    fn curr(&self) -> usize {
-        self.curr
-    }
-}
-
-/// Data containing the current node and its predecessor.
-///
-/// With respect to [`Node`], there is an additional method
-/// [`pred`](`NodePred::pred`) available.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct NodePred {
-    node: usize,
-    pred: usize,
-}
-
-#[sealed]
-impl Data for NodePred {
-    #[inline(always)]
-    fn new(node: usize, pred: usize) -> Self {
-        Self { node, pred }
-    }
-    #[inline(always)]
-    fn curr(&self) -> usize {
-        self.node
-    }
-}
-
-impl NodePred {
-    /// Returns the predecessor of current node.
-    #[inline(always)]
-    pub fn pred(&self) -> usize {
-        self.pred
-    }
-}
-
 /// Arguments for the callback of a breadth-first visit.
 ///
 /// The type parameter `D` can be either [`Node`] or [`NodePred`]
@@ -112,7 +55,7 @@ pub struct Args<D: Data> {
     /// The available data, that is, the current node and possibly its
     /// predecessor (if `D` is [`NodePred`]). When [`event`](`Self::event`) is
     /// [`Unknown`](`Event::Unknown`), the predecessor is the parent of the
-    /// current node.
+    /// current node in the visit tree.
     pub data: D,
     /// The root of the current visit tree.
     pub root: usize,

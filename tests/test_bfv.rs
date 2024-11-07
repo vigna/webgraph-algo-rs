@@ -8,7 +8,6 @@ use webgraph::{
     traits::{RandomAccessGraph, SequentialLabeling},
 };
 use webgraph_algo::algo::visits::*;
-use webgraph_algo::prelude::breadth_first::{Data, Node};
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
     let mut visits = vec![-1; graph.num_nodes()];

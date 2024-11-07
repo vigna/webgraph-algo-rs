@@ -1,12 +1,14 @@
 use crate::algo::visits::{
     depth_first::{Args, Event},
-    Sequential,
+    Data, Node, NodePred, Sequential,
 };
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
+
+use super::EventPred;
 
 /// A sequential depth-first visit.
 ///
@@ -31,6 +33,7 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 ///
 /// ```rust
 /// use webgraph_algo::algo::visits::*;
+/// use webgraph_algo::algo::visits::depth_first::*;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -38,13 +41,13 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 /// // Let's test acyclicity.
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = depth_first::Seq::<depth_first::ThreeStates, _, _>::new(&graph);
+/// let mut visit = depth_first::Seq::<NodePred, ThreeStates, _, _, _>::new(&graph);
 ///
 /// assert!(visit.visit_all(
 ///        |args|
 ///          {
 ///            // Stop the visit as soon as a back edge is found
-///            if args.event == depth_first::Event::Revisit(true) {
+///            if args.event == EventPred::Revisit(true) {
 ///                Err(StoppedWhenDone {})
 ///            } else {
 ///                Ok(())
@@ -53,22 +56,22 @@ use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 ///        no_logging![]
 ///    ).is_err()); // As the graph is not acyclic
 
-pub struct Seq<'a, S, E, G: RandomAccessGraph> {
+pub struct Seq<'a, D, S, E, G: RandomAccessGraph, P> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
     /// and the parent of the node. This approach makes it possible to avoid
     /// storing both the current and the parent node in the stack.
     stack: Vec<(
         <<G as RandomAccessLabeling>::Labels<'a> as IntoIterator>::IntoIter,
-        usize,
+        P,
     )>,
     state: S,
-    _phantom: std::marker::PhantomData<E>,
+    _phantom: std::marker::PhantomData<(D, E)>,
 }
 
 /// The iterator returned by the [`stack`](Seq::stack).
 pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
-    visit: &'b mut Seq<'a, S, E, G>,
+    visit: &'b mut Seq<'a, NodePred, S, E, G, usize>,
 }
 
 impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E, G> {
@@ -79,12 +82,12 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
+impl<'a, D, S: NodeStates, E, G: RandomAccessGraph, P> Seq<'a, D, S, E, G, P> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> Seq<'a, S, E, G> {
+    pub fn new(graph: &'a G) -> Seq<'a, D, S, E, G, P> {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
@@ -95,7 +98,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
     }
 }
 
-impl<'a, S, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
+impl<'a, S, E, G: RandomAccessGraph> Seq<'a, NodePred, S, E, G, usize> {
     /// Returns an iterator over the nodes stil on the visit path.
     ///
     /// Node will be returned in reverse order of visit.
@@ -191,8 +194,13 @@ impl NodeStates for TwoStates {
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a, S, E, G> {
-    fn visit_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
+impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args<NodePred, EventPred>, E>
+    for Seq<'a, NodePred, S, E, G, usize>
+{
+    fn visit_filtered<
+        C: FnMut(&Args<NodePred, EventPred>) -> Result<(), E>,
+        F: FnMut(&Args<NodePred, EventPred>) -> bool,
+    >(
         &mut self,
         root: usize,
         mut callback: C,
@@ -206,11 +214,10 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a,
         }
 
         let args = Args {
-            curr: root,
-            pred: root,
+            data: NodePred::new(root, root),
             root,
             depth: 0,
-            event: Event::Previsit,
+            event: EventPred::Previsit,
         };
 
         if !filter(&args) {
@@ -240,27 +247,20 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a,
             for succ in iter {
                 // Check if node should be visited
                 if state.known(succ) {
-                    // Node has already been visited
-                    let args = Args {
-                        curr: succ,
-                        pred: current_node,
+                    // Node has already been discovered
+                    callback(&Args {
+                        data: NodePred::new(succ, current_node),
                         root,
                         depth: depth + 1,
-                        event: Event::Revisit(state.on_stack(succ)),
-                    };
-                    if !filter(&args) {
-                        // We interrupt the visit
-                        return Ok(());
-                    }
-                    callback(&args)?;
+                        event: EventPred::Revisit(state.on_stack(succ)),
+                    })?;
                 } else {
                     // First time seeing node
                     let args = Args {
-                        curr: succ,
-                        pred: current_node,
+                        data: NodePred::new(succ, current_node),
                         root,
                         depth: depth + 1,
-                        event: Event::Previsit,
+                        event: EventPred::Previsit,
                     };
 
                     if filter(&args) {
@@ -285,11 +285,10 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a,
 
             callback(
                 &(Args {
-                    curr: current_node,
-                    pred: *parent,
+                    data: NodePred::new(current_node, *parent),
                     root,
                     depth,
-                    event: Event::Postvisit,
+                    event: EventPred::Postvisit,
                 }),
             )?;
 
@@ -302,7 +301,116 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<Args, E> for Seq<'a,
         }
     }
 
-    fn visit_all_filtered<C: FnMut(&Args) -> Result<(), E>, F: FnMut(&Args) -> bool>(
+    fn visit_all_filtered<
+        C: FnMut(&Args<NodePred, EventPred>) -> Result<(), E>,
+        F: FnMut(&Args<NodePred, EventPred>) -> bool,
+    >(
+        &mut self,
+        mut callback: C,
+        mut filter: F,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        for node in 0..self.graph.num_nodes() {
+            self.visit_filtered(node, &mut callback, &mut filter, pl)?;
+        }
+
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.stack.clear();
+        self.state.reset();
+    }
+}
+
+impl<'a, E, G: RandomAccessGraph> Sequential<Args<Node, Event>, E>
+    for Seq<'a, Node, TwoStates, E, G, ()>
+{
+    fn visit_filtered<
+        C: FnMut(&Args<Node, Event>) -> Result<(), E>,
+        F: FnMut(&Args<Node, Event>) -> bool,
+    >(
+        &mut self,
+        root: usize,
+        mut callback: C,
+        mut filter: F,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        let state = &mut self.state;
+
+        if state.known(root) {
+            return Ok(());
+        }
+
+        let args = Args {
+            data: Node { curr: root },
+            root,
+            depth: 0,
+            event: Event::Previsit,
+        };
+
+        if !filter(&args) {
+            // We ignore the node: it might be visited later
+            return Ok(());
+        }
+
+        state.set_known(root);
+
+        callback(&args)?;
+
+        self.stack
+            .push((self.graph.successors(root).into_iter(), ()));
+
+        'recurse: loop {
+            let depth = self.stack.len();
+            let Some((iter, _)) = self.stack.last_mut() else {
+                return Ok(());
+            };
+
+            for succ in iter {
+                // Check if node should be visited
+                if state.known(succ) {
+                    // Node has already been discovered
+                    callback(&Args {
+                        data: Node { curr: succ },
+                        root,
+                        depth: depth + 1,
+                        event: Event::Revisit(false),
+                    })?;
+                } else {
+                    // First time seeing node
+                    let args = Args {
+                        data: Node { curr: succ },
+                        root,
+                        depth: depth + 1,
+                        event: Event::Previsit,
+                    };
+
+                    if filter(&args) {
+                        state.set_known(succ);
+
+                        callback(&args)?;
+                        // current_node is the parent of succ
+                        self.stack
+                            .push((self.graph.successors(succ).into_iter(), ()));
+
+                        continue 'recurse;
+                    } // Else we ignore the node: it might be visited later
+                }
+            }
+
+            pl.light_update();
+
+            // We're going up one stack level, so the next current_node
+            // is the current parent.
+            self.stack.pop();
+        }
+    }
+
+    fn visit_all_filtered<
+        C: FnMut(&Args<Node, Event>) -> Result<(), E>,
+        F: FnMut(&Args<Node, Event>) -> bool,
+    >(
         &mut self,
         mut callback: C,
         mut filter: F,

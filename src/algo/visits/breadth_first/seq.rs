@@ -1,11 +1,10 @@
-use crate::algo::visits::{breadth_first, breadth_first::Args, Sequential};
+use crate::algo::visits::{breadth_first, breadth_first::Args, Data, NodePred, Sequential};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
-use super::{Data, NodePred};
 /// A sequential breadth-first visit.
 ///
 /// This implementation uses an algorithm that is slightly different from the
@@ -24,7 +23,7 @@ use super::{Data, NodePred};
 /// ```rust
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use breadth_first::{Args, Data, Node};
+/// use breadth_first::Args;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -132,7 +131,7 @@ impl<E, G: RandomAccessGraph> Sequential<Args<NodePred>, E> for Seq<E, G> {
                             }
                         } else {
                             callback(&Args {
-                                data: Data::new(succ, node),
+                                data: NodePred::new(succ, node),
                                 root,
                                 distance,
                                 event: breadth_first::Event::Known,

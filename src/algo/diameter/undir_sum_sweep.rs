@@ -5,10 +5,10 @@ use crate::{
             SumSweepOutputLevel,
         },
         scc::TarjanStronglyConnectedComponents,
-        visits::Parallel,
+        visits::{Node, Parallel},
     },
     prelude::{
-        breadth_first::{Args, Node, ParFair},
+        breadth_first::{Args, ParFair},
         *,
     },
     utils::Threads,

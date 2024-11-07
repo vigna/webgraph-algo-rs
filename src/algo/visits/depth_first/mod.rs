@@ -13,9 +13,12 @@
 mod seq;
 pub use seq::*;
 
-/// Types of callback events generated during a depth-first visit.
+use super::Data;
+
+/// Types of callback events generated during a depth-first visit
+/// keeping track of parent nodes.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum Event {
+pub enum EventPred {
     /// Initialization: all node fields are equal to the root and depth is 0.
     /// This event should be used to set up state at the start of the visit.
     Init,
@@ -35,20 +38,39 @@ pub enum Event {
     Postvisit,
 }
 
+/// Types of callback events generated during a depth-first visit
+/// not keeping track of parent nodes.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Event {
+    /// Initialization: all node fields are equal to the root and depth is 0.
+    /// This event should be used to set up state at the start of the visit.
+    Init,
+    /// The node has been encountered for the first time: we are traversing a
+    /// new tree arc, unless all fields or [`Args`] are equal to the root.
+    Previsit,
+    /// The node has been encountered before: we are traversing a back arc, a
+    /// forward arc, or a cross arc.
+    ///
+    /// If supported by the visit, the Boolean value denotes whether the node is
+    /// currently on the visit path, that is, if we are traversing a back arc,
+    /// and retreating from it.
+    Revisit(bool),
+}
+
 /// Arguments for the callback of a depth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Args {
-    /// The current node.
-    pub curr: usize,
-    /// The predecessor of [curr](`Self::curr`); when [`event`](`Self::event`)
-    /// is [`Previsit`](`Event::Previsit`) or [`Postvisit`](`Event::Postvisit`),
-    /// this is the parent of [`curr`](`Self::curr`) in the visit tree.
-    pub pred: usize,
+pub struct Args<D: Data, E> {
+    /// The available data, that is, the current node and possibly its
+    /// predecessor (if `D` is [`NodePred`](super::NodePred)). When
+    /// [`event`](`Self::event`) is [`Previsit`](`Event::Previsit`) or
+    /// [`Postvisit`](`Event::Postvisit`), this is the parent of the current
+    /// node in the visit tree.
+    pub data: D,
     /// The root of the current visit tree.
     pub root: usize,
     /// The depth of the visit, that is, the length of the visit path from the
     /// [root](`Self::root`) to [curr](`Self::curr`).
     pub depth: usize,
     /// The event that triggered the callback.
-    pub event: Event,
+    pub event: E,
 }

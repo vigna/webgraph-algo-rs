@@ -4,7 +4,7 @@ use dsi_progress_logger::prelude::*;
 use std::convert::Infallible;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::visits::breadth_first::*;
+use webgraph_algo::algo::visits::{breadth_first::*, Node};
 use webgraph_algo::algo::visits::{Parallel, Sequential};
 
 pub fn bench_bfv(c: &mut Criterion) {
