@@ -115,13 +115,13 @@ impl<E, G: RandomAccessGraph> Sequential<Args<NodePred>, E> for Seq<E, G> {
                 Some(node) => {
                     let node = node.into();
                     for succ in self.graph.successors(node) {
-                        let args = Args::<NodePred> {
-                            data: NodePred::new(succ, node),
-                            root,
-                            distance,
-                            event: breadth_first::Event::Unknown,
-                        };
                         if !self.visited[succ] {
+                            let args = Args {
+                                data: NodePred::new(succ, node),
+                                root,
+                                distance,
+                                event: breadth_first::Event::Unknown,
+                            };
                             if filter(&args) {
                                 callback(&args)?;
                                 self.visited.set(succ, true);
