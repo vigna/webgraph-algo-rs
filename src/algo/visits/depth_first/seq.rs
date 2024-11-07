@@ -65,22 +65,6 @@ pub struct Seq<'a, S, E, G: RandomAccessGraph> {
     _phantom: std::marker::PhantomData<E>,
 }
 
-impl<'a, E, G: RandomAccessGraph> Seq<'a, ThreeState, E, G> {
-    /// Creates a new sequential visit.
-    ///
-    /// # Arguments
-    /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> Self {
-        let num_nodes = graph.num_nodes();
-        Self {
-            graph,
-            stack: Vec::with_capacity(16),
-            state: ThreeState::new(num_nodes),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
 /// The iterator returned by the [`stack`](Seq::stack).
 pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
     visit: &'b mut Seq<'a, S, E, G>,
@@ -94,17 +78,17 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, E, G: RandomAccessGraph> Seq<'a, TwoState, E, G> {
+impl<'a, S: NodeState, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> Self {
+    pub fn new(graph: &'a G) -> Seq<'a, S, E, G> {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
             stack: Vec::with_capacity(16),
-            state: TwoState::new(num_nodes),
+            state: S::new(num_nodes),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -123,6 +107,7 @@ impl<'a, S, E, G: RandomAccessGraph> Seq<'a, S, E, G> {
 }
 
 trait NodeState {
+    fn new(n: usize) -> Self;
     fn set_on_stack(&mut self, node: usize);
     fn set_off_stack(&mut self, node: usize);
     fn on_stack(&self, node: usize) -> bool;
@@ -145,13 +130,10 @@ pub struct TwoState(BitVec);
 /// node associated with event is currently on the visit path.
 pub struct ThreeState(BitVec);
 
-impl ThreeState {
+impl NodeState for ThreeState {
     fn new(n: usize) -> ThreeState {
         ThreeState(BitVec::new(2 * n))
     }
-}
-
-impl NodeState for ThreeState {
     #[inline(always)]
     fn set_on_stack(&mut self, node: usize) {
         self.0.set(node * 2 + 1, true);
@@ -178,13 +160,10 @@ impl NodeState for ThreeState {
     }
 }
 
-impl TwoState {
+impl NodeState for TwoState {
     fn new(n: usize) -> TwoState {
         TwoState(BitVec::new(n))
     }
-}
-
-impl NodeState for TwoState {
     #[inline(always)]
     fn set_on_stack(&mut self, _node: usize) {}
     #[inline(always)]

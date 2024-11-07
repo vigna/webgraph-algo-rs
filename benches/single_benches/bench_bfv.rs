@@ -41,7 +41,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParallelBreadthFirstVisit::<Infallible, _>::new(g, 1);
+                    let mut visit = ParallelBreadthFirstVisit::<CurrItem, Infallible, _>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -55,7 +55,8 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParallelBreadthFirstVisit::<Infallible, _>::new(g, 64);
+                    let mut visit =
+                        ParallelBreadthFirstVisit::<CurrItem, Infallible, _>::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();

@@ -28,15 +28,63 @@ pub enum Event {
     /// with [`Unknown`](`Event::Unknown`) has already been called.
     Known,
 }
+pub trait QueueItem {
+    fn new(curr: usize, pred: usize) -> Self;
+    fn curr(&self) -> usize;
+    fn pred(&self) -> usize;
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct CurrItem {
+    curr: usize,
+}
+
+impl QueueItem for CurrItem {
+    #[inline(always)]
+    fn new(curr: usize, _ignored: usize) -> Self {
+        Self { curr }
+    }
+
+    #[inline(always)]
+    fn curr(&self) -> usize {
+        self.curr
+    }
+
+    #[inline(always)]
+    fn pred(&self) -> usize {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct CurrPredItem {
+    curr: usize,
+    pred: usize,
+}
+
+impl QueueItem for CurrPredItem {
+    #[inline(always)]
+    fn new(curr: usize, pred: usize) -> Self {
+        Self { curr, pred }
+    }
+
+    #[inline(always)]
+    fn curr(&self) -> usize {
+        self.curr
+    }
+
+    #[inline(always)]
+    fn pred(&self) -> usize {
+        self.pred
+    }
+}
 
 /// Convenience struct to pass arguments to the callback of a
 /// breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct Args {
-    /// The node.
-    pub curr: usize,
-    /// The parent of [node](`Self::node`) in the visit tree.
-    pub parent: usize,
+pub struct Args<I: QueueItem> {
+    /// The node (and possibly its predecessor) being visited.
+    pub item: I,
     /// The root of the current visit tree.
     pub root: usize,
     /// The distance of [node](`Self::node`) from the [root](`Self::root`).

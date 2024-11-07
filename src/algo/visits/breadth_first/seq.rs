@@ -4,17 +4,19 @@ use nonmax::NonMaxUsize;
 use std::collections::VecDeque;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
-/// A simple sequential Breadth First visit on a graph.
+
+use super::{CurrPredItem, QueueItem};
+/// A sequential breadth-first visit.
 ///
 /// This implementation uses an algorithm that is slightly different from the
-/// classical textbook one, as it does not store parents or distances of the
+/// classical textbook algorithm, as we do not store parents or distances of the
 /// nodes from the root. Parents and distances are computed on the fly and
 /// passed to the callback function by visiting nodes when they are discovered,
 /// rather than when they are extracted from the queue. This approach requires
-/// inserting a level separator between nodes at different distances: to
-/// obtain this result in a compact way, nodes are represented using
-/// [`NonMaxUsize`], so the `None` variant of `Option<NonMaxUsize>`
-/// can be used as a separator.
+/// inserting a level separator between nodes at different distances: to obtain
+/// this result in a compact way, nodes are represented using [`NonMaxUsize`],
+/// so the `None` variant of `Option<NonMaxUsize>` can be used as a separator.
+
 pub struct SingleThreadedBreadthFirstVisit<E, G: RandomAccessGraph> {
     graph: G,
     visited: BitVec,
@@ -41,12 +43,12 @@ impl<E, G: RandomAccessGraph> SingleThreadedBreadthFirstVisit<E, G> {
     }
 }
 
-impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
+impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args<CurrPredItem>, E>
     for SingleThreadedBreadthFirstVisit<E, G>
 {
     fn visit_filtered<
-        C: FnMut(&breadth_first::Args) -> Result<(), E>,
-        F: FnMut(&breadth_first::Args) -> bool,
+        C: FnMut(&breadth_first::Args<CurrPredItem>) -> Result<(), E>,
+        F: FnMut(&breadth_first::Args<CurrPredItem>) -> bool,
     >(
         &mut self,
         root: usize,
@@ -54,9 +56,8 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
         mut filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = breadth_first::Args {
-            curr: root,
-            parent: root,
+        let args = breadth_first::Args::<CurrPredItem> {
+            item: CurrPredItem::new(root, root),
             root,
             distance: 0,
             event: breadth_first::Event::Unknown,
@@ -80,9 +81,8 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
                 Some(node) => {
                     let node = node.into();
                     for succ in self.graph.successors(node) {
-                        let args = breadth_first::Args {
-                            curr: succ,
-                            parent: node,
+                        let args = breadth_first::Args::<CurrPredItem> {
+                            item: CurrPredItem::new(succ, node),
                             root,
                             distance,
                             event: breadth_first::Event::Unknown,
@@ -97,8 +97,7 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
                                 ))
                             } else {
                                 callback(&breadth_first::Args {
-                                    curr: succ,
-                                    parent: node,
+                                    item: QueueItem::new(succ, node),
                                     root,
                                     distance,
                                     event: breadth_first::Event::Known,
@@ -123,8 +122,8 @@ impl<E, G: RandomAccessGraph> SeqVisit<breadth_first::Args, E>
     }
 
     fn visit_all_filtered<
-        C: FnMut(&breadth_first::Args) -> Result<(), E>,
-        F: FnMut(&breadth_first::Args) -> bool,
+        C: FnMut(&breadth_first::Args<CurrPredItem>) -> Result<(), E>,
+        F: FnMut(&breadth_first::Args<CurrPredItem>) -> bool,
     >(
         &mut self,
         mut callback: C,

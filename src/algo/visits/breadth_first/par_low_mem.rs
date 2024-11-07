@@ -6,10 +6,22 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A parallel visit where the
-/// callback is called during successor enumeration, allowing to store only the nodes without their parents.
-/// This leads to slowdowns and less parallelization in the case where the callback is not trascurable relative
-/// to the visit logic but to performance improvements in case it is.
+use super::{CurrPredItem, QueueItem};
+
+/// A low-memory parallel breadth-first visit.
+///
+/// “Low memory” refers to the fact that the visit is parallelized by dividing
+/// the visit queue in chunks of approximately equal size, but nodes are visited
+/// when they are discovered, rather than when they are extracted from the visit
+/// queue. This approach makes unnecessary to store the parents of the nodes in
+/// the visit queue, thus reducing the memory usage. However, the visiting cost
+/// is distributed unevenly among the threads, as it depends on the sum of the
+/// outdegrees of the nodes in a chunk, which might differ significantly between
+/// chunks.
+///
+/// If the cost of the callbaks is significant, you can use a [fair parallel
+/// visit](crate::algo::visits::breadth_first::ParallelBreadthFirstVisit) to
+/// distribute the visiting cost evenly among the threads.
 pub struct ParallelBreadthFirstVisitFastCB<
     E,
     G: RandomAccessGraph,
@@ -23,24 +35,29 @@ pub struct ParallelBreadthFirstVisitFastCB<
 }
 
 impl<E, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<E, G, rayon::ThreadPool> {
-    /// Creates parallel top-down visit that uses less memory
-    /// but is less efficient with long callbacks.
+    /// Creates a low-memory parallel breadth-first visit.
     ///
     /// # Arguments
-    /// * `graph`: an immutable reference to the graph to visit.
-    /// * `granularity`: the number of nodes in each chunk of the frontier to explore per thread.
-    ///   High granularity reduces overhead, but may lead to decreased performance on graphs with skewed outdegrees.
+    ///
+    /// * `graph`: the graph to visit.
+    ///
+    /// * `granularity`: the number of nodes per chunk. High granularity reduces
+    ///   overhead, but may lead to decreased performance on graphs with a
+    ///   skewed outdegree distribution.
     pub fn new(graph: G, granularity: usize) -> Self {
         Self::with_num_threads(graph, granularity, 0)
     }
 
-    /// Creates a parallel top-down visit faster for quick callbacks but slower and less
-    /// for longer ones that uses the specified number of threads.
+    /// Creates a low-memory parallel top-down visit that uses the specified number of threads.
     ///
     /// # Arguments
-    /// * `graph`: an immutable reference to the graph to visit.
-    /// * `granularity`: the number of nodes in each chunk of the frontier to explore per thread.
-    ///   High granularity reduces overhead, but may lead to decreased performance on graphs with skewed outdegrees.
+    ///
+    /// * `graph`: the graph to visit.
+    ///
+    /// * `granularity`: the number of nodes per chunk. High granularity reduces
+    ///   overhead, but may lead to decreased performance on graphs with a
+    ///   skewed outdegree distribution.
+    ///
     /// * `num_threads`: the number of threads to use.
     pub fn with_num_threads(graph: G, granularity: usize, num_threads: usize) -> Self {
         let threads = rayon::ThreadPoolBuilder::new()
@@ -54,14 +71,17 @@ impl<E, G: RandomAccessGraph> ParallelBreadthFirstVisitFastCB<E, G, rayon::Threa
 impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
     ParallelBreadthFirstVisitFastCB<E, G, T>
 {
-    /// Creates a parallel top-down visit faster for quick callbacks but slower and less
-    /// for longer ones that uses the specified threadpool.
+    /// Creates a low-memory parallel top-down visit that uses the specified number of threads.
     ///
     /// # Arguments
-    /// * `graph`: an immutable reference to the graph to visit.
-    /// * `granularity`: the number of nodes in each chunk of the frontier to explore per thread.
-    ///   High granularity reduces overhead, but may lead to decreased performance on graphs with skewed outdegrees.
-    /// * `threads`: the threadpool to use.
+    ///
+    /// * `graph`: the graph to visit.
+    ///
+    /// * `granularity`: the number of nodes per chunk. High granularity reduces
+    ///   overhead, but may lead to decreased performance on graphs with a
+    ///   skewed outdegree distribution.
+    ///
+    /// * `threads`: a thread pool.
     pub fn with_threads(graph: G, granularity: usize, threads: T) -> Self {
         let num_nodes = graph.num_nodes();
         Self {
@@ -75,11 +95,11 @@ impl<E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>>
 }
 
 impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
-    ParVisit<breadth_first::Args, E> for ParallelBreadthFirstVisitFastCB<E, G, T>
+    ParVisit<breadth_first::Args<CurrPredItem>, E> for ParallelBreadthFirstVisitFastCB<E, G, T>
 {
     fn visit_filtered<
-        C: Fn(&breadth_first::Args) -> Result<(), E> + Sync,
-        F: Fn(&breadth_first::Args) -> bool + Sync,
+        C: Fn(&breadth_first::Args<CurrPredItem>) -> Result<(), E> + Sync,
+        F: Fn(&breadth_first::Args<CurrPredItem>) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -87,9 +107,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
         filter: F,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        let args = breadth_first::Args {
-            curr: root,
-            parent: root,
+        let args = breadth_first::Args::<CurrPredItem> {
+            item: CurrPredItem::new(root, root),
             root,
             distance: 0,
             event: breadth_first::Event::Unknown,
@@ -122,9 +141,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let args = breadth_first::Args {
-                                        curr: succ,
-                                        parent: node,
+                                    let args = breadth_first::Args::<CurrPredItem> {
+                                        item: CurrPredItem::new(succ, node),
                                         root,
                                         distance,
                                         event: breadth_first::Event::Unknown,
@@ -135,8 +153,7 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
                                             next_frontier.push(succ);
                                         } else {
                                             callback(&breadth_first::Args {
-                                                curr: succ,
-                                                parent: node,
+                                                item: CurrPredItem::new(succ, node),
                                                 root,
                                                 distance,
                                                 event: breadth_first::Event::Known,
@@ -161,8 +178,8 @@ impl<E: Send, G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>>
     }
 
     fn visit_all_filtered<
-        C: Fn(&breadth_first::Args) -> Result<(), E> + Sync,
-        F: Fn(&breadth_first::Args) -> bool + Sync,
+        C: Fn(&breadth_first::Args<CurrPredItem>) -> Result<(), E> + Sync,
+        F: Fn(&breadth_first::Args<CurrPredItem>) -> bool + Sync,
     >(
         &mut self,
         callback: C,

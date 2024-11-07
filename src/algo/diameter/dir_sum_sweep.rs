@@ -1,10 +1,13 @@
+use crate::traits::SliceInteriorMutability;
+use crate::traits::UnsafeSliceWrite;
 use crate::{
     algo::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
-        visits::{breadth_first, breadth_first::ParallelBreadthFirstVisitFastCB, ParVisit},
+        visits::{breadth_first::Event, breadth_first::ParallelBreadthFirstVisit, ParVisit},
     },
-    prelude::*,
+    prelude::breadth_first::{Args, CurrItem, QueueItem},
+    traits::StronglyConnectedComponents,
     utils::*,
 };
 use anyhow::{Context, Result};
@@ -190,20 +193,20 @@ impl<
         G1,
         G2,
         SCC,
-        ParallelBreadthFirstVisitFastCB<Infallible, &'a G1, rayon::ThreadPool>,
-        ParallelBreadthFirstVisitFastCB<Infallible, &'a G2, rayon::ThreadPool>,
+        ParallelBreadthFirstVisit<CurrItem, Infallible, &'a G1, rayon::ThreadPool>,
+        ParallelBreadthFirstVisit<CurrItem, Infallible, &'a G2, rayon::ThreadPool>,
         rayon::ThreadPool,
     >
     where
         G1: 'a,
         G2: 'a,
     {
-        let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+        let direct_visit = ParallelBreadthFirstVisit::with_threads(
             self.graph,
             VISIT_GRANULARITY,
             self.threads.build(),
         );
-        let transposed_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+        let transposed_visit = ParallelBreadthFirstVisit::with_threads(
             self.rev_graph,
             VISIT_GRANULARITY,
             self.threads.build(),
@@ -245,16 +248,16 @@ impl<
         G1,
         G2,
         SCC,
-        ParallelBreadthFirstVisitFastCB<Infallible, &'a G1, T>,
-        ParallelBreadthFirstVisitFastCB<Infallible, &'a G2, T>,
+        ParallelBreadthFirstVisit<CurrItem, Infallible, &'a G1, T>,
+        ParallelBreadthFirstVisit<CurrItem, Infallible, &'a G2, T>,
         T,
     > {
-        let direct_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+        let direct_visit = ParallelBreadthFirstVisit::with_threads(
             self.graph,
             VISIT_GRANULARITY,
             self.threads.clone(),
         );
-        let transposed_visit = ParallelBreadthFirstVisitFastCB::with_threads(
+        let transposed_visit = ParallelBreadthFirstVisit::with_threads(
             self.rev_graph,
             VISIT_GRANULARITY,
             self.threads.clone(),
@@ -289,8 +292,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
-    V1: ParVisit<breadth_first::Args, Infallible> + Sync,
-    V2: ParVisit<breadth_first::Args, Infallible> + Sync,
+    V1: ParVisit<Args<CurrItem>, Infallible> + Sync,
+    V2: ParVisit<Args<CurrItem>, Infallible> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -338,8 +341,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         SCC: StronglyConnectedComponents + Sync,
-        V1: ParVisit<breadth_first::Args, Infallible> + Sync,
-        V2: ParVisit<breadth_first::Args, Infallible> + Sync,
+        V1: ParVisit<Args<CurrItem>, Infallible> + Sync,
+        V2: ParVisit<Args<CurrItem>, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
@@ -424,8 +427,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
-        V1: ParVisit<breadth_first::Args, Infallible> + Sync,
-        V2: ParVisit<breadth_first::Args, Infallible> + Sync,
+        V1: ParVisit<Args<CurrItem>, Infallible> + Sync,
+        V2: ParVisit<Args<CurrItem>, Infallible> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {
@@ -865,8 +868,8 @@ impl<
             .visit(
                 v,
                 |args| {
-                    if args.event == breadth_first::Event::Unknown {
-                        radial_vertices.set(args.curr, true, Ordering::Relaxed);
+                    if args.event == Event::Unknown {
+                        radial_vertices.set(args.item.curr(), true, Ordering::Relaxed);
                     }
                     Ok(())
                 },
@@ -928,8 +931,8 @@ impl<
             .visit(
                 start,
                 |args| {
-                    if args.event == breadth_first::Event::Unknown {
-                        let (distance, node) = (args.distance, args.curr);
+                    if args.event == Event::Unknown {
+                        let (distance, node) = (args.distance, args.item.curr());
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -1014,8 +1017,8 @@ impl<
             .visit(
                 start,
                 |args| {
-                    if args.event == breadth_first::Event::Unknown {
-                        let (distance, node) = (args.distance, args.curr);
+                    if args.event == Event::Unknown {
+                        let (distance, node) = (args.distance, args.item.curr());
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -1125,7 +1128,7 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = ParallelBreadthFirstVisitFastCB::<Infallible, _, _>::with_threads(
+            let mut bfs = ParallelBreadthFirstVisit::<CurrItem, Infallible, _, _>::with_threads(
                 graph,
                 VISIT_GRANULARITY,
                 threadpool,
@@ -1138,23 +1141,22 @@ impl<
 
                 bfs.visit_filtered(
                     p,
-                    |&breadth_first::Args {
-                         curr: node,
-                         parent: _parent,
+                    |&Args::<CurrItem> {
+                         item,
                          root: _root,
                          distance,
                          event,
                      }| {
-                        if event == breadth_first::Event::Unknown {
+                        if event == Event::Unknown {
                             // Safety: each node is accessed exactly once
                             unsafe {
-                                dist_pivot_mut.write_once(node, distance);
+                                dist_pivot_mut.write_once(item.curr(), distance);
                             }
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         }
                         Ok(())
                     },
-                    |args| components[args.curr] == pivot_component,
+                    |args| components[args.item.curr()] == pivot_component,
                     no_logging![],
                 )
                 .unwrap_infallible();

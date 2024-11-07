@@ -8,7 +8,7 @@ use webgraph::{
     traits::{RandomAccessGraph, SequentialLabeling},
 };
 use webgraph_algo::algo::visits::*;
-
+use webgraph_algo::prelude::breadth_first::{CurrItem, QueueItem};
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
     let mut visits = vec![-1; graph.num_nodes()];
@@ -98,7 +98,7 @@ macro_rules! test_bfv_algo {
                         |&args| {
                             match args.event {
                                 breadth_first::Event::Unknown => {
-                                    dists[args.curr].store(args.distance, Ordering::Relaxed);
+                                    dists[args.item.curr()].store(args.distance, Ordering::Relaxed);
                                 }
                                 _ => {}
                             }
@@ -128,15 +128,7 @@ macro_rules! test_bfv_algo {
                     let node = (i + 10000) % graph.num_nodes();
                     visit.visit(
                         node,
-                        |args| {
-                            match args.event {
-                                breadth_first::Event::Unknown => {
-                                    dists[args.curr].store(args.distance, Ordering::Relaxed)
-                                }
-                                _ => {}
-                            }
-                            Ok(())
-                        },
+                        |args| Ok(dists[args.item.curr()].store(args.distance, Ordering::Relaxed)),
                         no_logging![],
                     )?;
                 }
@@ -156,9 +148,11 @@ test_bfv_algo!(
     sequential
 );
 test_bfv_algo!(
-    |g| webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisit::<Infallible, _>::new(
+    |g| {
+        webgraph_algo::prelude::breadth_first::ParallelBreadthFirstVisit::<CurrItem, Infallible, _>::new(
         g, 32
-    ),
+    )
+    },
     parallel
 );
 test_bfv_algo!(
