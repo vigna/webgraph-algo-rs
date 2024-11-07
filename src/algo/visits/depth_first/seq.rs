@@ -71,7 +71,7 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use webgraph_algo::algo::visits::*;
 /// use webgraph_algo::algo::visits::depth_first::*;
 /// use dsi_progress_logger::no_logging;
@@ -87,19 +87,16 @@ pub type SeqPath<'a, E, G> = SeqIter<'a, NodePred, ThreeStates, E, G, usize>;
 ///     |&args|
 ///         {
 ///             // Stop the visit as soon as a back edge is found
-///             match args {
-///                 EventPred::Revisit {on_stack, ..} => {
-///                     if on_stack {
-///                         Err(StoppedWhenDone {})
-///                     } else {
-///                         Ok(())
-///                     }
-///                 },
-///                 _ => {Ok(())}
+///             if let EventPred::Revisit {on_stack, ..} = args {
+///                 if on_stack {
+///                     return Err(StoppedWhenDone {});
+///                 }
 ///             }
+///             Ok(())
 ///         },
 ///         no_logging![]
 ///     ).is_err()); // As the graph is not acyclic
+/// ```
 
 // General depth-first visit implementation. The user shouldn't see this.
 // Allowed combinations for `D`, `S` and `P` are:

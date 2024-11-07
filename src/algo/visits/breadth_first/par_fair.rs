@@ -27,7 +27,7 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
 /// use dsi_progress_logger::no_logging;
@@ -46,11 +46,8 @@ use webgraph::traits::RandomAccessGraph;
 ///     |&args|
 ///         {
 ///             // Set distance from 0
-///             match args {
-///                 breadth_first::Event::Unknown {data, distance, ..} => {
-///                     d[data.curr()].store(distance, Ordering::Relaxed);
-///                 },
-///                 _ => {}
+///             if let breadth_first::Event::Unknown {data, distance, ..} = args {
+///                 d[data.curr()].store(distance, Ordering::Relaxed);
 ///             }
 ///             Ok(())
 ///         },
@@ -60,6 +57,7 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[1].load(Ordering::Relaxed), 1);
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
+/// ```
 
 pub struct ParFair<D, E, G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
     graph: G,
