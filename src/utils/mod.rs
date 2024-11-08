@@ -34,7 +34,24 @@ pub(crate) use threadpool::Threads;
 /// Module containing utility traits.
 pub mod traits;
 
-/// Utility macro to return an `Ok::<(), Infallible>`.
+/// Utility macro to return an `Ok::<_, Infallible>`.
+///
+/// There are two forms of this macro:
+/// * Create an `Ok::<(), Infallible>`:
+/// ```
+/// # use webgraph_algo::ok_infallible;
+/// let ok: Result::<(), std::convert::Infallible> = ok_infallible!();
+/// assert!(ok.is_ok());
+/// assert_eq!(ok.unwrap(), ());
+/// ```
+/// * Create an `Ok::<_, Infallible>` from a given value:
+/// ```
+/// # use webgraph_algo::ok_infallible;
+/// let value: usize = 42;
+/// let ok: Result::<usize, std::convert::Infallible> = ok_infallible!(value);
+/// assert!(ok.is_ok());
+/// assert_eq!(ok.unwrap(), value);
+/// ```
 #[macro_export]
 macro_rules! ok_infallible {
     () => {
