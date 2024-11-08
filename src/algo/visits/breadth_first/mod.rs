@@ -31,16 +31,14 @@ use super::EventArgs;
 /// Types of callback events generated during a breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Event {
-    /// Initialization: all node fields are equal to the root and distance is 0.
     /// This event should be used to set up state at the start of the visit.
     Init {
-        /// The current node.
-        curr: usize,
-        /// The root of the current visit tree.
+        /// The root of the current visit tree, that is, the first node that
+        /// will be visited.
         root: usize,
     },
     /// The node has been encountered for the first time: we are traversing a
-    /// new tree arc, unless all fields or [`Args`] are equal to the root.
+    /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
         curr: usize,
@@ -63,22 +61,32 @@ pub enum Event {
     },
 }
 
+/// Type of struct used as input for the filter in breadth-first visits.
+pub struct FilterArgs {
+    /// The current node.
+    pub curr: usize,
+    /// The root of the current visit tree.
+    pub root: usize,
+    /// The distance of the current node from the [root](`Self::root`).
+    pub distance: usize,
+}
+
+impl EventArgs for Event {
+    type FilterArgs = FilterArgs;
+}
+
 /// Types of callback events generated during a breadth-first visit
 /// keeping track of parent nodes.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum EventPred {
-    /// Initialization: all node fields are equal to the root and distance is 0.
     /// This event should be used to set up state at the start of the visit.
     Init {
-        /// The current node.
-        curr: usize,
-        /// The predecessor of [curr](`EventPred::Init::curr`).
-        pred: usize,
-        /// The root of the current visit tree.
+        /// The root of the current visit tree, that is, the first node that
+        /// will be visited.
         root: usize,
     },
     /// The node has been encountered for the first time: we are traversing a
-    /// new tree arc, unless all fields or [`Args`] are equal to the root.
+    /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
         curr: usize,
@@ -105,16 +113,6 @@ pub enum EventPred {
     },
 }
 
-/// Type of struct used as input for the filter in breadth-first visits.
-pub struct FilterArgs {
-    /// The current node.
-    pub curr: usize,
-    /// The root of the current visit tree.
-    pub root: usize,
-    /// The distance of the current node from the [root](`Self::root`).
-    pub distance: usize,
-}
-
 pub struct FilterArgsPred {
     /// The current node.
     pub curr: usize,
@@ -124,10 +122,6 @@ pub struct FilterArgsPred {
     pub root: usize,
     /// The distance of the current node from the [root](`Self::root`).
     pub distance: usize,
-}
-
-impl EventArgs for Event {
-    type FilterArgs = FilterArgs;
 }
 
 impl EventArgs for EventPred {
