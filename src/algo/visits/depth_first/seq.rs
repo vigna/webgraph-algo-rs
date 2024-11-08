@@ -22,7 +22,8 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// This is an iterative implementation that does not need a large stack size.
 ///
 /// There are three version of the visit, which are type aliases to the same
-/// common implementation: [`Seq`], [`SeqPred`] and [`SeqPath`].
+/// common implementation: [`Seq`], [`SeqPred`] and [`SeqPath`] (the generic
+/// implementation should not be instantiated by the user).
 ///
 /// * [`Seq`] does not keep track of predecessors, nor of nodes on the stack; it
 ///   can be used, for example, to compute reachability information.

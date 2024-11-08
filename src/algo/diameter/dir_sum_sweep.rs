@@ -272,7 +272,7 @@ pub struct SumSweepDirectedDiameterRadius<
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
-    reversed_graph: &'a G2,
+    transpose: &'a G2,
     number_of_nodes: usize,
     output: SumSweepOutputLevel,
     radial_vertices: AtomicBitVec,
@@ -324,7 +324,7 @@ impl<
     #[allow(clippy::too_many_arguments)]
     fn new(
         graph: &'a G1,
-        reversed_graph: &'a G2,
+        transpose: &'a G2,
         output: SumSweepOutputLevel,
         direct_visit: V1,
         transposed_visit: V2,
@@ -348,13 +348,13 @@ impl<
             AtomicBitVec::new(nn)
         };
 
-        let scc_graph = SccGraph::new(graph, reversed_graph, &scc, pl);
+        let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
 
-        debug_assert_eq!(graph.num_nodes(), reversed_graph.num_nodes());
-        debug_assert_eq!(graph.num_arcs(), reversed_graph.num_arcs());
+        debug_assert_eq!(graph.num_nodes(), transpose.num_nodes());
+        debug_assert_eq!(graph.num_arcs(), transpose.num_arcs());
         debug_assert!(
-            check_transposed(&graph, &reversed_graph),
-            "reversed_graph should be the transposed of graph"
+            check_transposed(&graph, &transpose),
+            "transpose should be the transpose of graph"
         );
 
         pl.info(format_args!("Initializing data structure"));
@@ -368,7 +368,7 @@ impl<
 
         SumSweepDirectedDiameterRadius {
             graph,
-            reversed_graph,
+            transpose,
             number_of_nodes: nn,
             total_forward_distance: total_forward,
             total_backward_distance: total_backward,
@@ -502,28 +502,21 @@ impl<
             self.compute_radial_vertices(pl);
         }
 
-        let max_outdegree_vertex = AtomicUsize::new(0);
+        let t = std::time::Instant::now();
+        let max_outdegree_vertex = self
+            .threadpool
+            .borrow()
+            .install(|| {
+                (0..self.number_of_nodes)
+                    .into_par_iter()
+                    .map(|v| (self.graph.outdegree(v), v))
+                    .max_by_key(|x| x.0)
+            })
+            .unwrap()
+            .1; // The iterator is not empty
+        dbg!(t.elapsed());
 
-        self.threadpool.borrow().install(|| {
-            (0..self.number_of_nodes).into_par_iter().for_each(|v| {
-                let outdegree = self.graph.outdegree(v);
-                let mut current_max = max_outdegree_vertex.load(Ordering::Relaxed);
-                while outdegree > self.graph.outdegree(current_max) {
-                    let result = max_outdegree_vertex.compare_exchange(
-                        current_max,
-                        v,
-                        Ordering::Relaxed,
-                        Ordering::Relaxed,
-                    );
-                    if result.is_ok() {
-                        break;
-                    }
-                    current_max = max_outdegree_vertex.load(Ordering::Relaxed);
-                }
-            });
-        });
-
-        self.sum_sweep_heuristic(max_outdegree_vertex.load(Ordering::Relaxed), 6, pl);
+        self.sum_sweep_heuristic(max_outdegree_vertex, 6, pl);
 
         let mut points = [self.graph.num_nodes() as f64; 5];
         let mut missing_nodes = self.find_missing_nodes(pl);
@@ -1041,7 +1034,7 @@ impl<
             self.compute_dist_pivot_from_graph(pivot, self.graph)
         } else {
             pl.start("Computing backwards dist pivots");
-            self.compute_dist_pivot_from_graph(pivot, self.reversed_graph)
+            self.compute_dist_pivot_from_graph(pivot, self.transpose)
         };
 
         pl.done();
