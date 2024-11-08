@@ -502,8 +502,8 @@ impl<
             self.compute_radial_vertices(pl);
         }
 
-        let max_outdegree_vertex = 0;
-        self.threadpool
+        let max_outdegree_vertex = self
+            .threadpool
             .borrow()
             .install(|| {
                 (0..self.number_of_nodes)
