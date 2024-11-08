@@ -13,7 +13,7 @@
 mod seq;
 pub use seq::*;
 
-use super::VisitEventArgs;
+use super::EventArgs;
 
 /// Types of callback events generated during a depth-first visit
 /// keeping track of parent nodes (and possibly of the visit path).
@@ -137,10 +137,10 @@ pub struct FilterArgsPred {
     pub depth: usize,
 }
 
-impl VisitEventArgs for Event {
-    type FilterEventArgs = FilterArgs;
+impl EventArgs for Event {
+    type FilterArgs = FilterArgs;
 }
 
-impl VisitEventArgs for EventPred {
-    type FilterEventArgs = FilterArgsPred;
+impl EventArgs for EventPred {
+    type FilterArgs = FilterArgsPred;
 }

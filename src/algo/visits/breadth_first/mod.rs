@@ -26,7 +26,7 @@ pub use par_fair::*;
 mod par_low_mem;
 pub use par_low_mem::*;
 
-use super::VisitEventArgs;
+use super::EventArgs;
 
 /// Types of callback events generated during a breadth-first visit.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -126,10 +126,10 @@ pub struct FilterArgsPred {
     pub distance: usize,
 }
 
-impl VisitEventArgs for Event {
-    type FilterEventArgs = FilterArgs;
+impl EventArgs for Event {
+    type FilterArgs = FilterArgs;
 }
 
-impl VisitEventArgs for EventPred {
-    type FilterEventArgs = FilterArgsPred;
+impl EventArgs for EventPred {
+    type FilterArgs = FilterArgsPred;
 }

@@ -1,12 +1,12 @@
 //! Visits on graphs.
 //!
-//! Visits have an type parameter `A` and an error type parameter `E`. They
-//! accept a callback function with argument `&A` returning a `Result<(), E>`.
-//! If a callback returns an error, the visit will be interrupted;
-//! uninterruptible visits should use the
-//! [`Infallible`](std::convert::Infallible) error type. Note that an
-//! interruption does not necessarily denote an error condition (see, e.g.,
-//! [`StoppedWhenDone`]).
+//! Visits have a type parameter `A` implementing the trait
+//! [`EventArgs`](EventArgs) and an error type parameter `E`. They accept a
+//! callback function with argument `&A` returning a `Result<(), E>`. If a
+//! callback returns an error, the visit will be interrupted; uninterruptible
+//! visits should use the [`Infallible`](std::convert::Infallible) error type.
+//! Note that an interruption does not necessarily denote an error condition
+//! (see, e.g., [`StoppedWhenDone`]).
 //!
 //! [Sequential visits](Sequential) are visits that are executed in a single
 //! thread, whereas [parallel visits](Parallel) use multiple threads. The
@@ -22,8 +22,8 @@
 //! Additionally, implementations accepts a filter function that will be called
 //! when a new node is discovered. If the filter returns false, the node will be
 //! ignored, that is, not even marked as known. Note that in case of parallel
-//! visits the filter might be called multiple times on the same node (and
-//! with a different predecessor, if available) due to race conditions.
+//! visits the filter might be called multiple times on the same node (and with
+//! a different predecessor, if available) due to race conditions.
 //!
 //! All visits accept also a mutable reference to an implementation of
 //! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) to log the progress of
@@ -53,10 +53,18 @@ pub struct Interrupted {}
 #[error("Stopped when done")]
 pub struct StoppedWhenDone {}
 
-/// Trait for types usable as arguments for the callbacks in visits
-pub trait VisitEventArgs {
+/// Types usable as arguments for the callbacks in visits.
+///
+/// Arguments are usually enums in which variants represent visit events
+/// (previsits, postvisits, etc.). Each variant then contains additional data
+/// related to the specific event.
+///
+/// The associated type [`EventArgs::FilterArgs`] is the type of the arguments
+/// passed to the filter associated with the visit. It can be set to `()` if
+/// filtering is not supported
+pub trait EventArgs {
     /// The type passed as input to the filter.
-    type FilterEventArgs;
+    type FilterArgs;
 }
 
 /// A sequential visit.
@@ -66,7 +74,7 @@ pub trait VisitEventArgs {
 /// visit of a graph starting from a given node, and the
 /// [`visit_all_filtered`](Sequential::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait Sequential<A: VisitEventArgs, E> {
+pub trait Sequential<A: EventArgs, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -77,7 +85,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
     /// * `filter`: The filter function.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterEventArgs) -> bool>(
+    fn visit_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
         root: usize,
         callback: C,
@@ -103,7 +111,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit_filtered`](Sequential::visit) for more details.
-    fn visit_all_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterEventArgs) -> bool>(
+    fn visit_all_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
         callback: C,
         filter: F,
@@ -135,7 +143,7 @@ pub trait Sequential<A: VisitEventArgs, E> {
 /// visit of a graph starting from a given node, and the
 /// [`visit_all_filtered`](Parallel::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait Parallel<A: VisitEventArgs, E> {
+pub trait Parallel<A: EventArgs, E> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -147,7 +155,7 @@ pub trait Parallel<A: VisitEventArgs, E> {
     ///    determine whether the node should be visited or not.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: Fn(A) -> Result<(), E> + Sync, F: Fn(A::FilterEventArgs) -> bool + Sync>(
+    fn visit_filtered<C: Fn(A) -> Result<(), E> + Sync, F: Fn(A::FilterArgs) -> bool + Sync>(
         &mut self,
         root: usize,
         callback: C,
@@ -173,10 +181,7 @@ pub trait Parallel<A: VisitEventArgs, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit`](Parallel::visit_filtered) for more details.
-    fn visit_all_filtered<
-        C: Fn(A) -> Result<(), E> + Sync,
-        F: Fn(A::FilterEventArgs) -> bool + Sync,
-    >(
+    fn visit_all_filtered<C: Fn(A) -> Result<(), E> + Sync, F: Fn(A::FilterArgs) -> bool + Sync>(
         &mut self,
         callback: C,
         filter: F,
