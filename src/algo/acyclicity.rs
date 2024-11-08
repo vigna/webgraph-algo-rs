@@ -16,13 +16,7 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
         |args| {
             // Stop the visit as soon as a back edge is found.
             match args {
-                EventPred::Revisit { on_stack, .. } => {
-                    if on_stack {
-                        Err(StoppedWhenDone {})
-                    } else {
-                        Ok(())
-                    }
-                }
+                EventPred::Revisit { on_stack: true, .. } => Err(StoppedWhenDone {}),
                 _ => Ok(()),
             }
         },

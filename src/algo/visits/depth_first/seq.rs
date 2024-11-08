@@ -82,15 +82,13 @@ pub type SeqPath<'a, G, E = std::convert::Infallible> = SeqIter<'a, ThreeStates,
 /// let mut visit = depth_first::SeqPath::new(&graph);
 ///
 /// assert!(visit.visit_all(
-///     |args|
+///     |event|
 ///         {
 ///             // Stop the visit as soon as a back edge is found
-///             if let EventPred::Revisit {on_stack, ..} = args {
-///                 if on_stack {
-///                     return Err(StoppedWhenDone {});
-///                 }
-///             }
-///             Ok(())
+///            match event {
+///                EventPred::Revisit { on_stack: true, .. } => Err(StoppedWhenDone {}),
+///                _ => Ok(()),
+///            }
 ///         },
 ///         no_logging![]
 ///     ).is_err()); // As the graph is not acyclic
