@@ -34,6 +34,17 @@ pub(crate) use threadpool::Threads;
 /// Module containing utility traits.
 pub mod traits;
 
+/// Utility macro to return an `Ok::<(), Infallible>`.
+#[macro_export]
+macro_rules! ok_infallible {
+    () => {
+        Ok::<(), std::convert::Infallible>(())
+    };
+    ($value:expr) => {
+        Ok::<_, std::convert::Infallible>($value)
+    };
+}
+
 const MAX_NODES_ENV_VAR: &str = "MAX_TRANSPOSED_SIZE_DEBUG";
 const MAX_NODES_DEFAULT: usize = 10000;
 

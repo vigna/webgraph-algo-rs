@@ -14,7 +14,6 @@ use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
-use std::convert::Infallible;
 use std::{
     borrow::Borrow,
     sync::{
@@ -190,8 +189,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParFair<&'a G1, Infallible, rayon::ThreadPool>,
-        ParFair<&'a G2, Infallible, rayon::ThreadPool>,
+        ParFair<&'a G1, rayon::ThreadPool>,
+        ParFair<&'a G2, rayon::ThreadPool>,
         rayon::ThreadPool,
     >
     where
@@ -232,15 +231,8 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepDirectedDiameterRadius<
-        'a,
-        G1,
-        G2,
-        SCC,
-        ParFair<&'a G1, Infallible, T>,
-        ParFair<&'a G2, Infallible, T>,
-        T,
-    > {
+    ) -> SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, ParFair<&'a G1, T>, ParFair<&'a G2, T>, T>
+    {
         let direct_visit =
             ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
         let transposed_visit =
@@ -275,8 +267,8 @@ pub struct SumSweepDirectedDiameterRadius<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
-    V1: Parallel<Event, Infallible> + Sync,
-    V2: Parallel<Event, Infallible> + Sync,
+    V1: Parallel<Event> + Sync,
+    V2: Parallel<Event> + Sync,
     T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
@@ -324,8 +316,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         SCC: StronglyConnectedComponents + Sync,
-        V1: Parallel<Event, Infallible> + Sync,
-        V2: Parallel<Event, Infallible> + Sync,
+        V1: Parallel<Event> + Sync,
+        V2: Parallel<Event> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
 {
@@ -410,8 +402,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
-        V1: Parallel<Event, Infallible> + Sync,
-        V2: Parallel<Event, Infallible> + Sync,
+        V1: Parallel<Event> + Sync,
+        V2: Parallel<Event> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
     > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
 {

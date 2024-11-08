@@ -35,11 +35,12 @@ use webgraph::traits::RandomAccessGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
+/// use webgraph_algo::ok_infallible;
 ///
 /// // Let's compute the distances from 0
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::ParFair::<_>::new(&graph, 1);
+/// let mut visit = breadth_first::ParFair::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
@@ -49,7 +50,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let breadth_first::Event::Unknown {curr, distance, ..} = args {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
-///             Ok(())
+///             ok_infallible!()
 ///         },
 ///    no_logging![]
 /// ).unwrap();
@@ -58,9 +59,8 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-pub struct ParFair<
+pub struct ParFairBase<
     G: RandomAccessGraph,
-    E = std::convert::Infallible,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
     const PRED: bool = false,
 > {
@@ -68,14 +68,15 @@ pub struct ParFair<
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
-    _phantom: std::marker::PhantomData<E>,
 }
 
 /// A fair parallel breadth-first visit that keeps track of its predecessors.
-pub type ParFairPred<G, E = std::convert::Infallible, T = rayon::ThreadPool> =
-    ParFair<G, E, T, true>;
+pub type ParFairPred<G, T = rayon::ThreadPool> = ParFairBase<G, T, true>;
 
-impl<G: RandomAccessGraph, E, const P: bool> ParFair<G, E, rayon::ThreadPool, P> {
+/// A fair parallel breadth-first visit.
+pub type ParFair<G, T = rayon::ThreadPool> = ParFairBase<G, T, false>;
+
+impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, rayon::ThreadPool, P> {
     /// Creates a fair parallel breadth-first visit with the [default number of
     /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
@@ -111,7 +112,7 @@ impl<G: RandomAccessGraph, E, const P: bool> ParFair<G, E, rayon::ThreadPool, P>
     }
 }
 
-impl<G: RandomAccessGraph, E, T: Borrow<rayon::ThreadPool>, const P: bool> ParFair<G, E, T, P> {
+impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>, const P: bool> ParFairBase<G, T, P> {
     /// Creates a fair parallel top-down visit that uses the specified number of threads.
     ///
     ///
@@ -131,15 +132,18 @@ impl<G: RandomAccessGraph, E, T: Borrow<rayon::ThreadPool>, const P: bool> ParFa
             granularity,
             visited: AtomicBitVec::new(num_nodes),
             threads,
-            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Parallel<Event, E>
-    for ParFair<G, E, T, false>
+impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
+    for ParFairBase<G, T, false>
 {
-    fn visit_filtered<C: Fn(Event) -> Result<(), E> + Sync, F: Fn(FilterArgs) -> bool + Sync>(
+    fn visit_filtered<
+        E: Send,
+        C: Fn(Event) -> Result<(), E> + Sync,
+        F: Fn(FilterArgs) -> bool + Sync,
+    >(
         &mut self,
         root: usize,
         callback: C,
@@ -217,6 +221,7 @@ impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Paralle
     }
 
     fn visit_all_filtered<
+        E: Send,
         C: Fn(Event) -> Result<(), E> + Sync,
         F: Fn(FilterArgs) -> bool + Sync,
     >(
@@ -237,10 +242,11 @@ impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Paralle
     }
 }
 
-impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
-    for ParFair<G, E, T, true>
+impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred>
+    for ParFairBase<G, T, true>
 {
     fn visit_filtered<
+        E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(<EventPred as EventArgs>::FilterArgs) -> bool + Sync,
     >(
@@ -324,6 +330,7 @@ impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Paralle
     }
 
     fn visit_all_filtered<
+        E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
     >(

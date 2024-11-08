@@ -6,7 +6,8 @@ use webgraph::{
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
-use webgraph_algo::algo::visits::*;
+use webgraph_algo::{algo::visits::*, ok_infallible};
+
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
     let mut visits = vec![-1; graph.num_nodes()];
@@ -97,7 +98,7 @@ macro_rules! test_bfv_algo {
                             if let breadth_first::EventPred::Unknown { curr, distance, .. } = args {
                                 dists[curr].store(distance, Ordering::Relaxed);
                             }
-                            Ok(())
+                            ok_infallible!()
                         },
                         no_logging![],
                     )?;
@@ -127,7 +128,7 @@ macro_rules! test_bfv_algo {
                             if let breadth_first::EventPred::Unknown { curr, distance, .. } = args {
                                 dists[curr].store(distance, Ordering::Relaxed);
                             }
-                            Ok(())
+                            ok_infallible!()
                         },
                         no_logging![],
                     )?;

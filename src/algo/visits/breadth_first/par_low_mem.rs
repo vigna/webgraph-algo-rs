@@ -34,11 +34,12 @@ use webgraph::traits::RandomAccessGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
+/// use webgraph_algo::ok_infallible;
 ///
 /// // Let's compute the distances from 0
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::ParLowMem::<_>::new(&graph, 1);
+/// let mut visit = breadth_first::ParLowMem::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
@@ -48,7 +49,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
-///             Ok(())
+///             ok_infallible!()
 ///         },
 ///    no_logging![]
 /// ).unwrap();
@@ -57,19 +58,14 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-pub struct ParLowMem<
-    G: RandomAccessGraph,
-    E = std::convert::Infallible,
-    T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
-> {
+pub struct ParLowMem<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
     threads: T,
-    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<G: RandomAccessGraph, E> ParLowMem<G, E, rayon::ThreadPool> {
+impl<G: RandomAccessGraph> ParLowMem<G, rayon::ThreadPool> {
     /// Creates a low-memory parallel breadth-first visit with the [default number of
     /// threads](rayon::ThreadPoolBuilder::num_threads).
     ///
@@ -104,7 +100,7 @@ impl<G: RandomAccessGraph, E> ParLowMem<G, E, rayon::ThreadPool> {
     }
 }
 
-impl<G: RandomAccessGraph, E, T: Borrow<rayon::ThreadPool>> ParLowMem<G, E, T> {
+impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<G, T> {
     /// Creates a low-memory parallel top-down visit that uses the specified number of threads.
     ///
     /// # Arguments
@@ -123,15 +119,15 @@ impl<G: RandomAccessGraph, E, T: Borrow<rayon::ThreadPool>> ParLowMem<G, E, T> {
             granularity,
             visited: AtomicBitVec::new(num_nodes),
             threads,
-            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Parallel<EventPred, E>
-    for ParLowMem<G, E, T>
+impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred>
+    for ParLowMem<G, T>
 {
     fn visit_filtered<
+        E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
     >(
@@ -219,6 +215,7 @@ impl<G: RandomAccessGraph + Sync, E: Send, T: Borrow<rayon::ThreadPool>> Paralle
     }
 
     fn visit_all_filtered<
+        E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
     >(

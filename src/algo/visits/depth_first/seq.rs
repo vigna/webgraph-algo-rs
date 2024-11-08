@@ -9,13 +9,13 @@ use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
-pub type Seq<'a, G, E = std::convert::Infallible> = SeqIter<'a, TwoStates, E, G, (), false>;
+pub type Seq<'a, G> = SeqIter<'a, TwoStates, G, (), false>;
 
 /// A depth-first visit which keeps track of predecessors, but not nodes on the stack.
-pub type SeqPred<'a, G, E = std::convert::Infallible> = SeqIter<'a, TwoStates, E, G, usize, true>;
+pub type SeqPred<'a, G> = SeqIter<'a, TwoStates, G, usize, true>;
 
 /// A depth-first visit which keeps track of predecessors and nodes on the stack.
-pub type SeqPath<'a, G, E = std::convert::Infallible> = SeqIter<'a, ThreeStates, E, G, usize, true>;
+pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 
 /// Sequential depth-first visits.
 ///
@@ -99,7 +99,7 @@ pub type SeqPath<'a, G, E = std::convert::Infallible> = SeqIter<'a, ThreeStates,
 // * `false`, `TwoStates` and `()` (no predecessors, no stack tracking)
 // * `true`, `TwoStates` and `usize` (predecessors, no stack tracking)
 // * `true`, `ThreeStates` and `usize` (predecessors, stack tracking)
-pub struct SeqIter<'a, S, E, G: RandomAccessGraph, P, const PRED: bool> {
+pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
     /// and the parent of the node. This approach makes it possible to avoid
@@ -109,15 +109,14 @@ pub struct SeqIter<'a, S, E, G: RandomAccessGraph, P, const PRED: bool> {
         P,
     )>,
     state: S,
-    _phantom: std::marker::PhantomData<E>,
 }
 
 /// The iterator returned by [`stack`](Seq::stack).
-pub struct StackIterator<'a, 'b, S, E, G: RandomAccessGraph> {
-    visit: &'b mut SeqIter<'a, S, E, G, usize, true>,
+pub struct StackIterator<'a, 'b, S, G: RandomAccessGraph> {
+    visit: &'b mut SeqIter<'a, S, G, usize, true>,
 }
 
-impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E, G> {
+impl<'a, 'b, S, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, G> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
@@ -125,32 +124,29 @@ impl<'a, 'b, S, E, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, E
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph, P, const PRED: bool>
-    SeqIter<'a, S, E, G, P, PRED>
-{
+impl<'a, S: NodeStates, G: RandomAccessGraph, P, const PRED: bool> SeqIter<'a, S, G, P, PRED> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
     /// * `graph`: an immutable reference to the graph to visit.
-    pub fn new(graph: &'a G) -> SeqIter<'a, S, E, G, P, PRED> {
+    pub fn new(graph: &'a G) -> SeqIter<'a, S, G, P, PRED> {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
             stack: Vec::with_capacity(16),
             state: S::new(num_nodes),
-            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, S, E, G: RandomAccessGraph> SeqIter<'a, S, E, G, usize, true> {
+impl<'a, S, G: RandomAccessGraph> SeqIter<'a, S, G, usize, true> {
     /// Returns an iterator over the nodes stil on the visit path.
     ///
     /// Node will be returned in reverse order of visit.
     ///
     /// This method is useful only in the case of interrupted visits,
     /// as in a completed visit the stack will be empty.
-    pub fn stack(&mut self) -> StackIterator<'a, '_, S, E, G> {
+    pub fn stack(&mut self) -> StackIterator<'a, '_, S, G> {
         StackIterator { visit: self }
     }
 }
@@ -241,10 +237,10 @@ impl NodeStates for TwoStates {
     }
 }
 
-impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
-    for SeqIter<'a, S, E, G, usize, true>
+impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
+    for SeqIter<'a, S, G, usize, true>
 {
-    fn visit_filtered<C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
+    fn visit_filtered<E, C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -351,6 +347,7 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
     }
 
     fn visit_all_filtered<
+        E,
         C: FnMut(EventPred) -> Result<(), E>,
         F: FnMut(FilterArgsPred) -> bool,
     >(
@@ -372,8 +369,8 @@ impl<'a, S: NodeStates, E, G: RandomAccessGraph> Sequential<EventPred, E>
     }
 }
 
-impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, TwoStates, E, G, (), false> {
-    fn visit_filtered<C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
+impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (), false> {
+    fn visit_filtered<E, C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -452,7 +449,7 @@ impl<'a, E, G: RandomAccessGraph> Sequential<Event, E> for SeqIter<'a, TwoStates
         }
     }
 
-    fn visit_all_filtered<C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
+    fn visit_all_filtered<E, C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
         &mut self,
         mut callback: C,
         mut filter: F,

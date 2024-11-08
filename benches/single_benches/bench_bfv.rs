@@ -1,6 +1,7 @@
 use super::params::*;
 use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::prelude::*;
+use unwrap_infallible::UnwrapInfallible;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::visits::breadth_first::*;
@@ -26,10 +27,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = Seq::<_>::new(g);
+                    let mut visit = Seq::new(g);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },
@@ -40,10 +43,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFair::<_>::new(g, 1);
+                    let mut visit = ParFair::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },
@@ -54,10 +59,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFair::<_>::new(g, 64);
+                    let mut visit = ParFair::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },
@@ -71,10 +78,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFairPred::<_>::new(g, 1);
+                    let mut visit = ParFairPred::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },
@@ -88,10 +97,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFairPred::<_>::new(g, 64);
+                    let mut visit = ParFairPred::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },
@@ -102,10 +113,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParLowMem::<_>::new(g, 1);
+                    let mut visit = ParLowMem::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },
@@ -116,10 +129,12 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParLowMem::<_>::new(g, 1);
+                    let mut visit = ParLowMem::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                        visit
+                            .visit(node, |_| Ok(()), no_logging![])
+                            .unwrap_infallible();
                     }
                 });
             },

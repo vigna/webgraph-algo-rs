@@ -53,7 +53,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
     }
 
     fn run(&mut self, pl: &mut impl ProgressLog) {
-        let mut visit = SeqPath::<_, StoppedWhenDone>::new(&self.graph);
+        let mut visit = SeqPath::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));

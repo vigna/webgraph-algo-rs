@@ -29,6 +29,7 @@ use webgraph::traits::RandomAccessGraph;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
+/// use webgraph_algo::ok_infallible;
 ///
 /// // Let's compute the distances from 0
 ///
@@ -43,23 +44,22 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
 ///                 d[curr] = distance;
 ///             }
-///             Ok(())
+///             ok_infallible!()
 ///         },
 ///    no_logging![]
 /// ).unwrap();
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
-pub struct Seq<G: RandomAccessGraph, E = std::convert::Infallible> {
+pub struct Seq<G: RandomAccessGraph> {
     graph: G,
     visited: BitVec,
     /// The visit queue; to avoid storing distances, we use `None` as a
     /// separator between levels. [`NonMaxUsize`] is used to avoid
     /// storage for the option variant tag.
     queue: VecDeque<Option<NonMaxUsize>>,
-    _phantom: std::marker::PhantomData<E>,
 }
 
-impl<G: RandomAccessGraph, E> Seq<G, E> {
+impl<G: RandomAccessGraph> Seq<G> {
     /// Creates a new sequential visit.
     ///
     /// # Arguments
@@ -70,13 +70,12 @@ impl<G: RandomAccessGraph, E> Seq<G, E> {
             graph,
             visited: BitVec::new(num_nodes),
             queue: VecDeque::new(),
-            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<G: RandomAccessGraph, E> Sequential<EventPred, E> for Seq<G, E> {
-    fn visit_filtered<C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
+impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
+    fn visit_filtered<E, C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
         &mut self,
         root: usize,
         mut callback: C,
@@ -155,6 +154,7 @@ impl<G: RandomAccessGraph, E> Sequential<EventPred, E> for Seq<G, E> {
     }
 
     fn visit_all_filtered<
+        E,
         C: FnMut(EventPred) -> Result<(), E>,
         F: FnMut(FilterArgsPred) -> bool,
     >(

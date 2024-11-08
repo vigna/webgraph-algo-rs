@@ -73,7 +73,7 @@ pub trait EventArgs {
 /// visit of a graph starting from a given node, and the
 /// [`visit_all_filtered`](Sequential::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait Sequential<A: EventArgs, E> {
+pub trait Sequential<A: EventArgs> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -84,7 +84,7 @@ pub trait Sequential<A: EventArgs, E> {
     /// * `filter`: The filter function.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
+    fn visit_filtered<E, C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
         root: usize,
         callback: C,
@@ -98,7 +98,7 @@ pub trait Sequential<A: EventArgs, E> {
     /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
     /// returns true.
     #[inline(always)]
-    fn visit<C: FnMut(A) -> Result<(), E>>(
+    fn visit<E, C: FnMut(A) -> Result<(), E>>(
         &mut self,
         root: usize,
         callback: C,
@@ -110,7 +110,7 @@ pub trait Sequential<A: EventArgs, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit_filtered`](Sequential::visit) for more details.
-    fn visit_all_filtered<C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
+    fn visit_all_filtered<E, C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
         callback: C,
         filter: F,
@@ -123,7 +123,7 @@ pub trait Sequential<A: EventArgs, E> {
     /// [`visit_all_filtered`](Sequential::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn visit_all<C: FnMut(A) -> Result<(), E>>(
+    fn visit_all<E, C: FnMut(A) -> Result<(), E>>(
         &mut self,
         callback: C,
         pl: &mut impl ProgressLog,
@@ -142,7 +142,7 @@ pub trait Sequential<A: EventArgs, E> {
 /// visit of a graph starting from a given node, and the
 /// [`visit_all_filtered`](Parallel::visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
-pub trait Parallel<A: EventArgs, E> {
+pub trait Parallel<A: EventArgs> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
@@ -154,7 +154,11 @@ pub trait Parallel<A: EventArgs, E> {
     ///    determine whether the node should be visited or not.
     ///
     /// * `pl`: A progress logger.
-    fn visit_filtered<C: Fn(A) -> Result<(), E> + Sync, F: Fn(A::FilterArgs) -> bool + Sync>(
+    fn visit_filtered<
+        E: Send,
+        C: Fn(A) -> Result<(), E> + Sync,
+        F: Fn(A::FilterArgs) -> bool + Sync,
+    >(
         &mut self,
         root: usize,
         callback: C,
@@ -168,7 +172,7 @@ pub trait Parallel<A: EventArgs, E> {
     /// [`visit_filtered`](Parallel::visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
-    fn visit<C: Fn(A) -> Result<(), E> + Sync>(
+    fn visit<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         root: usize,
         callback: C,
@@ -180,7 +184,11 @@ pub trait Parallel<A: EventArgs, E> {
     /// Visits the whole graph.
     ///
     /// See [`visit`](Parallel::visit_filtered) for more details.
-    fn visit_all_filtered<C: Fn(A) -> Result<(), E> + Sync, F: Fn(A::FilterArgs) -> bool + Sync>(
+    fn visit_all_filtered<
+        E: Send,
+        C: Fn(A) -> Result<(), E> + Sync,
+        F: Fn(A::FilterArgs) -> bool + Sync,
+    >(
         &mut self,
         callback: C,
         filter: F,
@@ -193,7 +201,7 @@ pub trait Parallel<A: EventArgs, E> {
     /// [`visit_all_filtered`](Parallel::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn visit_all<C: Fn(A) -> Result<(), E> + Sync>(
+    fn visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
         pl: &mut impl ProgressLog,

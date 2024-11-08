@@ -6,7 +6,7 @@ use webgraph::traits::RandomAccessGraph;
 
 /// Runs an acyclicity test.
 pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
-    let mut visit = SeqPath::<_, StoppedWhenDone>::new(&graph);
+    let mut visit = SeqPath::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
