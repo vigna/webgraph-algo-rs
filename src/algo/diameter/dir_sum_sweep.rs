@@ -3,8 +3,8 @@ use crate::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{
-            breadth_first::{Event, FilterArgs, ParFair},
-            Parallel,
+            breadth_first::{Event, ParFair},
+            FilterArgs, Parallel,
         },
     },
     traits::{SliceInteriorMutability, StronglyConnectedComponents, UnsafeSliceWrite},
@@ -1066,8 +1066,8 @@ impl<
 
                 bfs.visit_filtered(
                     p,
-                    |args| {
-                        if let Event::Unknown { curr, distance, .. } = args {
+                    |event| {
+                        if let Event::Unknown { curr, distance, .. } = event {
                             // Safety: each node is accessed exactly once
                             unsafe {
                                 dist_pivot_mut.write_once(curr, distance);
@@ -1076,7 +1076,7 @@ impl<
                         };
                         Ok(())
                     },
-                    |FilterArgs { curr, .. }| components[curr] == pivot_component,
+                    |FilterArgs::<Event> { curr, .. }| components[curr] == pivot_component,
                     no_logging![],
                 )
                 .unwrap_infallible();
