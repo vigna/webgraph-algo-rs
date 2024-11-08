@@ -1,8 +1,8 @@
 //! Visits on graphs.
 //!
 //! Visits have a type parameter `A` implementing the trait
-//! [`EventArgs`](EventArgs) and an error type parameter `E`. They accept a
-//! callback function with argument `&A` returning a `Result<(), E>`. If a
+//! [`EventArgs`] and an error type parameter `E`. They accept a
+//! callback function with argument `A` returning a `Result<(), E>`. If a
 //! callback returns an error, the visit will be interrupted; uninterruptible
 //! visits should use the [`Infallible`](std::convert::Infallible) error type.
 //! Note that an interruption does not necessarily denote an error condition
@@ -11,19 +11,18 @@
 //! [Sequential visits](Sequential) are visits that are executed in a single
 //! thread, whereas [parallel visits](Parallel) use multiple threads. The
 //! signature of callbacks reflects this difference: the callbacks of Sequential
-//! visits are `FnMut(&A) -> Result<(), E>`, whereas the callbacks of parallel
-//! visits are `Fn(&A) -> Result<(), E> + Sync`, and analogously for the filter
-//! functions.
+//! visits are `FnMut(A) -> Result<(), E>`, whereas the callbacks of parallel
+//! visits are `Fn(A) -> Result<(), E> + Sync`.
 //!
 //! In case of interruption sequential visits usually return immediately to the
 //! caller, whereas in general parallel visits might need to complete part of
 //! their subtasks before returning to the caller.
 //!
-//! Additionally, implementations accepts a filter function that will be called
-//! when a new node is discovered. If the filter returns false, the node will be
-//! ignored, that is, not even marked as known. Note that in case of parallel
-//! visits the filter might be called multiple times on the same node (and with
-//! a different predecessor, if available) due to race conditions.
+//! Additionally, implementations might accepts a filter function that will be
+//! called when a new node is discovered. If the filter returns false, the node
+//! will be ignored, that is, not even marked as known. Note that in case of
+//! parallel visits the filter might be called multiple times on the same node
+//! (and with a different predecessor, if available) due to race conditions.
 //!
 //! All visits accept also a mutable reference to an implementation of
 //! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) to log the progress of

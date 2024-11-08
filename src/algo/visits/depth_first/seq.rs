@@ -49,12 +49,10 @@ pub type SeqPath<'a, G, E = std::convert::Infallible> = SeqIter<'a, ThreeStates,
 ///   is always false.
 /// * [`SeqPath`] generates events of type [`EventPred`].
 ///
-/// The arguments for callbacks are of type [`Args`] (default type parameters) for
-/// [`Seq`] and of type [`ArgsPred`] (which is just [`Args`] with type
-/// parameters [`NodePred`] and [`EventPred`]) for [`SeqPred`] and [`SeqPath`].
-/// With respect to [`Args`], [`ArgsPred`] adds the predecessor of the current
-/// node to the data field, and its event field is of type [`EventPred`],
-/// which contains a [postvisit event](EventPred::Postvisit).
+/// The arguments for callbacks are of type [`Event`] for [`Seq`] and of type
+/// [`EventPred`] for [`SeqPred`] and [`SeqPath`]. With respect to [`Event`],
+/// [`EventPred`] adds the predecessor of the current node to the data field,
+/// and provides a [postvisit event](EventPred::Postvisit).
 ///
 /// All visits accept two type parameters: an error type to be returned in case
 /// the visit must be interrupted (for example,
