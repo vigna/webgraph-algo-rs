@@ -250,16 +250,14 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
     ) -> Result<(), E> {
         let state = &mut self.state;
 
-        if state.known(root) {
-            return Ok(());
-        }
-
-        if !filter(FilterArgsPred {
-            curr: root,
-            pred: root,
-            root,
-            depth: 0,
-        }) {
+        if state.known(root)
+            || !filter(FilterArgsPred {
+                curr: root,
+                pred: root,
+                root,
+                depth: 0,
+            })
+        {
             // We ignore the node: it might be visited later
             return Ok(());
         }
@@ -380,15 +378,13 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
     ) -> Result<(), E> {
         let state = &mut self.state;
 
-        if state.known(root) {
-            return Ok(());
-        }
-
-        if !filter(FilterArgs {
-            curr: root,
-            root,
-            depth: 0,
-        }) {
+        if state.known(root)
+            || !filter(FilterArgs {
+                curr: root,
+                root,
+                depth: 0,
+            })
+        {
             // We ignore the node: it might be visited later
             return Ok(());
         }
