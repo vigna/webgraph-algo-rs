@@ -36,11 +36,11 @@ pub fn bench_bfv(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("Parallel (Granularity 1)", &parameter),
+            BenchmarkId::new("Parallel fair no predecessors (Granularity 1)", &parameter),
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFairNoPred::<_>::new(g, 1);
+                    let mut visit = ParFair::<_>::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
@@ -50,11 +50,45 @@ pub fn bench_bfv(c: &mut Criterion) {
         );
 
         group.bench_with_input(
-            BenchmarkId::new("Parallel (Granularity 64)", &parameter),
+            BenchmarkId::new("Parallel fair no predecessors (Granularity 64)", &parameter),
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFairNoPred::<_>::new(g, 64);
+                    let mut visit = ParFair::<_>::new(g, 64);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                    }
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new(
+                "Parallel fair with predecessors (Granularity 1)",
+                &parameter,
+            ),
+            &input,
+            |b, g| {
+                b.iter_with_large_drop(|| {
+                    let mut visit = ParFairPred::<_>::new(g, 1);
+                    for i in 0..g.num_nodes() {
+                        let node = (i + start) % g.num_nodes();
+                        visit.visit(node, |_| Ok(()), no_logging![]).unwrap();
+                    }
+                });
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new(
+                "Parallel fair with predecessors (Granularity 64)",
+                &parameter,
+            ),
+            &input,
+            |b, g| {
+                b.iter_with_large_drop(|| {
+                    let mut visit = ParFairPred::<_>::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit.visit(node, |_| Ok(()), no_logging![]).unwrap();

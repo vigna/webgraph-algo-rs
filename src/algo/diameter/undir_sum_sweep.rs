@@ -3,7 +3,7 @@ use crate::{
         diameter::*,
         scc::TarjanStronglyConnectedComponents,
         visits::{
-            breadth_first::{Event, ParFairNoPred},
+            breadth_first::{Event, ParFair},
             Parallel,
         },
     },
@@ -121,7 +121,7 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
         'a,
         G,
         C,
-        ParFairNoPred<&'a G, Infallible, rayon::ThreadPool>,
+        ParFair<&'a G, Infallible, rayon::ThreadPool>,
         rayon::ThreadPool,
     > {
         let mut builder =
@@ -152,7 +152,7 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParFairNoPred<&'a G, Infallible, T>, T> {
+    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParFair<&'a G, Infallible, T>, T> {
         let builder =
             SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
                 .scc::<C>()

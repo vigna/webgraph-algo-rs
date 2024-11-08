@@ -46,7 +46,7 @@ use webgraph::traits::RandomAccessGraph;
 ///     |args|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
+///             if let breadth_first::Event::Unknown {curr, distance, ..} = args {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
 ///             Ok(())
@@ -62,7 +62,7 @@ pub struct ParFair<
     G: RandomAccessGraph,
     E = std::convert::Infallible,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
-    const PRED: bool = true,
+    const PRED: bool = false,
 > {
     graph: G,
     granularity: usize,
@@ -71,8 +71,9 @@ pub struct ParFair<
     _phantom: std::marker::PhantomData<E>,
 }
 
-pub type ParFairNoPred<G, E = std::convert::Infallible, T = rayon::ThreadPool> =
-    ParFair<G, E, T, false>;
+/// A fair parallel breadth-first visit that keeps track of its predecessors.
+pub type ParFairPred<G, E = std::convert::Infallible, T = rayon::ThreadPool> =
+    ParFair<G, E, T, true>;
 
 impl<G: RandomAccessGraph, E, const P: bool> ParFair<G, E, rayon::ThreadPool, P> {
     /// Creates a fair parallel breadth-first visit with the [default number of

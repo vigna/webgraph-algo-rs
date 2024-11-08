@@ -148,8 +148,8 @@ test_bfv_algo!(
     sequential
 );
 test_bfv_algo!(
-    |g| { webgraph_algo::prelude::breadth_first::ParFair::<_>::new(g, 32,) },
-    parallel
+    |g| { webgraph_algo::prelude::breadth_first::ParFairPred::<_>::new(g, 32,) },
+    parallel_fair_pred
 );
 test_bfv_algo!(
     |g| { webgraph_algo::prelude::breadth_first::ParLowMem::<_>::new(g, 32,) },

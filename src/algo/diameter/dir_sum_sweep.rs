@@ -3,7 +3,7 @@ use crate::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{
-            breadth_first::{Event, ParFairNoPred},
+            breadth_first::{Event, ParFair},
             Parallel,
         },
     },
@@ -190,8 +190,8 @@ impl<
         G1,
         G2,
         SCC,
-        ParFairNoPred<&'a G1, Infallible, rayon::ThreadPool>,
-        ParFairNoPred<&'a G2, Infallible, rayon::ThreadPool>,
+        ParFair<&'a G1, Infallible, rayon::ThreadPool>,
+        ParFair<&'a G2, Infallible, rayon::ThreadPool>,
         rayon::ThreadPool,
     >
     where
@@ -199,9 +199,9 @@ impl<
         G2: 'a,
     {
         let direct_visit =
-            ParFairNoPred::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
+            ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
         let transposed_visit =
-            ParFairNoPred::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
+            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
         SumSweepDirectedDiameterRadius::new(
             self.graph,
             self.transpose,
@@ -237,14 +237,14 @@ impl<
         G1,
         G2,
         SCC,
-        ParFairNoPred<&'a G1, Infallible, T>,
-        ParFairNoPred<&'a G2, Infallible, T>,
+        ParFair<&'a G1, Infallible, T>,
+        ParFair<&'a G2, Infallible, T>,
         T,
     > {
         let direct_visit =
-            ParFairNoPred::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
+            ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
         let transposed_visit =
-            ParFairNoPred::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
+            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
         SumSweepDirectedDiameterRadius::new(
             self.graph,
             self.transpose,
@@ -1074,7 +1074,7 @@ impl<
         let threadpool = self.threadpool.borrow();
 
         self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = ParFairNoPred::with_threads(graph, VISIT_GRANULARITY, threadpool);
+            let mut bfs = ParFair::with_threads(graph, VISIT_GRANULARITY, threadpool);
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {
