@@ -3,7 +3,7 @@ use crate::{
         diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{
-            breadth_first::{Event, ParFair},
+            breadth_first::{Event, FilterArgs, ParFair},
             Parallel,
         },
     },
@@ -502,9 +502,8 @@ impl<
             self.compute_radial_vertices(pl);
         }
 
-        let t = std::time::Instant::now();
-        let max_outdegree_vertex = self
-            .threadpool
+        let max_outdegree_vertex = 0;
+        self.threadpool
             .borrow()
             .install(|| {
                 (0..self.number_of_nodes)
@@ -514,7 +513,6 @@ impl<
             })
             .unwrap()
             .1; // The iterator is not empty
-        dbg!(t.elapsed());
 
         self.sum_sweep_heuristic(max_outdegree_vertex, 6, pl);
 
@@ -1078,7 +1076,7 @@ impl<
                         };
                         Ok(())
                     },
-                    |args| components[args.curr] == pivot_component,
+                    |FilterArgs { curr, .. }| components[curr] == pivot_component,
                     no_logging![],
                 )
                 .unwrap_infallible();

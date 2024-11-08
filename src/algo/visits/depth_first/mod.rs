@@ -11,8 +11,6 @@
 mod seq;
 pub use seq::*;
 
-use super::EventArgs;
-
 /// Types of callback events generated during a depth-first visit
 /// not keeping track of parent nodes.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -58,7 +56,7 @@ pub struct FilterArgs {
     pub depth: usize,
 }
 
-impl EventArgs for Event {
+impl super::Event for Event {
     type FilterArgs = FilterArgs;
 }
 
@@ -132,6 +130,6 @@ pub struct FilterArgsPred {
     pub depth: usize,
 }
 
-impl EventArgs for EventPred {
+impl super::Event for EventPred {
     type FilterArgs = FilterArgsPred;
 }

@@ -248,7 +248,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
     fn visit_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
-        F: Fn(<EventPred as EventArgs>::FilterArgs) -> bool + Sync,
+        F: Fn(<EventPred as super::super::Event>::FilterArgs) -> bool + Sync,
     >(
         &mut self,
         root: usize,
