@@ -149,9 +149,13 @@ fn test_cycle() -> Result<()> {
         assert_eq!(sum_sweep.diameter(), Some(size / 2));
         assert_eq!(sum_sweep.radius(), Some(size / 2));
 
-        assert!(sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap()) == sum_sweep.radius());
-        assert!(
-            sum_sweep.eccentricity(sum_sweep.diametral_vertex().unwrap()) == sum_sweep.diameter()
+        assert_eq!(
+            sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap()),
+            sum_sweep.radius()
+        );
+        assert_eq!(
+            sum_sweep.eccentricity(sum_sweep.diametral_vertex().unwrap()),
+            sum_sweep.diameter()
         );
     }
     Ok(())

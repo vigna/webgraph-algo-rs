@@ -250,13 +250,7 @@ where
 
     #[inline(always)]
     fn vertex_eccentricity(&self, index: usize) -> Option<usize> {
-        let forward = self.inner.eccentricity(index, true);
-        let backward = self.inner.eccentricity(index, false);
-        if forward == backward {
-            forward
-        } else {
-            None
-        }
+        self.inner.eccentricity(index, true)
     }
 
     /// Computes diameter, radius, and/or all eccentricities.
