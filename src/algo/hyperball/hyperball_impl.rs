@@ -27,8 +27,8 @@ pub struct HyperBallBuilder<
     W: Word + IntoAtomic,
     H: BuildHasher + Clone,
     T,
-    G1: RandomAccessGraph,
-    G2: RandomAccessGraph = G1,
+    G1: RandomAccessGraph + Sync,
+    G2: RandomAccessGraph + Sync = G1,
 > {
     graph: &'a G1,
     rev_graph: Option<&'a G2>,
@@ -42,7 +42,7 @@ pub struct HyperBallBuilder<
     threadpool: T,
 }
 
-impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph>
+impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph + Sync>
     HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, Threads, G>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
@@ -78,8 +78,8 @@ impl<
         W: Word + IntoAtomic,
         H: BuildHasher + Clone,
         T,
-        G1: RandomAccessGraph,
-        G2: RandomAccessGraph,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
     > HyperBallBuilder<'a, D, W, H, T, G1, G2>
 {
     /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
@@ -87,7 +87,7 @@ impl<
     /// # Arguments
     /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
     ///   and no systolic iterations will be performed by the built [`HyperBall`].
-    pub fn transposed<G: RandomAccessGraph>(
+    pub fn transposed<G: RandomAccessGraph + Sync>(
         self,
         transposed: Option<&'a G>,
     ) -> HyperBallBuilder<'a, D, W, H, T, G1, G> {
@@ -269,8 +269,8 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
         H: BuildHasher + Clone,
-        G1: RandomAccessGraph,
-        G2: RandomAccessGraph,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
     > HyperBallBuilder<'a, D, W, H, Threads, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified settings and
@@ -307,8 +307,8 @@ impl<
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
         H: BuildHasher + Clone,
         T: Borrow<rayon::ThreadPool>,
-        G1: RandomAccessGraph,
-        G2: RandomAccessGraph,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
     > HyperBallBuilder<'a, D, W, H, T, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified settings and
@@ -452,8 +452,8 @@ impl Default for IterationContext {
 /// and of (discounted) positive geometric centralities of a graph.
 pub struct HyperBall<
     'a,
-    G1: RandomAccessGraph,
-    G2: RandomAccessGraph,
+    G1: RandomAccessGraph + Sync,
+    G2: RandomAccessGraph + Sync,
     T: Borrow<rayon::ThreadPool>,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
@@ -767,8 +767,8 @@ impl<
 
 impl<
         'a,
-        G1: RandomAccessGraph,
-        G2: RandomAccessGraph,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,

@@ -2,6 +2,7 @@
 //!
 //! Mostly for internal use, some structures may be useful outside of this crate.
 
+use rayon::prelude::*;
 use webgraph::traits::RandomAccessGraph;
 
 mod argmax;
@@ -62,39 +63,71 @@ macro_rules! ok_infallible {
     };
 }
 
-const MAX_NODES_ENV_VAR: &str = "MAX_TRANSPOSED_SIZE_DEBUG";
-const MAX_NODES_DEFAULT: usize = 10000;
+const MAX_NODES_ENV_VAR: &str = "MAX_GRAPH_SIZE_DEBUG";
+const MAX_NODES_DEFAULT: usize = 100_000;
 
 /// Returns whether `transposed` is the transposed graph of `graph`.
 ///
 /// # Arguments
 /// * `graph`: the direct graph.
 /// * `transposed`: the graph to check whether is the transposed of `graph`.
-pub(crate) fn check_transposed<G1: RandomAccessGraph, G2: RandomAccessGraph>(
+pub(crate) fn check_transposed<G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>(
     graph: &G1,
     transposed: &G2,
 ) -> bool {
     if graph.num_nodes() != transposed.num_nodes() || graph.num_arcs() != transposed.num_arcs() {
         return false;
-    } else {
-        let max_nodes = std::env::var(MAX_NODES_ENV_VAR)
-            .map(|v| v.parse().unwrap_or(MAX_NODES_DEFAULT))
-            .unwrap_or(MAX_NODES_DEFAULT);
-        if graph.num_nodes() > max_nodes {
-            eprintln!("This graph is bigger than {} nodes ({} nodes). It is assumed to be the correct transposed. If you wish to raise the maximum size to check at runtime, set the environment variable {} to the desired maximum size", max_nodes, graph.num_nodes(), MAX_NODES_ENV_VAR);
-            return true;
-        }
-        for node in 0..graph.num_nodes() {
+    }
+    let max_nodes = std::env::var(MAX_NODES_ENV_VAR)
+        .map(|v| v.parse().unwrap_or(MAX_NODES_DEFAULT))
+        .unwrap_or(MAX_NODES_DEFAULT);
+    if graph.num_nodes() > max_nodes {
+        eprintln!("This graph is bigger than {} nodes ({} nodes). It is assumed to be the correct transposed. If you wish to raise the maximum size to check at runtime, set the environment variable {} to the desired maximum size", max_nodes, graph.num_nodes(), MAX_NODES_ENV_VAR);
+        return true;
+    }
+    (0..graph.num_nodes())
+        .into_par_iter()
+        .try_for_each(|node| {
             for succ in graph.successors(node) {
                 if !transposed
                     .successors(succ)
                     .into_iter()
                     .any(|pred| pred == node)
                 {
-                    return false;
+                    return Err(());
                 }
             }
-        }
+            for succ in transposed.successors(node) {
+                if !graph.successors(succ).into_iter().any(|pred| pred == node) {
+                    return Err(());
+                }
+            }
+            Ok(())
+        })
+        .is_ok()
+}
+
+/// Returns whether the graph is symmetric (can be considered undirected).
+///
+/// # Arguments
+/// * `graph`: the graph.
+pub(crate) fn check_symmetric<G: RandomAccessGraph + Sync>(graph: &G) -> bool {
+    let max_nodes = std::env::var(MAX_NODES_ENV_VAR)
+        .map(|v| v.parse().unwrap_or(MAX_NODES_DEFAULT))
+        .unwrap_or(MAX_NODES_DEFAULT);
+    if graph.num_nodes() > max_nodes {
+        eprintln!("This graph is bigger than {} nodes ({} nodes). It is assumed to be symmetric. If you wish to raise the maximum size to check at runtime, set the environment variable {} to the desired maximum size", max_nodes, graph.num_nodes(), MAX_NODES_ENV_VAR);
+        return true;
     }
-    true
+    (0..graph.num_nodes())
+        .into_par_iter()
+        .try_for_each(|node| {
+            for succ in graph.successors(node) {
+                if !graph.successors(succ).into_iter().any(|pred| pred == node) {
+                    return Err(());
+                }
+            }
+            Ok(())
+        })
+        .is_ok()
 }

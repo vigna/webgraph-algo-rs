@@ -8,7 +8,7 @@ use crate::{
         },
     },
     prelude::*,
-    utils::Threads,
+    utils::{check_symmetric, Threads},
 };
 use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
@@ -31,6 +31,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, TarjanStronglyConnectedComponents>
 {
     pub fn new(graph: &'a G, output: SumSweepOutputLevel) -> Self {
+        debug_assert!(check_symmetric(graph), "graph should be symmetric");
         let output = match output {
             SumSweepOutputLevel::Radius => SumSweepOutputLevel::Radius,
             SumSweepOutputLevel::Diameter => SumSweepOutputLevel::Diameter,
