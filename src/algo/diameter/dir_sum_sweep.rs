@@ -1121,12 +1121,8 @@ impl<
         ));
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
-        let dist_ecc_f = self.compute_dist_pivot(&pivot, true, pl);
-        let dist_ecc_b = self.compute_dist_pivot(&pivot, false, pl);
-        let dist_pivot_f = dist_ecc_f.0;
-        let mut ecc_pivot_f = dist_ecc_f.1;
-        let dist_pivot_b = dist_ecc_b.0;
-        let mut ecc_pivot_b = dist_ecc_b.1;
+        let (dist_pivot_f, mut ecc_pivot_f) = self.compute_dist_pivot(&pivot, true, pl);
+        let (dist_pivot_b, mut ecc_pivot_b) = self.compute_dist_pivot(&pivot, false, pl);
         let components = self.strongly_connected_components.component();
 
         // Tarjan's algorithm emits components in reverse topological order.
