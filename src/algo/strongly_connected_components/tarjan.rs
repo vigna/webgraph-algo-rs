@@ -79,17 +79,17 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                             lead.push(true);
                         }
                         EventPred::Revisit {
-                            on_stack,
+                            on_stack: true,
                             curr,
                             pred,
                             ..
                         } => {
-                            if on_stack && low_link[curr] < low_link[pred] {
+                            if low_link[curr] < low_link[pred] {
                                 // Safe as the stack is never empty
                                 *lead.last_mut().unwrap() = false;
                                 low_link[pred] = low_link[curr];
 
-                                if low_link[pred] == root_low_link && current_index == num_nodes {
+                                /*if low_link[pred] == root_low_link && current_index == num_nodes {
                                     // All nodes have been discovered, and we
                                     // found a low link identical to that of the
                                     // root: thus, the current node, all nodes
@@ -104,12 +104,13 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                     // Nodes on the visit path will be assigned
                                     // to the same component later
                                     return Err(StoppedWhenDone {});
-                                }
+                                }*/
                             }
                         }
                         EventPred::Postvisit { curr, pred, .. } => {
                             // Safe as the stack is never empty
                             if lead.pop().unwrap() {
+                                debug_assert!(low_link[curr] >= low_link[pred]);
                                 // Set the component index of nodes in the component
                                 // stack with lower low link than the current node
                                 while let Some(node) = component_stack.pop() {
@@ -125,7 +126,6 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 self.number_of_components += 1;
                             } else {
                                 component_stack.push(curr);
-
                                 // Propagate knowledge to the parent
                                 if low_link[curr] < low_link[pred] {
                                     // Safe as the stack is never empty
@@ -134,8 +134,9 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 }
                             }
                         }
+                        _ => (),
                     }
-                    Ok(())
+                    Ok::<_, StoppedWhenDone>(())
                 },
                 pl,
             )

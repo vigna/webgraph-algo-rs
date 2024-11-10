@@ -262,6 +262,8 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
             return Ok(());
         }
 
+        callback(EventPred::Init { root })?;
+
         state.set_known(root);
 
         callback(EventPred::Previsit {
@@ -388,6 +390,8 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
             // We ignore the node: it might be visited later
             return Ok(());
         }
+
+        callback(Event::Init { root })?;
 
         state.set_known(root);
 

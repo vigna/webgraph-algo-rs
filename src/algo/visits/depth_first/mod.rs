@@ -16,6 +16,9 @@ pub use seq::*;
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Event {
     /// This event should be used to set up state at the start of the visit.
+    ///
+    /// Note that this event will not happen if the visit is empty, that
+    /// is, if the root has been already visited.
     Init {
         /// The root of the current visit tree, that is, the first node that
         /// will be visited.
@@ -65,6 +68,9 @@ impl super::Event for Event {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum EventPred {
     /// This event should be used to set up state at the start of the visit.
+    ///
+    /// Note that this event will not happen if the visit is empty, that
+    /// is, if the root has been already visited.
     Init {
         /// The root of the current visit tree, that is, the first node that
         /// will be visited.
