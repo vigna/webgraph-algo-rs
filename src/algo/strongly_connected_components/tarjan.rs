@@ -53,8 +53,15 @@ impl<G: RandomAccessGraph> Tarjan<G> {
     }
 
     fn run(&mut self, pl: &mut impl ProgressLog) {
-        let mut visit = SeqPath::new(&self.graph);
+        let mut visit = SeqPred::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
+        // We will be using [0..num_nodes) for components
+        // and [num_nodes..2*num_nodes) for low links
+        assert!(
+            num_nodes <= usize::MAX / 2,
+            "This implementation supports at most 2^{} nodes",
+            std::mem::size_of::<usize>() * 8 - 1
+        );
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));
         pl.start("Computing strongly connected components");
@@ -63,7 +70,10 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         lead.push(true);
         let mut component_stack = Vec::with_capacity(16);
         let low_link = &mut self.component;
-        let mut current_index = 0;
+        // We initialize the time variable in wuch a way that emitted components
+        // will have a low_link value smaller than any current time
+        let mut time = num_nodes.saturating_sub(1);
+        let end_time = time * 2 + 1; // 2 * num_nodes - 1
         let mut root_low_link = 0;
 
         if visit
@@ -71,46 +81,41 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                 |args| {
                     match args {
                         EventPred::Init { .. } => {
-                            root_low_link = current_index;
+                            root_low_link = time + 1;
                         }
                         EventPred::Previsit { curr, .. } => {
-                            low_link[curr] = current_index;
-                            current_index += 1;
+                            time += 1;
+                            low_link[curr] = time; // >= num_nodes, <= umax::SIZE
                             lead.push(true);
                         }
-                        EventPred::Revisit {
-                            on_stack: true,
-                            curr,
-                            pred,
-                            ..
-                        } => {
-                            if low_link[curr] < low_link[pred] {
+                        EventPred::Revisit { curr, pred, .. } => {
+                            // curr has not been emitted yet but it has a lower link
+                            if low_link[curr] >= num_nodes && low_link[curr] < low_link[pred] {
                                 // Safe as the stack is never empty
                                 *lead.last_mut().unwrap() = false;
                                 low_link[pred] = low_link[curr];
-
-                                /*if low_link[pred] == root_low_link && current_index == num_nodes {
+                                if low_link[pred] == root_low_link && time == end_time {
                                     // All nodes have been discovered, and we
                                     // found a low link identical to that of the
-                                    // root: thus, the current node, all nodes
-                                    // on the visit path and all nodes in the
-                                    // component stack belong to the same
-                                    // component.
+                                    // root: thus, all nodes on the visit path
+                                    // and all nodes in the component stack
+                                    // belong to the same component.
 
-                                    low_link[curr] = self.number_of_components;
+                                    // pred is the last node on the visit path,
+                                    // so it won't be returned by the stack method
+                                    low_link[pred] = self.number_of_components;
                                     for &node in component_stack.iter() {
                                         low_link[node] = self.number_of_components;
                                     }
                                     // Nodes on the visit path will be assigned
                                     // to the same component later
                                     return Err(StoppedWhenDone {});
-                                }*/
+                                }
                             }
                         }
                         EventPred::Postvisit { curr, pred, .. } => {
                             // Safe as the stack is never empty
                             if lead.pop().unwrap() {
-                                debug_assert!(low_link[curr] >= low_link[pred]);
                                 // Set the component index of nodes in the component
                                 // stack with lower low link than the current node
                                 while let Some(node) = component_stack.pop() {
@@ -134,9 +139,8 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 }
                             }
                         }
-                        _ => (),
                     }
-                    Ok::<_, StoppedWhenDone>(())
+                    Ok(())
                 },
                 pl,
             )

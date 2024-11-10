@@ -121,6 +121,12 @@ impl<'a, 'b, S, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, G> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
+        // Since we put predecessors on the stack, the
+        // first two stack entries are equal to the root,
+        // so we avoid to return the first one
+        if self.visit.stack.len() <= 1 {
+            return None;
+        }
         self.visit.stack.pop().map(|(_, parent)| parent)
     }
 }
@@ -141,12 +147,15 @@ impl<'a, S: NodeStates, G: RandomAccessGraph, P, const PRED: bool> SeqIter<'a, S
 }
 
 impl<'a, S, G: RandomAccessGraph> SeqIter<'a, S, G, usize, true> {
-    /// Returns an iterator over the nodes stil on the visit path.
+    /// Returns an iterator over the nodes stil on the visit path,
+    /// except for the last one.
     ///
     /// Node will be returned in reverse order of visit.
     ///
     /// This method is useful only in the case of interrupted visits,
-    /// as in a completed visit the stack will be empty.
+    /// as in a completed visit the stack will be empty. The last node
+    /// on the visit path at the moment of the interruption must be
+    /// treated separately.
     pub fn stack(&mut self) -> StackIterator<'a, '_, S, G> {
         StackIterator { visit: self }
     }

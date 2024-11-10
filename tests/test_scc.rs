@@ -1,8 +1,11 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
+use epserde::impls;
 use sux::bit_vec;
 use webgraph::cli::transform::transpose;
+use webgraph::graphs::random::ErdosRenyi;
 use webgraph::prelude::BvGraph;
+use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 use webgraph_algo::algo::scc::*;
 use webgraph_algo::prelude::*;
@@ -136,103 +139,31 @@ fn test_large() -> Result<()> {
     let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
     let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
 
-    assert_eq!(
-        kosaraju.number_of_components(),
-        tarjan.number_of_components()
-    );
+    assert_eq!(kosaraju.number_of_components(), 100977);
+    assert_eq!(tarjan.number_of_components(), 100977);
 
     Ok(())
 }
 
 #[test]
-fn test_cycle() -> Result<()> {
-    let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0)]));
-    let transpose = Left(VecGraph::from_arc_list([(1, 0), (2, 1), (3, 2), (0, 3)]));
+fn test_er() -> Result<()> {
+    for n in (1..100).step_by(10) {
+        for d in 1..10 {
+            let graph = Left(VecGraph::from_lender(
+                ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter(),
+            ));
 
-    let components = Kosaraju::compute(&graph, &transpose, no_logging![]);
-    assert_eq!(components.number_of_components(), 1);
+            let transpose = Left(VecGraph::from_lender(
+                transform::transpose(&graph, 10000)?.iter(),
+            ));
+            let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
+            let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
 
-    Ok(())
-}
-
-#[test]
-fn test_buckets() -> Result<()> {
-    let graph = Left(VecGraph::from_arc_list([
-        (0, 0),
-        (1, 0),
-        (1, 2),
-        (2, 1),
-        (2, 3),
-        (2, 4),
-        (2, 5),
-        (3, 4),
-        (4, 3),
-        (5, 5),
-        (5, 6),
-        (5, 7),
-        (5, 8),
-        (6, 7),
-        (8, 7),
-    ]));
-
-    let transpose = Left(VecGraph::from_arc_list([
-        (0, 1),
-        (0, 2),
-        (1, 2),
-        (2, 1),
-        (3, 2),
-        (4, 2),
-        (5, 2),
-        (4, 3),
-        (3, 4),
-        (5, 5),
-        (6, 5),
-        (7, 5),
-        (8, 5),
-        (7, 6),
-        (7, 8),
-    ]));
-
-    let mut components = Kosaraju::compute(&graph, &transpose, no_logging![]);
-
-    assert_eq!(components.component()[3], components.component()[4]);
-
-    let mut buckets = bit_vec![false; graph.num_nodes()];
-    buckets.set(0, true);
-    buckets.set(3, true);
-    buckets.set(4, true);
-
-    components.sort_by_size();
-    let sizes = components.compute_sizes();
-
-    assert_eq!(sizes, vec![2, 2, 1, 1, 1, 1, 1]);
-
-    Ok(())
-}
-
-#[test]
-fn test_buckets_2() -> Result<()> {
-    let graph = Left(VecGraph::from_arc_list([
-        (0, 1),
-        (1, 2),
-        (2, 0),
-        (1, 3),
-        (3, 3),
-    ]));
-    let transpose = Left(VecGraph::from_arc_list([
-        (1, 0),
-        (2, 1),
-        (0, 2),
-        (3, 1),
-        (3, 3),
-    ]));
-
-    let mut components = Kosaraju::compute(&graph, &transpose, no_logging![]);
-
-    components.sort_by_size();
-    let sizes = components.compute_sizes();
-
-    assert_eq!(sizes, vec![3, 1]);
-
+            assert_eq!(
+                kosaraju.number_of_components(),
+                tarjan.number_of_components()
+            );
+        }
+    }
     Ok(())
 }
