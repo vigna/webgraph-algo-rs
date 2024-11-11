@@ -1,8 +1,6 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
-use epserde::impls;
 use sux::bit_vec;
-use webgraph::cli::transform::transpose;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::prelude::BvGraph;
 use webgraph::transform;
@@ -34,9 +32,10 @@ macro_rules! test_scc_algo {
                     (6, 7),
                     (8, 7),
                 ]));
+                let transpose = Left(VecGraph::from_lender(transform::transpose(&graph, 10000)?.iter(),));
 
                 let mut components =
-                    $scc::compute(&graph, no_logging![]);
+                    $scc::compute(&graph, &transpose, no_logging![]);
 
                 assert_eq!(components.component()[3], components.component()[4]);
 
@@ -56,9 +55,10 @@ macro_rules! test_scc_algo {
             #[test]
             fn test_buckets_2() -> Result<()> {
                 let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+                let transpose = Left(VecGraph::from_lender(transform::transpose(&graph, 10000)?.iter(),));
 
                 let mut components =
-                    $scc::compute(&graph, no_logging![]);
+                    $scc::compute(&graph, &transpose, no_logging![]);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -71,9 +71,10 @@ macro_rules! test_scc_algo {
             #[test]
             fn test_cycle() -> Result<()> {
                 let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0)]));
+                let transpose = Left(VecGraph::from_lender(transform::transpose(&graph, 10000)?.iter(),));
 
                 let mut components =
-                    $scc::compute(&graph, no_logging![]);
+                    $scc::compute(&graph, &transpose, no_logging![]);
 
                 components.sort_by_size();
                 let sizes = components.compute_sizes();
@@ -98,9 +99,10 @@ macro_rules! test_scc_algo {
                 }
 
                 let graph = Left(g);
+                let transpose = Left(VecGraph::from_lender(transform::transpose(&graph, 10000)?.iter(),));
 
                 let mut components =
-                    $scc::compute(&graph, no_logging![]);
+                    $scc::compute(&graph, &transpose, no_logging![]);
                 components.sort_by_size();
 
                 for i in 0..5 {
@@ -114,8 +116,9 @@ macro_rules! test_scc_algo {
             #[test]
             fn test_tree() -> Result<()> {
                 let graph = Left(VecGraph::from_arc_list([(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6)]));
+                let transpose = Left(VecGraph::from_lender(transform::transpose(&graph, 10000)?.iter(),));
                 let mut components =
-                    $scc::compute(&graph, no_logging![]);
+                    $scc::compute(&graph,&transpose, no_logging![]);
                 components.sort_by_size();
 
                 assert_eq!(components.number_of_components(), 7);
@@ -127,7 +130,7 @@ macro_rules! test_scc_algo {
 }
 
 test_scc_algo!(TarjanStronglyConnectedComponents, tarjan);
-//test_scc_algo!(KKStronglyConnectedComponents, kk);
+test_scc_algo!(Kosaraju, kosaraju);
 
 #[test]
 fn test_large() -> Result<()> {
@@ -137,7 +140,7 @@ fn test_large() -> Result<()> {
     let transpose = BvGraph::with_basename(basename.to_string() + "-t").load()?;
 
     let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
-    let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
+    let tarjan = TarjanStronglyConnectedComponents::compute_no_transpose(&graph, no_logging![]);
 
     assert_eq!(kosaraju.number_of_components(), 100977);
     assert_eq!(tarjan.number_of_components(), 100977);
@@ -157,7 +160,8 @@ fn test_er() -> Result<()> {
                 transform::transpose(&graph, 10000)?.iter(),
             ));
             let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
-            let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
+            let tarjan =
+                TarjanStronglyConnectedComponents::compute_no_transpose(&graph, no_logging![]);
 
             assert_eq!(
                 kosaraju.number_of_components(),

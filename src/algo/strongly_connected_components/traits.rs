@@ -13,13 +13,34 @@ pub trait StronglyConnectedComponents {
     /// The mutable reference to the component index of each node.
     fn component_mut(&mut self) -> &mut [usize];
 
-    /// Computes the strongly connected components of a given graph.
+    /// Computes the strongly connected components of a given graph without the transposed
+    /// if possible.
     ///
     /// # Arguments:
     /// * `graph`: the graph whose strongly connected components are to be computed.
     /// * `compute_buckets`: if `true`, buckets will be computed.
     /// * `pl`: A progress logger.
-    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self;
+    fn compute_no_transpose(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self;
+
+    /// Computes the strongly connected components of a given graph with the transposed.
+    ///
+    /// # Arguments:
+    /// * `graph`: the graph whose strongly connected components are to be computed.
+    /// * `transposed`: the tansposed of `graph`.
+    /// * `compute_buckets`: if `true`, buckets will be computed.
+    /// * `pl`: A progress logger.
+    #[inline(always)]
+    #[allow(unused_variables)]
+    fn compute(
+        graph: impl RandomAccessGraph,
+        transpose: impl RandomAccessGraph,
+        pl: &mut impl ProgressLog,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        Self::compute_no_transpose(graph, pl)
+    }
 
     /// Returns the size array for this set of strongly connected components.
     fn compute_sizes(&self) -> Vec<usize> {
@@ -79,7 +100,10 @@ mod test {
     }
 
     impl<G: RandomAccessGraph> StronglyConnectedComponents for MockStronglyConnectedComponent<G> {
-        fn compute(_graph: impl RandomAccessGraph, _pl: &mut impl ProgressLog) -> Self {
+        fn compute_no_transpose(
+            _graph: impl RandomAccessGraph,
+            _pl: &mut impl ProgressLog,
+        ) -> Self {
             panic!()
         }
         fn component(&self) -> &[usize] {

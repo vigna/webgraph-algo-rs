@@ -16,6 +16,7 @@ fn main() -> Result<()> {
         .init()?;
     let basename = std::env::args().nth(2).expect("No graph basename provided");
     let graph = BvGraph::with_basename(&basename).load()?;
+    let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
     let mut main_pl = ProgressLogger::default();
     main_pl.info(format_args!("Starting test..."));
 
@@ -31,10 +32,9 @@ fn main() -> Result<()> {
         .as_str()
     {
         "tarjan" => {
-            TarjanStronglyConnectedComponents::compute(&graph, &mut main_pl);
+            TarjanStronglyConnectedComponents::compute(&graph, reversed_graph, &mut main_pl);
         }
         "diameter" => {
-            let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
             let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new(
                 &graph,
                 &reversed_graph,
@@ -45,7 +45,6 @@ fn main() -> Result<()> {
         }
         "hyperball" => {
             let cumulative = DCF::load_mmap(basename.clone() + ".dcf", Flags::empty())?;
-            let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
             let log2m = std::env::args()
                 .nth(3)
                 .expect("No log2m value provided")

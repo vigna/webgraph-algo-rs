@@ -24,7 +24,7 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
         self.component.as_mut()
     }
 
-    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
+    fn compute_no_transpose(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
         let mut visit = Tarjan::new(graph);
 
         visit.run(pl);
