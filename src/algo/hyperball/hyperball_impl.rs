@@ -777,7 +777,7 @@ impl<
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
-    fn swap_backend(&mut self) {
+    fn swap_arrays(&mut self) {
         self.bits.swap_with(&mut self.result_bits);
         std::mem::swap(
             &mut self.modified_counter,
@@ -941,7 +941,7 @@ impl<
             (self.modified_counters() as f64 / self.graph.num_nodes() as f64) * 100.0
         ));
 
-        self.swap_backend();
+        self.swap_arrays();
         if self.systolic {
             std::mem::swap(&mut self.must_be_checked, &mut self.next_must_be_checked);
         }

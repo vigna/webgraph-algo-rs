@@ -429,8 +429,9 @@ where
     fn estimate_count(&self) -> f64 {
         let mut harmonic_mean = 0.0;
         let mut zeroes = 0;
+        let array = &self.array;
 
-        for i in 0..self.array.num_registers() {
+        for i in 0..array.num_registers() {
             let value = self.get_register(i).upcast();
             if value == 0 {
                 zeroes += 1;
@@ -438,10 +439,10 @@ where
             harmonic_mean += 1.0 / (1 << value) as f64;
         }
 
-        let mut estimate = self.array.alpha_m_m() / harmonic_mean;
-        if zeroes != 0 && estimate < 2.5 * self.array.num_registers() as f64 {
-            estimate = self.array.num_registers() as f64
-                * (self.array.num_registers() as f64 / zeroes as f64).ln();
+        let mut estimate = array.alpha_m_m() / harmonic_mean;
+        if zeroes != 0 && estimate < 2.5 * array.num_registers() as f64 {
+            estimate =
+                array.num_registers() as f64 * (array.num_registers() as f64 / zeroes as f64).ln();
         }
         estimate
     }
