@@ -554,7 +554,7 @@ impl<
         ));
 
         for i in 0..upper_bound {
-            self.iterate(pl)
+            self.iterate(&mut pl.clone())
                 .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
             pl.update();

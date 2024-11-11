@@ -499,7 +499,7 @@ impl<
         pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
-            self.compute_radial_vertices(pl);
+            self.compute_radial_vertices(&mut pl.clone());
         }
 
         let max_outdegree_vertex = self
@@ -514,10 +514,10 @@ impl<
             .unwrap()
             .1; // The iterator is not empty
 
-        self.sum_sweep_heuristic(max_outdegree_vertex, 6, pl);
+        self.sum_sweep_heuristic(max_outdegree_vertex, 6, &mut pl.clone());
 
         let mut points = [self.graph.num_nodes() as f64; 5];
-        let mut missing_nodes = self.find_missing_nodes(pl);
+        let mut missing_nodes = self.find_missing_nodes(&mut pl.clone());
         let mut old_missing_nodes;
 
         pl.info(format_args!(
@@ -532,8 +532,8 @@ impl<
             match step_to_perform {
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
-                    let pivot = self.find_best_pivot(pl);
-                    self.all_cc_upper_bound(pivot, pl)
+                    let pivot = self.find_best_pivot(&mut pl.clone());
+                    self.all_cc_upper_bound(pivot, &mut pl.clone())
                 }
                 1 => {
                     pl.info(format_args!(
@@ -544,7 +544,7 @@ impl<
                         &self.total_forward_distance,
                         |i, _| self.incomplete_forward_vertex(i),
                     );
-                    self.step_sum_sweep(v, true, pl)
+                    self.step_sum_sweep(v, true, &mut pl.clone())
                 }
                 2 => {
                     pl.info(format_args!(
@@ -555,7 +555,7 @@ impl<
                         &self.total_forward_distance,
                         |i, _| self.radial_vertices[i],
                     );
-                    self.step_sum_sweep(v, true, pl)
+                    self.step_sum_sweep(v, true, &mut pl.clone())
                 }
                 3 => {
                     pl.info(format_args!(
@@ -566,7 +566,7 @@ impl<
                         &self.total_backward_distance,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, pl)
+                    self.step_sum_sweep(v, false, &mut pl.clone())
                 }
                 4 => {
                     pl.info(format_args!(
@@ -577,13 +577,13 @@ impl<
                         &self.upper_bound_backward_eccentricities,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, pl)
+                    self.step_sum_sweep(v, false, &mut pl.clone())
                 }
                 5.. => panic!(),
             }
 
             old_missing_nodes = missing_nodes;
-            missing_nodes = self.find_missing_nodes(pl);
+            missing_nodes = self.find_missing_nodes(&mut pl.clone());
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             // This is to make rust-analyzer happy as it cannot recognize mut reference
@@ -1112,8 +1112,10 @@ impl<
         ));
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
-        let (dist_pivot_f, mut ecc_pivot_f) = self.compute_dist_pivot(&pivot, true, pl);
-        let (dist_pivot_b, mut ecc_pivot_b) = self.compute_dist_pivot(&pivot, false, pl);
+        let (dist_pivot_f, mut ecc_pivot_f) =
+            self.compute_dist_pivot(&pivot, true, &mut pl.clone());
+        let (dist_pivot_b, mut ecc_pivot_b) =
+            self.compute_dist_pivot(&pivot, false, &mut pl.clone());
         let components = self.strongly_connected_components.component();
 
         // Tarjan's algorithm emits components in reverse topological order.
