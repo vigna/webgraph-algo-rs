@@ -1,5 +1,5 @@
 use anyhow::Result;
-use dsi_progress_logger::{ProgressLog, ProgressLogger};
+use dsi_progress_logger::prelude::*;
 use epserde::deser::{Deserialize, Flags};
 use webgraph::prelude::{BvGraph, DCF};
 use webgraph::traits::SequentialLabeling;
@@ -16,7 +16,7 @@ fn main() -> Result<()> {
         .init()?;
     let basename = std::env::args().nth(2).expect("No graph basename provided");
     let graph = BvGraph::with_basename(&basename).load()?;
-    let mut main_pl = ProgressLogger::default();
+    let mut main_pl = progress_logger![display_memory = true];
     main_pl.info(format_args!("Starting test..."));
 
     let mut flags = MmapFlags::empty();
