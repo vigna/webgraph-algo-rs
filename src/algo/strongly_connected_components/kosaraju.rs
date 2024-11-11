@@ -30,7 +30,7 @@ impl Kosaraju {
         pl: &mut impl ProgressLog,
     ) -> Self {
         let top_sort = top_sort::run(graph, pl);
-        let mut comp_index = 0.wrapping_sub(1);
+        let mut number_of_components = 0.wrapping_sub(1);
         let mut visit = Seq::new(transpose);
         let mut component = vec![0; graph.num_nodes()];
 
@@ -41,10 +41,10 @@ impl Kosaraju {
                     |event| {
                         match event {
                             Event::Init { .. } => {
-                                comp_index = comp_index.wrapping_add(1);
+                                number_of_components = number_of_components.wrapping_add(1);
                             }
                             Event::Previsit { curr, .. } => {
-                                component[curr] = comp_index;
+                                component[curr] = number_of_components;
                             }
                             _ => (),
                         }
@@ -56,7 +56,7 @@ impl Kosaraju {
         }
         Kosaraju {
             component,
-            n_of_components: comp_index + 1,
+            n_of_components: number_of_components + 1,
         }
     }
 

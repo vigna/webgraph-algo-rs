@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        diameter::{scc_graph::SccGraph, SumSweepOutputLevel},
+        diameter::{scc_graph::SccGraph, OutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{
             breadth_first::{Event, ParFair},
@@ -24,8 +24,9 @@ use std::{
 use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
-/// Builder for [`SumSweepDirectedDiameterRadius`].
-pub struct SumSweepDirectedDiameterRadiusBuilder<
+
+/// Builder for [`DirExactSumSweep`].
+pub struct DirExactSumSweepBuilder<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
@@ -34,14 +35,14 @@ pub struct SumSweepDirectedDiameterRadiusBuilder<
 > {
     graph: &'a G1,
     transpose: &'a G2,
-    output: SumSweepOutputLevel,
+    output: OutputLevel,
     radial_vertices: Option<AtomicBitVec>,
     threads: T,
     _marker: std::marker::PhantomData<SCC>,
 }
 
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
-    SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, TarjanStronglyConnectedComponents>
+    DirExactSumSweepBuilder<'a, G1, G2, Threads, TarjanStronglyConnectedComponents>
 {
     /// Creates a new builder with default parameters.
     ///
@@ -49,7 +50,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     /// * `graph`: the direct graph to analyze.
     /// * `transposed_graph`: the transposed of `graph`.
     /// * `output`: the output to generate.
-    pub fn new(graph: &'a G1, transposed_graph: &'a G2, output: SumSweepOutputLevel) -> Self {
+    pub fn new(graph: &'a G1, transposed_graph: &'a G2, output: OutputLevel) -> Self {
         assert_eq!(
             transposed_graph.num_nodes(),
             graph.num_nodes(),
@@ -85,7 +86,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         T,
         C: StronglyConnectedComponents,
-    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C>
+    > DirExactSumSweepBuilder<'a, G1, G2, T, C>
 {
     /// Sets the radial vertices with a bit vector.
     ///
@@ -102,11 +103,9 @@ impl<
         self
     }
 
-    /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use the default [`rayon::ThreadPool`].
-    pub fn default_threadpool(
-        self,
-    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C> {
-        SumSweepDirectedDiameterRadiusBuilder {
+    /// Sets the [`DirExactSumSweep`] instance to use the default [`rayon::ThreadPool`].
+    pub fn default_threadpool(self) -> DirExactSumSweepBuilder<'a, G1, G2, Threads, C> {
+        DirExactSumSweepBuilder {
             graph: self.graph,
             transpose: self.transpose,
             output: self.output,
@@ -116,7 +115,7 @@ impl<
         }
     }
 
-    /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use a custom [`rayon::ThreadPool`] with the
+    /// Sets the [`DirExactSumSweep`] instance to use a custom [`rayon::ThreadPool`] with the
     /// specified number of threads.
     ///
     /// # Arguments
@@ -124,8 +123,8 @@ impl<
     pub fn num_threads(
         self,
         num_threads: usize,
-    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, C> {
-        SumSweepDirectedDiameterRadiusBuilder {
+    ) -> DirExactSumSweepBuilder<'a, G1, G2, Threads, C> {
+        DirExactSumSweepBuilder {
             graph: self.graph,
             transpose: self.transpose,
             output: self.output,
@@ -135,15 +134,15 @@ impl<
         }
     }
 
-    /// Sets the [`SumSweepDirectedDiameterRadius`] instance to use the provided [`rayon::ThreadPool`].
+    /// Sets the [`DirExactSumSweep`] instance to use the provided [`rayon::ThreadPool`].
     ///
     /// # Arguments
     /// * `threadpool`: the custom `ThreadPool` to use.
     pub fn threadpool<T2: Borrow<rayon::ThreadPool> + Clone + Sync>(
         self,
         threads: T2,
-    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T2, C> {
-        SumSweepDirectedDiameterRadiusBuilder {
+    ) -> DirExactSumSweepBuilder<'a, G1, G2, T2, C> {
+        DirExactSumSweepBuilder {
             graph: self.graph,
             transpose: self.transpose,
             output: self.output,
@@ -156,8 +155,8 @@ impl<
     /// Sets the algorithm to use to compute the strongly connected components for the graph.
     pub fn scc<C2: StronglyConnectedComponents>(
         self,
-    ) -> SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, C2> {
-        SumSweepDirectedDiameterRadiusBuilder {
+    ) -> DirExactSumSweepBuilder<'a, G1, G2, T, C2> {
+        DirExactSumSweepBuilder {
             graph: self.graph,
             transpose: self.transpose,
             output: self.output,
@@ -173,9 +172,9 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         SCC: StronglyConnectedComponents + Sync,
-    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, Threads, SCC>
+    > DirExactSumSweepBuilder<'a, G1, G2, Threads, SCC>
 {
-    /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
+    /// Builds the [`DirExactSumSweep`] instance with the specified settings and
     /// logs progress with the provided logger.
     ///
     /// # Arguments
@@ -184,7 +183,7 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepDirectedDiameterRadius<
+    ) -> DirExactSumSweep<
         'a,
         G1,
         G2,
@@ -201,7 +200,7 @@ impl<
             ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
         let transposed_visit =
             ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
-        SumSweepDirectedDiameterRadius::new(
+        DirExactSumSweep::new(
             self.graph,
             self.transpose,
             self.output,
@@ -220,9 +219,9 @@ impl<
         G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool> + Clone + Sync,
         SCC: StronglyConnectedComponents + Sync,
-    > SumSweepDirectedDiameterRadiusBuilder<'a, G1, G2, T, SCC>
+    > DirExactSumSweepBuilder<'a, G1, G2, T, SCC>
 {
-    /// Builds the [`SumSweepDirectedDiameterRadius`] instance with the specified settings and
+    /// Builds the [`DirExactSumSweep`] instance with the specified settings and
     /// logs progress with the provided logger.
     ///
     /// # Arguments
@@ -231,13 +230,12 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, ParFair<&'a G1, T>, ParFair<&'a G2, T>, T>
-    {
+    ) -> DirExactSumSweep<'a, G1, G2, SCC, ParFair<&'a G1, T>, ParFair<&'a G2, T>, T> {
         let direct_visit =
             ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
         let transposed_visit =
             ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
-        SumSweepDirectedDiameterRadius::new(
+        DirExactSumSweep::new(
             self.graph,
             self.transpose,
             self.output,
@@ -262,7 +260,7 @@ const VISIT_GRANULARITY: usize = 32;
 ///
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
-pub struct SumSweepDirectedDiameterRadius<
+pub struct DirExactSumSweep<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
@@ -274,7 +272,7 @@ pub struct SumSweepDirectedDiameterRadius<
     graph: &'a G1,
     transpose: &'a G2,
     number_of_nodes: usize,
-    output: SumSweepOutputLevel,
+    output: OutputLevel,
     radial_vertices: AtomicBitVec,
     diameter_lower_bound: usize,
     radius_upper_bound: usize,
@@ -319,22 +317,22 @@ impl<
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
-    > SumSweepDirectedDiameterRadius<'a, G1, G2, SCC, V1, V2, T>
+    > DirExactSumSweep<'a, G1, G2, SCC, V1, V2, T>
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
         graph: &'a G1,
         transpose: &'a G2,
-        output: SumSweepOutputLevel,
+        output: OutputLevel,
         direct_visit: V1,
         transposed_visit: V2,
         threadpool: T,
         radial_vertices: Option<AtomicBitVec>,
         pl: &mut impl ProgressLog,
     ) -> Self {
-        let nn = graph.num_nodes();
+        let num_nodes = graph.num_nodes();
         assert!(
-            nn < usize::MAX,
+            num_nodes < usize::MAX,
             "Graph should have a number of nodes < usize::MAX"
         );
 
@@ -342,10 +340,10 @@ impl<
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
-            debug_assert_eq!(r.len(), nn);
+            debug_assert_eq!(r.len(), num_nodes);
             r
         } else {
-            AtomicBitVec::new(nn)
+            AtomicBitVec::new(num_nodes)
         };
 
         let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
@@ -359,17 +357,17 @@ impl<
 
         pl.info(format_args!("Initializing data structure"));
 
-        let lower_forward = vec![0; nn];
-        let lower_backward = vec![0; nn];
-        let upper_forward = vec![nn + 1; nn];
-        let upper_backward = vec![nn + 1; nn];
-        let total_forward = vec![0; nn];
-        let total_backward = vec![0; nn];
+        let lower_forward = vec![0; num_nodes];
+        let lower_backward = vec![0; num_nodes];
+        let upper_forward = vec![num_nodes + 1; num_nodes];
+        let upper_backward = vec![num_nodes + 1; num_nodes];
+        let total_forward = vec![0; num_nodes];
+        let total_backward = vec![0; num_nodes];
 
-        SumSweepDirectedDiameterRadius {
+        DirExactSumSweep {
             graph,
             transpose,
-            number_of_nodes: nn,
+            number_of_nodes: num_nodes,
             total_forward_distance: total_forward,
             total_backward_distance: total_backward,
             lower_bound_forward_eccentricities: lower_forward,
@@ -405,7 +403,7 @@ impl<
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
-    > SumSweepDirectedDiameterRadius<'a, G1, G2, C, V1, V2, T>
+    > DirExactSumSweep<'a, G1, G2, C, V1, V2, T>
 {
     #[inline(always)]
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
@@ -601,9 +599,7 @@ impl<
             ));
         }
 
-        if self.output == SumSweepOutputLevel::Radius
-            || self.output == SumSweepOutputLevel::RadiusDiameter
-        {
+        if self.output == OutputLevel::Radius || self.output == OutputLevel::RadiusDiameter {
             pl.info(format_args!(
                 "Radius: {} ({} iterations).",
                 self.radius_upper_bound,
@@ -611,9 +607,7 @@ impl<
                     .expect("radius iterations should not be None")
             ));
         }
-        if self.output == SumSweepOutputLevel::Diameter
-            || self.output == SumSweepOutputLevel::RadiusDiameter
-        {
+        if self.output == OutputLevel::Diameter || self.output == OutputLevel::RadiusDiameter {
             pl.info(format_args!(
                 "Diameter: {} ({} iterations).",
                 self.diameter_lower_bound,
@@ -1305,13 +1299,11 @@ impl<
         pl.done();
 
         match self.output {
-            SumSweepOutputLevel::Radius => missing_r,
-            SumSweepOutputLevel::Diameter => std::cmp::min(missing_df, missing_db),
-            SumSweepOutputLevel::RadiusDiameter => {
-                missing_r + std::cmp::min(missing_df, missing_db)
-            }
-            SumSweepOutputLevel::AllForward => missing_all_forward,
-            SumSweepOutputLevel::All => missing_all_backward + missing_all_forward,
+            OutputLevel::Radius => missing_r,
+            OutputLevel::Diameter => std::cmp::min(missing_df, missing_db),
+            OutputLevel::RadiusDiameter => missing_r + std::cmp::min(missing_df, missing_db),
+            OutputLevel::AllForward => missing_all_forward,
+            OutputLevel::All => missing_all_backward + missing_all_forward,
         }
     }
 }

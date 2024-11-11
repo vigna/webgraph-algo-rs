@@ -1,6 +1,6 @@
 use dsi_progress_logger::ProgressLog;
 use rayon::prelude::*;
-use webgraph::traits::RandomAccessGraph;
+use webgraph::{algo::llp, traits::RandomAccessGraph};
 
 /// The strongly connected components on a graph.
 pub trait StronglyConnectedComponents {
@@ -36,22 +36,13 @@ pub trait StronglyConnectedComponents {
     /// strongly connected components are decreasing in the component index.
     fn sort_by_size(&mut self) {
         let sizes = self.compute_sizes();
-        let new_order = {
-            let mut tmp = Vec::from_iter(0..sizes.len());
-            tmp.sort_unstable_by_key(|&element| -(sizes[element] as isize));
-            let mut perm = Vec::new();
-            for i in 0..sizes.len() {
-                let mut new_index = 0;
-                while tmp[new_index] != i {
-                    new_index += 1;
-                }
-                perm.push(new_index);
-            }
-            perm
-        };
+        let mut sort_perm = Vec::from_iter(0..sizes.len());
+        sort_perm.sort_unstable_by(|&x, &y| sizes[y].cmp(&sizes[x]));
+        let mut inv_perm = vec![0; sizes.len()];
+        llp::invert_permutation(&sort_perm, &mut inv_perm);
         self.component_mut()
             .par_iter_mut()
-            .for_each(|node_component| *node_component = new_order[*node_component]);
+            .for_each(|node_component| *node_component = inv_perm[*node_component]);
     }
 }
 

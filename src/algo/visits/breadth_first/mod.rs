@@ -55,6 +55,7 @@ pub enum Event {
 }
 
 /// Filter arguments for visits that do not keep track of predecessors.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct FilterArgs {
     /// The current node.
     pub curr: usize,
@@ -109,6 +110,7 @@ pub enum EventPred {
     },
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct FilterArgsPred {
     /// The current node.
     pub curr: usize,

@@ -35,12 +35,9 @@ fn main() -> Result<()> {
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
-            let mut diameter = SumSweepDirectedDiameterRadiusBuilder::new(
-                &graph,
-                &reversed_graph,
-                SumSweepOutputLevel::RadiusDiameter,
-            )
-            .build(&mut main_pl);
+            let mut diameter =
+                DirExactSumSweepBuilder::new(&graph, &reversed_graph, OutputLevel::RadiusDiameter)
+                    .build(&mut main_pl);
             diameter.compute(&mut main_pl);
         }
         "hyperball" => {

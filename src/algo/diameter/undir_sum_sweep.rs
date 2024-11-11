@@ -14,29 +14,29 @@ use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
 use webgraph::traits::RandomAccessGraph;
 
-/// Builder for [`SumSweepUndirectedDiameterRadius`].
-pub struct SumSweepUndirectedDiameterRadiusBuilder<
+/// Builder for [`UndirExactSumSweep`].
+pub struct UndirExactSumSweepBuilder<
     'a,
     G: RandomAccessGraph + Sync,
     T,
     C: StronglyConnectedComponents,
 > {
     graph: &'a G,
-    output: SumSweepOutputLevel,
+    output: OutputLevel,
     threads: T,
     _marker: std::marker::PhantomData<C>,
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
-    SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, TarjanStronglyConnectedComponents>
+    UndirExactSumSweepBuilder<'a, G, Threads, TarjanStronglyConnectedComponents>
 {
-    pub fn new(graph: &'a G, output: SumSweepOutputLevel) -> Self {
+    pub fn new(graph: &'a G, output: OutputLevel) -> Self {
         debug_assert!(check_symmetric(graph), "graph should be symmetric");
         let output = match output {
-            SumSweepOutputLevel::Radius => SumSweepOutputLevel::Radius,
-            SumSweepOutputLevel::Diameter => SumSweepOutputLevel::Diameter,
-            SumSweepOutputLevel::RadiusDiameter => SumSweepOutputLevel::RadiusDiameter,
-            _ => SumSweepOutputLevel::All,
+            OutputLevel::Radius => OutputLevel::Radius,
+            OutputLevel::Diameter => OutputLevel::Diameter,
+            OutputLevel::RadiusDiameter => OutputLevel::RadiusDiameter,
+            _ => OutputLevel::All,
         };
         Self {
             graph,
@@ -48,11 +48,11 @@ impl<'a, G: RandomAccessGraph + Sync>
 }
 
 impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
-    SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C>
+    UndirExactSumSweepBuilder<'a, G, T, C>
 {
-    /// Sets the [`SumSweepUndirectedDiameterRadius`] instance to use the default [`rayon::ThreadPool`].
-    pub fn default_threadpool(self) -> SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, C> {
-        SumSweepUndirectedDiameterRadiusBuilder {
+    /// Sets the [`UndirExactSumSweep`] instance to use the default [`rayon::ThreadPool`].
+    pub fn default_threadpool(self) -> UndirExactSumSweepBuilder<'a, G, Threads, C> {
+        UndirExactSumSweepBuilder {
             graph: self.graph,
             output: self.output,
             threads: Threads::Default,
@@ -60,16 +60,13 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
         }
     }
 
-    /// Sets the [`SumSweepUndirectedDiameterRadius`] instance to use a custom [`rayon::ThreadPool`] with the
+    /// Sets the [`UndirExactSumSweep`] instance to use a custom [`rayon::ThreadPool`] with the
     /// specified number of threads.
     ///
     /// # Arguments
     /// * `num_threads`: the number of threads to use for the new `ThreadPool`.
-    pub fn num_threads(
-        self,
-        num_threads: usize,
-    ) -> SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, C> {
-        SumSweepUndirectedDiameterRadiusBuilder {
+    pub fn num_threads(self, num_threads: usize) -> UndirExactSumSweepBuilder<'a, G, Threads, C> {
+        UndirExactSumSweepBuilder {
             graph: self.graph,
             output: self.output,
             threads: Threads::NumThreads(num_threads),
@@ -77,15 +74,15 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
         }
     }
 
-    /// Sets the [`SumSweepUndirectedDiameterRadius`] instance to use the provided [`rayon::ThreadPool`].
+    /// Sets the [`UndirExactSumSweep`] instance to use the provided [`rayon::ThreadPool`].
     ///
     /// # Arguments
     /// * `threadpool`: the custom `ThreadPool` to use.
     pub fn threadpool<T2: Borrow<rayon::ThreadPool> + Clone + Sync>(
         self,
         threads: T2,
-    ) -> SumSweepUndirectedDiameterRadiusBuilder<'a, G, T2, C> {
-        SumSweepUndirectedDiameterRadiusBuilder {
+    ) -> UndirExactSumSweepBuilder<'a, G, T2, C> {
+        UndirExactSumSweepBuilder {
             graph: self.graph,
             output: self.output,
             threads,
@@ -94,10 +91,8 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
     }
 
     /// Sets the algorithm to use to compute the strongly connected components for the graph.
-    pub fn scc<C2: StronglyConnectedComponents>(
-        self,
-    ) -> SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C2> {
-        SumSweepUndirectedDiameterRadiusBuilder {
+    pub fn scc<C2: StronglyConnectedComponents>(self) -> UndirExactSumSweepBuilder<'a, G, T, C2> {
+        UndirExactSumSweepBuilder {
             graph: self.graph,
             output: self.output,
             threads: self.threads,
@@ -107,9 +102,9 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
 }
 
 impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
-    SumSweepUndirectedDiameterRadiusBuilder<'a, G, Threads, C>
+    UndirExactSumSweepBuilder<'a, G, Threads, C>
 {
-    /// Builds the [`SumSweepUndirectedDiameterRadius`] instance with the specified settings and
+    /// Builds the [`UndirExactSumSweep`] instance with the specified settings and
     /// logs progress with the provided logger.
     ///
     /// # Arguments
@@ -117,21 +112,14 @@ impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepUndirectedDiameterRadius<
-        'a,
-        G,
-        C,
-        ParFair<&'a G, rayon::ThreadPool>,
-        rayon::ThreadPool,
-    > {
+    ) -> UndirExactSumSweep<'a, G, C, ParFair<&'a G, rayon::ThreadPool>, rayon::ThreadPool> {
         let mut builder =
-            SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
-                .scc::<C>();
+            DirExactSumSweepBuilder::new(self.graph, self.graph, self.output).scc::<C>();
         builder = match self.threads {
             Threads::Default => builder.default_threadpool(),
             Threads::NumThreads(num_threads) => builder.num_threads(num_threads),
         };
-        SumSweepUndirectedDiameterRadius {
+        UndirExactSumSweep {
             inner: builder.build(pl),
         }
     }
@@ -142,9 +130,9 @@ impl<
         G: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
         T: Borrow<rayon::ThreadPool> + Clone + Sync,
-    > SumSweepUndirectedDiameterRadiusBuilder<'a, G, T, C>
+    > UndirExactSumSweepBuilder<'a, G, T, C>
 {
-    /// Builds the [`SumSweepUndirectedDiameterRadius`] instance with the specified settings and
+    /// Builds the [`UndirExactSumSweep`] instance with the specified settings and
     /// logs progress with the provided logger.
     ///
     /// # Arguments
@@ -152,12 +140,11 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> SumSweepUndirectedDiameterRadius<'a, G, C, ParFair<&'a G, T>, T> {
-        let builder =
-            SumSweepDirectedDiameterRadiusBuilder::new(self.graph, self.graph, self.output)
-                .scc::<C>()
-                .threadpool(self.threads);
-        SumSweepUndirectedDiameterRadius {
+    ) -> UndirExactSumSweep<'a, G, C, ParFair<&'a G, T>, T> {
+        let builder = DirExactSumSweepBuilder::new(self.graph, self.graph, self.output)
+            .scc::<C>()
+            .threadpool(self.threads);
+        UndirExactSumSweep {
             inner: builder.build(pl),
         }
     }
@@ -174,20 +161,20 @@ impl<
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`] and [`Self::all_iterations`].
 ///
-/// *Implementation detail*: this is just a wrapper to the [`directed version`](SumSweepDirectedDiameterRadius)
+/// *Implementation detail*: this is just a wrapper to the [`directed version`](DirExactSumSweedDirExactSumSweep)
 /// using the provided graph as both the direct and the transposed version,
 /// as it is actually faster than the original algorithm for undirected graphs.
-pub struct SumSweepUndirectedDiameterRadius<
+pub struct UndirExactSumSweep<
     'a,
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
     V: Parallel<Event> + Sync,
     T: Borrow<rayon::ThreadPool> + Sync,
 > {
-    inner: SumSweepDirectedDiameterRadius<'a, G, G, C, V, V, T>,
+    inner: DirExactSumSweep<'a, G, G, C, V, V, T>,
 }
 
-impl<'a, G, C, V, T> SumSweepUndirectedDiameterRadius<'a, G, C, V, T>
+impl<'a, G, C, V, T> UndirExactSumSweep<'a, G, C, V, T>
 where
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
