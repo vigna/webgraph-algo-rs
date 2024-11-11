@@ -6,7 +6,7 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A fair parallel breadth-first visit.
+/// Fair parallel breadth-first visits.
 ///
 /// “Fairness” refers to the fact that the visit is parallelized by dividing the
 /// visit queue in chunks of approximately equal size; threads consume the
@@ -15,31 +15,50 @@ use webgraph::traits::RandomAccessGraph;
 /// enumeration of successors depends on the sum of the outdegrees nodes in a
 /// chunk, which might differ significantly between chunks.
 ///
-/// The visit is parameterized by the type of the data associated with each
-/// node: when using [`Node`](super::super::Node), the visit queue will contain only
-/// nodes, whereas when using [`NodePred`](super::super::NodePred), the visit queue
-/// will contain pairs of nodes and their predecessors, thus doubling the amount
-/// of additional memory required.
+/// There are two version of the visit, which are type aliases to the same
+/// common implementation: [`ParFair`] and [`ParFairPred`].
+///
+/// * [`ParFair`] does not keep track of predecessors; it can be used, for
+///   example, to compute distances.
+/// * [`ParFairPred`] keeps track of predecessors; it can be used, for example,
+///   to compute a visit tree.
+///
+/// Each type of visit uses incrementally more space:
+/// * [`ParFair`] uses one bit per node to remember known nodes and a queue of
+///   `usize` representing nodes;
+/// * [`ParFairPred`] uses one bit per node to remember known nodes and a queue
+///   of pairs of `usize` representing nodes and their parents.
 ///
 /// If you need predecessors but the cost of the callbacks is not significant
 /// you can use a [low-memory parallel
 /// visit](crate::algo::visits::breadth_first::ParLowMem) instead.
 ///
+/// The visits differ also in the type of events they generate:
+/// * [`ParFair`] generates events of type [`Event`].
+/// * [`ParFairPred`] generates events of type [`EventPred`].
+///
+/// With respect to [`Event`], [`EventPred`] provides the predecessor of the
+/// current node.
+///
+/// The progress logger will be updated each time all nodes at a given
+/// distance have been processed. This granularity is very low, but it
+/// provides more realiable results.
+///
 /// # Examples
 ///
+/// Let's compute the distances from 0:
+///
 /// ```
-/// use std::convert::Infallible;
-/// use webgraph_algo::algo::visits::*;
+/// use webgraph_algo::algo::visits::Parallel;
+/// use webgraph_algo::algo::visits::breadth_first::{*, self};
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
-/// use webgraph_algo::ok_infallible;
+/// use unwrap_infallible::UnwrapInfallible;
 ///
-/// // Let's compute the distances from 0
-///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParFair::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
@@ -47,18 +66,19 @@ use webgraph::traits::RandomAccessGraph;
 ///     |event|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::Event::Unknown {curr, distance, ..} = event {
+///             if let Event::Unknown {curr, distance, ..} = event {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
-///             ok_infallible!()
+///             Ok(())
 ///         },
 ///    no_logging![]
-/// ).unwrap();
+/// ).unwrap_infallible();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(d[1].load(Ordering::Relaxed), 1);
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
+
 pub struct ParFairBase<
     G: RandomAccessGraph,
     T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
@@ -113,7 +133,8 @@ impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, rayon::ThreadPool, P> {
 }
 
 impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>, const P: bool> ParFairBase<G, T, P> {
-    /// Creates a fair parallel top-down visit that uses the specified number of threads.
+    /// Creates a fair parallel top-down visit that uses the specified
+    /// thread pool.
     ///
     ///
     /// # Arguments
@@ -169,6 +190,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
             curr_frontier.push(root);
         });
 
+        callback(Event::Init { root })?;
         self.visited.set(root, true, Ordering::Relaxed);
         let mut distance = 0;
 
@@ -276,6 +298,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
             curr_frontier.push((root, root));
         });
 
+        callback(EventPred::Init { root })?;
         self.visited.set(root, true, Ordering::Relaxed);
         let mut distance = 0;
 

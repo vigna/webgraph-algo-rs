@@ -1,21 +1,12 @@
 //! Breadth-first visits.
 //!
-//! Implementations must accept a callback function with argument [`Args`]. The
-//! callback must be called at the [start of a visit](Event::Init), [every time
-//! a new node is discovered](Event::Unknown), and [every time a known node is
-//! rediscovered](Event::Known).
+//! Implementations must accept a callback function with argument [`Event`], or
+//! [`EventPred`] if the visit keeps track of parent nodes. The associated filter
+//! argument types are [`FilterArgs`] and [`FilterArgsPred`], respectively.
 //!
-//! Some visits require more additional space (usually, double) to pass
-//! predecessors to callbacks (this is the case, e.g., of [`ParFair`]). Since
-//! not all algorithms require this information, [`Args`] has a type parameter
-//! `D` (for “data”) that can be either [`Node`](super::Node) or
-//! [`NodePred`](super::NodePred). The same parameter is used to parameterize
-//! visit implementations (see, e.g., [`ParFair`]), so implementations can tune
-//! their behavior and space usage to support just `D`.
-//!
-//! Visit that can always provide the predecessor (e.g., [`Seq`]) use directly
-//! `Args<NodePred>`. In general, can tell the fixed choice of `D` of an
-//! implementation by looking at the type of the argument of its callbacks.
+//! Note that since [`EventPred`] contains the predecessor of the visited node,
+//! all post-initialization visit events can be interpreted as arc events. The
+//! only exception are the previsit and postvisit events of the root.
 
 mod seq;
 pub use seq::*;
@@ -26,10 +17,14 @@ pub use par_fair::*;
 mod par_low_mem;
 pub use par_low_mem::*;
 
-/// Types of callback events generated during a breadth-first visit.
+/// Types of callback events generated during breadth-first visits
+/// not keeping track of parent nodes.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Event {
     /// This event should be used to set up state at the start of the visit.
+    ///
+    /// Note that this event will not happen if the visit is empty, that
+    /// is, if the root has been already visited.
     Init {
         /// The root of the current visit tree, that is, the first node that
         /// will be visited.
@@ -59,7 +54,7 @@ pub enum Event {
     },
 }
 
-/// Type of struct used as input for the filter in breadth-first visits.
+/// Filter arguments for visits that do not keep track of predecessors.
 pub struct FilterArgs {
     /// The current node.
     pub curr: usize,
@@ -73,11 +68,14 @@ impl super::Event for Event {
     type FilterArgs = FilterArgs;
 }
 
-/// Types of callback events generated during a breadth-first visit
+/// Types of callback events generated during breadth-first visits
 /// keeping track of parent nodes.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum EventPred {
     /// This event should be used to set up state at the start of the visit.
+    ///
+    /// Note that this event will not happen if the visit is empty, that
+    /// is, if the root has been already visited.
     Init {
         /// The root of the current visit tree, that is, the first node that
         /// will be visited.

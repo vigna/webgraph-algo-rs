@@ -11,7 +11,7 @@
 mod seq;
 pub use seq::*;
 
-/// Types of callback events generated during a depth-first visit
+/// Types of callback events generated during depth-first visits
 /// not keeping track of parent nodes.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Event {
@@ -48,7 +48,7 @@ pub enum Event {
     },
 }
 
-/// Filter arguments for visit that do not keep track of predecessors.
+/// Filter arguments for visits that do not keep track of predecessors.
 pub struct FilterArgs {
     /// The current node.
     pub curr: usize,
@@ -63,7 +63,7 @@ impl super::Event for Event {
     type FilterArgs = FilterArgs;
 }
 
-/// Types of callback events generated during a depth-first visit
+/// Types of callback events generated during depth-first visits
 /// keeping track of parent nodes (and possibly of the visit path).
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum EventPred {

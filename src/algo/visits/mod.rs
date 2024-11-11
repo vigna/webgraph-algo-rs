@@ -1,14 +1,18 @@
 //! Visits on graphs.
 //!
-//! Implementation of visits depend on a type parameter `A` implementing the
-//! trait [`Event`], and they provide visit methods accepting a callback
-//! function with argument `A` and returning a `Result<(), E>`, where `E` is a
-//! type parameter of the visit method. If a callback returns an error, the
-//! visit will be interrupted; uninterruptible visits should use the
-//! [`Infallible`](std::convert::Infallible) error type (in which case we
+//! Implementation of [sequential](Sequential) and [parallel][Parallel] visits
+//! depend on a type parameter `A` implementing the trait [`Event`]; they
+//! provide visit methods accepting a callback function with argument `A` and
+//! returning a `Result<(), E>`, where `E` is a type parameter of the visit
+//! method: for example, `E` might be [`StoppedWhenDone`] when completing early,
+//! [`Interrupted`] when interrupted or [`Infallible`](std::convert::Infallible)
+//! if the visit cannot be interrupted.
+//!
+//! If a callback returns an error, the visit will be interrupted; and the error
+//! propagated to the caller of the visit method; for uninterruptible visits we
 //! suggest to use something like the
 //! [`unwrap_infallible`](https://docs.rs/unwrap-infallible/latest/unwrap_infallible/trait.UnwrapInfallible.html#tymethod.unwrap_infallible)
-//! method on the result to let type inference run smoothly).
+//! method on the result to let type inference run smoothly.
 //!
 //! Note that an interruption does not necessarily denote an error condition
 //! (see, e.g., [`StoppedWhenDone`]).
@@ -24,10 +28,10 @@
 //! their subtasks before returning to the caller.
 //!
 //! Additionally, implementations might accepts a filter function accepting a
-//! [`Event::FilterArgs`] that will be called when a new node is discovered.
-//! If the filter returns false, the node will be ignored, that is, not even
-//! marked as known. Note that in case of parallel visits the filter might be
-//! called multiple times on the same node (and with a different predecessor, if
+//! [`Event::FilterArgs`] that will be called when a new node is discovered. If
+//! the filter returns false, the node will be ignored, that is, not even marked
+//! as known. Note that in case of parallel visits the filter might be called
+//! multiple times on the same node (and with a different predecessor, if
 //! available) due to race conditions.
 //!
 //! All visits accept also a mutable reference to an implementation of

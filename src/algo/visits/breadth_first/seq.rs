@@ -23,18 +23,18 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// # Examples
 ///
+/// Let's compute the distances from 0:
+///
 /// ```
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
-/// use webgraph_algo::ok_infallible;
+/// use unwrap_infallible::UnwrapInfallible;
 ///
-/// // Let's compute the distances from 0
-///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
-/// let mut visit = breadth_first::Seq::<_>::new(&graph);
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
+/// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut d = [0; 4];
 /// visit.visit(
 ///     0,
@@ -44,12 +44,47 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = event {
 ///                 d[curr] = distance;
 ///             }
-///             ok_infallible!()
+///             Ok(())
 ///         },
-///    no_logging![]
-/// ).unwrap();
+///     no_logging![]
+/// ).unwrap_infallible();
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
+///
+/// Here instead we compute the size of the ball of radius two around node 0: to
+/// minimize resource usage, we count nodes in the filter function, rather than
+/// as the result of an event. In this way, node at distance two are counted but
+/// not included in the queue, as it would happen if we were counting during an
+/// [`EventPred::Unknown`] event.
+///
+/// ```
+/// use std::convert::Infallible;
+/// use webgraph_algo::algo::visits::*;
+/// use dsi_progress_logger::no_logging;
+/// use webgraph::graphs::vec_graph::VecGraph;
+/// use webgraph::labels::proj::Left;
+/// use unwrap_infallible::UnwrapInfallible;
+///
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
+/// let mut visit = breadth_first::Seq::new(&graph);
+/// let mut count = 0;
+/// visit.visit_filtered(
+///     0,
+///     |event| { Ok(()) },
+///     |breadth_first::FilterArgsPred { curr, distance, .. }|
+///         {
+///             if distance > 2 {
+///                 false
+///             } else {
+///                 count += 1;
+///                 true
+///             }
+///         },
+///     no_logging![]
+/// ).unwrap_infallible();
+/// assert_eq!(count, 3);
+/// ```
+
 pub struct Seq<G: RandomAccessGraph> {
     graph: G,
     visited: BitVec,

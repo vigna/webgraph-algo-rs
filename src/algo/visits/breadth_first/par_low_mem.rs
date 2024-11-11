@@ -9,55 +9,57 @@ use std::{borrow::Borrow, sync::atomic::Ordering};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
-/// A low-memory parallel breadth-first visit.
+/// Low-memory parallel breadth-first visits.
 ///
 /// “Low memory” refers to the fact that the visit is parallelized by dividing
 /// the visit queue in chunks of approximately equal size, but nodes are visited
 /// when they are discovered, rather than when they are extracted from the visit
-/// queue. This approach makes unnecessary to store distances and parents in the
-/// visit queue, thus reducing the memory usage. However, the visiting cost is
-/// distributed unevenly among the threads, as it depends on the sum of the
-/// outdegrees of the nodes in a chunk, which might differ significantly between
-/// chunks.
+/// queue. This approach makes unnecessary to store parents in the visit queue,
+/// thus reducing the memory usage, even if this visit supports [`EventPred`].
+/// However, the visiting cost is distributed unevenly among the threads, as it
+/// depends on the sum of the outdegrees of the nodes in a chunk, which might
+/// differ significantly between chunks.
 ///
 /// If the cost of the callbacks is significant, you can use a [fair parallel
-/// visit](crate::algo::visits::breadth_first::ParFair) to
-/// distribute the visiting cost evenly among the threads.
+/// visit](crate::algo::visits::breadth_first::ParFair) to distribute the
+/// visiting cost evenly among the threads.
 ///
 /// # Examples
 ///
+/// Let's compute the breadth-first tree starting from 0:
+///
 /// ```
-/// use std::convert::Infallible;
-/// use webgraph_algo::algo::visits::*;
+/// use webgraph_algo::algo::visits::Parallel;
+/// use webgraph_algo::algo::visits::breadth_first::{*, self};
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
-/// use webgraph_algo::ok_infallible;
+/// use unwrap_infallible::UnwrapInfallible;
 ///
-/// // Let's compute the distances from 0
-///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParLowMem::new(&graph, 1);
-/// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
+/// let mut tree = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
 ///     |event|
 ///         {
-///             // Set distance from 0
-///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = event {
-///                 d[curr].store(distance, Ordering::Relaxed);
+///             // Store the parent
+///             if let EventPred::Unknown {curr, pred, ..} = event {
+///                 tree[curr].store(pred, Ordering::Relaxed);
 ///             }
-///             ok_infallible!()
+///             Ok(())
 ///         },
 ///    no_logging![]
-/// ).unwrap();
-/// assert_eq!(d[0].load(Ordering::Relaxed), 0);
-/// assert_eq!(d[1].load(Ordering::Relaxed), 1);
-/// assert_eq!(d[2].load(Ordering::Relaxed), 2);
-/// assert_eq!(d[3].load(Ordering::Relaxed), 2);
+/// ).unwrap_infallible();
+///
+/// assert_eq!(tree[0].load(Ordering::Relaxed), 0);
+/// assert_eq!(tree[1].load(Ordering::Relaxed), 0);
+/// assert_eq!(tree[2].load(Ordering::Relaxed), 1);
+/// assert_eq!(tree[3].load(Ordering::Relaxed), 1);
 /// ```
+
 pub struct ParLowMem<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
     graph: G,
     granularity: usize,
@@ -101,7 +103,8 @@ impl<G: RandomAccessGraph> ParLowMem<G, rayon::ThreadPool> {
 }
 
 impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<G, T> {
-    /// Creates a low-memory parallel top-down visit that uses the specified number of threads.
+    /// Creates a low-memory parallel top-down visit that uses the specified
+    /// thread pool.
     ///
     /// # Arguments
     ///

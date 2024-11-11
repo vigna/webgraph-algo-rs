@@ -50,40 +50,29 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///   is always false.
 /// * [`SeqPath`] generates events of type [`EventPred`].
 ///
-/// The arguments for callbacks are of type [`Event`] for [`Seq`] and of type
-/// [`EventPred`] for [`SeqPred`] and [`SeqPath`]. With respect to [`Event`],
-/// [`EventPred`] adds the predecessor of the current node to the data field,
-/// and provides a [postvisit event](EventPred::Postvisit).
-///
-/// All visits accept two type parameters: an error type to be returned in case
-/// the visit must be interrupted (for example,
-/// [`StoppedWhenDone`](crate::algo::visits::StoppedWhenDone) when completing
-/// early, [`Interrupted`](crate::algo::visits::Interrupted) when interrupted or
-/// [`Infallible`](std::convert::Infallible) if the visit cannot be
-/// interrupted), and a
-/// [`RandomAccessGraph`](webgraph::traits::RandomAccessGraph). These are
-/// usually taken care of by type inference.
+/// With respect to [`Event`], [`EventPred`] provides the predecessor of the
+/// current node and a [postvisit event](EventPred::Postvisit).
 ///
 /// If the visit was interrupted, the nodes still on the visit path can be
 /// retrieved using the [`stack`](Seq::stack) method (only for [`SeqPred`] and
 /// [`SeqPath`]).
 ///
-/// The progress logger will be invoked after completion of each postvisit (in
-/// particular, after the [postvisit event](EventPred::Postvisit), if
-/// available).
+/// The progress logger will be [invoked](ProgressLog::light_update) after
+/// completion of each postvisit (in particular, after the [postvisit
+/// event](EventPred::Postvisit), if available).
 ///
 /// # Examples
 ///
 /// Let's test acyclicity:
 ///
-/// ```rust
+/// ```
 /// use webgraph_algo::algo::visits::*;
 /// use webgraph_algo::algo::visits::depth_first::*;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 ///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = depth_first::SeqPath::new(&graph);
 ///
 /// assert!(visit.visit_all(
@@ -102,7 +91,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// Or, assuming the input is acyclic, let us compute the reverse of a
 /// topological sort:
 ///
-/// ```rust
+/// ```
 /// use webgraph_algo::algo::visits::*;
 /// use webgraph_algo::algo::visits::depth_first::*;
 /// use dsi_progress_logger::no_logging;
@@ -118,13 +107,10 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// visit.visit_all(
 ///     |event|
 ///         {
-///            match event {
-///                EventPred::Postvisit { curr, .. } => {
-///                     top_sort.push(curr);
-///                    Ok(())
-///                 }
-///                _ => Ok(()),
+///            if let EventPred::Postvisit { curr, .. } = event {
+///                 top_sort.push(curr);
 ///            }
+///            Ok(())
 ///         },
 ///     no_logging![]
 /// ).unwrap_infallible();

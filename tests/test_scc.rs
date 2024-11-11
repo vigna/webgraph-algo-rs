@@ -1,8 +1,6 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
-use epserde::impls;
 use sux::bit_vec;
-use webgraph::cli::transform::transpose;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::prelude::BvGraph;
 use webgraph::transform;
@@ -55,7 +53,7 @@ macro_rules! test_scc_algo {
 
             #[test]
             fn test_buckets_2() -> Result<()> {
-                let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
+                let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 
                 let mut components =
                     $scc::compute(&graph, no_logging![]);
