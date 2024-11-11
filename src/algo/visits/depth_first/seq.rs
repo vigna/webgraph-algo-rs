@@ -74,14 +74,14 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///
 /// # Examples
 ///
-/// ```
+/// Let's test acyclicity:
+///
+/// ```rust
 /// use webgraph_algo::algo::visits::*;
 /// use webgraph_algo::algo::visits::depth_first::*;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
-///
-/// // Let's test acyclicity.
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3), (3, 3)]));
 /// let mut visit = depth_first::SeqPath::new(&graph);
@@ -95,8 +95,39 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///                _ => Ok(()),
 ///            }
 ///         },
-///         no_logging![]
-///     ).is_err()); // As the graph is not acyclic
+///     no_logging![]
+/// ).is_err()); // As the graph is not acyclic
+/// ```
+///
+/// Or, assuming the input is acyclic, let us compute the reverse of a
+/// topological sort:
+///
+/// ```rust
+/// use webgraph_algo::algo::visits::*;
+/// use webgraph_algo::algo::visits::depth_first::*;
+/// use dsi_progress_logger::no_logging;
+/// use webgraph::graphs::vec_graph::VecGraph;
+/// use webgraph::labels::proj::Left;
+/// use webgraph::traits::labels::SequentialLabeling;
+/// use unwrap_infallible::UnwrapInfallible;
+///
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (1, 3), (0, 3)]));
+/// let mut visit = depth_first::SeqPred::new(&graph);
+/// let mut top_sort = Vec::with_capacity(graph.num_nodes());
+///
+/// visit.visit_all(
+///     |event|
+///         {
+///            match event {
+///                EventPred::Postvisit { curr, .. } => {
+///                     top_sort.push(curr);
+///                    Ok(())
+///                 }
+///                _ => Ok(()),
+///            }
+///         },
+///     no_logging![]
+/// ).unwrap_infallible();
 /// ```
 
 // General depth-first visit implementation. The user shouldn't see this.
