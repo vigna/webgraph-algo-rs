@@ -68,6 +68,10 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// retrieved using the [`stack`](Seq::stack) method (only for [`SeqPred`] and
 /// [`SeqPath`]).
 ///
+/// The progress logger will be invoked after completion of each postvisit (in
+/// particular, after the [postvisit event](EventPred::Postvisit), if
+/// available).
+///
 /// # Examples
 ///
 /// ```
@@ -338,14 +342,14 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
                 }
             }
 
-            pl.light_update();
-
             callback(EventPred::Postvisit {
                 curr: current_node,
                 pred: *parent,
                 root,
                 depth,
             })?;
+
+            pl.light_update();
 
             state.set_off_stack(current_node);
 

@@ -38,10 +38,10 @@ use webgraph::traits::RandomAccessGraph;
 /// let mut d = [0; 4];
 /// visit.visit(
 ///     0,
-///     |args|
+///     |event|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = args {
+///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = event {
 ///                 d[curr] = distance;
 ///             }
 ///             ok_infallible!()

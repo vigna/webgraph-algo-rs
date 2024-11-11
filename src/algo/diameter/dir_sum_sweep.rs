@@ -809,8 +809,8 @@ impl<
         self.transposed_visit
             .visit(
                 v,
-                |args| {
-                    if let Event::Unknown { curr, .. } = args {
+                |event| {
+                    if let Event::Unknown { curr, .. } = event {
                         radial_vertices.set(curr, true, Ordering::Relaxed)
                     }
                     Ok(())
@@ -860,12 +860,12 @@ impl<
         self.transposed_visit
             .visit(
                 start,
-                |args| {
+                |event| {
                     if let Event::Unknown {
                         curr: node,
                         distance,
                         ..
-                    } = args
+                    } = event
                     {
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
@@ -948,12 +948,12 @@ impl<
         self.visit
             .visit(
                 start,
-                |args| {
+                |event| {
                     if let Event::Unknown {
                         curr: node,
                         distance,
                         ..
-                    } = args
+                    } = event
                     {
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);

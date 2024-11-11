@@ -13,9 +13,9 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
     pl.start("Checking acyclicity");
 
     let acyclic = visit.visit_all(
-        |args| {
+        |event| {
             // Stop the visit as soon as a back edge is found.
-            match args {
+            match event {
                 EventPred::Revisit { on_stack: true, .. } => Err(StoppedWhenDone {}),
                 _ => Ok(()),
             }

@@ -78,8 +78,8 @@ impl<G: RandomAccessGraph> Tarjan<G> {
 
         if visit
             .visit_all(
-                |args| {
-                    match args {
+                |event| {
+                    match event {
                         EventPred::Init { .. } => {
                             root_low_link = time + 1;
                         }

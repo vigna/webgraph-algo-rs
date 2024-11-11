@@ -44,10 +44,10 @@ use webgraph::traits::RandomAccessGraph;
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.visit(
 ///     0,
-///     |args|
+///     |event|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::Event::Unknown {curr, distance, ..} = args {
+///             if let breadth_first::Event::Unknown {curr, distance, ..} = event {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
 ///             ok_infallible!()
