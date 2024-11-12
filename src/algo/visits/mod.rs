@@ -165,7 +165,7 @@ pub trait Parallel<A: Event> {
     /// * `filter`: A filter function that will be called on each node to
     ///    determine whether the node should be visited or not.
     /// * `pl`: A progress logger.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     fn visit_filtered<
         E: Send,
         C: Fn(A) -> Result<(), E> + Sync,
@@ -175,7 +175,7 @@ pub trait Parallel<A: Event> {
         root: usize,
         callback: C,
         filter: F,
-        threadpool: impl Borrow<ThreadPool>,
+        thread_pool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E>;
 
@@ -189,10 +189,10 @@ pub trait Parallel<A: Event> {
         &mut self,
         root: usize,
         callback: C,
-        threadpool: impl Borrow<ThreadPool>,
+        thread_pool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        self.visit_filtered(root, callback, |_| true, threadpool, pl)
+        self.visit_filtered(root, callback, |_| true, thread_pool, pl)
     }
 
     /// Visits the whole graph.
@@ -206,7 +206,7 @@ pub trait Parallel<A: Event> {
         &mut self,
         callback: C,
         filter: F,
-        threadpool: impl Borrow<ThreadPool>,
+        thread_pool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E>;
 
@@ -219,10 +219,10 @@ pub trait Parallel<A: Event> {
     fn visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
-        threadpool: impl Borrow<ThreadPool>,
+        thread_pool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        self.visit_all_filtered(callback, |_| true, threadpool, pl)
+        self.visit_all_filtered(callback, |_| true, thread_pool, pl)
     }
 
     /// Resets the visit status, making it possible to reuse it.

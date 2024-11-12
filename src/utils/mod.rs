@@ -60,18 +60,18 @@ macro_rules! ok_infallible {
     };
 }
 
-/// Utility macro to create [`threadpools`](`rayon::ThreadPool`).
+/// Utility macro to create [`thread_pools`](`rayon::ThreadPool`).
 ///
 /// There are two forms of this macro:
-/// * Create a threadpool with default setting:
+/// * Create a thread_pool with default setting:
 /// ```
 /// # use webgraph_algo::threads;
-/// let t: rayon::ThreadPool = threads!();
+/// let t: rayon::ThreadPool = threads![];
 /// ```
-/// * Create a threadpool with the given number of threads:
+/// * Create a thread_pool with the given number of threads:
 /// ```
 /// # use webgraph_algo::threads;
-/// let t: rayon::ThreadPool = threads!(7);
+/// let t: rayon::ThreadPool = threads![7];
 /// assert_eq!(t.current_num_threads(), 7);
 /// ```
 #[macro_export]
@@ -79,7 +79,7 @@ macro_rules! threads {
     () => {
         rayon::ThreadPoolBuilder::new()
             .build()
-            .expect("Should be able to build a threadpool with default parameters")
+            .expect("Should be able to build a thread_pool with default parameters")
     };
     ($num_threads:expr) => {
         rayon::ThreadPoolBuilder::new()
@@ -87,7 +87,7 @@ macro_rules! threads {
             .build()
             .unwrap_or_else(|_| {
                 panic!(
-                    "Should be able to build a threadpool with default parameters and {} threads",
+                    "Should be able to build a thread_pool with default parameters and {} threads",
                     $num_threads,
                 )
             })

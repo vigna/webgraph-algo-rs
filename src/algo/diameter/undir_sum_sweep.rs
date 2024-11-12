@@ -126,14 +126,14 @@ where
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn compute(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
-        self.inner.compute(threadpool, pl)
+        self.inner.compute(thread_pool, pl)
     }
 }

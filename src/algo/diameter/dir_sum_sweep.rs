@@ -225,20 +225,22 @@ impl<
     /// # Arguments
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn sum_sweep_heuristic(
         &mut self,
         start: usize,
         iterations: usize,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
+        let thread_pool = thread_pool.borrow();
+
         pl.info(format_args!(
             "Performing initial SumSweep visit from {}.",
             start
         ));
-        self.step_sum_sweep(Some(start), true, threadpool.borrow(), pl);
+        self.step_sum_sweep(Some(start), true, thread_pool, pl);
 
         for i in 2..=iterations {
             if i % 2 == 0 {
@@ -249,7 +251,7 @@ impl<
                     "Performing backwards SumSweep visit from {:?}",
                     v
                 ));
-                self.step_sum_sweep(v, false, threadpool.borrow(), pl);
+                self.step_sum_sweep(v, false, thread_pool, pl);
             } else {
                 let v = math::filtered_argmax(&self.forward_tot, &self.forward_low, |i, _| {
                     self.incomplete_forward(i)
@@ -258,7 +260,7 @@ impl<
                     "Performing forward SumSweep visit from {:?}.",
                     v
                 ));
-                self.step_sum_sweep(v, true, threadpool.borrow(), pl);
+                self.step_sum_sweep(v, true, thread_pool, pl);
             }
         }
     }
@@ -269,24 +271,25 @@ impl<
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     pub fn compute(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
         if self.number_of_nodes == 0 {
             return;
         }
+
+        let thread_pool = thread_pool.borrow();
         pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
-            self.compute_radial_vertices(threadpool.borrow(), &mut pl.clone());
+            self.compute_radial_vertices(thread_pool, &mut pl.clone());
         }
 
-        let max_outdegree_vertex = threadpool
-            .borrow()
+        let max_outdegree_vertex = thread_pool
             .install(|| {
                 (0..self.number_of_nodes)
                     .into_par_iter()
@@ -296,15 +299,10 @@ impl<
             .unwrap()
             .1; // The iterator is not empty
 
-        self.sum_sweep_heuristic(
-            max_outdegree_vertex,
-            6,
-            threadpool.borrow(),
-            &mut pl.clone(),
-        );
+        self.sum_sweep_heuristic(max_outdegree_vertex, 6, thread_pool, &mut pl.clone());
 
         let mut points = [self.graph.num_nodes() as f64; 5];
-        let mut missing_nodes = self.find_missing_nodes(threadpool.borrow(), &mut pl.clone());
+        let mut missing_nodes = self.find_missing_nodes(thread_pool, &mut pl.clone());
         let mut old_missing_nodes;
 
         pl.info(format_args!(
@@ -320,7 +318,7 @@ impl<
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
                     let pivot = self.find_best_pivot(&mut pl.clone());
-                    self.all_cc_upper_bound(pivot, threadpool.borrow(), &mut pl.clone())
+                    self.all_cc_upper_bound(pivot, thread_pool, &mut pl.clone())
                 }
                 1 => {
                     pl.info(format_args!(
@@ -329,7 +327,7 @@ impl<
                     let v = math::filtered_argmax(&self.forward_high, &self.forward_tot, |i, _| {
                         self.incomplete_forward(i)
                     });
-                    self.step_sum_sweep(v, true, threadpool.borrow(), &mut pl.clone())
+                    self.step_sum_sweep(v, true, thread_pool, &mut pl.clone())
                 }
                 2 => {
                     pl.info(format_args!(
@@ -338,7 +336,7 @@ impl<
                     let v = math::filtered_argmin(&self.forward_low, &self.forward_tot, |i, _| {
                         self.radial_vertices[i]
                     });
-                    self.step_sum_sweep(v, true, threadpool.borrow(), &mut pl.clone())
+                    self.step_sum_sweep(v, true, thread_pool, &mut pl.clone())
                 }
                 3 => {
                     pl.info(format_args!(
@@ -348,7 +346,7 @@ impl<
                         math::filtered_argmax(&self.backward_high, &self.backward_tot, |i, _| {
                             self.incomplete_backward(i)
                         });
-                    self.step_sum_sweep(v, false, threadpool.borrow(), &mut pl.clone())
+                    self.step_sum_sweep(v, false, thread_pool, &mut pl.clone())
                 }
                 4 => {
                     pl.info(format_args!(
@@ -358,13 +356,13 @@ impl<
                         math::filtered_argmax(&self.backward_tot, &self.backward_high, |i, _| {
                             self.incomplete_backward(i)
                         });
-                    self.step_sum_sweep(v, false, threadpool.borrow(), &mut pl.clone())
+                    self.step_sum_sweep(v, false, thread_pool, &mut pl.clone())
                 }
                 5.. => panic!(),
             }
 
             old_missing_nodes = missing_nodes;
-            missing_nodes = self.find_missing_nodes(threadpool.borrow(), &mut pl.clone());
+            missing_nodes = self.find_missing_nodes(thread_pool, &mut pl.clone());
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             // This is to make rust-analyzer happy as it cannot recognize mut reference
@@ -551,11 +549,11 @@ impl<
     /// the biggest strongly connected component.
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn compute_radial_vertices(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
         if self.number_of_nodes == 0 {
@@ -596,7 +594,7 @@ impl<
                     }
                     Ok(())
                 },
-                threadpool,
+                thread_pool,
                 pl,
             )
             .unwrap_infallible();
@@ -612,20 +610,20 @@ impl<
     /// * `start`: The starting vertex of the BFS. If [`None`], no visit happens.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn step_sum_sweep(
         &mut self,
         start: Option<usize>,
         forward: bool,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
         if let Some(start) = start {
             if forward {
-                self.forward_step_sum_sweep(start, threadpool, pl);
+                self.forward_step_sum_sweep(start, thread_pool, pl);
             } else {
-                self.backwards_step_sum_sweep(start, threadpool, pl);
+                self.backwards_step_sum_sweep(start, thread_pool, pl);
             }
             self.iterations += 1;
         }
@@ -635,7 +633,7 @@ impl<
     fn backwards_step_sum_sweep(
         &mut self,
         start: usize,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
         pl.item_name("nodes");
@@ -697,7 +695,7 @@ impl<
                     };
                     Ok(())
                 },
-                threadpool,
+                thread_pool,
                 pl,
             )
             .unwrap_infallible();
@@ -723,7 +721,7 @@ impl<
     fn forward_step_sum_sweep(
         &mut self,
         start: usize,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
         pl.item_name("nodes");
@@ -766,7 +764,7 @@ impl<
                     }
                     Ok(())
                 },
-                threadpool,
+                thread_pool,
                 pl,
             )
             .unwrap_infallible();
@@ -797,7 +795,7 @@ impl<
     ///   component.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     ///
     /// # Return
@@ -810,7 +808,7 @@ impl<
         &self,
         pivot: &[usize],
         forward: bool,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> (Vec<usize>, Vec<usize>) {
         pl.expected_updates(None);
@@ -818,10 +816,10 @@ impl<
 
         let (dist_pivot, usize_ecc_pivot) = if forward {
             pl.start("Computing forward dist pivots");
-            self.compute_dist_pivot_from_graph(pivot, self.graph, threadpool)
+            self.compute_dist_pivot_from_graph(pivot, self.graph, thread_pool)
         } else {
             pl.start("Computing backwards dist pivots");
-            self.compute_dist_pivot_from_graph(pivot, self.transpose, threadpool)
+            self.compute_dist_pivot_from_graph(pivot, self.transpose, thread_pool)
         };
 
         pl.done();
@@ -834,16 +832,16 @@ impl<
         &self,
         pivot: &[usize],
         graph: &(impl RandomAccessGraph + Sync),
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
     ) -> (Vec<usize>, Vec<usize>) {
+        let thread_pool = thread_pool.borrow();
         let components = self.scc.component();
         let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.number_of_components());
         let mut dist_pivot = vec![0; self.number_of_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
-        let threadpool = threadpool.borrow();
 
-        threadpool.broadcast(|_| {
+        thread_pool.broadcast(|_| {
             let mut bfs = ParFair::new(graph, VISIT_GRANULARITY);
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
@@ -864,7 +862,7 @@ impl<
                         Ok(())
                     },
                     |FilterArgs::<Event> { curr, .. }| components[curr] == pivot_component,
-                    threadpool,
+                    thread_pool,
                     no_logging![],
                 )
                 .unwrap_infallible();
@@ -889,14 +887,15 @@ impl<
     ///
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn all_cc_upper_bound(
         &mut self,
         pivot: Vec<usize>,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
+        let thread_pool = thread_pool.borrow();
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
@@ -905,9 +904,9 @@ impl<
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
         let (dist_pivot_f, mut ecc_pivot_f) =
-            self.compute_dist_pivot(&pivot, true, threadpool.borrow(), &mut pl.clone());
+            self.compute_dist_pivot(&pivot, true, thread_pool, &mut pl.clone());
         let (dist_pivot_b, mut ecc_pivot_b) =
-            self.compute_dist_pivot(&pivot, false, threadpool.borrow(), &mut pl.clone());
+            self.compute_dist_pivot(&pivot, false, thread_pool, &mut pl.clone());
         let components = self.scc.component();
 
         // Tarjan's algorithm emits components in reverse topological order.
@@ -958,7 +957,7 @@ impl<
         let forward_high = self.forward_high.as_mut_slice_of_cells();
         let backward_high = self.backward_high.as_mut_slice_of_cells();
 
-        threadpool.borrow().install(|| {
+        thread_pool.install(|| {
             (0..self.number_of_nodes).into_par_iter().for_each(|node| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 unsafe {
@@ -1017,11 +1016,11 @@ impl<
     /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn find_missing_nodes(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> usize {
         pl.item_name("nodes");
@@ -1030,7 +1029,7 @@ impl<
         pl.start("Computing missing nodes");
 
         let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) =
-            threadpool.borrow().install(|| {
+            thread_pool.borrow().install(|| {
                 (0..self.number_of_nodes)
                     .into_par_iter()
                     .fold(

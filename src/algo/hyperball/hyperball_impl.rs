@@ -427,18 +427,19 @@ impl<
     /// * `upper_bound`: an upper bound to the number of iterations.
     /// * `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
     ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     pub fn run(
         &mut self,
         upper_bound: usize,
         threshold: Option<f64>,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
+        let thread_pool = thread_pool.borrow();
 
-        self.init(threadpool.borrow(), pl)
+        self.init(thread_pool, pl)
             .with_context(|| "Could not initialize approximator")?;
 
         pl.item_name("iteration");
@@ -449,7 +450,7 @@ impl<
         ));
 
         for i in 0..upper_bound {
-            self.iterate(threadpool.borrow(), &mut pl.clone())
+            self.iterate(thread_pool, &mut pl.clone())
                 .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
             pl.update();
@@ -479,31 +480,31 @@ impl<
     ///
     /// # Arguments
     /// * `upper_bound`: an upper bound to the number of iterations.
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_stable(
         &mut self,
         upper_bound: usize,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.run(upper_bound, None, threadpool, pl)
+        self.run(upper_bound, None, thread_pool, pl)
             .with_context(|| "Could not complete run_until_stable")
     }
 
     /// Runs HyperBall until no counters are modified with no upper bound on the number of iterations.
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_done(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.run_until_stable(usize::MAX, threadpool, pl)
+        self.run_until_stable(usize::MAX, thread_pool, pl)
             .with_context(|| "Could not complete run_until_done")
     }
 
@@ -699,13 +700,14 @@ impl<
     /// Performs a new iteration of HyperBall.
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn iterate(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
+        let thread_pool = thread_pool.borrow();
         pl.info(format_args!("Performing iteration {}", self.iteration + 1));
 
         // Let us record whether the previous computation was systolic or local.
@@ -749,16 +751,14 @@ impl<
                     .set(node, false, Ordering::Relaxed);
             }
         } else {
-            threadpool
-                .borrow()
-                .install(|| self.modified_result_counter.fill(false, Ordering::Relaxed));
+            thread_pool.install(|| self.modified_result_counter.fill(false, Ordering::Relaxed));
         }
 
         if self.local {
             pl.info(format_args!("Preparing local checklist"));
             // In case of a local computation, we convert the set of must-be-checked for the
             // next iteration into a check list.
-            threadpool.borrow().join(
+            thread_pool.join(
                 || self.local_checklist.clear(),
                 || {
                     let mut local_next_must_be_checked =
@@ -773,7 +773,7 @@ impl<
             );
         } else if self.systolic {
             pl.info(format_args!("Preparing systolic flags"));
-            threadpool.borrow().join(
+            thread_pool.join(
                 || {
                     // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
                     self.next_must_be_checked.fill(false, Ordering::Relaxed);
@@ -788,7 +788,7 @@ impl<
         }
 
         let mut granularity = self.granularity;
-        let num_threads = threadpool.borrow().current_num_threads();
+        let num_threads = thread_pool.current_num_threads();
 
         if num_threads > 1 && !self.local {
             if self.iteration > 0 {
@@ -816,7 +816,7 @@ impl<
         });
         pl.start("Starting parallel execution");
 
-        threadpool.borrow().broadcast(|c| self.parallel_task(c));
+        thread_pool.broadcast(|c| self.parallel_task(c));
 
         pl.done_with_count(self.iteration_context.visited_arcs.load(Ordering::Relaxed) as usize);
 
@@ -1093,18 +1093,17 @@ impl<
     /// Initializes the approximator.
     ///
     /// # Arguments
-    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn init(
         &mut self,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
+        let thread_pool = thread_pool.borrow();
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
-        threadpool
-            .borrow()
-            .join(|| self.bits.clear(), || self.result_bits.clear());
+        thread_pool.join(|| self.bits.clear(), || self.result_bits.clear());
 
         pl.info(format_args!("Initializing registers"));
         if let Some(w) = &self.weight {
@@ -1116,7 +1115,7 @@ impl<
                 }
             }
         } else {
-            threadpool.borrow().install(|| {
+            thread_pool.install(|| {
                 (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
                     unsafe { self.bits.get_counter_from_shared(i) }.add(i);
                 });
@@ -1148,9 +1147,7 @@ impl<
         self.neighbourhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
-        threadpool
-            .borrow()
-            .install(|| self.modified_counter.fill(true, Ordering::Relaxed));
+        thread_pool.install(|| self.modified_counter.fill(true, Ordering::Relaxed));
 
         pl.done();
 

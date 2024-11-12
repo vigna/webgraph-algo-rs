@@ -193,7 +193,7 @@ macro_rules! test_bfv_algo_par {
                     .collect();
                 let expected_dists = correct_dists(&graph, 0);
 
-                let t = threads!();
+                let t = threads![];
 
                 for node in 0..graph.num_nodes() {
                     visit
@@ -229,7 +229,7 @@ macro_rules! test_bfv_algo_par {
                     .map(|_| AtomicUsize::new(0))
                     .collect();
                 let expected_dists = correct_dists(&graph, 10000);
-                let t = threads!();
+                let t = threads![];
 
                 for i in 0..graph.num_nodes() {
                     let node = (i + 10000) % graph.num_nodes();

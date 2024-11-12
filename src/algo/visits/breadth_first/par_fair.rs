@@ -72,7 +72,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///             Ok(())
 ///         },
-///    threads!(),
+///    threads![],
 ///    no_logging![]
 /// ).unwrap_infallible();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
@@ -122,7 +122,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
         root: usize,
         callback: C,
         filter: F,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
@@ -135,12 +135,13 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
             return Ok(());
         }
 
+        let thread_pool = thread_pool.borrow();
         // We do not provide a capacity in the hope of allocating dynamically
         // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(threadpool.borrow(), None);
-        let mut next_frontier = Frontier::with_threads(threadpool.borrow(), None);
+        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
+        let mut next_frontier = Frontier::with_threads(thread_pool, None);
 
-        threadpool.borrow().install(|| {
+        thread_pool.install(|| {
             curr_frontier.push(root);
         });
 
@@ -150,7 +151,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
 
         while !curr_frontier.is_empty() {
             let distance_plus_one = distance + 1;
-            threadpool.borrow().install(|| {
+            thread_pool.install(|| {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
@@ -204,11 +205,11 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
         &mut self,
         callback: C,
         filter: F,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, threadpool.borrow(), pl)?;
+            self.visit_filtered(node, &callback, &filter, thread_pool.borrow(), pl)?;
         }
 
         Ok(())
@@ -229,7 +230,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
         root: usize,
         callback: C,
         filter: F,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
@@ -243,12 +244,13 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
             return Ok(());
         }
 
+        let thread_pool = thread_pool.borrow();
         // We do not provide a capacity in the hope of allocating dynamically
         // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(threadpool.borrow(), None);
-        let mut next_frontier = Frontier::with_threads(threadpool.borrow(), None);
+        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
+        let mut next_frontier = Frontier::with_threads(thread_pool, None);
 
-        threadpool.borrow().install(|| {
+        thread_pool.install(|| {
             curr_frontier.push((root, root));
         });
 
@@ -258,7 +260,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
 
         while !curr_frontier.is_empty() {
             let distance_plus_one = distance + 1;
-            threadpool.borrow().install(|| {
+            thread_pool.install(|| {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
@@ -314,11 +316,11 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
         &mut self,
         callback: C,
         filter: F,
-        threadpool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, threadpool.borrow(), pl)?;
+            self.visit_filtered(node, &callback, &filter, thread_pool.borrow(), pl)?;
         }
 
         Ok(())
