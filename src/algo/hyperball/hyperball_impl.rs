@@ -1090,7 +1090,7 @@ impl<
             .load(Ordering::Relaxed)
     }
 
-    /// Initialises the approximator.
+    /// Initializes the approximator.
     ///
     /// # Arguments
     /// * `threadpool`: The threadpool to use for parallel computation.

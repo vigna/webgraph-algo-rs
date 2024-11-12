@@ -31,7 +31,7 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
 ///
 /// # Arguments
 /// * `vec`: the slice of elements.
-/// * `tie_break`: in case two elements of `vec` are the same, the index that minimises this slice is used.
+/// * `tie_break`: in case two elements of `vec` are the same, the index that minimizes this slice is used.
 /// * `filter`: a closure that takes as arguments the index of the element and the element itself and returns
 ///   `true` if the element may be selected.
 ///
