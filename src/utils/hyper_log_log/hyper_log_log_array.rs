@@ -1,7 +1,7 @@
 use super::*;
 use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{ensure, Context, Result};
-use common_traits::{Atomic, IntoAtomic, Number, UpcastableInto};
+use common_traits::{Atomic, CastableFrom, IntoAtomic, Number, UpcastableInto};
 use rayon::prelude::*;
 use std::{
     f64::consts::LN_2,
@@ -206,13 +206,7 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilde
             6 => 0.709,
             _ => 0.7213 / (1.0 + 1.079 / number_of_registers as f64),
         };
-        let num_registers_minus_1 = (number_of_registers - 1).try_into().unwrap_or_else(|_| {
-            panic!(
-                "should be able to convert {} from usize to the hash result type {}",
-                number_of_registers - 1,
-                std::any::type_name::<HashResult>()
-            )
-        });
+        let num_registers_minus_1 = (number_of_registers - 1) as HashResult;
 
         let counter_size_in_bits = number_of_registers * register_size;
 
@@ -396,7 +390,7 @@ where
 
 impl<
         T: Hash,
-        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
+        W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
         H: BuildHasher + Clone,
     > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {

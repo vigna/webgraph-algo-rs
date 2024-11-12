@@ -97,13 +97,11 @@ impl<W> MmapHelper<W> {
     /// - `path`: The path to the file to be memory mapped.
     /// - `flags`: The flags to be used for the mmap.
     pub fn mmap(path: impl AsRef<Path>, flags: MmapFlags) -> Result<Self> {
-        let file_len: usize = path
+        let file_len = path
             .as_ref()
             .metadata()
             .with_context(|| format!("Cannot stat {}", path.as_ref().display()))?
-            .len()
-            .try_into()
-            .with_context(|| "Cannot convert file length to usize")?;
+            .len() as usize;
         // Align to multiple of size_of::<W>
         let mmap_len = file_len.align_to(size_of::<W>());
         #[cfg(windows)]
@@ -147,13 +145,11 @@ impl<W> MmapHelper<W, MmapMut> {
     /// - `path`: The path to the file to be mapped.
     /// - `flags`: The flags to be used for the mmap.
     pub fn mmap_mut(path: impl AsRef<Path>, flags: MmapFlags) -> Result<Self> {
-        let file_len: usize = path
+        let file_len = path
             .as_ref()
             .metadata()
             .with_context(|| format!("Cannot stat {}", path.as_ref().display()))?
-            .len()
-            .try_into()
-            .with_context(|| "Cannot convert file length to usize")?;
+            .len() as usize;
         let file = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -210,12 +206,8 @@ impl<W> MmapHelper<W, MmapMut> {
         #[cfg(windows)]
         {
             // Zero fill the file as CreateFileMappingW does not initialize everything to 0
-            file.set_len(
-                file_len
-                    .try_into()
-                    .with_context(|| "Cannot convert usize to u64")?,
-            )
-            .with_context(|| "Cannot modify file size")?;
+            file.set_len(file_len as u64)
+                .with_context(|| "Cannot modify file size")?;
         }
         let mmap = unsafe {
             mmap_rs::MmapOptions::new(file_len as _)
@@ -433,12 +425,8 @@ impl<T> MmapSlice<T> {
         let mmap_bytes = std::cmp::max(1, len * Self::BLOCK_SIZE);
 
         if let Some(f) = file.as_ref() {
-            f.set_len(
-                mmap_bytes
-                    .try_into()
-                    .with_context(|| format!("Cannot convert {} into u64", mmap_bytes))?,
-            )
-            .with_context(|| format!("Cannot set file len to {} bytes", mmap_bytes))?;
+            f.set_len(mmap_bytes as u64)
+                .with_context(|| format!("Cannot set file len to {} bytes", mmap_bytes))?;
         }
 
         let mmap_builder = MmapOptions::new(mmap_bytes)

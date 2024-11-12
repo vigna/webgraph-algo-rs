@@ -1,6 +1,6 @@
 use crate::{prelude::*, utils::*};
 use anyhow::{anyhow, Context, Result};
-use common_traits::{IntoAtomic, Number, UpcastableInto};
+use common_traits::{CastableFrom, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
 use kahan::KahanSum;
 use rand::random;
@@ -267,7 +267,7 @@ impl<
 impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
-        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
+        W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
         H: BuildHasher + Clone,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
@@ -304,7 +304,7 @@ impl<
 impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
-        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
+        W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
         H: BuildHasher + Clone,
         T: Borrow<rayon::ThreadPool>,
         G1: RandomAccessGraph + Sync,
@@ -422,7 +422,7 @@ struct IterationContext {
     cursor: AtomicUsize,
     arc_balanced_cursor: Mutex<(usize, usize)>,
     visited_arcs: AtomicU64,
-    modified_counters: AtomicUsize,
+    modified_counters: AtomicU64,
 }
 
 impl IterationContext {
@@ -443,7 +443,7 @@ impl Default for IterationContext {
             cursor: AtomicUsize::new(0),
             arc_balanced_cursor: Mutex::new((0, 0)),
             visited_arcs: AtomicU64::new(0),
-            modified_counters: AtomicUsize::new(0),
+            modified_counters: AtomicU64::new(0),
         }
     }
 }
@@ -524,7 +524,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
+        W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         A: HyperLogLogArray<G1::Label, W> + Sync + Send,
     > HyperBall<'a, G1, G2, T, D, W, A>
 {
@@ -771,7 +771,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
-        W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
+        W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
         A: HyperLogLogArray<G1::Label, W>,
     > HyperBall<'a, G1, G2, T, D, W, A>
 {
@@ -792,7 +792,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        W: Word + TryFrom<u64> + UpcastableInto<u64> + IntoAtomic,
+        W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         A: HyperLogLogArray<G1::Label, W> + Sync + Send,
     > HyperBall<'a, G1, G2, T, D, W, A>
 {
@@ -808,15 +808,9 @@ impl<
         let previous_was_local = self.local;
 
         // Record the number of modified counters and the number of nodes and arcs as u64
-        let modified_counters: u64 = self
-            .modified_counters()
-            .try_into()
-            .with_context(|| format!("Could not convert {} into u64", self.modified_counters()))?;
-        let num_nodes: u64 =
-            self.graph.num_nodes().try_into().with_context(|| {
-                format!("Could not convert {} into u64", self.graph.num_nodes())
-            })?;
-        let num_arcs: u64 = self.graph.num_arcs();
+        let modified_counters = self.modified_counters();
+        let num_nodes = self.graph.num_nodes() as u64;
+        let num_arcs = self.graph.num_arcs();
 
         // If less than one fourth of the nodes have been modified, and we have the transpose,
         // it is time to pass to a systolic computation.
@@ -913,12 +907,7 @@ impl<
         pl.expected_updates(if self.local {
             None
         } else {
-            Some(
-                self.graph
-                    .num_arcs()
-                    .try_into()
-                    .with_context(|| "Could not convert num_arcs into usize")?,
-            )
+            Some(self.graph.num_arcs() as usize)
         });
         pl.start("Starting parallel execution");
 
@@ -926,13 +915,7 @@ impl<
             .borrow()
             .broadcast(|c| self.parallel_task(c));
 
-        pl.done_with_count(
-            self.iteration_context
-                .visited_arcs
-                .load(Ordering::Relaxed)
-                .try_into()
-                .with_context(|| "Could not convert the number of visited arcs into usize")?,
-        );
+        pl.done_with_count(self.iteration_context.visited_arcs.load(Ordering::Relaxed) as usize);
 
         pl.info(format_args!(
             "Modified counters: {}/{} ({:.3}%)",
@@ -1000,11 +983,7 @@ impl<
         };
         let mut visited_arcs = 0;
         let mut modified_counters = 0;
-        let arc_upper_limit = self
-            .graph
-            .num_arcs()
-            .try_into()
-            .expect("Should be able to convert num_arcs into usize");
+        let arc_upper_limit = self.graph.num_arcs() as usize;
         let mut thread_helper = self.bits.get_thread_helper();
 
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
@@ -1202,7 +1181,7 @@ impl<
     }
 
     /// Returns the number of HyperLogLog counters that were modified by the last iteration.
-    fn modified_counters(&self) -> usize {
+    fn modified_counters(&self) -> u64 {
         self.iteration_context
             .modified_counters
             .load(Ordering::Relaxed)
