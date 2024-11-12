@@ -240,7 +240,7 @@ fn test_cnr_2000() -> Result<()> {
         .sum_of_inverse_distances(true)
         .build(no_logging![])?;
 
-    hyperball.run_until_done(threads![], no_logging![])?;
+    hyperball.run_until_done(&threads![], no_logging![])?;
 
     let actual_sum_of_distances = hyperball.sum_of_distances()?;
     let actual_harmonic_cetralities = hyperball.harmonic_centralities()?;

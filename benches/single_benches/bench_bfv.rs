@@ -48,7 +48,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), threads![], no_logging![])
+                            .visit(node, |_| Ok(()), &threads![], no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -64,7 +64,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), threads![], no_logging![])
+                            .visit(node, |_| Ok(()), &threads![], no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -83,7 +83,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), threads![], no_logging![])
+                            .visit(node, |_| Ok(()), &threads![], no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -102,7 +102,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), threads![], no_logging![])
+                            .visit(node, |_| Ok(()), &threads![], no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -118,7 +118,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), threads![], no_logging![])
+                            .visit(node, |_| Ok(()), &threads![], no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -134,7 +134,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), threads![], no_logging![])
+                            .visit(node, |_| Ok(()), &threads![], no_logging![])
                             .unwrap_infallible();
                     }
                 });

@@ -13,13 +13,10 @@ use crate::{
 use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
-use rayon::prelude::*;
-use std::{
-    borrow::Borrow,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        RwLock,
-    },
+use rayon::{prelude::*, ThreadPool};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    RwLock,
 };
 use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
@@ -231,11 +228,9 @@ impl<
         &mut self,
         start: usize,
         iterations: usize,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) {
-        let thread_pool = thread_pool.borrow();
-
         pl.info(format_args!(
             "Performing initial SumSweep visit from {}.",
             start
@@ -273,16 +268,11 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    pub fn compute(
-        &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
-        pl: &mut impl ProgressLog,
-    ) {
+    pub fn compute(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         if self.num_nodes == 0 {
             return;
         }
 
-        let thread_pool = thread_pool.borrow();
         pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
@@ -535,11 +525,7 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn compute_radial_vertices(
-        &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
-        pl: &mut impl ProgressLog,
-    ) {
+    fn compute_radial_vertices(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         if self.num_nodes == 0 {
             return;
         }
@@ -600,7 +586,7 @@ impl<
         &mut self,
         start: Option<usize>,
         forward: bool,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) {
         if let Some(start) = start {
@@ -617,7 +603,7 @@ impl<
     fn backwards_step_sum_sweep(
         &mut self,
         start: usize,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) {
         pl.item_name("nodes");
@@ -705,7 +691,7 @@ impl<
     fn forward_step_sum_sweep(
         &mut self,
         start: usize,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) {
         pl.item_name("nodes");
@@ -792,7 +778,7 @@ impl<
         &self,
         pivot: &[usize],
         forward: bool,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> (Vec<usize>, Vec<usize>) {
         pl.expected_updates(None);
@@ -816,9 +802,8 @@ impl<
         &self,
         pivot: &[usize],
         graph: &(impl RandomAccessGraph + Sync),
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
     ) -> (Vec<usize>, Vec<usize>) {
-        let thread_pool = thread_pool.borrow();
         let components = self.scc.component();
         let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.number_of_components());
         let mut dist_pivot = vec![0; self.num_nodes];
@@ -876,10 +861,9 @@ impl<
     fn all_cc_upper_bound(
         &mut self,
         pivot: Vec<usize>,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) {
-        let thread_pool = thread_pool.borrow();
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
@@ -1002,18 +986,14 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn find_missing_nodes(
-        &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
-        pl: &mut impl ProgressLog,
-    ) -> usize {
+    fn find_missing_nodes(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> usize {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(Some(self.num_nodes));
         pl.start("Computing missing nodes");
 
         let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) =
-            thread_pool.borrow().install(|| {
+            thread_pool.install(|| {
                 (0..self.num_nodes)
                     .into_par_iter()
                     .fold(

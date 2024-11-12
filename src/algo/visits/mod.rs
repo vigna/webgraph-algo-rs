@@ -49,7 +49,6 @@ pub mod depth_first;
 
 use dsi_progress_logger::ProgressLog;
 use rayon::ThreadPool;
-use std::borrow::Borrow;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -175,7 +174,7 @@ pub trait Parallel<A: Event> {
         root: usize,
         callback: C,
         filter: F,
-        thread_pool: impl Borrow<ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E>;
 
@@ -189,7 +188,7 @@ pub trait Parallel<A: Event> {
         &mut self,
         root: usize,
         callback: C,
-        thread_pool: impl Borrow<ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         self.visit_filtered(root, callback, |_| true, thread_pool, pl)
@@ -206,7 +205,7 @@ pub trait Parallel<A: Event> {
         &mut self,
         callback: C,
         filter: F,
-        thread_pool: impl Borrow<ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E>;
 
@@ -219,7 +218,7 @@ pub trait Parallel<A: Event> {
     fn visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
-        thread_pool: impl Borrow<ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         self.visit_all_filtered(callback, |_| true, thread_pool, pl)

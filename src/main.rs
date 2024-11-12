@@ -43,7 +43,7 @@ fn main() -> Result<()> {
                 None,
                 &mut main_pl,
             );
-            diameter.compute(threads![], &mut main_pl);
+            diameter.compute(&threads![], &mut main_pl);
         }
         "hyperball" => {
             let cumulative = DCF::load_mmap(basename.clone() + ".dcf", Flags::empty())?;
@@ -65,7 +65,7 @@ fn main() -> Result<()> {
                 .sum_of_inverse_distances(true)
                 .transposed(Some(&reversed_graph))
                 .build(&mut main_pl)?;
-            hyperball.run_until_done(threads![], &mut main_pl)?;
+            hyperball.run_until_done(&threads![], &mut main_pl)?;
         }
         _ => panic!(),
     }

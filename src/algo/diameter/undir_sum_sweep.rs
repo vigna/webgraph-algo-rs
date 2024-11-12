@@ -11,7 +11,7 @@ use crate::{
     utils::check_symmetric,
 };
 use dsi_progress_logger::ProgressLog;
-use std::borrow::Borrow;
+use rayon::ThreadPool;
 use webgraph::traits::RandomAccessGraph;
 
 /// The implementation of the *ExactSumSweep* algorithm on undirected graphs.
@@ -129,11 +129,7 @@ where
     /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
-    pub fn compute(
-        &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
-        pl: &mut impl ProgressLog,
-    ) {
+    pub fn compute(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         self.inner.compute(thread_pool, pl)
     }
 }

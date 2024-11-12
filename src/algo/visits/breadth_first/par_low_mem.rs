@@ -4,8 +4,8 @@ use crate::algo::visits::{
 };
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
-use rayon::prelude::*;
-use std::{borrow::Borrow, sync::atomic::Ordering};
+use rayon::{prelude::*, ThreadPool};
+use std::sync::atomic::Ordering;
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -96,7 +96,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         root: usize,
         callback: C,
         filter: F,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
@@ -109,8 +109,6 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         {
             return Ok(());
         }
-
-        let thread_pool = thread_pool.borrow();
 
         // We do not provide a capacity in the hope of allocating dyinamically
         // space as the frontiers grow.
@@ -186,11 +184,11 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         &mut self,
         callback: C,
         filter: F,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, thread_pool.borrow(), pl)?;
+            self.visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
         Ok(())

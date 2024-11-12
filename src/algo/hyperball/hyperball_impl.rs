@@ -4,9 +4,8 @@ use common_traits::{CastableFrom, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
 use kahan::KahanSum;
 use rand::random;
-use rayon::prelude::*;
+use rayon::{prelude::*, ThreadPool};
 use std::{
-    borrow::Borrow,
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
     sync::{atomic::*, Mutex},
 };
@@ -433,11 +432,10 @@ impl<
         &mut self,
         upper_bound: usize,
         threshold: Option<f64>,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
-        let thread_pool = thread_pool.borrow();
 
         self.init(thread_pool, pl)
             .with_context(|| "Could not initialize approximator")?;
@@ -486,7 +484,7 @@ impl<
     pub fn run_until_stable(
         &mut self,
         upper_bound: usize,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
         self.run(upper_bound, None, thread_pool, pl)
@@ -501,7 +499,7 @@ impl<
     #[inline(always)]
     pub fn run_until_done(
         &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
+        thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
         self.run_until_stable(usize::MAX, thread_pool, pl)
@@ -702,12 +700,7 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn iterate(
-        &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
-        pl: &mut impl ProgressLog,
-    ) -> Result<()> {
-        let thread_pool = thread_pool.borrow();
+    fn iterate(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration + 1));
 
         // Let us record whether the previous computation was systolic or local.
@@ -1095,12 +1088,7 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread_pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn init(
-        &mut self,
-        thread_pool: impl Borrow<rayon::ThreadPool>,
-        pl: &mut impl ProgressLog,
-    ) -> Result<()> {
-        let thread_pool = thread_pool.borrow();
+    fn init(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
         thread_pool.join(|| self.bits.clear(), || self.result_bits.clear());
