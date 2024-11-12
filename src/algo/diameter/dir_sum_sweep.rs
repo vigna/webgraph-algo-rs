@@ -402,41 +402,25 @@ impl<
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn radius(&self) -> Option<usize> {
-        if self.radius_iterations.is_none() {
-            None
-        } else {
-            Some(self.radius_high)
-        }
+        self.radius_iterations.map(|_| self.radius_high)
     }
 
     /// Returns the diameter of the graph if is has already been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn diameter(&self) -> Option<usize> {
-        if self.diameter_iterations.is_none() {
-            None
-        } else {
-            Some(self.diameter_low)
-        }
+        self.diameter_iterations.map(|_| self.diameter_low)
     }
 
     /// Returns a radial vertex if it has already been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn radial_vertex(&self) -> Option<usize> {
-        if self.radius_iterations.is_none() {
-            None
-        } else {
-            Some(self.radius_vertex)
-        }
+        self.radius_iterations.map(|_| self.radius_vertex)
     }
 
     /// Returns a diametral vertex if it has already been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn diametral_vertex(&self) -> Option<usize> {
-        if self.diameter_iterations.is_none() {
-            None
-        } else {
-            Some(self.diameter_vertex)
-        }
+        self.diameter_iterations.map(|_| self.diameter_vertex)
     }
 
     /// Returns the eccentricity of a vertex if it has already been computed, [`None`] otherwise.
