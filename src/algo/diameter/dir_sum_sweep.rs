@@ -47,7 +47,7 @@ pub struct DirExactSumSweep<
 > {
     graph: &'a G1,
     transpose: &'a G2,
-    number_of_nodes: usize,
+    num_nodes: usize,
     output: OutputLevel,
     radial_vertices: AtomicBitVec,
     /// The lower bound of the diameter.
@@ -154,7 +154,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         DirExactSumSweep {
             graph,
             transpose,
-            number_of_nodes: num_nodes,
+            num_nodes,
             forward_tot: total_forward,
             backward_tot: total_backward,
             forward_low: lower_forward,
@@ -278,7 +278,7 @@ impl<
         thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
-        if self.number_of_nodes == 0 {
+        if self.num_nodes == 0 {
             return;
         }
 
@@ -291,7 +291,7 @@ impl<
 
         let max_outdegree_vertex = thread_pool
             .install(|| {
-                (0..self.number_of_nodes)
+                (0..self.num_nodes)
                     .into_par_iter()
                     .map(|v| (self.graph.outdegree(v), v))
                     .max_by_key(|x| x.0)
@@ -308,7 +308,7 @@ impl<
         pl.info(format_args!(
             "Missing nodes: {} out of {}",
             missing_nodes,
-            self.number_of_nodes * 2
+            self.num_nodes * 2
         ));
 
         while missing_nodes > 0 {
@@ -376,7 +376,7 @@ impl<
             pl.info(format_args!(
                 "Missing nodes: {} out of {}",
                 missing_nodes,
-                self.number_of_nodes * 2
+                self.num_nodes * 2
             ));
         }
 
@@ -488,7 +488,7 @@ impl<
     /// # Arguments
     /// * `pl`: A progress logger..
     fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Vec<usize> {
-        debug_assert!(self.number_of_nodes < usize::MAX);
+        debug_assert!(self.num_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.number_of_components()];
         let components = self.scc.component();
@@ -505,12 +505,12 @@ impl<
                     + if self.incomplete_forward(v) {
                         0
                     } else {
-                        self.number_of_nodes
+                        self.num_nodes
                     }
                     + if self.incomplete_backward(v) {
                         0
                     } else {
-                        self.number_of_nodes
+                        self.num_nodes
                     };
 
                 let best = self.backward_low[p]
@@ -518,12 +518,12 @@ impl<
                     + if self.incomplete_forward(p) {
                         0
                     } else {
-                        self.number_of_nodes
+                        self.num_nodes
                     }
                     + if self.incomplete_backward(p) {
                         0
                     } else {
-                        self.number_of_nodes
+                        self.num_nodes
                     };
 
                 if current < best
@@ -556,7 +556,7 @@ impl<
         thread_pool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) {
-        if self.number_of_nodes == 0 {
+        if self.num_nodes == 0 {
             return;
         }
 
@@ -573,7 +573,7 @@ impl<
             "Searching for biggest strongly connected component"
         ));
 
-        let mut v = self.number_of_nodes;
+        let mut v = self.num_nodes;
 
         while v > 0 {
             v -= 1;
@@ -837,7 +837,7 @@ impl<
         let thread_pool = thread_pool.borrow();
         let components = self.scc.component();
         let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.number_of_components());
-        let mut dist_pivot = vec![0; self.number_of_nodes];
+        let mut dist_pivot = vec![0; self.num_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
 
@@ -899,7 +899,7 @@ impl<
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
-            pivot.len() + self.scc.number_of_components() + self.number_of_nodes,
+            pivot.len() + self.scc.number_of_components() + self.num_nodes,
         ));
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
@@ -958,7 +958,7 @@ impl<
         let backward_high = self.backward_high.as_mut_slice_of_cells();
 
         thread_pool.install(|| {
-            (0..self.number_of_nodes).into_par_iter().for_each(|node| {
+            (0..self.num_nodes).into_par_iter().for_each(|node| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 unsafe {
                     forward_high.write_once(
@@ -1004,7 +1004,7 @@ impl<
             });
         });
 
-        pl.update_with_count(self.number_of_nodes);
+        pl.update_with_count(self.num_nodes);
 
         (self.radius_high, self.radius_vertex) = radius.into_inner().unwrap();
 
@@ -1025,12 +1025,12 @@ impl<
     ) -> usize {
         pl.item_name("nodes");
         pl.display_memory(false);
-        pl.expected_updates(Some(self.number_of_nodes));
+        pl.expected_updates(Some(self.num_nodes));
         pl.start("Computing missing nodes");
 
         let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) =
             thread_pool.borrow().install(|| {
-                (0..self.number_of_nodes)
+                (0..self.num_nodes)
                     .into_par_iter()
                     .fold(
                         || (0, 0, 0, 0, 0),
@@ -1069,7 +1069,7 @@ impl<
                     )
             });
 
-        pl.update_with_count(self.number_of_nodes);
+        pl.update_with_count(self.num_nodes);
 
         let iterations =
             NonMaxUsize::new(self.iterations).expect("Iterations should never be usize::MAX");
