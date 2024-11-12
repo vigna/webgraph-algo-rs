@@ -110,6 +110,7 @@ pub enum EventPred {
     },
 }
 
+/// Filter arguments for visits that keep track of predecessors.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct FilterArgsPred {
     /// The current node.
