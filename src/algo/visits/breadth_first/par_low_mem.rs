@@ -52,7 +52,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///             Ok(())
 ///         },
-///    threads![],
+///    &threads![],
 ///    no_logging![]
 /// ).unwrap_infallible();
 ///

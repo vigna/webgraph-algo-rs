@@ -72,7 +72,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///             Ok(())
 ///         },
-///    threads![],
+///    &threads![],
 ///    no_logging![]
 /// ).unwrap_infallible();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
@@ -137,7 +137,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
 
         // We do not provide a capacity in the hope of allocating dynamically
         // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(&thread_pool, None);
+        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
         let mut next_frontier = Frontier::with_threads(thread_pool, None);
 
         thread_pool.install(|| {
