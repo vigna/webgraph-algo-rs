@@ -96,7 +96,7 @@ where
     /// * `vertex`: The vertex.
     #[inline(always)]
     pub fn eccentricity(&self, vertex: usize) -> Option<usize> {
-        self.vertex_eccentricity(vertex)
+        self.inner.eccentricity(vertex, true)
     }
 
     /// Returns the number of iterations needed to compute the radius if it has already
@@ -118,11 +118,6 @@ where
     #[inline(always)]
     pub fn all_iterations(&self) -> Option<usize> {
         self.inner.all_iterations()
-    }
-
-    #[inline(always)]
-    fn vertex_eccentricity(&self, index: usize) -> Option<usize> {
-        self.inner.eccentricity(index, true)
     }
 
     /// Computes diameter, radius, and/or all eccentricities.

@@ -50,35 +50,42 @@ pub struct DirExactSumSweep<
     number_of_nodes: usize,
     output: OutputLevel,
     radial_vertices: AtomicBitVec,
-    diameter_lower_bound: usize,
-    radius_upper_bound: usize,
+    /// The lower bound of the diameter.
+    diameter_low: usize,
+    /// The upper bound of the radius.
+    radius_high: usize,
     /// A vertex whose eccentricity equals the diameter.
     diameter_vertex: usize,
     /// A vertex whose eccentrivity equals the radius.
     radius_vertex: usize,
     /// Number of iterations performed until now.
     iterations: usize,
-    lower_bound_forward_eccentricities: Vec<usize>,
-    upper_bound_forward_eccentricities: Vec<usize>,
-    lower_bound_backward_eccentricities: Vec<usize>,
-    upper_bound_backward_eccentricities: Vec<usize>,
+    /// The lower bound of the forward eccentricities.
+    forward_low: Vec<usize>,
+    /// The upper boung of the forward eccentricities.
+    forward_high: Vec<usize>,
+    /// The lower bound of the backward eccentricities.
+    backward_low: Vec<usize>,
+    /// The upper bound of the backward eccentricities.
+    backward_high: Vec<usize>,
     /// Number of iterations before the radius is found.
     radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter is found.
     diameter_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all forward eccentricities are found.
-    forward_eccentricities_iterations: Option<NonMaxUsize>,
+    forward_iter: Option<NonMaxUsize>,
     /// Number of iterations before all eccentricities are found.
-    all_eccentricities_iterations: Option<NonMaxUsize>,
-    strongly_connected_components: SCC,
+    all_iter: Option<NonMaxUsize>,
+    /// The strongly connected components.
+    scc: SCC,
     /// The strongly connected components diagram.
-    strongly_connected_components_graph: SccGraph<G1, G2, SCC>,
+    scc_graph: SccGraph<G1, G2, SCC>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_forward_distance: Vec<usize>,
+    forward_tot: Vec<usize>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    total_backward_distance: Vec<usize>,
+    backward_tot: Vec<usize>,
     compute_radial_vertices: bool,
     visit: V1,
     transposed_visit: V2,
@@ -148,21 +155,21 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             graph,
             transpose,
             number_of_nodes: num_nodes,
-            total_forward_distance: total_forward,
-            total_backward_distance: total_backward,
-            lower_bound_forward_eccentricities: lower_forward,
-            upper_bound_forward_eccentricities: upper_forward,
-            lower_bound_backward_eccentricities: lower_backward,
-            upper_bound_backward_eccentricities: upper_backward,
-            strongly_connected_components_graph: scc_graph,
-            strongly_connected_components: scc,
-            diameter_lower_bound: 0,
-            radius_upper_bound: usize::MAX,
+            forward_tot: total_forward,
+            backward_tot: total_backward,
+            forward_low: lower_forward,
+            forward_high: upper_forward,
+            backward_low: lower_backward,
+            backward_high: upper_backward,
+            scc_graph,
+            scc,
+            diameter_low: 0,
+            radius_high: usize::MAX,
             output,
             radius_iterations: None,
             diameter_iterations: None,
-            all_eccentricities_iterations: None,
-            forward_eccentricities_iterations: None,
+            all_iter: None,
+            forward_iter: None,
             iterations: 0,
             radial_vertices: acc_radial,
             radius_vertex: 0,
@@ -184,40 +191,32 @@ impl<
     > DirExactSumSweep<'a, G1, G2, C, V1, V2>
 {
     #[inline(always)]
-    fn incomplete_forward_vertex(&self, index: usize) -> bool {
-        self.lower_bound_forward_eccentricities[index]
-            != self.upper_bound_forward_eccentricities[index]
+    fn incomplete_forward(&self, index: usize) -> bool {
+        self.forward_low[index] != self.forward_high[index]
     }
 
     #[inline(always)]
-    fn incomplete_backward_vertex(&self, index: usize) -> bool {
-        self.lower_bound_backward_eccentricities[index]
-            != self.upper_bound_backward_eccentricities[index]
+    fn incomplete_backward(&self, index: usize) -> bool {
+        self.backward_low[index] != self.backward_high[index]
     }
 
     #[inline(always)]
     fn forward_eccentricity(&self, index: usize) -> Option<usize> {
-        if self.incomplete_forward_vertex(index) {
+        if self.incomplete_forward(index) {
             None
         } else {
-            debug_assert_eq!(
-                self.lower_bound_forward_eccentricities[index],
-                self.upper_bound_forward_eccentricities[index]
-            );
-            Some(self.lower_bound_forward_eccentricities[index])
+            debug_assert_eq!(self.forward_low[index], self.forward_high[index]);
+            Some(self.forward_low[index])
         }
     }
 
     #[inline(always)]
     fn backward_eccentricity(&self, index: usize) -> Option<usize> {
-        if self.incomplete_backward_vertex(index) {
+        if self.incomplete_backward(index) {
             None
         } else {
-            debug_assert_eq!(
-                self.lower_bound_backward_eccentricities[index],
-                self.upper_bound_backward_eccentricities[index]
-            );
-            Some(self.lower_bound_backward_eccentricities[index])
+            debug_assert_eq!(self.backward_low[index], self.backward_high[index]);
+            Some(self.backward_low[index])
         }
     }
 
@@ -243,22 +242,18 @@ impl<
 
         for i in 2..=iterations {
             if i % 2 == 0 {
-                let v = math::filtered_argmax(
-                    &self.total_backward_distance,
-                    &self.lower_bound_backward_eccentricities,
-                    |i, _| self.incomplete_backward_vertex(i),
-                );
+                let v = math::filtered_argmax(&self.backward_tot, &self.backward_low, |i, _| {
+                    self.incomplete_backward(i)
+                });
                 pl.info(format_args!(
                     "Performing backwards SumSweep visit from {:?}",
                     v
                 ));
                 self.step_sum_sweep(v, false, threadpool.borrow(), pl);
             } else {
-                let v = math::filtered_argmax(
-                    &self.total_forward_distance,
-                    &self.lower_bound_forward_eccentricities,
-                    |i, _| self.incomplete_forward_vertex(i),
-                );
+                let v = math::filtered_argmax(&self.forward_tot, &self.forward_low, |i, _| {
+                    self.incomplete_forward(i)
+                });
                 pl.info(format_args!(
                     "Performing forward SumSweep visit from {:?}.",
                     v
@@ -331,44 +326,38 @@ impl<
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex maximizing the upper bound."
                     ));
-                    let v = math::filtered_argmax(
-                        &self.upper_bound_forward_eccentricities,
-                        &self.total_forward_distance,
-                        |i, _| self.incomplete_forward_vertex(i),
-                    );
+                    let v = math::filtered_argmax(&self.forward_high, &self.forward_tot, |i, _| {
+                        self.incomplete_forward(i)
+                    });
                     self.step_sum_sweep(v, true, threadpool.borrow(), &mut pl.clone())
                 }
                 2 => {
                     pl.info(format_args!(
                         "Performing a forward BFS, from a vertex minimizing the lower bound."
                     ));
-                    let v = math::filtered_argmin(
-                        &self.lower_bound_forward_eccentricities,
-                        &self.total_forward_distance,
-                        |i, _| self.radial_vertices[i],
-                    );
+                    let v = math::filtered_argmin(&self.forward_low, &self.forward_tot, |i, _| {
+                        self.radial_vertices[i]
+                    });
                     self.step_sum_sweep(v, true, threadpool.borrow(), &mut pl.clone())
                 }
                 3 => {
                     pl.info(format_args!(
                         "Performing a backward BFS from a vertex maximizing the upper bound."
                     ));
-                    let v = math::filtered_argmax(
-                        &self.upper_bound_backward_eccentricities,
-                        &self.total_backward_distance,
-                        |i, _| self.incomplete_backward_vertex(i),
-                    );
+                    let v =
+                        math::filtered_argmax(&self.backward_high, &self.backward_tot, |i, _| {
+                            self.incomplete_backward(i)
+                        });
                     self.step_sum_sweep(v, false, threadpool.borrow(), &mut pl.clone())
                 }
                 4 => {
                     pl.info(format_args!(
                         "Performing a backward BFS, from a vertex maximizing the distance sum."
                     ));
-                    let v = math::filtered_argmax(
-                        &self.total_backward_distance,
-                        &self.upper_bound_backward_eccentricities,
-                        |i, _| self.incomplete_backward_vertex(i),
-                    );
+                    let v =
+                        math::filtered_argmax(&self.backward_tot, &self.backward_high, |i, _| {
+                            self.incomplete_backward(i)
+                        });
                     self.step_sum_sweep(v, false, threadpool.borrow(), &mut pl.clone())
                 }
                 5.. => panic!(),
@@ -396,7 +385,7 @@ impl<
         if self.output == OutputLevel::Radius || self.output == OutputLevel::RadiusDiameter {
             pl.info(format_args!(
                 "Radius: {} ({} iterations).",
-                self.radius_upper_bound,
+                self.radius_high,
                 self.radius_iterations
                     .expect("radius iterations should not be None")
             ));
@@ -404,7 +393,7 @@ impl<
         if self.output == OutputLevel::Diameter || self.output == OutputLevel::RadiusDiameter {
             pl.info(format_args!(
                 "Diameter: {} ({} iterations).",
-                self.diameter_lower_bound,
+                self.diameter_low,
                 self.diameter_iterations
                     .expect("radius iterations should not be None"),
             ));
@@ -418,7 +407,7 @@ impl<
         if self.radius_iterations.is_none() {
             None
         } else {
-            Some(self.radius_upper_bound)
+            Some(self.radius_high)
         }
     }
 
@@ -428,7 +417,7 @@ impl<
         if self.diameter_iterations.is_none() {
             None
         } else {
-            Some(self.diameter_lower_bound)
+            Some(self.diameter_low)
         }
     }
 
@@ -485,14 +474,14 @@ impl<
     /// if they have already been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn all_forward_iterations(&self) -> Option<usize> {
-        self.forward_eccentricities_iterations.map(|v| v.into())
+        self.forward_iter.map(|v| v.into())
     }
 
     /// Returns the number of iterations needed to compute all eccentricities if they
     /// have already been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn all_iterations(&self) -> Option<usize> {
-        self.all_eccentricities_iterations.map(|v| v.into())
+        self.all_iter.map(|v| v.into())
     }
 
     /// Uses a heuristic to decide which is the best pivot to choose in each strongly connected
@@ -503,9 +492,8 @@ impl<
     fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Vec<usize> {
         debug_assert!(self.number_of_nodes < usize::MAX);
 
-        let mut pivot: Vec<Option<NonMaxUsize>> =
-            vec![None; self.strongly_connected_components.number_of_components()];
-        let components = self.strongly_connected_components.component();
+        let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.number_of_components()];
+        let components = self.scc.component();
         pl.expected_updates(Some(components.len()));
         pl.item_name("nodes");
         pl.display_memory(false);
@@ -514,27 +502,27 @@ impl<
         for (v, &component) in components.iter().enumerate().rev() {
             if let Some(p) = pivot[component] {
                 let p = p.into();
-                let current = self.lower_bound_backward_eccentricities[v]
-                    + self.lower_bound_forward_eccentricities[v]
-                    + if self.incomplete_forward_vertex(v) {
+                let current = self.backward_low[v]
+                    + self.forward_low[v]
+                    + if self.incomplete_forward(v) {
                         0
                     } else {
                         self.number_of_nodes
                     }
-                    + if self.incomplete_backward_vertex(v) {
+                    + if self.incomplete_backward(v) {
                         0
                     } else {
                         self.number_of_nodes
                     };
 
-                let best = self.lower_bound_backward_eccentricities[p]
-                    + self.lower_bound_forward_eccentricities[p]
-                    + if self.incomplete_forward_vertex(p) {
+                let best = self.backward_low[p]
+                    + self.forward_low[p]
+                    + if self.incomplete_forward(p) {
                         0
                     } else {
                         self.number_of_nodes
                     }
-                    + if self.incomplete_backward_vertex(p) {
+                    + if self.incomplete_backward(p) {
                         0
                     } else {
                         self.number_of_nodes
@@ -542,8 +530,8 @@ impl<
 
                 if current < best
                     || (current == best
-                        && self.total_forward_distance[v] + self.total_backward_distance[v]
-                            <= self.total_forward_distance[p] + self.total_backward_distance[p])
+                        && self.forward_tot[v] + self.backward_tot[v]
+                            <= self.forward_tot[p] + self.backward_tot[p])
                 {
                     pivot[component] = NonMaxUsize::new(v);
                 }
@@ -579,8 +567,8 @@ impl<
         pl.display_memory(false);
         pl.start("Computing radial vertices...");
 
-        let component = self.strongly_connected_components.component();
-        let scc_sizes = self.strongly_connected_components.compute_sizes();
+        let component = self.scc.component();
+        let scc_sizes = self.scc.compute_sizes();
         let max_size_scc = math::argmax(&scc_sizes).expect("Could not find max size scc.");
 
         pl.info(format_args!(
@@ -656,12 +644,10 @@ impl<
         pl.start(format!("Performing backwards BFS starting from {}", start));
 
         let max_dist = AtomicUsize::new(0);
-        let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
+        let radius = RwLock::new((self.radius_high, self.radius_vertex));
 
-        let lower_bound_forward_eccentricities = self
-            .lower_bound_forward_eccentricities
-            .as_mut_slice_of_cells();
-        let total_forward_distance = self.total_forward_distance.as_mut_slice_of_cells();
+        let forward_low = self.forward_low.as_mut_slice_of_cells();
+        let forward_tot = self.forward_tot.as_mut_slice_of_cells();
 
         self.transposed_visit
             .visit(
@@ -676,26 +662,21 @@ impl<
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                        let node_forward_lower_bound_ptr =
-                            unsafe { lower_bound_forward_eccentricities.get_mut_unsafe(node) };
-                        let node_total_forward_distance_ptr =
-                            unsafe { total_forward_distance.get_mut_unsafe(node) };
+                        let node_forward_low_ptr = unsafe { forward_low.get_mut_unsafe(node) };
+                        let node_forward_tot_ptr = unsafe { forward_tot.get_mut_unsafe(node) };
 
-                        let node_forward_lower_bound = unsafe { *node_forward_lower_bound_ptr };
-                        let node_forward_upper_bound =
-                            self.upper_bound_forward_eccentricities[node];
+                        let node_forward_low = unsafe { *node_forward_low_ptr };
+                        let node_forward_high = self.forward_high[node];
 
                         unsafe {
-                            *node_total_forward_distance_ptr += distance;
+                            *node_forward_tot_ptr += distance;
                         }
-                        if node_forward_lower_bound != node_forward_upper_bound
-                            && node_forward_lower_bound < distance
-                        {
+                        if node_forward_low != node_forward_high && node_forward_low < distance {
                             unsafe {
-                                *node_forward_lower_bound_ptr = distance;
+                                *node_forward_low_ptr = distance;
                             }
 
-                            if distance == node_forward_upper_bound && self.radial_vertices[node] {
+                            if distance == node_forward_high && self.radial_vertices[node] {
                                 let mut update_radius = false;
                                 {
                                     let radius_lock = radius.read().unwrap();
@@ -725,13 +706,13 @@ impl<
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
-        self.lower_bound_backward_eccentricities[start] = ecc_start;
-        self.upper_bound_backward_eccentricities[start] = ecc_start;
+        self.backward_low[start] = ecc_start;
+        self.backward_high[start] = ecc_start;
 
-        (self.radius_upper_bound, self.radius_vertex) = radius.into_inner().unwrap();
+        (self.radius_high, self.radius_vertex) = radius.into_inner().unwrap();
 
-        if self.diameter_lower_bound < ecc_start {
-            self.diameter_lower_bound = ecc_start;
+        if self.diameter_low < ecc_start {
+            self.diameter_low = ecc_start;
             self.diameter_vertex = start;
         }
 
@@ -752,10 +733,8 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
-        let lower_bound_backward_eccentricities = self
-            .lower_bound_backward_eccentricities
-            .as_mut_slice_of_cells();
-        let total_backward_distance = self.total_backward_distance.as_mut_slice_of_cells();
+        let backward_low = self.backward_low.as_mut_slice_of_cells();
+        let backward_tot = self.backward_tot.as_mut_slice_of_cells();
 
         self.visit
             .visit(
@@ -770,23 +749,18 @@ impl<
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                        let node_backward_lower_bound_ptr =
-                            unsafe { lower_bound_backward_eccentricities.get_mut_unsafe(node) };
-                        let node_total_backward_distance_ptr =
-                            unsafe { total_backward_distance.get_mut_unsafe(node) };
+                        let node_backward_low_ptr = unsafe { backward_low.get_mut_unsafe(node) };
+                        let node_backward_tot_ptr = unsafe { backward_tot.get_mut_unsafe(node) };
 
-                        let node_backward_lower_bound = unsafe { *node_backward_lower_bound_ptr };
-                        let node_backward_upper_bound =
-                            self.upper_bound_backward_eccentricities[node];
+                        let node_backward_low = unsafe { *node_backward_low_ptr };
+                        let node_backward_high = self.backward_high[node];
 
                         unsafe {
-                            *node_total_backward_distance_ptr += distance;
+                            *node_backward_tot_ptr += distance;
                         }
-                        if node_backward_lower_bound != node_backward_upper_bound
-                            && node_backward_lower_bound < distance
-                        {
+                        if node_backward_low != node_backward_high && node_backward_low < distance {
                             unsafe {
-                                *node_backward_lower_bound_ptr = distance;
+                                *node_backward_low_ptr = distance;
                             }
                         }
                     }
@@ -800,15 +774,15 @@ impl<
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
-        self.lower_bound_forward_eccentricities[start] = ecc_start;
-        self.upper_bound_forward_eccentricities[start] = ecc_start;
+        self.forward_low[start] = ecc_start;
+        self.forward_high[start] = ecc_start;
 
-        if self.diameter_lower_bound < ecc_start {
-            self.diameter_lower_bound = ecc_start;
+        if self.diameter_low < ecc_start {
+            self.diameter_low = ecc_start;
             self.diameter_vertex = start;
         }
-        if self.radial_vertices[start] && self.radius_upper_bound > ecc_start {
-            self.radius_upper_bound = ecc_start;
+        if self.radial_vertices[start] && self.radius_high > ecc_start {
+            self.radius_high = ecc_start;
             self.radius_vertex = start;
         }
 
@@ -862,11 +836,8 @@ impl<
         graph: &(impl RandomAccessGraph + Sync),
         threadpool: impl Borrow<rayon::ThreadPool>,
     ) -> (Vec<usize>, Vec<usize>) {
-        let components = self.strongly_connected_components.component();
-        let ecc_pivot = closure_vec(
-            || AtomicUsize::new(0),
-            self.strongly_connected_components.number_of_components(),
-        );
+        let components = self.scc.component();
+        let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.number_of_components());
         let mut dist_pivot = vec![0; self.number_of_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
@@ -929,9 +900,7 @@ impl<
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
-            pivot.len()
-                + self.strongly_connected_components.number_of_components()
-                + self.number_of_nodes,
+            pivot.len() + self.scc.number_of_components() + self.number_of_nodes,
         ));
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
@@ -939,13 +908,13 @@ impl<
             self.compute_dist_pivot(&pivot, true, threadpool.borrow(), &mut pl.clone());
         let (dist_pivot_b, mut ecc_pivot_b) =
             self.compute_dist_pivot(&pivot, false, threadpool.borrow(), &mut pl.clone());
-        let components = self.strongly_connected_components.component();
+        let components = self.scc.component();
 
         // Tarjan's algorithm emits components in reverse topological order.
         // In order to bound forward eccentricities in reverse topological order the components
         // are traversed as is.
         for (c, &p) in pivot.iter().enumerate() {
-            for connection in self.strongly_connected_components_graph.children(c) {
+            for connection in self.scc_graph.children(c) {
                 let next_c = connection.target;
                 let start = connection.start;
                 let end = connection.end;
@@ -955,8 +924,8 @@ impl<
                     dist_pivot_f[start] + 1 + dist_pivot_b[end] + ecc_pivot_f[next_c],
                 );
 
-                if ecc_pivot_f[c] >= self.upper_bound_forward_eccentricities[p] {
-                    ecc_pivot_f[c] = self.upper_bound_forward_eccentricities[p];
+                if ecc_pivot_f[c] >= self.forward_high[p] {
+                    ecc_pivot_f[c] = self.forward_high[p];
                     break;
                 }
             }
@@ -966,8 +935,8 @@ impl<
         // Tarjan's algorithm emits components in reverse topological order.
         // In order to bound backward eccentricities in topological order the components order
         // must be reversed.
-        for c in (0..self.strongly_connected_components.number_of_components()).rev() {
-            for component in self.strongly_connected_components_graph.children(c) {
+        for c in (0..self.scc.number_of_components()).rev() {
+            for component in self.scc_graph.children(c) {
                 let next_c = component.target;
                 let start = component.start;
                 let end = component.end;
@@ -977,39 +946,33 @@ impl<
                     dist_pivot_f[start] + 1 + dist_pivot_b[end] + ecc_pivot_b[c],
                 );
 
-                if ecc_pivot_b[next_c] >= self.upper_bound_backward_eccentricities[pivot[next_c]] {
-                    ecc_pivot_b[next_c] = self.upper_bound_backward_eccentricities[pivot[next_c]];
+                if ecc_pivot_b[next_c] >= self.backward_high[pivot[next_c]] {
+                    ecc_pivot_b[next_c] = self.backward_high[pivot[next_c]];
                 }
             }
             pl.light_update();
         }
 
-        let radius = RwLock::new((self.radius_upper_bound, self.radius_vertex));
+        let radius = RwLock::new((self.radius_high, self.radius_vertex));
 
-        let upper_bound_forward_eccentricities = self
-            .upper_bound_forward_eccentricities
-            .as_mut_slice_of_cells();
-        let upper_bound_backward_eccentricities = self
-            .upper_bound_backward_eccentricities
-            .as_mut_slice_of_cells();
+        let forward_high = self.forward_high.as_mut_slice_of_cells();
+        let backward_high = self.backward_high.as_mut_slice_of_cells();
 
         threadpool.borrow().install(|| {
             (0..self.number_of_nodes).into_par_iter().for_each(|node| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 unsafe {
-                    upper_bound_forward_eccentricities.write_once(
+                    forward_high.write_once(
                         node,
                         std::cmp::min(
-                            upper_bound_forward_eccentricities[node].read(),
+                            forward_high[node].read(),
                             dist_pivot_b[node] + ecc_pivot_f[components[node]],
                         ),
                     );
                 }
 
-                if upper_bound_forward_eccentricities[node].read()
-                    == self.lower_bound_forward_eccentricities[node]
-                {
-                    let new_ecc = upper_bound_forward_eccentricities[node].read();
+                if forward_high[node].read() == self.forward_low[node] {
+                    let new_ecc = forward_high[node].read();
 
                     if self.radial_vertices[node] {
                         let mut update_radius = false;
@@ -1031,10 +994,10 @@ impl<
                 }
 
                 unsafe {
-                    upper_bound_backward_eccentricities.write_once(
+                    backward_high.write_once(
                         node,
                         std::cmp::min(
-                            upper_bound_backward_eccentricities[node].read(),
+                            backward_high[node].read(),
                             dist_pivot_f[node] + ecc_pivot_b[components[node]],
                         ),
                     );
@@ -1044,7 +1007,7 @@ impl<
 
         pl.update_with_count(self.number_of_nodes);
 
-        (self.radius_upper_bound, self.radius_vertex) = radius.into_inner().unwrap();
+        (self.radius_high, self.radius_vertex) = radius.into_inner().unwrap();
 
         self.iterations += 3;
 
@@ -1073,25 +1036,20 @@ impl<
                     .fold(
                         || (0, 0, 0, 0, 0),
                         |mut acc, node| {
-                            if self.incomplete_forward_vertex(node) {
+                            if self.incomplete_forward(node) {
                                 acc.3 += 1;
-                                if self.upper_bound_forward_eccentricities[node]
-                                    > self.diameter_lower_bound
-                                {
+                                if self.forward_high[node] > self.diameter_low {
                                     acc.1 += 1;
                                 }
                                 if self.radial_vertices[node]
-                                    && self.lower_bound_forward_eccentricities[node]
-                                        < self.radius_upper_bound
+                                    && self.forward_low[node] < self.radius_high
                                 {
                                     acc.0 += 1;
                                 }
                             }
-                            if self.incomplete_backward_vertex(node) {
+                            if self.incomplete_backward(node) {
                                 acc.4 += 1;
-                                if self.upper_bound_backward_eccentricities[node]
-                                    > self.diameter_lower_bound
-                                {
+                                if self.backward_high[node] > self.diameter_low {
                                     acc.2 += 1;
                                 }
                             }
@@ -1123,11 +1081,11 @@ impl<
         if (missing_df == 0 || missing_db == 0) && self.diameter_iterations.is_none() {
             self.diameter_iterations = Some(iterations);
         }
-        if missing_all_forward == 0 && self.forward_eccentricities_iterations.is_none() {
-            self.forward_eccentricities_iterations = Some(iterations);
+        if missing_all_forward == 0 && self.forward_iter.is_none() {
+            self.forward_iter = Some(iterations);
         }
         if missing_all_forward == 0 && missing_all_backward == 0 {
-            self.all_eccentricities_iterations = Some(iterations);
+            self.all_iter = Some(iterations);
         }
 
         pl.done();
