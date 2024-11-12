@@ -18,8 +18,8 @@ fn test_path() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::All, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep =
+        UndirExactSumSweep::compute(&graph, OutputLevel::All, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
     assert_eq!(sum_sweep.eccentricity(1), Some(1));
@@ -63,8 +63,8 @@ fn test_star() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::All, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep =
+        UndirExactSumSweep::compute(&graph, OutputLevel::All, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.eccentricity(0), Some(2));
     assert_eq!(sum_sweep.eccentricity(1), Some(3));
@@ -106,11 +106,10 @@ fn test_lozenge() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::Radius, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep =
+        UndirExactSumSweep::compute(&graph, OutputLevel::Radius, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(2));
-    assert!(sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap()) == sum_sweep.radius());
 
     Ok(())
 }
@@ -134,21 +133,15 @@ fn test_cycle() -> Result<()> {
 
         let graph = Left(vec_graph);
 
-        let mut sum_sweep =
-            UndirExactSumSweep::new(&graph, OutputLevel::RadiusDiameter, no_logging![]);
-        sum_sweep.compute(&threads![], no_logging![]);
+        let sum_sweep = UndirExactSumSweep::compute(
+            &graph,
+            OutputLevel::RadiusDiameter,
+            &threads![],
+            no_logging![],
+        );
 
         assert_eq!(sum_sweep.diameter(), Some(size / 2));
         assert_eq!(sum_sweep.radius(), Some(size / 2));
-
-        assert_eq!(
-            sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap()),
-            sum_sweep.radius()
-        );
-        assert_eq!(
-            sum_sweep.eccentricity(sum_sweep.diametral_vertex().unwrap()),
-            sum_sweep.diameter()
-        );
     }
     Ok(())
 }
@@ -170,8 +163,8 @@ fn test_clique() -> Result<()> {
 
         let graph = Left(vec_graph);
 
-        let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::All, no_logging![]);
-        sum_sweep.compute(&threads![], no_logging![]);
+        let sum_sweep =
+            UndirExactSumSweep::compute(&graph, OutputLevel::All, &threads![], no_logging![]);
 
         for i in 0..size {
             assert_eq!(sum_sweep.eccentricity(i), Some(1));
@@ -191,8 +184,8 @@ fn test_no_edges() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::All, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep =
+        UndirExactSumSweep::compute(&graph, OutputLevel::All, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(0));
     assert_eq!(sum_sweep.diameter(), Some(0));
@@ -214,8 +207,8 @@ fn test_sparse() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::Radius, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep =
+        UndirExactSumSweep::compute(&graph, OutputLevel::Radius, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(1));
 
@@ -223,16 +216,11 @@ fn test_sparse() -> Result<()> {
 }
 
 #[test]
-fn test_empty() -> Result<()> {
+#[should_panic(expected = "Radius should be computed")]
+fn test_empty() {
     let vec_graph: VecGraph<()> = VecGraph::new();
 
     let graph = Left(vec_graph);
 
-    let mut sum_sweep = UndirExactSumSweep::new(&graph, OutputLevel::Radius, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
-
-    assert_eq!(sum_sweep.radius(), None);
-    assert_eq!(sum_sweep.diameter(), None);
-
-    Ok(())
+    UndirExactSumSweep::compute(&graph, OutputLevel::Radius, &threads![], no_logging![]);
 }

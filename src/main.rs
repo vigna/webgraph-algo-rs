@@ -36,14 +36,14 @@ fn main() -> Result<()> {
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
-            let mut diameter = DirExactSumSweep::new(
+            DirExactSumSweep::compute(
                 &graph,
                 &reversed_graph,
                 OutputLevel::RadiusDiameter,
                 None,
+                &threads![],
                 &mut main_pl,
             );
-            diameter.compute(&threads![], &mut main_pl);
         }
         "hyperball" => {
             let cumulative = DCF::load_mmap(basename.clone() + ".dcf", Flags::empty())?;

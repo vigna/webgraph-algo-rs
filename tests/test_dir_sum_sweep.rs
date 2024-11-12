@@ -24,9 +24,14 @@ fn test_path() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        DirExactSumSweep::new(&graph, &transposed, OutputLevel::All, None, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep = DirExactSumSweep::compute(
+        &graph,
+        &transposed,
+        OutputLevel::All,
+        None,
+        &threads![],
+        no_logging![],
+    );
 
     assert_eq!(sum_sweep.eccentricity(0, true), Some(2));
     assert_eq!(sum_sweep.eccentricity(1, true), Some(1));
@@ -73,14 +78,14 @@ fn test_many_scc() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = DirExactSumSweep::new(
+    let sum_sweep = DirExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::Radius,
         None,
+        &threads![],
         no_logging![],
     );
-    sum_sweep.compute(&threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(2));
     assert_eq!(sum_sweep.radial_vertex(), Some(1));
@@ -105,18 +110,17 @@ fn test_lozenge() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep = DirExactSumSweep::new(
+    let sum_sweep = DirExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::Radius,
         None,
+        &threads![],
         no_logging![],
     );
-    sum_sweep.compute(&threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(2));
     assert!(sum_sweep.radial_vertex() == Some(0) || sum_sweep.radial_vertex() == Some(1));
-    assert!(sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap(), true) == sum_sweep.radius());
 
     Ok(())
 }
@@ -157,14 +161,14 @@ fn test_many_dir_path() -> Result<()> {
     radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
     radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
 
-    let mut sum_sweep = DirExactSumSweep::new(
+    let sum_sweep = DirExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
         Some(radial_vertices),
+        &threads![],
         no_logging![],
     );
-    sum_sweep.compute(&threads![], no_logging![]);
 
     assert_eq!(sum_sweep.diameter(), Some(6));
     assert_eq!(sum_sweep.radius(), Some(1));
@@ -194,25 +198,17 @@ fn test_cycle() -> Result<()> {
             transpose(&graph, 32)?.0.iter(),
         ));
 
-        let mut sum_sweep = DirExactSumSweep::new(
+        let sum_sweep = DirExactSumSweep::compute(
             &graph,
             &transposed,
             OutputLevel::RadiusDiameter,
             None,
+            &threads![],
             no_logging![],
         );
-        sum_sweep.compute(&threads![], no_logging![]);
 
         assert_eq!(sum_sweep.diameter(), Some(size - 1));
         assert_eq!(sum_sweep.radius(), Some(size - 1));
-        assert_eq!(
-            sum_sweep.eccentricity(sum_sweep.radial_vertex().unwrap(), true),
-            sum_sweep.radius()
-        );
-        assert_eq!(
-            sum_sweep.eccentricity(sum_sweep.diametral_vertex().unwrap(), true),
-            sum_sweep.diameter()
-        );
     }
     Ok(())
 }
@@ -246,14 +242,14 @@ fn test_clique() -> Result<()> {
         radial_vertices.set(rngs[1], true, std::sync::atomic::Ordering::Relaxed);
         radial_vertices.set(rngs[2], true, std::sync::atomic::Ordering::Relaxed);
 
-        let mut sum_sweep = DirExactSumSweep::new(
+        let sum_sweep = DirExactSumSweep::compute(
             &graph,
             &transposed,
             OutputLevel::All,
             Some(radial_vertices),
+            &threads![],
             no_logging![],
         );
-        sum_sweep.compute(&threads![], no_logging![]);
 
         for i in 0..size {
             assert_eq!(sum_sweep.eccentricity(i, true), Some(1));
@@ -275,9 +271,14 @@ fn test_empty() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        DirExactSumSweep::new(&graph, &transposed, OutputLevel::All, None, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep = DirExactSumSweep::compute(
+        &graph,
+        &transposed,
+        OutputLevel::All,
+        None,
+        &threads![],
+        no_logging![],
+    );
 
     assert_eq!(sum_sweep.radius(), Some(0));
     assert_eq!(sum_sweep.diameter(), Some(0));
@@ -302,9 +303,14 @@ fn test_sparse() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        DirExactSumSweep::new(&graph, &transposed, OutputLevel::All, None, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep = DirExactSumSweep::compute(
+        &graph,
+        &transposed,
+        OutputLevel::All,
+        None,
+        &threads![],
+        no_logging![],
+    );
 
     assert_eq!(sum_sweep.radius(), Some(1));
     assert_eq!(sum_sweep.radial_vertex(), Some(10));
@@ -330,14 +336,14 @@ fn test_no_radial_vertices() -> Result<()> {
     ));
     let radial_vertices = AtomicBitVec::new(2);
 
-    let mut sum_sweep = DirExactSumSweep::new(
+    let sum_sweep = DirExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
         Some(radial_vertices),
+        &threads![],
         no_logging![],
     );
-    sum_sweep.compute(&threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius(), Some(usize::MAX));
 
@@ -345,22 +351,23 @@ fn test_no_radial_vertices() -> Result<()> {
 }
 
 #[test]
-fn test_empty_graph() -> Result<()> {
+#[should_panic(expected = "Diameter should be computed")]
+fn test_empty_graph() {
     let vec_graph: VecGraph<()> = VecGraph::new();
 
     let graph = Left(vec_graph);
     let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
+        transpose(&graph, 32).unwrap().0.iter(),
     ));
 
-    let mut sum_sweep =
-        DirExactSumSweep::new(&graph, &transposed, OutputLevel::All, None, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
-
-    assert_eq!(sum_sweep.radius(), None);
-    assert_eq!(sum_sweep.diameter(), None);
-
-    Ok(())
+    DirExactSumSweep::compute(
+        &graph,
+        &transposed,
+        OutputLevel::All,
+        None,
+        &threads![],
+        no_logging![],
+    );
 }
 
 #[test]
@@ -375,9 +382,14 @@ fn test_graph_no_edges() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let mut sum_sweep =
-        DirExactSumSweep::new(&graph, &transposed, OutputLevel::All, None, no_logging![]);
-    sum_sweep.compute(&threads![], no_logging![]);
+    let sum_sweep = DirExactSumSweep::compute(
+        &graph,
+        &transposed,
+        OutputLevel::All,
+        None,
+        &threads![],
+        no_logging![],
+    );
 
     assert_eq!(sum_sweep.radius(), Some(0));
     assert_eq!(sum_sweep.diameter(), Some(0));
