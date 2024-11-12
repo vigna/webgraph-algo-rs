@@ -1,12 +1,13 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use unwrap_infallible::UnwrapInfallible;
 use webgraph::{
     labels::Left,
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
-use webgraph_algo::{algo::visits::*, ok_infallible};
+use webgraph_algo::{algo::visits::*, threads};
 
 fn correct_dists<G: RandomAccessGraph>(graph: &G, start: usize) -> Vec<usize> {
     let mut dists = Vec::new();
@@ -53,7 +54,7 @@ fn into_non_atomic(v: Vec<AtomicUsize>) -> Vec<usize> {
     res
 }
 
-macro_rules! test_bfv_algo {
+macro_rules! test_bfv_algo_seq {
     ($bfv:expr, $name:ident) => {
         mod $name {
             use super::*;
@@ -92,17 +93,21 @@ macro_rules! test_bfv_algo {
                 let expected_dists = correct_dists(&graph, 0);
 
                 for node in 0..graph.num_nodes() {
-                    visit.visit(
-                        node,
-                        |event| {
-                            if let breadth_first::EventPred::Unknown { curr, distance, .. } = event
-                            {
-                                dists[curr].store(distance, Ordering::Relaxed);
-                            }
-                            ok_infallible!()
-                        },
-                        no_logging![],
-                    )?;
+                    visit
+                        .visit(
+                            node,
+                            |event| {
+                                if let breadth_first::EventPred::Unknown {
+                                    curr, distance, ..
+                                } = event
+                                {
+                                    dists[curr].store(distance, Ordering::Relaxed);
+                                }
+                                Ok(())
+                            },
+                            no_logging![],
+                        )
+                        .unwrap_infallible();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -123,17 +128,21 @@ macro_rules! test_bfv_algo {
 
                 for i in 0..graph.num_nodes() {
                     let node = (i + 10000) % graph.num_nodes();
-                    visit.visit(
-                        node,
-                        |event| {
-                            if let breadth_first::EventPred::Unknown { curr, distance, .. } = event
-                            {
-                                dists[curr].store(distance, Ordering::Relaxed);
-                            }
-                            ok_infallible!()
-                        },
-                        no_logging![],
-                    )?;
+                    visit
+                        .visit(
+                            node,
+                            |event| {
+                                if let breadth_first::EventPred::Unknown {
+                                    curr, distance, ..
+                                } = event
+                                {
+                                    dists[curr].store(distance, Ordering::Relaxed);
+                                }
+                                Ok(())
+                            },
+                            no_logging![],
+                        )
+                        .unwrap_infallible();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -146,15 +155,121 @@ macro_rules! test_bfv_algo {
     };
 }
 
-test_bfv_algo!(
+macro_rules! test_bfv_algo_par {
+    ($bfv:expr, $name:ident) => {
+        mod $name {
+            use super::*;
+
+            #[test]
+            fn test_simple_graph() -> Result<()> {
+                let arcs = vec![
+                    (0, 0),
+                    (1, 0),
+                    (1, 2),
+                    (2, 1),
+                    (2, 3),
+                    (2, 4),
+                    (2, 5),
+                    (3, 4),
+                    (4, 3),
+                    (5, 5),
+                    (5, 6),
+                    (5, 7),
+                    (5, 8),
+                    (6, 7),
+                    (8, 7),
+                ];
+                let mut g = VecGraph::new();
+                for i in 0..9 {
+                    g.add_node(i);
+                }
+                for arc in arcs {
+                    g.add_arc(arc.0, arc.1);
+                }
+                let graph = Left(g);
+                let mut visit = $bfv(&graph);
+                let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
+                    .map(|_| AtomicUsize::new(0))
+                    .collect();
+                let expected_dists = correct_dists(&graph, 0);
+
+                let t = threads!();
+
+                for node in 0..graph.num_nodes() {
+                    visit
+                        .visit(
+                            node,
+                            |event| {
+                                if let breadth_first::EventPred::Unknown {
+                                    curr, distance, ..
+                                } = event
+                                {
+                                    dists[curr].store(distance, Ordering::Relaxed);
+                                }
+                                Ok(())
+                            },
+                            &t,
+                            no_logging![],
+                        )
+                        .unwrap_infallible();
+                }
+
+                let actual_dists = into_non_atomic(dists);
+
+                assert_eq!(actual_dists, expected_dists);
+
+                Ok(())
+            }
+
+            #[test]
+            fn test_cnr_2000() -> Result<()> {
+                let graph = BvGraph::with_basename("tests/graphs/cnr-2000").load()?;
+                let mut visit = $bfv(&graph);
+                let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
+                    .map(|_| AtomicUsize::new(0))
+                    .collect();
+                let expected_dists = correct_dists(&graph, 10000);
+                let t = threads!();
+
+                for i in 0..graph.num_nodes() {
+                    let node = (i + 10000) % graph.num_nodes();
+                    visit
+                        .visit(
+                            node,
+                            |event| {
+                                if let breadth_first::EventPred::Unknown {
+                                    curr, distance, ..
+                                } = event
+                                {
+                                    dists[curr].store(distance, Ordering::Relaxed);
+                                }
+                                Ok(())
+                            },
+                            &t,
+                            no_logging![],
+                        )
+                        .unwrap_infallible();
+                }
+
+                let actual_dists = into_non_atomic(dists);
+
+                assert_eq!(actual_dists, expected_dists);
+
+                Ok(())
+            }
+        }
+    };
+}
+
+test_bfv_algo_seq!(
     webgraph_algo::prelude::breadth_first::Seq::<_>::new,
     sequential
 );
-test_bfv_algo!(
+test_bfv_algo_par!(
     |g| { webgraph_algo::prelude::breadth_first::ParFairPred::<_>::new(g, 32,) },
     parallel_fair_pred
 );
-test_bfv_algo!(
+test_bfv_algo_par!(
     |g| { webgraph_algo::prelude::breadth_first::ParLowMem::<_>::new(g, 32,) },
     parallel_fast_callback
 );

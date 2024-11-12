@@ -8,149 +8,13 @@ use crate::{
         },
     },
     prelude::*,
-    utils::{check_symmetric, Threads},
+    utils::check_symmetric,
 };
 use dsi_progress_logger::ProgressLog;
 use std::borrow::Borrow;
 use webgraph::traits::RandomAccessGraph;
 
-/// Builder for [`UndirExactSumSweep`].
-pub struct UndirExactSumSweepBuilder<
-    'a,
-    G: RandomAccessGraph + Sync,
-    T,
-    C: StronglyConnectedComponents,
-> {
-    graph: &'a G,
-    output: OutputLevel,
-    threads: T,
-    _marker: std::marker::PhantomData<C>,
-}
-
-impl<'a, G: RandomAccessGraph + Sync>
-    UndirExactSumSweepBuilder<'a, G, Threads, TarjanStronglyConnectedComponents>
-{
-    pub fn new(graph: &'a G, output: OutputLevel) -> Self {
-        debug_assert!(check_symmetric(graph), "graph should be symmetric");
-        let output = match output {
-            OutputLevel::Radius => OutputLevel::Radius,
-            OutputLevel::Diameter => OutputLevel::Diameter,
-            OutputLevel::RadiusDiameter => OutputLevel::RadiusDiameter,
-            _ => OutputLevel::All,
-        };
-        Self {
-            graph,
-            output,
-            threads: Threads::Default,
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents, T>
-    UndirExactSumSweepBuilder<'a, G, T, C>
-{
-    /// Sets the [`UndirExactSumSweep`] instance to use the default [`rayon::ThreadPool`].
-    pub fn default_threadpool(self) -> UndirExactSumSweepBuilder<'a, G, Threads, C> {
-        UndirExactSumSweepBuilder {
-            graph: self.graph,
-            output: self.output,
-            threads: Threads::Default,
-            _marker: self._marker,
-        }
-    }
-
-    /// Sets the [`UndirExactSumSweep`] instance to use a custom [`rayon::ThreadPool`] with the
-    /// specified number of threads.
-    ///
-    /// # Arguments
-    /// * `num_threads`: the number of threads to use for the new `ThreadPool`.
-    pub fn num_threads(self, num_threads: usize) -> UndirExactSumSweepBuilder<'a, G, Threads, C> {
-        UndirExactSumSweepBuilder {
-            graph: self.graph,
-            output: self.output,
-            threads: Threads::NumThreads(num_threads),
-            _marker: self._marker,
-        }
-    }
-
-    /// Sets the [`UndirExactSumSweep`] instance to use the provided [`rayon::ThreadPool`].
-    ///
-    /// # Arguments
-    /// * `threadpool`: the custom `ThreadPool` to use.
-    pub fn threadpool<T2: Borrow<rayon::ThreadPool> + Clone + Sync>(
-        self,
-        threads: T2,
-    ) -> UndirExactSumSweepBuilder<'a, G, T2, C> {
-        UndirExactSumSweepBuilder {
-            graph: self.graph,
-            output: self.output,
-            threads,
-            _marker: self._marker,
-        }
-    }
-
-    /// Sets the algorithm to use to compute the strongly connected components for the graph.
-    pub fn scc<C2: StronglyConnectedComponents>(self) -> UndirExactSumSweepBuilder<'a, G, T, C2> {
-        UndirExactSumSweepBuilder {
-            graph: self.graph,
-            output: self.output,
-            threads: self.threads,
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<'a, G: RandomAccessGraph + Sync, C: StronglyConnectedComponents + Sync>
-    UndirExactSumSweepBuilder<'a, G, Threads, C>
-{
-    /// Builds the [`UndirExactSumSweep`] instance with the specified settings and
-    /// logs progress with the provided logger.
-    ///
-    /// # Arguments
-    /// * `pl`: A progress logger.
-    pub fn build(
-        self,
-        pl: &mut impl ProgressLog,
-    ) -> UndirExactSumSweep<'a, G, C, ParFair<&'a G, rayon::ThreadPool>, rayon::ThreadPool> {
-        let mut builder =
-            DirExactSumSweepBuilder::new(self.graph, self.graph, self.output).scc::<C>();
-        builder = match self.threads {
-            Threads::Default => builder.default_threadpool(),
-            Threads::NumThreads(num_threads) => builder.num_threads(num_threads),
-        };
-        UndirExactSumSweep {
-            inner: builder.build(pl),
-        }
-    }
-}
-
-impl<
-        'a,
-        G: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents + Sync,
-        T: Borrow<rayon::ThreadPool> + Clone + Sync,
-    > UndirExactSumSweepBuilder<'a, G, T, C>
-{
-    /// Builds the [`UndirExactSumSweep`] instance with the specified settings and
-    /// logs progress with the provided logger.
-    ///
-    /// # Arguments
-    /// * `pl`: A progress logger.
-    pub fn build(
-        self,
-        pl: &mut impl ProgressLog,
-    ) -> UndirExactSumSweep<'a, G, C, ParFair<&'a G, T>, T> {
-        let builder = DirExactSumSweepBuilder::new(self.graph, self.graph, self.output)
-            .scc::<C>()
-            .threadpool(self.threads);
-        UndirExactSumSweep {
-            inner: builder.build(pl),
-        }
-    }
-}
-
-/// The implementation of the *SumSweep* algorithm on undirected graphs.
+/// The implementation of the *ExactSumSweep* algorithm on undirected graphs.
 ///
 /// The algorithm is started by calling [`Self::compute`] with a progress logger
 /// if desired.
@@ -169,17 +33,38 @@ pub struct UndirExactSumSweep<
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
     V: Parallel<Event> + Sync,
-    T: Borrow<rayon::ThreadPool> + Sync,
 > {
-    inner: DirExactSumSweep<'a, G, G, C, V, V, T>,
+    inner: DirExactSumSweep<'a, G, G, C, V, V>,
 }
 
-impl<'a, G, C, V, T> UndirExactSumSweep<'a, G, C, V, T>
+impl<'a, G: RandomAccessGraph + Sync>
+    UndirExactSumSweep<'a, G, TarjanStronglyConnectedComponents, ParFair<&'a G>>
+{
+    /// Build a new instance to compute the *ExactSumSweep* algorithm on undirected graphs.
+    ///
+    /// # Arguments
+    /// * `graph`: the undirected graph.
+    /// * `output`: the desired output of the algorithm.
+    /// * `pl`: a progress logger.
+    pub fn new(graph: &'a G, output: OutputLevel, pl: &mut impl ProgressLog) -> Self {
+        debug_assert!(check_symmetric(graph), "graph should be symmetric");
+        let output = match output {
+            OutputLevel::Radius => OutputLevel::Radius,
+            OutputLevel::Diameter => OutputLevel::Diameter,
+            OutputLevel::RadiusDiameter => OutputLevel::RadiusDiameter,
+            _ => OutputLevel::AllForward,
+        };
+        Self {
+            inner: DirExactSumSweep::new(graph, graph, output, None, pl),
+        }
+    }
+}
+
+impl<'a, G, C, V> UndirExactSumSweep<'a, G, C, V>
 where
     G: RandomAccessGraph + Sync,
     C: StronglyConnectedComponents + Sync,
     V: Parallel<Event> + Sync,
-    T: Borrow<rayon::ThreadPool> + Sync,
 {
     /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.
     #[inline(always)]
@@ -246,9 +131,14 @@ where
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
-    pub fn compute(&mut self, pl: &mut impl ProgressLog) {
-        self.inner.compute(pl)
+    pub fn compute(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
+        self.inner.compute(threadpool, pl)
     }
 }

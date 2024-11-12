@@ -26,7 +26,6 @@ pub struct HyperBallBuilder<
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
     H: BuildHasher + Clone,
-    T,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync = G1,
 > {
@@ -39,11 +38,10 @@ pub struct HyperBallBuilder<
     granularity: usize,
     weights: Option<&'a [usize]>,
     hyper_log_log_settings: HyperLogLogCounterArrayBuilder<H, W>,
-    threadpool: T,
 }
 
 impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph + Sync>
-    HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, Threads, G>
+    HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, G>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
 
@@ -67,7 +65,6 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph + Sync>
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
             hyper_log_log_settings,
-            threadpool: Threads::Default,
         }
     }
 }
@@ -77,10 +74,9 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         W: Word + IntoAtomic,
         H: BuildHasher + Clone,
-        T,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-    > HyperBallBuilder<'a, D, W, H, T, G1, G2>
+    > HyperBallBuilder<'a, D, W, H, G1, G2>
 {
     /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
     ///
@@ -90,7 +86,7 @@ impl<
     pub fn transposed<G: RandomAccessGraph + Sync>(
         self,
         transposed: Option<&'a G>,
-    ) -> HyperBallBuilder<'a, D, W, H, T, G1, G> {
+    ) -> HyperBallBuilder<'a, D, W, H, G1, G> {
         if let Some(t) = transposed {
             assert_eq!(
                 t.num_nodes(),
@@ -121,7 +117,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: self.hyper_log_log_settings,
-            threadpool: self.threadpool,
         }
     }
 
@@ -190,7 +185,7 @@ impl<
     pub fn hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher + Clone>(
         self,
         settings: HyperLogLogCounterArrayBuilder<H2, W2>,
-    ) -> HyperBallBuilder<'a, D, W2, H2, T, G1, G2> {
+    ) -> HyperBallBuilder<'a, D, W2, H2, G1, G2> {
         HyperBallBuilder {
             graph: self.graph,
             rev_graph: self.rev_graph,
@@ -201,65 +196,6 @@ impl<
             granularity: self.granularity,
             weights: self.weights,
             hyper_log_log_settings: settings,
-            threadpool: self.threadpool,
-        }
-    }
-
-    /// Sets the [`HyperBall`] instance to use the default [`rayon::ThreadPool`].
-    pub fn default_threadpool(self) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
-        HyperBallBuilder {
-            graph: self.graph,
-            rev_graph: self.rev_graph,
-            cumulative_outdegree: self.cumulative_outdegree,
-            sum_of_distances: self.sum_of_distances,
-            sum_of_inverse_distances: self.sum_of_inverse_distances,
-            discount_functions: self.discount_functions,
-            granularity: self.granularity,
-            weights: self.weights,
-            hyper_log_log_settings: self.hyper_log_log_settings,
-            threadpool: Threads::Default,
-        }
-    }
-
-    /// Sets the [`HyperBall`] instance to use a custom [`rayon::ThreadPool`] with the
-    /// specified number of threads.
-    ///
-    /// # Arguments
-    /// * `num_threads`: the number of threads to use for the new `ThreadPool`.
-    pub fn num_threads(self, num_threads: usize) -> HyperBallBuilder<'a, D, W, H, Threads, G1, G2> {
-        HyperBallBuilder {
-            graph: self.graph,
-            rev_graph: self.rev_graph,
-            cumulative_outdegree: self.cumulative_outdegree,
-            sum_of_distances: self.sum_of_distances,
-            sum_of_inverse_distances: self.sum_of_inverse_distances,
-            discount_functions: self.discount_functions,
-            granularity: self.granularity,
-            weights: self.weights,
-            hyper_log_log_settings: self.hyper_log_log_settings,
-            threadpool: Threads::NumThreads(num_threads),
-        }
-    }
-
-    /// Sets the [`HyperBall`] instance to use the provided [`rayon::ThreadPool`].
-    ///
-    /// # Arguments
-    /// * `threadpool`: the custom `ThreadPool` to use.
-    pub fn threadpool<T2: Borrow<rayon::ThreadPool>>(
-        self,
-        threadpool: T2,
-    ) -> HyperBallBuilder<'a, D, W, H, T2, G1, G2> {
-        HyperBallBuilder {
-            graph: self.graph,
-            rev_graph: self.rev_graph,
-            cumulative_outdegree: self.cumulative_outdegree,
-            sum_of_distances: self.sum_of_distances,
-            sum_of_inverse_distances: self.sum_of_inverse_distances,
-            discount_functions: self.discount_functions,
-            granularity: self.granularity,
-            weights: self.weights,
-            hyper_log_log_settings: self.hyper_log_log_settings,
-            threadpool,
         }
     }
 }
@@ -271,7 +207,7 @@ impl<
         H: BuildHasher + Clone,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-    > HyperBallBuilder<'a, D, W, H, Threads, G1, G2>
+    > HyperBallBuilder<'a, D, W, H, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified settings and
     /// logs progress with the provided logger.
@@ -282,45 +218,7 @@ impl<
     pub fn build(
         self,
         pl: &mut impl ProgressLog,
-    ) -> Result<
-        HyperBall<'a, G1, G2, rayon::ThreadPool, D, W, HyperLogLogCounterArray<G1::Label, W, H>>,
-    > {
-        let builder = HyperBallBuilder {
-            graph: self.graph,
-            rev_graph: self.rev_graph,
-            cumulative_outdegree: self.cumulative_outdegree,
-            sum_of_distances: self.sum_of_distances,
-            sum_of_inverse_distances: self.sum_of_inverse_distances,
-            discount_functions: self.discount_functions,
-            granularity: self.granularity,
-            weights: self.weights,
-            hyper_log_log_settings: self.hyper_log_log_settings,
-            threadpool: self.threadpool.build(),
-        };
-        builder.build(pl)
-    }
-}
-
-impl<
-        'a,
-        D: Succ<Input = usize, Output = usize>,
-        W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
-        H: BuildHasher + Clone,
-        T: Borrow<rayon::ThreadPool>,
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-    > HyperBallBuilder<'a, D, W, H, T, G1, G2>
-{
-    /// Builds the [`HyperBall`] instance with the specified settings and
-    /// logs progress with the provided logger.
-    ///
-    /// # Arguments
-    /// * `pl`: A progress logger.
-    #[allow(clippy::type_complexity)]
-    pub fn build(
-        self,
-        pl: &mut impl ProgressLog,
-    ) -> Result<HyperBall<'a, G1, G2, T, D, W, HyperLogLogCounterArray<G1::Label, W, H>>> {
+    ) -> Result<HyperBall<'a, G1, G2, D, W, HyperLogLogCounterArray<G1::Label, W, H>>> {
         let num_nodes = self.graph.num_nodes();
 
         pl.info(format_args!("Initializing HyperLogLogCounterArrays"));
@@ -410,7 +308,6 @@ impl<
             relative_increment: 0.0,
             granularity,
             iteration_context: IterationContext::default(),
-            threadpool: self.threadpool,
             _phantom_data: std::marker::PhantomData,
         })
     }
@@ -454,7 +351,6 @@ pub struct HyperBall<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
-    T: Borrow<rayon::ThreadPool>,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
     A: HyperLogLogArray<G1::Label, W>,
@@ -513,8 +409,6 @@ pub struct HyperBall<
     relative_increment: f64,
     /// Context used in a single iteration
     iteration_context: IterationContext,
-    /// The local threadpool to use
-    threadpool: T,
     _phantom_data: std::marker::PhantomData<W>,
 }
 
@@ -522,11 +416,10 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         A: HyperLogLogArray<G1::Label, W> + Sync + Send,
-    > HyperBall<'a, G1, G2, T, D, W, A>
+    > HyperBall<'a, G1, G2, D, W, A>
 {
     /// Runs HyperBall.
     ///
@@ -534,16 +427,18 @@ impl<
     /// * `upper_bound`: an upper bound to the number of iterations.
     /// * `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
     ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
     pub fn run(
         &mut self,
         upper_bound: usize,
         threshold: Option<f64>,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
 
-        self.init(pl)
+        self.init(threadpool.borrow(), pl)
             .with_context(|| "Could not initialize approximator")?;
 
         pl.item_name("iteration");
@@ -554,7 +449,7 @@ impl<
         ));
 
         for i in 0..upper_bound {
-            self.iterate(&mut pl.clone())
+            self.iterate(threadpool.borrow(), &mut pl.clone())
                 .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
             pl.update();
@@ -584,24 +479,31 @@ impl<
     ///
     /// # Arguments
     /// * `upper_bound`: an upper bound to the number of iterations.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_stable(
         &mut self,
         upper_bound: usize,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<()> {
-        self.run(upper_bound, None, pl)
+        self.run(upper_bound, None, threadpool, pl)
             .with_context(|| "Could not complete run_until_stable")
     }
 
     /// Runs HyperBall until no counters are modified with no upper bound on the number of iterations.
     ///
     /// # Arguments
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
-    pub fn run_until_done(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
-        self.run_until_stable(usize::MAX, pl)
+    pub fn run_until_done(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()> {
+        self.run_until_stable(usize::MAX, threadpool, pl)
             .with_context(|| "Could not complete run_until_done")
     }
 
@@ -769,11 +671,10 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        T: Borrow<rayon::ThreadPool>,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
         A: HyperLogLogArray<G1::Label, W>,
-    > HyperBall<'a, G1, G2, T, D, W, A>
+    > HyperBall<'a, G1, G2, D, W, A>
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
@@ -790,17 +691,21 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        T: Borrow<rayon::ThreadPool> + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
         A: HyperLogLogArray<G1::Label, W> + Sync + Send,
-    > HyperBall<'a, G1, G2, T, D, W, A>
+    > HyperBall<'a, G1, G2, D, W, A>
 {
     /// Performs a new iteration of HyperBall.
     ///
     /// # Arguments
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn iterate(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
+    fn iterate(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration + 1));
 
         // Let us record whether the previous computation was systolic or local.
@@ -844,7 +749,7 @@ impl<
                     .set(node, false, Ordering::Relaxed);
             }
         } else {
-            self.threadpool
+            threadpool
                 .borrow()
                 .install(|| self.modified_result_counter.fill(false, Ordering::Relaxed));
         }
@@ -853,7 +758,7 @@ impl<
             pl.info(format_args!("Preparing local checklist"));
             // In case of a local computation, we convert the set of must-be-checked for the
             // next iteration into a check list.
-            self.threadpool.borrow().join(
+            threadpool.borrow().join(
                 || self.local_checklist.clear(),
                 || {
                     let mut local_next_must_be_checked =
@@ -868,7 +773,7 @@ impl<
             );
         } else if self.systolic {
             pl.info(format_args!("Preparing systolic flags"));
-            self.threadpool.borrow().join(
+            threadpool.borrow().join(
                 || {
                     // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
                     self.next_must_be_checked.fill(false, Ordering::Relaxed);
@@ -883,7 +788,7 @@ impl<
         }
 
         let mut granularity = self.granularity;
-        let num_threads = self.threadpool.borrow().current_num_threads();
+        let num_threads = threadpool.borrow().current_num_threads();
 
         if num_threads > 1 && !self.local {
             if self.iteration > 0 {
@@ -911,9 +816,7 @@ impl<
         });
         pl.start("Starting parallel execution");
 
-        self.threadpool
-            .borrow()
-            .broadcast(|c| self.parallel_task(c));
+        threadpool.borrow().broadcast(|c| self.parallel_task(c));
 
         pl.done_with_count(self.iteration_context.visited_arcs.load(Ordering::Relaxed) as usize);
 
@@ -1190,11 +1093,16 @@ impl<
     /// Initialises the approximator.
     ///
     /// # Arguments
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn init(&mut self, pl: &mut impl ProgressLog) -> Result<()> {
+    fn init(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
-        self.threadpool
+        threadpool
             .borrow()
             .join(|| self.bits.clear(), || self.result_bits.clear());
 
@@ -1208,7 +1116,7 @@ impl<
                 }
             }
         } else {
-            self.threadpool.borrow().install(|| {
+            threadpool.borrow().install(|| {
                 (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
                     unsafe { self.bits.get_counter_from_shared(i) }.add(i);
                 });
@@ -1240,7 +1148,7 @@ impl<
         self.neighbourhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
-        self.threadpool
+        threadpool
             .borrow()
             .install(|| self.modified_counter.fill(true, Ordering::Relaxed));
 

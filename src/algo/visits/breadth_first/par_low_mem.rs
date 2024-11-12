@@ -31,6 +31,7 @@ use webgraph::traits::RandomAccessGraph;
 /// ```
 /// use webgraph_algo::algo::visits::Parallel;
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
+/// use webgraph_algo::threads;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -51,6 +52,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///             Ok(())
 ///         },
+///    threads!(),
 ///    no_logging![]
 /// ).unwrap_infallible();
 ///
@@ -60,75 +62,31 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(tree[3].load(Ordering::Relaxed), 1);
 /// ```
 
-pub struct ParLowMem<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool> = rayon::ThreadPool> {
+pub struct ParLowMem<G: RandomAccessGraph> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
-    threads: T,
 }
 
-impl<G: RandomAccessGraph> ParLowMem<G, rayon::ThreadPool> {
-    /// Creates a low-memory parallel breadth-first visit with the [default number of
-    /// threads](rayon::ThreadPoolBuilder::num_threads).
+impl<G: RandomAccessGraph> ParLowMem<G> {
+    /// Creates a low-memory parallel breadth-first visit.
     ///
     /// # Arguments
-    ///
     /// * `graph`: the graph to visit.
-    ///
     /// * `granularity`: the number of nodes per chunk. High granularity reduces
     ///   overhead, but may lead to decreased performance on graphs with a
     ///   skewed outdegree distribution.
     pub fn new(graph: G, granularity: usize) -> Self {
-        Self::with_num_threads(graph, granularity, 0)
-    }
-
-    /// Creates a low-memory parallel top-down visit that uses the specified number of threads.
-    ///
-    /// # Arguments
-    ///
-    /// * `graph`: the graph to visit.
-    ///
-    /// * `granularity`: the number of nodes per chunk. High granularity reduces
-    ///   overhead, but may lead to decreased performance on graphs with a
-    ///   skewed outdegree distribution.
-    ///
-    /// * `num_threads`: the number of threads to use.
-    pub fn with_num_threads(graph: G, granularity: usize, num_threads: usize) -> Self {
-        let threads = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .unwrap_or_else(|_| panic!("Could not build threadpool with {} threads", num_threads));
-        Self::with_threads(graph, granularity, threads)
-    }
-}
-
-impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>> ParLowMem<G, T> {
-    /// Creates a low-memory parallel top-down visit that uses the specified
-    /// thread pool.
-    ///
-    /// # Arguments
-    ///
-    /// * `graph`: the graph to visit.
-    ///
-    /// * `granularity`: the number of nodes per chunk. High granularity reduces
-    ///   overhead, but may lead to decreased performance on graphs with a
-    ///   skewed outdegree distribution.
-    ///
-    /// * `threads`: a thread pool.
-    pub fn with_threads(graph: G, granularity: usize, threads: T) -> Self {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
             granularity,
             visited: AtomicBitVec::new(num_nodes),
-            threads,
         }
     }
 }
 
-impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred>
-    for ParLowMem<G, T>
-{
+impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
     fn visit_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
@@ -138,6 +96,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
         root: usize,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
@@ -153,10 +112,10 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
 
         // We do not provide a capacity in the hope of allocating dyinamically
         // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
-        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
+        let mut curr_frontier = Frontier::with_threads(threadpool.borrow(), None);
+        let mut next_frontier = Frontier::with_threads(threadpool.borrow(), None);
 
-        self.threads.borrow().install(|| curr_frontier.push(root));
+        threadpool.borrow().install(|| curr_frontier.push(root));
 
         self.visited.set(root, true, Ordering::Relaxed);
 
@@ -171,7 +130,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
 
         // Visit the connected component
         while !curr_frontier.is_empty() {
-            self.threads.borrow().install(|| {
+            threadpool.borrow().install(|| {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
@@ -225,10 +184,11 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
         &mut self,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, pl)?;
+            self.visit_filtered(node, &callback, &filter, threadpool.borrow(), pl)?;
         }
 
         Ok(())

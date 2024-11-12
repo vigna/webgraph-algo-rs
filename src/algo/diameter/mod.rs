@@ -16,10 +16,10 @@
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum OutputLevel {
     /// Compute all the eccentricities of the graph.
+    ///
+    /// This variant is equivalent to [`AllForward`](`Self::AllForward`) in the undirected case.
     All,
     /// Compute all the forward eccentricities of the graph.
-    ///
-    /// This variant is equivalent to [`All`](`Self::All`) in the undirected case.
     AllForward,
     /// Computes both the diameter and the radius of the graph.
     RadiusDiameter,

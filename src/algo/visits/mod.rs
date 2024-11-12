@@ -48,6 +48,8 @@ pub mod breadth_first;
 pub mod depth_first;
 
 use dsi_progress_logger::ProgressLog;
+use rayon::ThreadPool;
+use std::borrow::Borrow;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -93,11 +95,8 @@ pub trait Sequential<A: Event> {
     ///
     /// # Arguments:
     /// * `root`: The node to start the visit from.
-    ///
     /// * `callback`: The callback function.
-    ///
     /// * `filter`: The filter function.
-    ///
     /// * `pl`: A progress logger.
     fn visit_filtered<E, C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
@@ -162,13 +161,11 @@ pub trait Parallel<A: Event> {
     ///
     /// # Arguments:
     /// * `root`: The node to start the visit from.
-    ///
     /// * `callback`: The callback function.
-    ///
     /// * `filter`: A filter function that will be called on each node to
     ///    determine whether the node should be visited or not.
-    ///
     /// * `pl`: A progress logger.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     fn visit_filtered<
         E: Send,
         C: Fn(A) -> Result<(), E> + Sync,
@@ -178,6 +175,7 @@ pub trait Parallel<A: Event> {
         root: usize,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E>;
 
@@ -191,9 +189,10 @@ pub trait Parallel<A: Event> {
         &mut self,
         root: usize,
         callback: C,
+        threadpool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        self.visit_filtered(root, callback, |_| true, pl)
+        self.visit_filtered(root, callback, |_| true, threadpool, pl)
     }
 
     /// Visits the whole graph.
@@ -207,6 +206,7 @@ pub trait Parallel<A: Event> {
         &mut self,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E>;
 
@@ -219,9 +219,10 @@ pub trait Parallel<A: Event> {
     fn visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
+        threadpool: impl Borrow<ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        self.visit_all_filtered(callback, |_| true, pl)
+        self.visit_all_filtered(callback, |_| true, threadpool, pl)
     }
 
     /// Resets the visit status, making it possible to reuse it.

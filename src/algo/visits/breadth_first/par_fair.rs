@@ -51,6 +51,7 @@ use webgraph::traits::RandomAccessGraph;
 /// ```
 /// use webgraph_algo::algo::visits::Parallel;
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
+/// use webgraph_algo::threads;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
@@ -71,6 +72,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///             Ok(())
 ///         },
+///    threads!(),
 ///    no_logging![]
 /// ).unwrap_infallible();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
@@ -79,87 +81,38 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
 
-pub struct ParFairBase<
-    G: RandomAccessGraph,
-    T: Borrow<rayon::ThreadPool> = rayon::ThreadPool,
-    const PRED: bool = false,
-> {
+pub struct ParFairBase<G: RandomAccessGraph, const PRED: bool = false> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
-    threads: T,
 }
 
 /// A fair parallel breadth-first visit that keeps track of its predecessors.
-pub type ParFairPred<G, T = rayon::ThreadPool> = ParFairBase<G, T, true>;
+pub type ParFairPred<G> = ParFairBase<G, true>;
 
 /// A fair parallel breadth-first visit.
-pub type ParFair<G, T = rayon::ThreadPool> = ParFairBase<G, T, false>;
+pub type ParFair<G> = ParFairBase<G, false>;
 
-impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, rayon::ThreadPool, P> {
-    /// Creates a fair parallel breadth-first visit with the [default number of
-    /// threads](rayon::ThreadPoolBuilder::num_threads).
+impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
+    /// Creates a fair parallel breadth-first visit.
     ///
     /// # Arguments
-    ///
     /// * `graph`: the graph to visit.
-    ///
     /// * `granularity`: the number of nodes per chunk. High granularity reduces
     ///   overhead, but may lead to decreased performance on graphs with a
     ///   skewed outdegree distribution.
+    #[inline(always)]
     pub fn new(graph: G, granularity: usize) -> Self {
-        Self::with_num_threads(graph, granularity, 0)
-    }
-
-    /// Creates a fair parallel top-down visit that uses the specified number of threads.
-    ///
-    ///
-    /// # Arguments
-    ///
-    /// * `graph`: the graph to visit.
-    ///
-    /// * `granularity`: the number of nodes per chunk. High granularity reduces
-    ///   overhead, but may lead to decreased performance on graphs with a
-    ///   skewed outdegree distribution.
-    ///
-    /// * `num_threads`: the number of threads to use.
-    pub fn with_num_threads(graph: G, granularity: usize, num_threads: usize) -> Self {
-        let threads = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .unwrap_or_else(|_| panic!("Could not build threadpool with {} threads", num_threads));
-        Self::with_threads(graph, granularity, threads)
-    }
-}
-
-impl<G: RandomAccessGraph, T: Borrow<rayon::ThreadPool>, const P: bool> ParFairBase<G, T, P> {
-    /// Creates a fair parallel top-down visit that uses the specified
-    /// thread pool.
-    ///
-    ///
-    /// # Arguments
-    ///
-    /// * `graph`: the graph to visit.
-    ///
-    /// * `granularity`: the number of nodes per chunk. High granularity reduces
-    ///   overhead, but may lead to decreased performance on graphs with a
-    ///   skewed outdegree distribution.
-    ///
-    /// * `threads`: a thread pool.
-    pub fn with_threads(graph: G, granularity: usize, threads: T) -> Self {
         let num_nodes = graph.num_nodes();
         Self {
             graph,
             granularity,
             visited: AtomicBitVec::new(num_nodes),
-            threads,
         }
     }
 }
 
-impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
-    for ParFairBase<G, T, false>
-{
+impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
     fn visit_filtered<
         E: Send,
         C: Fn(Event) -> Result<(), E> + Sync,
@@ -169,6 +122,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
         root: usize,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
@@ -183,10 +137,10 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
 
         // We do not provide a capacity in the hope of allocating dynamically
         // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
-        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
+        let mut curr_frontier = Frontier::with_threads(threadpool.borrow(), None);
+        let mut next_frontier = Frontier::with_threads(threadpool.borrow(), None);
 
-        self.threads.borrow().install(|| {
+        threadpool.borrow().install(|| {
             curr_frontier.push(root);
         });
 
@@ -196,7 +150,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
 
         while !curr_frontier.is_empty() {
             let distance_plus_one = distance + 1;
-            self.threads.borrow().install(|| {
+            threadpool.borrow().install(|| {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
@@ -250,10 +204,11 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
         &mut self,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, pl)?;
+            self.visit_filtered(node, &callback, &filter, threadpool.borrow(), pl)?;
         }
 
         Ok(())
@@ -264,9 +219,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<Event>
     }
 }
 
-impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPred>
-    for ParFairBase<G, T, true>
-{
+impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
     fn visit_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
@@ -276,6 +229,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
         root: usize,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
@@ -291,10 +245,10 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
 
         // We do not provide a capacity in the hope of allocating dynamically
         // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(self.threads.borrow(), None);
-        let mut next_frontier = Frontier::with_threads(self.threads.borrow(), None);
+        let mut curr_frontier = Frontier::with_threads(threadpool.borrow(), None);
+        let mut next_frontier = Frontier::with_threads(threadpool.borrow(), None);
 
-        self.threads.borrow().install(|| {
+        threadpool.borrow().install(|| {
             curr_frontier.push((root, root));
         });
 
@@ -304,7 +258,7 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
 
         while !curr_frontier.is_empty() {
             let distance_plus_one = distance + 1;
-            self.threads.borrow().install(|| {
+            threadpool.borrow().install(|| {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
@@ -360,10 +314,11 @@ impl<G: RandomAccessGraph + Sync, T: Borrow<rayon::ThreadPool>> Parallel<EventPr
         &mut self,
         callback: C,
         filter: F,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, pl)?;
+            self.visit_filtered(node, &callback, &filter, threadpool.borrow(), pl)?;
         }
 
         Ok(())

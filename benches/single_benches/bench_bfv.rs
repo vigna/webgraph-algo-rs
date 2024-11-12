@@ -6,6 +6,7 @@ use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::visits::breadth_first::*;
 use webgraph_algo::algo::visits::{Parallel, Sequential};
+use webgraph_algo::threads;
 
 pub fn bench_bfv(c: &mut Criterion) {
     let mut group = c.benchmark_group("Breadth first visit");
@@ -47,7 +48,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), no_logging![])
+                            .visit(node, |_| Ok(()), threads!(), no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -63,7 +64,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), no_logging![])
+                            .visit(node, |_| Ok(()), threads!(), no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -82,7 +83,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), no_logging![])
+                            .visit(node, |_| Ok(()), threads!(), no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -101,7 +102,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), no_logging![])
+                            .visit(node, |_| Ok(()), threads!(), no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -117,7 +118,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), no_logging![])
+                            .visit(node, |_| Ok(()), threads!(), no_logging![])
                             .unwrap_infallible();
                     }
                 });
@@ -133,7 +134,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Ok(()), no_logging![])
+                            .visit(node, |_| Ok(()), threads!(), no_logging![])
                             .unwrap_infallible();
                     }
                 });

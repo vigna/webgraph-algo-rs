@@ -25,229 +25,6 @@ use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
-/// Builder for [`DirExactSumSweep`].
-pub struct DirExactSumSweepBuilder<
-    'a,
-    G1: RandomAccessGraph + Sync,
-    G2: RandomAccessGraph + Sync,
-    T,
-    SCC: StronglyConnectedComponents = TarjanStronglyConnectedComponents,
-> {
-    graph: &'a G1,
-    transpose: &'a G2,
-    output: OutputLevel,
-    radial_vertices: Option<AtomicBitVec>,
-    threads: T,
-    _marker: std::marker::PhantomData<SCC>,
-}
-
-impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
-    DirExactSumSweepBuilder<'a, G1, G2, Threads, TarjanStronglyConnectedComponents>
-{
-    /// Creates a new builder with default parameters.
-    ///
-    /// # Arguments
-    /// * `graph`: the direct graph to analyze.
-    /// * `transposed_graph`: the transposed of `graph`.
-    /// * `output`: the output to generate.
-    pub fn new(graph: &'a G1, transposed_graph: &'a G2, output: OutputLevel) -> Self {
-        assert_eq!(
-            transposed_graph.num_nodes(),
-            graph.num_nodes(),
-            "transposed should have same number of nodes ({}). Got {}.",
-            graph.num_nodes(),
-            transposed_graph.num_nodes()
-        );
-        assert_eq!(
-            transposed_graph.num_arcs(),
-            graph.num_arcs(),
-            "transposed should have the same number of arcs ({}). Got {}.",
-            graph.num_arcs(),
-            transposed_graph.num_arcs()
-        );
-        debug_assert!(
-            check_transposed(graph, transposed_graph),
-            "transposed should be the transposed of the direct graph"
-        );
-        Self {
-            graph,
-            transpose: transposed_graph,
-            output,
-            radial_vertices: None,
-            threads: Threads::Default,
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<
-        'a,
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-        T,
-        C: StronglyConnectedComponents,
-    > DirExactSumSweepBuilder<'a, G1, G2, T, C>
-{
-    /// Sets the radial vertices with a bit vector.
-    ///
-    /// # Arguments
-    /// * `radial_vertices`: the [`AtomicBitVec`] where `v[i]` is `true` if it is a radial
-    ///   vertex. If [`None`], the set is automatically chosen as the set of vertices that
-    ///   are in the biggest strongly connected component, or that are able to reach the biggest
-    ///   strongly connected component.
-    pub fn radial_vertices(mut self, radial_vertices: Option<AtomicBitVec>) -> Self {
-        if let Some(v) = radial_vertices.as_ref() {
-            assert_eq!(v.len(), self.graph.num_nodes());
-        }
-        self.radial_vertices = radial_vertices;
-        self
-    }
-
-    /// Sets the [`DirExactSumSweep`] instance to use the default [`rayon::ThreadPool`].
-    pub fn default_threadpool(self) -> DirExactSumSweepBuilder<'a, G1, G2, Threads, C> {
-        DirExactSumSweepBuilder {
-            graph: self.graph,
-            transpose: self.transpose,
-            output: self.output,
-            radial_vertices: self.radial_vertices,
-            threads: Threads::Default,
-            _marker: self._marker,
-        }
-    }
-
-    /// Sets the [`DirExactSumSweep`] instance to use a custom [`rayon::ThreadPool`] with the
-    /// specified number of threads.
-    ///
-    /// # Arguments
-    /// * `num_threads`: the number of threads to use for the new `ThreadPool`.
-    pub fn num_threads(
-        self,
-        num_threads: usize,
-    ) -> DirExactSumSweepBuilder<'a, G1, G2, Threads, C> {
-        DirExactSumSweepBuilder {
-            graph: self.graph,
-            transpose: self.transpose,
-            output: self.output,
-            radial_vertices: self.radial_vertices,
-            threads: Threads::NumThreads(num_threads),
-            _marker: self._marker,
-        }
-    }
-
-    /// Sets the [`DirExactSumSweep`] instance to use the provided [`rayon::ThreadPool`].
-    ///
-    /// # Arguments
-    /// * `threadpool`: the custom `ThreadPool` to use.
-    pub fn threadpool<T2: Borrow<rayon::ThreadPool> + Clone + Sync>(
-        self,
-        threads: T2,
-    ) -> DirExactSumSweepBuilder<'a, G1, G2, T2, C> {
-        DirExactSumSweepBuilder {
-            graph: self.graph,
-            transpose: self.transpose,
-            output: self.output,
-            radial_vertices: self.radial_vertices,
-            threads,
-            _marker: self._marker,
-        }
-    }
-
-    /// Sets the algorithm to use to compute the strongly connected components for the graph.
-    pub fn scc<C2: StronglyConnectedComponents>(
-        self,
-    ) -> DirExactSumSweepBuilder<'a, G1, G2, T, C2> {
-        DirExactSumSweepBuilder {
-            graph: self.graph,
-            transpose: self.transpose,
-            output: self.output,
-            radial_vertices: self.radial_vertices,
-            threads: self.threads,
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<
-        'a,
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-        SCC: StronglyConnectedComponents + Sync,
-    > DirExactSumSweepBuilder<'a, G1, G2, Threads, SCC>
-{
-    /// Builds the [`DirExactSumSweep`] instance with the specified settings and
-    /// logs progress with the provided logger.
-    ///
-    /// # Arguments
-    /// * `pl`: A progress logger.
-    #[allow(clippy::type_complexity)]
-    pub fn build(
-        self,
-        pl: &mut impl ProgressLog,
-    ) -> DirExactSumSweep<
-        'a,
-        G1,
-        G2,
-        SCC,
-        ParFair<&'a G1, rayon::ThreadPool>,
-        ParFair<&'a G2, rayon::ThreadPool>,
-        rayon::ThreadPool,
-    >
-    where
-        G1: 'a,
-        G2: 'a,
-    {
-        let direct_visit =
-            ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.build());
-        let transposed_visit =
-            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.build());
-        DirExactSumSweep::new(
-            self.graph,
-            self.transpose,
-            self.output,
-            direct_visit,
-            transposed_visit,
-            self.threads.build(),
-            self.radial_vertices,
-            pl,
-        )
-    }
-}
-
-impl<
-        'a,
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-        T: Borrow<rayon::ThreadPool> + Clone + Sync,
-        SCC: StronglyConnectedComponents + Sync,
-    > DirExactSumSweepBuilder<'a, G1, G2, T, SCC>
-{
-    /// Builds the [`DirExactSumSweep`] instance with the specified settings and
-    /// logs progress with the provided logger.
-    ///
-    /// # Arguments
-    /// * `pl`: A progress logger.
-    #[allow(clippy::type_complexity)]
-    pub fn build(
-        self,
-        pl: &mut impl ProgressLog,
-    ) -> DirExactSumSweep<'a, G1, G2, SCC, ParFair<&'a G1, T>, ParFair<&'a G2, T>, T> {
-        let direct_visit =
-            ParFair::with_threads(self.graph, VISIT_GRANULARITY, self.threads.clone());
-        let transposed_visit =
-            ParFair::with_threads(self.transpose, VISIT_GRANULARITY, self.threads.clone());
-        DirExactSumSweep::new(
-            self.graph,
-            self.transpose,
-            self.output,
-            direct_visit,
-            transposed_visit,
-            self.threads,
-            self.radial_vertices,
-            pl,
-        )
-    }
-}
-
 const VISIT_GRANULARITY: usize = 32;
 
 /// The implementation of the *SumSweep* algorithm on directed graphs.
@@ -267,7 +44,6 @@ pub struct DirExactSumSweep<
     SCC: StronglyConnectedComponents,
     V1: Parallel<Event> + Sync,
     V2: Parallel<Event> + Sync,
-    T: Borrow<rayon::ThreadPool>,
 > {
     graph: &'a G1,
     transpose: &'a G2,
@@ -306,27 +82,31 @@ pub struct DirExactSumSweep<
     compute_radial_vertices: bool,
     visit: V1,
     transposed_visit: V2,
-    threadpool: T,
 }
 
-impl<
+impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+    DirExactSumSweep<
         'a,
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-        SCC: StronglyConnectedComponents + Sync,
-        V1: Parallel<Event> + Sync,
-        V2: Parallel<Event> + Sync,
-        T: Borrow<rayon::ThreadPool> + Sync,
-    > DirExactSumSweep<'a, G1, G2, SCC, V1, V2, T>
+        G1,
+        G2,
+        TarjanStronglyConnectedComponents,
+        ParFair<&'a G1>,
+        ParFair<&'a G2>,
+    >
 {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
+    /// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs.
+    ///
+    /// # Arguments
+    /// * `graph`: the direct graph.
+    /// * `transpose`: the transpose of `graph`.
+    /// * `output`: the desired output of the algorithm.
+    /// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node `i` is to be considered
+    ///    radial vertex. If [`None`] the algorithm will use the biggest connected component.
+    /// * `pl`: a progress logger.
+    pub fn new(
         graph: &'a G1,
         transpose: &'a G2,
         output: OutputLevel,
-        direct_visit: V1,
-        transposed_visit: V2,
-        threadpool: T,
         radial_vertices: Option<AtomicBitVec>,
         pl: &mut impl ProgressLog,
     ) -> Self {
@@ -336,7 +116,7 @@ impl<
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        let scc = SCC::compute(graph, pl);
+        let scc = TarjanStronglyConnectedComponents::compute(graph, pl);
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
@@ -388,9 +168,8 @@ impl<
             radius_vertex: 0,
             diameter_vertex: 0,
             compute_radial_vertices,
-            visit: direct_visit,
-            transposed_visit,
-            threadpool,
+            visit: ParFair::new(graph, VISIT_GRANULARITY),
+            transposed_visit: ParFair::new(transpose, VISIT_GRANULARITY),
         }
     }
 }
@@ -402,8 +181,7 @@ impl<
         C: StronglyConnectedComponents + Sync,
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
-        T: Borrow<rayon::ThreadPool> + Sync,
-    > DirExactSumSweep<'a, G1, G2, C, V1, V2, T>
+    > DirExactSumSweep<'a, G1, G2, C, V1, V2>
 {
     #[inline(always)]
     fn incomplete_forward_vertex(&self, index: usize) -> bool {
@@ -448,13 +226,20 @@ impl<
     /// # Arguments
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn sum_sweep_heuristic(&mut self, start: usize, iterations: usize, pl: &mut impl ProgressLog) {
+    fn sum_sweep_heuristic(
+        &mut self,
+        start: usize,
+        iterations: usize,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         pl.info(format_args!(
             "Performing initial SumSweep visit from {}.",
             start
         ));
-        self.step_sum_sweep(Some(start), true, pl);
+        self.step_sum_sweep(Some(start), true, threadpool.borrow(), pl);
 
         for i in 2..=iterations {
             if i % 2 == 0 {
@@ -467,7 +252,7 @@ impl<
                     "Performing backwards SumSweep visit from {:?}",
                     v
                 ));
-                self.step_sum_sweep(v, false, pl);
+                self.step_sum_sweep(v, false, threadpool.borrow(), pl);
             } else {
                 let v = math::filtered_argmax(
                     &self.total_forward_distance,
@@ -478,7 +263,7 @@ impl<
                     "Performing forward SumSweep visit from {:?}.",
                     v
                 ));
-                self.step_sum_sweep(v, true, pl);
+                self.step_sum_sweep(v, true, threadpool.borrow(), pl);
             }
         }
     }
@@ -489,19 +274,23 @@ impl<
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    pub fn compute(&mut self, pl: &mut impl ProgressLog) {
+    pub fn compute(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         if self.number_of_nodes == 0 {
             return;
         }
         pl.start("Computing SumSweep...");
 
         if self.compute_radial_vertices {
-            self.compute_radial_vertices(&mut pl.clone());
+            self.compute_radial_vertices(threadpool.borrow(), &mut pl.clone());
         }
 
-        let max_outdegree_vertex = self
-            .threadpool
+        let max_outdegree_vertex = threadpool
             .borrow()
             .install(|| {
                 (0..self.number_of_nodes)
@@ -512,10 +301,15 @@ impl<
             .unwrap()
             .1; // The iterator is not empty
 
-        self.sum_sweep_heuristic(max_outdegree_vertex, 6, &mut pl.clone());
+        self.sum_sweep_heuristic(
+            max_outdegree_vertex,
+            6,
+            threadpool.borrow(),
+            &mut pl.clone(),
+        );
 
         let mut points = [self.graph.num_nodes() as f64; 5];
-        let mut missing_nodes = self.find_missing_nodes(&mut pl.clone());
+        let mut missing_nodes = self.find_missing_nodes(threadpool.borrow(), &mut pl.clone());
         let mut old_missing_nodes;
 
         pl.info(format_args!(
@@ -531,7 +325,7 @@ impl<
                 0 => {
                     pl.info(format_args!("Performing all_cc_upper_bound."));
                     let pivot = self.find_best_pivot(&mut pl.clone());
-                    self.all_cc_upper_bound(pivot, &mut pl.clone())
+                    self.all_cc_upper_bound(pivot, threadpool.borrow(), &mut pl.clone())
                 }
                 1 => {
                     pl.info(format_args!(
@@ -542,7 +336,7 @@ impl<
                         &self.total_forward_distance,
                         |i, _| self.incomplete_forward_vertex(i),
                     );
-                    self.step_sum_sweep(v, true, &mut pl.clone())
+                    self.step_sum_sweep(v, true, threadpool.borrow(), &mut pl.clone())
                 }
                 2 => {
                     pl.info(format_args!(
@@ -553,7 +347,7 @@ impl<
                         &self.total_forward_distance,
                         |i, _| self.radial_vertices[i],
                     );
-                    self.step_sum_sweep(v, true, &mut pl.clone())
+                    self.step_sum_sweep(v, true, threadpool.borrow(), &mut pl.clone())
                 }
                 3 => {
                     pl.info(format_args!(
@@ -564,7 +358,7 @@ impl<
                         &self.total_backward_distance,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, &mut pl.clone())
+                    self.step_sum_sweep(v, false, threadpool.borrow(), &mut pl.clone())
                 }
                 4 => {
                     pl.info(format_args!(
@@ -575,13 +369,13 @@ impl<
                         &self.upper_bound_backward_eccentricities,
                         |i, _| self.incomplete_backward_vertex(i),
                     );
-                    self.step_sum_sweep(v, false, &mut pl.clone())
+                    self.step_sum_sweep(v, false, threadpool.borrow(), &mut pl.clone())
                 }
                 5.. => panic!(),
             }
 
             old_missing_nodes = missing_nodes;
-            missing_nodes = self.find_missing_nodes(&mut pl.clone());
+            missing_nodes = self.find_missing_nodes(threadpool.borrow(), &mut pl.clone());
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             // This is to make rust-analyzer happy as it cannot recognize mut reference
@@ -769,8 +563,13 @@ impl<
     /// the biggest strongly connected component.
     ///
     /// # Arguments
-    /// * `pl`: A progress logger..
-    fn compute_radial_vertices(&mut self, pl: &mut impl ProgressLog) {
+    /// * `threadpool`: The threadpool to use for parallel computation.
+    /// * `pl`: A progress logger.
+    fn compute_radial_vertices(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         if self.number_of_nodes == 0 {
             return;
         }
@@ -809,6 +608,7 @@ impl<
                     }
                     Ok(())
                 },
+                threadpool,
                 pl,
             )
             .unwrap_infallible();
@@ -824,20 +624,32 @@ impl<
     /// * `start`: The starting vertex of the BFS. If [`None`], no visit happens.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn step_sum_sweep(&mut self, start: Option<usize>, forward: bool, pl: &mut impl ProgressLog) {
+    fn step_sum_sweep(
+        &mut self,
+        start: Option<usize>,
+        forward: bool,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         if let Some(start) = start {
             if forward {
-                self.forward_step_sum_sweep(start, pl);
+                self.forward_step_sum_sweep(start, threadpool, pl);
             } else {
-                self.backwards_step_sum_sweep(start, pl);
+                self.backwards_step_sum_sweep(start, threadpool, pl);
             }
             self.iterations += 1;
         }
     }
 
     #[inline(always)]
-    fn backwards_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) {
+    fn backwards_step_sum_sweep(
+        &mut self,
+        start: usize,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -904,6 +716,7 @@ impl<
                     };
                     Ok(())
                 },
+                threadpool,
                 pl,
             )
             .unwrap_infallible();
@@ -926,7 +739,12 @@ impl<
     }
 
     #[inline(always)]
-    fn forward_step_sum_sweep(&mut self, start: usize, pl: &mut impl ProgressLog) {
+    fn forward_step_sum_sweep(
+        &mut self,
+        start: usize,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(None);
@@ -974,6 +792,7 @@ impl<
                     }
                     Ok(())
                 },
+                threadpool,
                 pl,
             )
             .unwrap_infallible();
@@ -1004,6 +823,7 @@ impl<
     ///   component.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
     ///
     /// # Return
@@ -1016,6 +836,7 @@ impl<
         &self,
         pivot: &[usize],
         forward: bool,
+        threadpool: impl Borrow<rayon::ThreadPool>,
         pl: &mut impl ProgressLog,
     ) -> (Vec<usize>, Vec<usize>) {
         pl.expected_updates(None);
@@ -1023,10 +844,10 @@ impl<
 
         let (dist_pivot, usize_ecc_pivot) = if forward {
             pl.start("Computing forward dist pivots");
-            self.compute_dist_pivot_from_graph(pivot, self.graph)
+            self.compute_dist_pivot_from_graph(pivot, self.graph, threadpool)
         } else {
             pl.start("Computing backwards dist pivots");
-            self.compute_dist_pivot_from_graph(pivot, self.transpose)
+            self.compute_dist_pivot_from_graph(pivot, self.transpose, threadpool)
         };
 
         pl.done();
@@ -1039,6 +860,7 @@ impl<
         &self,
         pivot: &[usize],
         graph: &(impl RandomAccessGraph + Sync),
+        threadpool: impl Borrow<rayon::ThreadPool>,
     ) -> (Vec<usize>, Vec<usize>) {
         let components = self.strongly_connected_components.component();
         let ecc_pivot = closure_vec(
@@ -1048,10 +870,10 @@ impl<
         let mut dist_pivot = vec![0; self.number_of_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
-        let threadpool = self.threadpool.borrow();
+        let threadpool = threadpool.borrow();
 
-        self.threadpool.borrow().broadcast(|_| {
-            let mut bfs = ParFair::with_threads(graph, VISIT_GRANULARITY, threadpool);
+        threadpool.broadcast(|_| {
+            let mut bfs = ParFair::new(graph, VISIT_GRANULARITY);
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {
@@ -1071,6 +893,7 @@ impl<
                         Ok(())
                     },
                     |FilterArgs::<Event> { curr, .. }| components[curr] == pivot_component,
+                    threadpool,
                     no_logging![],
                 )
                 .unwrap_infallible();
@@ -1095,8 +918,14 @@ impl<
     ///
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn all_cc_upper_bound(&mut self, pivot: Vec<usize>, pl: &mut impl ProgressLog) {
+    fn all_cc_upper_bound(
+        &mut self,
+        pivot: Vec<usize>,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) {
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
@@ -1107,9 +936,9 @@ impl<
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
         let (dist_pivot_f, mut ecc_pivot_f) =
-            self.compute_dist_pivot(&pivot, true, &mut pl.clone());
+            self.compute_dist_pivot(&pivot, true, threadpool.borrow(), &mut pl.clone());
         let (dist_pivot_b, mut ecc_pivot_b) =
-            self.compute_dist_pivot(&pivot, false, &mut pl.clone());
+            self.compute_dist_pivot(&pivot, false, threadpool.borrow(), &mut pl.clone());
         let components = self.strongly_connected_components.component();
 
         // Tarjan's algorithm emits components in reverse topological order.
@@ -1164,7 +993,7 @@ impl<
             .upper_bound_backward_eccentricities
             .as_mut_slice_of_cells();
 
-        self.threadpool.borrow().install(|| {
+        threadpool.borrow().install(|| {
             (0..self.number_of_nodes).into_par_iter().for_each(|node| {
                 // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                 unsafe {
@@ -1225,15 +1054,20 @@ impl<
     /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
+    /// * `threadpool`: The threadpool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn find_missing_nodes(&mut self, pl: &mut impl ProgressLog) -> usize {
+    fn find_missing_nodes(
+        &mut self,
+        threadpool: impl Borrow<rayon::ThreadPool>,
+        pl: &mut impl ProgressLog,
+    ) -> usize {
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(Some(self.number_of_nodes));
         pl.start("Computing missing nodes");
 
         let (missing_r, missing_df, missing_db, missing_all_forward, missing_all_backward) =
-            self.threadpool.borrow().install(|| {
+            threadpool.borrow().install(|| {
                 (0..self.number_of_nodes)
                     .into_par_iter()
                     .fold(

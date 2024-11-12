@@ -29,9 +29,6 @@ pub use hyper_log_log::{
     HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder,
 };
 
-mod threadpool;
-pub(crate) use threadpool::Threads;
-
 /// Module containing utility traits.
 pub mod traits;
 
@@ -60,6 +57,40 @@ macro_rules! ok_infallible {
     };
     ($value:expr) => {
         Ok::<_, std::convert::Infallible>($value)
+    };
+}
+
+/// Utility macro to create [`threadpools`](`rayon::ThreadPool`).
+///
+/// There are two forms of this macro:
+/// * Create a threadpool with default setting:
+/// ```
+/// # use webgraph_algo::threads;
+/// let t: rayon::ThreadPool = threads!();
+/// ```
+/// * Create a threadpool with the given number of threads:
+/// ```
+/// # use webgraph_algo::threads;
+/// let t: rayon::ThreadPool = threads!(7);
+/// assert_eq!(t.current_num_threads(), 7);
+/// ```
+#[macro_export]
+macro_rules! threads {
+    () => {
+        rayon::ThreadPoolBuilder::new()
+            .build()
+            .expect("Should be able to build a threadpool with default parameters")
+    };
+    ($num_threads:expr) => {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads($num_threads)
+            .build()
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Should be able to build a threadpool with default parameters and {} threads",
+                    $num_threads,
+                )
+            })
     };
 }
 

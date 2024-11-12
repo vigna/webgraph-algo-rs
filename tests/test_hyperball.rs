@@ -7,7 +7,9 @@ use webgraph::{
     prelude::{BvGraph, DCF},
     traits::SequentialLabeling,
 };
-use webgraph_algo::{algo::hyperball::HyperBallBuilder, utils::HyperLogLogCounterArrayBuilder};
+use webgraph_algo::{
+    algo::hyperball::HyperBallBuilder, threads, utils::HyperLogLogCounterArrayBuilder,
+};
 
 /// Jenkins Hasher as implemented in the
 /// [Java version](https://github.com/vigna/dsiutils/blob/master/src/it/unimi/dsi/util/HyperLogLogCounterArray.java#L263).
@@ -238,7 +240,7 @@ fn test_cnr_2000() -> Result<()> {
         .sum_of_inverse_distances(true)
         .build(no_logging![])?;
 
-    hyperball.run_until_done(no_logging![])?;
+    hyperball.run_until_done(threads!(), no_logging![])?;
 
     let actual_sum_of_distances = hyperball.sum_of_distances()?;
     let actual_harmonic_cetralities = hyperball.harmonic_centralities()?;

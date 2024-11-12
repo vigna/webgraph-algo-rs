@@ -7,6 +7,7 @@ use webgraph_algo::algo::diameter::*;
 use webgraph_algo::algo::hyperball::*;
 use webgraph_algo::algo::scc::*;
 use webgraph_algo::prelude::*;
+use webgraph_algo::threads;
 use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
 
 fn main() -> Result<()> {
@@ -35,10 +36,14 @@ fn main() -> Result<()> {
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
-            let mut diameter =
-                DirExactSumSweepBuilder::new(&graph, &reversed_graph, OutputLevel::RadiusDiameter)
-                    .build(&mut main_pl);
-            diameter.compute(&mut main_pl);
+            let mut diameter = DirExactSumSweep::new(
+                &graph,
+                &reversed_graph,
+                OutputLevel::RadiusDiameter,
+                None,
+                &mut main_pl,
+            );
+            diameter.compute(threads!(), &mut main_pl);
         }
         "hyperball" => {
             let cumulative = DCF::load_mmap(basename.clone() + ".dcf", Flags::empty())?;
@@ -60,7 +65,7 @@ fn main() -> Result<()> {
                 .sum_of_inverse_distances(true)
                 .transposed(Some(&reversed_graph))
                 .build(&mut main_pl)?;
-            hyperball.run_until_done(&mut main_pl)?;
+            hyperball.run_until_done(threads!(), &mut main_pl)?;
         }
         _ => panic!(),
     }
