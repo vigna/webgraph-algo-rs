@@ -162,8 +162,8 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
 
         let lower_forward = vec![0; num_nodes];
         let lower_backward = vec![0; num_nodes];
-        let upper_forward = vec![num_nodes + 1; num_nodes];
-        let upper_backward = vec![num_nodes + 1; num_nodes];
+        let upper_forward = vec![num_nodes; num_nodes];
+        let upper_backward = vec![num_nodes; num_nodes];
         let total_forward = vec![0; num_nodes];
         let total_backward = vec![0; num_nodes];
 
