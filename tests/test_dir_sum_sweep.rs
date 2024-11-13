@@ -62,18 +62,10 @@ fn test_many_scc() -> Result<()> {
         (2, 5),
     ];
 
-    let mut vec_graph = VecGraph::new();
-    for i in 0..7 {
-        vec_graph.add_node(i);
-    }
-    for arc in arcs {
-        vec_graph.add_arc(arc.0, arc.1);
-    }
+    let transpose = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
-    let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let graph = Left(VecGraph::from_arc_list(arcs));
+    let transposed = Left(VecGraph::from_arc_list(transpose));
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
