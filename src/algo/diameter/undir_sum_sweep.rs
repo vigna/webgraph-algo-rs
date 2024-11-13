@@ -11,10 +11,10 @@ use webgraph::traits::RandomAccessGraph;
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`] and [`Self::all_iterations`].
 pub enum UndirExactSumSweep {
-    /// All the eccentricities of the graph are computed.
+    /// See [`OutputLevel::All`].
     All {
         /// The eccentricities
-        eccentricities: Vec<usize>,
+        eccentricities: Box<[usize]>,
         /// The diameter.
         diameter: usize,
         /// The radius.
@@ -30,7 +30,7 @@ pub enum UndirExactSumSweep {
         /// Number of iterations before all eccentricities are found.
         iterations: usize,
     },
-    /// Both the diameter and the radius of the graph are computed.
+    /// See [`OutputLevel::RadiusDiameter`].
     RadiusDiameter {
         /// The diameter.
         diameter: usize,
@@ -45,7 +45,7 @@ pub enum UndirExactSumSweep {
         /// Number of iterations before the diameter is found.
         diameter_iterations: usize,
     },
-    /// The diameter of the graph is computed.
+    /// See [`OutputLevel::Diameter`].
     Diameter {
         /// The diameter.
         diameter: usize,
@@ -55,7 +55,7 @@ pub enum UndirExactSumSweep {
         /// Number of iterations before the diameter is found.
         diameter_iterations: usize,
     },
-    /// The radius of the graph is computed.
+    /// See [`OutputLevel::Radius`].
     Radius {
         /// The radius.
         radius: usize,

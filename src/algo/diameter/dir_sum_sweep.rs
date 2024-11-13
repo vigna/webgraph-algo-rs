@@ -32,12 +32,12 @@ const VISIT_GRANULARITY: usize = 32;
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
 pub enum DirExactSumSweep {
-    /// All the eccentricities of the graph are computed.
+    /// See [`OutputLevel::All`].
     All {
         /// The forward eccentricities
-        forward_eccentricities: Vec<usize>,
+        forward_eccentricities: Box<[usize]>,
         /// The backward eccentricities
-        backward_eccentricities: Vec<usize>,
+        backward_eccentricities: Box<[usize]>,
         /// The diameter.
         diameter: usize,
         /// The radius.
@@ -46,19 +46,19 @@ pub enum DirExactSumSweep {
         diametral_vertex: usize,
         /// A vertex whose eccentrivity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
-        /// Number of iterations before all forward eccentricities are found.
+        /// Number of iterations before all forward eccentricities were found.
         forward_iterations: usize,
-        /// Number of iterations before all eccentricities are found.
+        /// Number of iterations before all eccentricities were found.
         all_iterations: usize,
     },
-    /// All the forward eccentricities of the graph are computed.
+    /// See [`OutputLevel::AllForward`].
     AllForward {
         /// The forward eccentricities
-        forward_eccentricities: Vec<usize>,
+        forward_eccentricities: Box<[usize]>,
         /// The diameter.
         diameter: usize,
         /// The radius.
@@ -67,14 +67,14 @@ pub enum DirExactSumSweep {
         diametral_vertex: usize,
         /// A vertex whose eccentrivity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
         /// Number of iterations before all forward eccentricities are found.
         forward_iterations: usize,
     },
-    /// Both the diameter and the radius of the graph are computed.
+    /// See [`OutputLevel::RadiusDiameter`].
     RadiusDiameter {
         /// The diameter.
         diameter: usize,
@@ -84,28 +84,27 @@ pub enum DirExactSumSweep {
         diametral_vertex: usize,
         /// A vertex whose eccentrivity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
     },
-    /// The diameter of the graph is computed.
+    /// See [`OutputLevel::Diameter`].
     Diameter {
         /// The diameter.
         diameter: usize,
-        /// The radius.
         /// A vertex whose eccentricity equals the diameter.
         diametral_vertex: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
     },
-    /// The radius of the graph is computed.
+    /// See [`OutputLevel::Radius`].
     Radius {
         /// The radius.
         radius: usize,
-        /// A vertex whose eccentrivity equals the radius.
+        /// A vertex whose eccentricity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
     },
 }
@@ -144,8 +143,8 @@ impl DirExactSumSweep {
 
         match output {
             OutputLevel::All => Self::All {
-                forward_eccentricities: computer.forward_low,
-                backward_eccentricities: computer.backward_low,
+                forward_eccentricities: computer.forward_low.into_boxed_slice(),
+                backward_eccentricities: computer.backward_low.into_boxed_slice(),
                 diameter: diameter.expect("Diameter should be computed"),
                 radius: radius.expect("Radius should be computed"),
                 diametral_vertex: diametral_vertex.expect("Diametral vertex should not be None"),
@@ -157,7 +156,7 @@ impl DirExactSumSweep {
                 all_iterations: all_iter.expect("All iterations should not be None"),
             },
             OutputLevel::AllForward => Self::AllForward {
-                forward_eccentricities: computer.forward_low,
+                forward_eccentricities: computer.forward_low.into_boxed_slice(),
                 diameter: diameter.expect("Diameter should be computed"),
                 radius: radius.expect("Radius should be computed"),
                 diametral_vertex: diametral_vertex.expect("Diametral vertex should not be None"),
@@ -441,9 +440,9 @@ struct DirExactSumSweepComputer<
     backward_low: Vec<usize>,
     /// The upper bound of the backward eccentricities.
     backward_high: Vec<usize>,
-    /// Number of iterations before the radius is found.
+    /// Number of iterations before the radius was found.
     radius_iterations: Option<NonMaxUsize>,
-    /// Number of iterations before the diameter is found.
+    /// Number of iterations before the diameter was found.
     diameter_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all forward eccentricities are found.
     forward_iter: Option<NonMaxUsize>,
