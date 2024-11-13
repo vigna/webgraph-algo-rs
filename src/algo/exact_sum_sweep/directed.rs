@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        diameter::{scc_graph::SccGraph, OutputLevel},
+        exact_sum_sweep::{scc_graph::SccGraph, OutputLevel},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{
             breadth_first::{Event, ParFair},

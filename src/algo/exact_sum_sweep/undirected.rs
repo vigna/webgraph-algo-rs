@@ -1,4 +1,4 @@
-use crate::{algo::diameter::*, utils::check_symmetric};
+use crate::{algo::exact_sum_sweep::*, utils::check_symmetric};
 use dsi_progress_logger::ProgressLog;
 use rayon::ThreadPool;
 use webgraph::traits::RandomAccessGraph;

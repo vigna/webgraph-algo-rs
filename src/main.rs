@@ -3,7 +3,7 @@ use dsi_progress_logger::prelude::*;
 use epserde::deser::{Deserialize, Flags};
 use webgraph::prelude::{BvGraph, DCF};
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::diameter::*;
+use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::algo::hyperball::*;
 use webgraph_algo::algo::scc::*;
 use webgraph_algo::prelude::*;

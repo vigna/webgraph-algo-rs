@@ -2,7 +2,7 @@
 
 pub mod visits;
 
-pub mod diameter;
+pub mod exact_sum_sweep;
 
 mod strongly_connected_components;
 

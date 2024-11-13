@@ -31,8 +31,8 @@ pub enum OutputLevel {
 
 mod scc_graph;
 
-mod exact_sum_sweep;
-pub use exact_sum_sweep::*;
+mod directed;
+pub use directed::*;
 
 mod undirected;
 pub use undirected::*;

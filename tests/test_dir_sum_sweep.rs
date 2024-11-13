@@ -4,7 +4,7 @@ use sux::bits::AtomicBitVec;
 use webgraph::traits::SequentialLabeling;
 use webgraph::transform::transpose;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
-use webgraph_algo::algo::diameter::*;
+use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::threads;
 
 #[test]
