@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
-            directed::compute::<RadiusDiameter>(
+            RadiusDiameter::compute_directed(
                 &graph,
                 &reversed_graph,
                 None,

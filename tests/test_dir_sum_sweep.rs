@@ -7,9 +7,9 @@ use webgraph::traits::SequentialLabeling;
 use webgraph::transform::{self, transpose};
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
-use webgraph_algo::prelude::breadth_first::{EventPred, ParLowMem, Seq};
+use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
 use webgraph_algo::threads;
-use webgraph_algo::traits::{Parallel, Sequential};
+use webgraph_algo::traits::Sequential;
 
 #[test]
 fn test_path() -> Result<()> {
@@ -28,7 +28,7 @@ fn test_path() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = directed::compute::<All>(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.forward_eccentricities[0], 2);
     assert_eq!(sum_sweep.forward_eccentricities[1], 1);
@@ -75,7 +75,7 @@ fn test_many_scc() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = directed::compute::<All>(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 2);
     assert_eq!(sum_sweep.radial_vertex, 1);
@@ -100,8 +100,7 @@ fn test_lozenge() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep =
-        directed::compute::<Radius>(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = Radius::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 2);
     assert!(sum_sweep.radial_vertex == 0 || sum_sweep.radial_vertex == 1);
@@ -145,7 +144,7 @@ fn test_many_dir_path() -> Result<()> {
     radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
     radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
 
-    let sum_sweep = directed::compute::<All>(
+    let sum_sweep = All::compute_directed(
         &graph,
         &transposed,
         Some(radial_vertices),
@@ -181,13 +180,8 @@ fn test_cycle() -> Result<()> {
             transpose(&graph, 32)?.0.iter(),
         ));
 
-        let sum_sweep = directed::compute::<RadiusDiameter>(
-            &graph,
-            &transposed,
-            None,
-            &threads![],
-            no_logging![],
-        );
+        let sum_sweep =
+            RadiusDiameter::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
         assert_eq!(sum_sweep.diameter, size - 1);
         assert_eq!(sum_sweep.radius, size - 1);
@@ -224,7 +218,7 @@ fn test_clique() -> Result<()> {
         radial_vertices.set(rngs[1], true, std::sync::atomic::Ordering::Relaxed);
         radial_vertices.set(rngs[2], true, std::sync::atomic::Ordering::Relaxed);
 
-        let sum_sweep = directed::compute::<All>(
+        let sum_sweep = All::compute_directed(
             &graph,
             &transposed,
             Some(radial_vertices),
@@ -252,7 +246,7 @@ fn test_empty() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = directed::compute::<All>(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 0);
     assert_eq!(sum_sweep.diameter, 0);
@@ -277,7 +271,7 @@ fn test_sparse() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = directed::compute::<All>(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 1);
     assert_eq!(sum_sweep.radial_vertex, 10);
@@ -303,7 +297,7 @@ fn test_no_radial_vertices() -> Result<()> {
     ));
     let radial_vertices = AtomicBitVec::new(2);
 
-    let sum_sweep = directed::compute::<All>(
+    let sum_sweep = All::compute_directed(
         &graph,
         &transposed,
         Some(radial_vertices),
@@ -326,7 +320,7 @@ fn test_empty_graph() {
         transpose(&graph, 32).unwrap().0.iter(),
     ));
 
-    directed::compute::<All>(&graph, &transposed, None, &threads![], no_logging![]);
+    All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 }
 
 #[test]
@@ -341,7 +335,7 @@ fn test_graph_no_edges() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = directed::compute::<All>(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 0);
     assert_eq!(sum_sweep.diameter, 0);
@@ -362,7 +356,7 @@ fn test_er() -> Result<()> {
 
         let threads = threads![];
 
-        let ess = directed::compute::<All>(&graph, transpose, None, &threads, no_logging![]);
+        let ess = All::compute_directed(&graph, transpose, None, &threads, no_logging![]);
 
         let mut pll = Seq::new(&graph);
         let mut ecc = [0; 100];

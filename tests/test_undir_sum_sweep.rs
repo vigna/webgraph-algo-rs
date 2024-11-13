@@ -3,7 +3,6 @@ use dsi_progress_logger::no_logging;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::traits::SequentialLabeling;
-use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
@@ -24,7 +23,7 @@ fn test_path() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let sum_sweep = undirected::compute::<All>(&graph, &threads![], no_logging![]);
+    let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.eccentricities[0], 2);
     assert_eq!(sum_sweep.eccentricities[1], 1);
@@ -68,7 +67,7 @@ fn test_star() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let sum_sweep = undirected::compute::<All>(&graph, &threads![], no_logging![]);
+    let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.eccentricities[0], 2);
     assert_eq!(sum_sweep.eccentricities[1], 3);
@@ -110,7 +109,7 @@ fn test_lozenge() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let sum_sweep = undirected::compute::<Radius>(&graph, &threads![], no_logging![]);
+    let sum_sweep = Radius::compute_undirected(&graph, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 2);
 
@@ -136,7 +135,7 @@ fn test_cycle() -> Result<()> {
 
         let graph = Left(vec_graph);
 
-        let sum_sweep = undirected::compute::<RadiusDiameter>(&graph, &threads![], no_logging![]);
+        let sum_sweep = RadiusDiameter::compute_undirected(&graph, &threads![], no_logging![]);
 
         assert_eq!(sum_sweep.diameter, size / 2);
         assert_eq!(sum_sweep.radius, size / 2);
@@ -161,7 +160,7 @@ fn test_clique() -> Result<()> {
 
         let graph = Left(vec_graph);
 
-        let sum_sweep = undirected::compute::<All>(&graph, &threads![], no_logging![]);
+        let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
         for i in 0..size {
             assert_eq!(sum_sweep.eccentricities[i], 1);
@@ -181,7 +180,7 @@ fn test_no_edges() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let sum_sweep = undirected::compute::<All>(&graph, &threads![], no_logging![]);
+    let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 0);
     assert_eq!(sum_sweep.diameter, 0);
@@ -203,7 +202,7 @@ fn test_sparse() -> Result<()> {
 
     let graph = Left(vec_graph);
 
-    let sum_sweep = undirected::compute::<Radius>(&graph, &threads![], no_logging![]);
+    let sum_sweep = Radius::compute_undirected(&graph, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 1);
 
@@ -217,7 +216,7 @@ fn test_empty() {
 
     let graph = Left(vec_graph);
 
-    undirected::compute::<Radius>(&graph, &threads![], no_logging![]);
+    Radius::compute_undirected(&graph, &threads![], no_logging![]);
 }
 
 #[test]
@@ -233,7 +232,7 @@ fn test_er() -> Result<()> {
 
         let threads = threads![];
 
-        let ess = undirected::compute::<All>(&graph, &threads, no_logging![]);
+        let ess = All::compute_undirected(&graph, &threads, no_logging![]);
 
         let mut pll = Seq::new(&graph);
         let mut ecc = [0; 100];

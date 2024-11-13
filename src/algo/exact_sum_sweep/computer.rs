@@ -1,6 +1,6 @@
 use crate::{
     algo::{
-        exact_sum_sweep::{scc_graph::SccGraph, OutputLevel},
+        exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
         strongly_connected_components::TarjanStronglyConnectedComponents,
         visits::{
             breadth_first::{Event, ParFair},
@@ -14,12 +14,9 @@ use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::{prelude::*, ThreadPool};
-use std::{
-    any::type_name,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        RwLock,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    RwLock,
 };
 use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
@@ -27,126 +24,9 @@ use webgraph::traits::RandomAccessGraph;
 
 const VISIT_GRANULARITY: usize = 32;
 
-/// The results of the computation of the [ExactSumSweep](exact_sum_sweep) algorithm on a directed graph.
-///
-/// Results can be accessed on a common interface with methods [`Self::radius`], [`Self::diameter`],
-/// [`Self::radial_vertex`], [`Self::diametral_vertex`], [`Self::eccentricity`] and [`Self::eccentricities`].
-///
-/// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
-/// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
-/// See [`OutputLevel::All`].
-pub struct All {
-    /// The forward eccentricities
-    pub forward_eccentricities: Box<[usize]>,
-    /// The backward eccentricities
-    pub backward_eccentricities: Box<[usize]>,
-    /// The diameter.
-    pub diameter: usize,
-    /// The radius.
-    pub radius: usize,
-    /// A vertex whose eccentricity equals the diameter.
-    pub diametral_vertex: usize,
-    /// A vertex whose eccentrivity equals the radius.
-    pub radial_vertex: usize,
-    /// Number of iterations before the radius was found.
-    pub radius_iterations: usize,
-    /// Number of iterations before the diameter was found.
-    pub diameter_iterations: usize,
-    /// Number of iterations before all forward eccentricities were found.
-    pub forward_iterations: usize,
-    /// Number of iterations before all eccentricities were found.
-    pub all_iterations: usize,
-}
-/// See [`OutputLevel::AllForward`].
-pub struct AllForward {
-    /// The forward eccentricities
-    pub forward_eccentricities: Box<[usize]>,
-    /// The diameter.
-    pub diameter: usize,
-    /// The radius.
-    pub radius: usize,
-    /// A vertex whose eccentricity equals the diameter.
-    pub diametral_vertex: usize,
-    /// A vertex whose eccentrivity equals the radius.
-    pub radial_vertex: usize,
-    /// Number of iterations before the radius was found.
-    pub radius_iterations: usize,
-    /// Number of iterations before the diameter was found.
-    pub diameter_iterations: usize,
-    /// Number of iterations before all forward eccentricities are found.
-    pub forward_iterations: usize,
-}
-/// See [`OutputLevel::RadiusDiameter`].
-pub struct RadiusDiameter {
-    /// The diameter.
-    pub diameter: usize,
-    /// The radius.
-    pub radius: usize,
-    /// A vertex whose eccentricity equals the diameter.
-    pub diametral_vertex: usize,
-    /// A vertex whose eccentrivity equals the radius.
-    pub radial_vertex: usize,
-    /// Number of iterations before the radius was found.
-    pub radius_iterations: usize,
-    /// Number of iterations before the diameter was found.
-    pub diameter_iterations: usize,
-}
-/// See [`OutputLevel::Diameter`].
-pub struct Diameter {
-    /// The diameter.
-    pub diameter: usize,
-    /// A vertex whose eccentricity equals the diameter.
-    pub diametral_vertex: usize,
-    /// Number of iterations before the diameter was found.
-    pub diameter_iterations: usize,
-}
-/// See [`OutputLevel::Radius`].
-pub struct Radius {
-    /// The radius.
-    pub radius: usize,
-    /// A vertex whose eccentricity equals the radius.
-    pub radial_vertex: usize,
-    /// Number of iterations before the radius was found.
-    pub radius_iterations: usize,
-}
-
-/// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs
-/// and returns the results.
-///
-/// # Arguments
-/// * `graph`: the direct graph.
-/// * `transpose`: the transpose of `graph`.
-/// * `output`: the desired output of the algorithm.
-/// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node `i` is to be considered
-///    radial vertex. If [`None`] the algorithm will use the biggest connected component.
-/// * `thread_pool`: The thread pool to use for parallel computation.
-/// * `pl`: a progress logger.
-pub fn compute<OL: OutputLevel + Sync>(
-    graph: impl RandomAccessGraph + Sync,
-    transpose: impl RandomAccessGraph + Sync,
-    radial_vertices: Option<AtomicBitVec>,
-    thread_pool: &ThreadPool,
-    pl: &mut impl ProgressLog,
-) -> OL::DirectedOutput {
-    let mut computer =
-        DirExactSumSweepComputer::<OL, _, _, _, _, _>::new(&graph, &transpose, radial_vertices, pl);
-    computer.compute(thread_pool, pl);
-    OL::new_directed(computer)
-}
-
 /// The implementation of the *SumSweep* algorithm on directed graphs.
-///
-/// The algorithm is started by calling [`Self::compute`] with a progress logger
-/// if desired.
-///
-/// Results can be accessed with methods [`Self::radius`], [`Self::diameter`],
-/// [`Self::radial_vertex`], [`Self::diametral_vertex`] and [`Self::eccentricity`].
-///
-/// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
-/// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
 pub struct DirExactSumSweepComputer<
     'a,
-    OL: OutputLevel + Sync,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
@@ -155,34 +35,35 @@ pub struct DirExactSumSweepComputer<
 > {
     graph: &'a G1,
     transpose: &'a G2,
+    output: Output,
     num_nodes: usize,
     radial_vertices: AtomicBitVec,
     /// The lower bound of the diameter.
-    pub(super) diameter_low: usize,
+    diameter_low: usize,
     /// The upper bound of the radius.
-    pub(super) radius_high: usize,
+    radius_high: usize,
     /// A vertex whose eccentricity equals the diameter.
-    pub(super) diameter_vertex: usize,
+    diameter_vertex: usize,
     /// A vertex whose eccentrivity equals the radius.
-    pub(super) radius_vertex: usize,
+    radius_vertex: usize,
     /// Number of iterations performed until now.
-    pub(super) iterations: usize,
+    iterations: usize,
     /// The lower bound of the forward eccentricities.
-    pub(super) forward_low: Vec<usize>,
+    pub forward_low: Vec<usize>,
     /// The upper boung of the forward eccentricities.
-    pub(super) forward_high: Vec<usize>,
+    forward_high: Vec<usize>,
     /// The lower bound of the backward eccentricities.
-    pub(super) backward_low: Vec<usize>,
+    pub backward_low: Vec<usize>,
     /// The upper bound of the backward eccentricities.
-    pub(super) backward_high: Vec<usize>,
+    backward_high: Vec<usize>,
     /// Number of iterations before the radius was found.
-    pub(super) radius_iterations: Option<NonMaxUsize>,
+    radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter was found.
-    pub(super) diameter_iterations: Option<NonMaxUsize>,
+    diameter_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all forward eccentricities are found.
-    pub(super) forward_iter: Option<NonMaxUsize>,
+    forward_iter: Option<NonMaxUsize>,
     /// Number of iterations before all eccentricities are found.
-    pub(super) all_iter: Option<NonMaxUsize>,
+    all_iter: Option<NonMaxUsize>,
     /// The strongly connected components.
     scc: SCC,
     /// The strongly connected components diagram.
@@ -196,13 +77,39 @@ pub struct DirExactSumSweepComputer<
     compute_radial_vertices: bool,
     visit: V1,
     transposed_visit: V2,
-    _marker: std::marker::PhantomData<OL>,
 }
 
-impl<'a, OL: OutputLevel + Sync, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+impl<'a, G: RandomAccessGraph + Sync>
     DirExactSumSweepComputer<
         'a,
-        OL,
+        G,
+        G,
+        TarjanStronglyConnectedComponents,
+        ParFair<&'a G>,
+        ParFair<&'a G>,
+    >
+{
+    /// Build a new instance to compute the *ExactSumSweep* algorithm on undirected graphs.
+    ///
+    /// # Arguments
+    /// * `graph`: the graph.
+    /// * `output`: the desired output of the algorithm.
+    /// * `pl`: a progress logger.
+    pub fn new_undirected(graph: &'a G, output: Output, pl: &mut impl ProgressLog) -> Self {
+        debug_assert!(check_symmetric(graph), "graph should be symmetric");
+        let output = match output {
+            Output::Radius => Output::Radius,
+            Output::Diameter => Output::Diameter,
+            Output::RadiusDiameter => Output::RadiusDiameter,
+            _ => Output::AllForward,
+        };
+        Self::new(graph, graph, output, None, pl)
+    }
+}
+
+impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+    DirExactSumSweepComputer<
+        'a,
         G1,
         G2,
         TarjanStronglyConnectedComponents,
@@ -222,6 +129,7 @@ impl<'a, OL: OutputLevel + Sync, G1: RandomAccessGraph + Sync, G2: RandomAccessG
     pub fn new(
         graph: &'a G1,
         transpose: &'a G2,
+        output: Output,
         radial_vertices: Option<AtomicBitVec>,
         pl: &mut impl ProgressLog,
     ) -> Self {
@@ -263,6 +171,7 @@ impl<'a, OL: OutputLevel + Sync, G1: RandomAccessGraph + Sync, G2: RandomAccessG
             graph,
             transpose,
             num_nodes,
+            output,
             forward_tot: total_forward,
             backward_tot: total_backward,
             forward_low: lower_forward,
@@ -284,20 +193,18 @@ impl<'a, OL: OutputLevel + Sync, G1: RandomAccessGraph + Sync, G2: RandomAccessG
             compute_radial_vertices,
             visit: ParFair::new(graph, VISIT_GRANULARITY),
             transposed_visit: ParFair::new(transpose, VISIT_GRANULARITY),
-            _marker: std::marker::PhantomData,
         }
     }
 }
 
 impl<
         'a,
-        OL: OutputLevel + Sync,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
-    > DirExactSumSweepComputer<'a, OL, G1, G2, C, V1, V2>
+    > DirExactSumSweepComputer<'a, G1, G2, C, V1, V2>
 {
     #[inline(always)]
     fn incomplete_forward(&self, index: usize) -> bool {
@@ -353,9 +260,6 @@ impl<
     }
 
     /// Computes diameter, radius, and/or all eccentricities.
-    ///
-    /// Results can be accessed by methods [`Self::radius`], [`Self::diameter`], [`Self::radial_vertex`],
-    /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
@@ -462,8 +366,7 @@ impl<
             ));
         }
 
-        let ol_type_name = type_name::<OL>();
-        if ol_type_name == type_name::<Radius>() || ol_type_name == type_name::<RadiusDiameter>() {
+        if self.output == Output::Radius || self.output == Output::RadiusDiameter {
             pl.info(format_args!(
                 "Radius: {} ({} iterations).",
                 self.radius_high,
@@ -471,8 +374,7 @@ impl<
                     .expect("radius iterations should not be None")
             ));
         }
-        if ol_type_name == type_name::<Diameter>() || ol_type_name == type_name::<RadiusDiameter>()
-        {
+        if self.output == Output::Diameter || self.output == Output::RadiusDiameter {
             pl.info(format_args!(
                 "Diameter: {} ({} iterations).",
                 self.diameter_low,
@@ -1132,18 +1034,12 @@ impl<
 
         pl.done();
 
-        let ol_type_name = type_name::<OL>();
-
-        if ol_type_name == type_name::<Radius>() {
-            missing_r
-        } else if ol_type_name == type_name::<Diameter>() {
-            std::cmp::min(missing_df, missing_db)
-        } else if ol_type_name == type_name::<RadiusDiameter>() {
-            missing_r + std::cmp::min(missing_df, missing_db)
-        } else if ol_type_name == type_name::<AllForward>() {
-            missing_all_forward
-        } else {
-            missing_all_backward + missing_all_forward
+        match self.output {
+            Output::Radius => missing_r,
+            Output::Diameter => std::cmp::min(missing_df, missing_db),
+            Output::RadiusDiameter => missing_r + std::cmp::min(missing_df, missing_db),
+            Output::AllForward => missing_all_forward,
+            Output::All => missing_all_backward + missing_all_forward,
         }
     }
 }
