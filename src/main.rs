@@ -36,10 +36,9 @@ fn main() -> Result<()> {
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
-            ExactSumSweep::compute(
+            directed::compute::<RadiusDiameter>(
                 &graph,
                 &reversed_graph,
-                OutputLevel::RadiusDiameter,
                 None,
                 &threads![],
                 &mut main_pl,

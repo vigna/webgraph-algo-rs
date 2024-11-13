@@ -14,9 +14,12 @@ use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::{prelude::*, ThreadPool};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    RwLock,
+use std::{
+    any::type_name,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    },
 };
 use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
@@ -31,372 +34,105 @@ const VISIT_GRANULARITY: usize = 32;
 ///
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
-pub enum ExactSumSweep {
-    /// See [`OutputLevel::All`].
-    All {
-        /// The forward eccentricities
-        forward_eccentricities: Box<[usize]>,
-        /// The backward eccentricities
-        backward_eccentricities: Box<[usize]>,
-        /// The diameter.
-        diameter: usize,
-        /// The radius.
-        radius: usize,
-        /// A vertex whose eccentricity equals the diameter.
-        diametral_vertex: usize,
-        /// A vertex whose eccentrivity equals the radius.
-        radial_vertex: usize,
-        /// Number of iterations before the radius was found.
-        radius_iterations: usize,
-        /// Number of iterations before the diameter was found.
-        diameter_iterations: usize,
-        /// Number of iterations before all forward eccentricities were found.
-        forward_iterations: usize,
-        /// Number of iterations before all eccentricities were found.
-        all_iterations: usize,
-    },
-    /// See [`OutputLevel::AllForward`].
-    AllForward {
-        /// The forward eccentricities
-        forward_eccentricities: Box<[usize]>,
-        /// The diameter.
-        diameter: usize,
-        /// The radius.
-        radius: usize,
-        /// A vertex whose eccentricity equals the diameter.
-        diametral_vertex: usize,
-        /// A vertex whose eccentrivity equals the radius.
-        radial_vertex: usize,
-        /// Number of iterations before the radius was found.
-        radius_iterations: usize,
-        /// Number of iterations before the diameter was found.
-        diameter_iterations: usize,
-        /// Number of iterations before all forward eccentricities are found.
-        forward_iterations: usize,
-    },
-    /// See [`OutputLevel::RadiusDiameter`].
-    RadiusDiameter {
-        /// The diameter.
-        diameter: usize,
-        /// The radius.
-        radius: usize,
-        /// A vertex whose eccentricity equals the diameter.
-        diametral_vertex: usize,
-        /// A vertex whose eccentrivity equals the radius.
-        radial_vertex: usize,
-        /// Number of iterations before the radius was found.
-        radius_iterations: usize,
-        /// Number of iterations before the diameter was found.
-        diameter_iterations: usize,
-    },
-    /// See [`OutputLevel::Diameter`].
-    Diameter {
-        /// The diameter.
-        diameter: usize,
-        /// A vertex whose eccentricity equals the diameter.
-        diametral_vertex: usize,
-        /// Number of iterations before the diameter was found.
-        diameter_iterations: usize,
-    },
-    /// See [`OutputLevel::Radius`].
-    Radius {
-        /// The radius.
-        radius: usize,
-        /// A vertex whose eccentricity equals the radius.
-        radial_vertex: usize,
-        /// Number of iterations before the radius was found.
-        radius_iterations: usize,
-    },
+/// See [`OutputLevel::All`].
+pub struct All {
+    /// The forward eccentricities
+    pub forward_eccentricities: Box<[usize]>,
+    /// The backward eccentricities
+    pub backward_eccentricities: Box<[usize]>,
+    /// The diameter.
+    pub diameter: usize,
+    /// The radius.
+    pub radius: usize,
+    /// A vertex whose eccentricity equals the diameter.
+    pub diametral_vertex: usize,
+    /// A vertex whose eccentrivity equals the radius.
+    pub radial_vertex: usize,
+    /// Number of iterations before the radius was found.
+    pub radius_iterations: usize,
+    /// Number of iterations before the diameter was found.
+    pub diameter_iterations: usize,
+    /// Number of iterations before all forward eccentricities were found.
+    pub forward_iterations: usize,
+    /// Number of iterations before all eccentricities were found.
+    pub all_iterations: usize,
+}
+/// See [`OutputLevel::AllForward`].
+pub struct AllForward {
+    /// The forward eccentricities
+    pub forward_eccentricities: Box<[usize]>,
+    /// The diameter.
+    pub diameter: usize,
+    /// The radius.
+    pub radius: usize,
+    /// A vertex whose eccentricity equals the diameter.
+    pub diametral_vertex: usize,
+    /// A vertex whose eccentrivity equals the radius.
+    pub radial_vertex: usize,
+    /// Number of iterations before the radius was found.
+    pub radius_iterations: usize,
+    /// Number of iterations before the diameter was found.
+    pub diameter_iterations: usize,
+    /// Number of iterations before all forward eccentricities are found.
+    pub forward_iterations: usize,
+}
+/// See [`OutputLevel::RadiusDiameter`].
+pub struct RadiusDiameter {
+    /// The diameter.
+    pub diameter: usize,
+    /// The radius.
+    pub radius: usize,
+    /// A vertex whose eccentricity equals the diameter.
+    pub diametral_vertex: usize,
+    /// A vertex whose eccentrivity equals the radius.
+    pub radial_vertex: usize,
+    /// Number of iterations before the radius was found.
+    pub radius_iterations: usize,
+    /// Number of iterations before the diameter was found.
+    pub diameter_iterations: usize,
+}
+/// See [`OutputLevel::Diameter`].
+pub struct Diameter {
+    /// The diameter.
+    pub diameter: usize,
+    /// A vertex whose eccentricity equals the diameter.
+    pub diametral_vertex: usize,
+    /// Number of iterations before the diameter was found.
+    pub diameter_iterations: usize,
+}
+/// See [`OutputLevel::Radius`].
+pub struct Radius {
+    /// The radius.
+    pub radius: usize,
+    /// A vertex whose eccentricity equals the radius.
+    pub radial_vertex: usize,
+    /// Number of iterations before the radius was found.
+    pub radius_iterations: usize,
 }
 
-impl ExactSumSweep {
-    /// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs
-    /// and returns the results.
-    ///
-    /// # Arguments
-    /// * `graph`: the direct graph.
-    /// * `transpose`: the transpose of `graph`.
-    /// * `output`: the desired output of the algorithm.
-    /// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node `i` is to be considered
-    ///    radial vertex. If [`None`] the algorithm will use the biggest connected component.
-    /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: a progress logger.
-    pub fn compute(
-        graph: &(impl RandomAccessGraph + Sync),
-        transpose: &(impl RandomAccessGraph + Sync),
-        output: OutputLevel,
-        radial_vertices: Option<AtomicBitVec>,
-        thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
-    ) -> Self {
-        let mut computer =
-            DirExactSumSweepComputer::new(graph, transpose, output, radial_vertices, pl);
-        computer.compute(thread_pool, pl);
-        let diameter = computer.diameter();
-        let radius = computer.radius();
-        let diametral_vertex = computer.diametral_vertex();
-        let radial_vertex = computer.radial_vertex();
-        let radius_iterations = computer.radius_iterations();
-        let diameter_iterations = computer.diameter_iterations();
-        let forward_iter = computer.all_forward_iterations();
-        let all_iter = computer.all_iterations();
-
-        match output {
-            OutputLevel::All => Self::All {
-                forward_eccentricities: computer.forward_low.into_boxed_slice(),
-                backward_eccentricities: computer.backward_low.into_boxed_slice(),
-                diameter: diameter.expect("Diameter should be computed"),
-                radius: radius.expect("Radius should be computed"),
-                diametral_vertex: diametral_vertex.expect("Diametral vertex should not be None"),
-                radial_vertex: radial_vertex.expect("Radial vertex should not be None"),
-                radius_iterations: radius_iterations.expect("Radius iteations should not be None"),
-                diameter_iterations: diameter_iterations
-                    .expect("Diameter iterations should not be None"),
-                forward_iterations: forward_iter.expect("Forward iterations should not be None"),
-                all_iterations: all_iter.expect("All iterations should not be None"),
-            },
-            OutputLevel::AllForward => Self::AllForward {
-                forward_eccentricities: computer.forward_low.into_boxed_slice(),
-                diameter: diameter.expect("Diameter should be computed"),
-                radius: radius.expect("Radius should be computed"),
-                diametral_vertex: diametral_vertex.expect("Diametral vertex should not be None"),
-                radial_vertex: radial_vertex.expect("Radial vertex should not be None"),
-                radius_iterations: radius_iterations.expect("Radius iteations should not be None"),
-                diameter_iterations: diameter_iterations
-                    .expect("Diameter iterations should not be None"),
-                forward_iterations: forward_iter.expect("Forward iterations should not be None"),
-            },
-            OutputLevel::RadiusDiameter => Self::RadiusDiameter {
-                diameter: diameter.expect("Diameter should be computed"),
-                radius: radius.expect("Radius should be computed"),
-                diametral_vertex: diametral_vertex.expect("Diametral vertex should not be None"),
-                radial_vertex: radial_vertex.expect("Radial vertex should not be None"),
-                radius_iterations: radius_iterations.expect("Radius iteations should not be None"),
-                diameter_iterations: diameter_iterations
-                    .expect("Diameter iterations should not be None"),
-            },
-            OutputLevel::Diameter => Self::Diameter {
-                diameter: diameter.expect("Diameter should be computed"),
-                diametral_vertex: diametral_vertex.expect("Diametral vertex should not be None"),
-                diameter_iterations: diameter_iterations
-                    .expect("Diameter iterations should not be None"),
-            },
-            OutputLevel::Radius => Self::Radius {
-                radius: radius.expect("Radius should be computed"),
-                radial_vertex: radial_vertex.expect("Radial vertex should not be None"),
-                radius_iterations: radius_iterations.expect("Radius iteations should not be None"),
-            },
-        }
-    }
-}
-
-impl ExactSumSweep {
-    /// Returns the radius of the graph if it has been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn radius(&self) -> Option<usize> {
-        match self {
-            Self::All { radius, .. } => Some(*radius),
-            Self::AllForward { radius, .. } => Some(*radius),
-            Self::RadiusDiameter { radius, .. } => Some(*radius),
-            Self::Diameter { .. } => None,
-            Self::Radius { radius, .. } => Some(*radius),
-        }
-    }
-
-    /// Returns the diameter of the graph if is has been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn diameter(&self) -> Option<usize> {
-        match self {
-            Self::All { diameter, .. } => Some(*diameter),
-            Self::AllForward { diameter, .. } => Some(*diameter),
-            Self::RadiusDiameter { diameter, .. } => Some(*diameter),
-            Self::Diameter { diameter, .. } => Some(*diameter),
-            Self::Radius { .. } => None,
-        }
-    }
-
-    /// Returns a radial vertex if it has been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn radial_vertex(&self) -> Option<usize> {
-        match self {
-            Self::All { radial_vertex, .. } => Some(*radial_vertex),
-            Self::AllForward { radial_vertex, .. } => Some(*radial_vertex),
-            Self::RadiusDiameter { radial_vertex, .. } => Some(*radial_vertex),
-            Self::Diameter { .. } => None,
-            Self::Radius { radial_vertex, .. } => Some(*radial_vertex),
-        }
-    }
-
-    /// Returns a diametral vertex if it has been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn diametral_vertex(&self) -> Option<usize> {
-        match self {
-            Self::All {
-                diametral_vertex, ..
-            } => Some(*diametral_vertex),
-            Self::AllForward {
-                diametral_vertex, ..
-            } => Some(*diametral_vertex),
-            Self::RadiusDiameter {
-                diametral_vertex, ..
-            } => Some(*diametral_vertex),
-            Self::Diameter {
-                diametral_vertex, ..
-            } => Some(*diametral_vertex),
-            Self::Radius { .. } => None,
-        }
-    }
-
-    /// Returns the eccentricity of a vertex if it has been computed, [`None`] otherwise.
-    ///
-    /// # Arguments
-    /// * `vertex`: The vertex.
-    /// * `forward`: Whether to return the forward eccentricity (if `true`) or the backward
-    ///   eccentricity (if `false`).
-    #[inline(always)]
-    pub fn eccentricity(&self, vertex: usize, forward: bool) -> Option<usize> {
-        if forward {
-            match self {
-                Self::All {
-                    forward_eccentricities,
-                    ..
-                } => Some(forward_eccentricities[vertex]),
-                Self::AllForward {
-                    forward_eccentricities,
-                    ..
-                } => Some(forward_eccentricities[vertex]),
-                Self::RadiusDiameter { .. } => None,
-                Self::Diameter { .. } => None,
-                Self::Radius { .. } => None,
-            }
-        } else {
-            match self {
-                Self::All {
-                    backward_eccentricities,
-                    ..
-                } => Some(backward_eccentricities[vertex]),
-                Self::AllForward { .. } => None,
-                Self::RadiusDiameter { .. } => None,
-                Self::Diameter { .. } => None,
-                Self::Radius { .. } => None,
-            }
-        }
-    }
-
-    /// Returns the eccentricities if they have been computed, [`None`] otherwise.
-    ///
-    /// # Arguments
-    /// * `forward`: Whether to return the forward eccentricities (if `true`) or the backward
-    ///   eccentricities (if `false`).
-    pub fn eccentricities(&self, forward: bool) -> Option<&[usize]> {
-        if forward {
-            match self {
-                Self::All {
-                    forward_eccentricities,
-                    ..
-                } => Some(forward_eccentricities),
-                Self::AllForward {
-                    forward_eccentricities,
-                    ..
-                } => Some(forward_eccentricities),
-                Self::RadiusDiameter { .. } => None,
-                Self::Diameter { .. } => None,
-                Self::Radius { .. } => None,
-            }
-        } else {
-            match self {
-                Self::All {
-                    backward_eccentricities,
-                    ..
-                } => Some(backward_eccentricities),
-                Self::AllForward { .. } => None,
-                Self::RadiusDiameter { .. } => None,
-                Self::Diameter { .. } => None,
-                Self::Radius { .. } => None,
-            }
-        }
-    }
-
-    /// Returns the number of iterations needed to compute the radius if it has
-    /// been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn radius_iterations(&self) -> Option<usize> {
-        match self {
-            Self::All {
-                radius_iterations, ..
-            } => Some(*radius_iterations),
-            Self::AllForward {
-                radius_iterations, ..
-            } => Some(*radius_iterations),
-            Self::RadiusDiameter {
-                radius_iterations, ..
-            } => Some(*radius_iterations),
-            Self::Diameter { .. } => None,
-            Self::Radius {
-                radius_iterations, ..
-            } => Some(*radius_iterations),
-        }
-    }
-
-    /// Returns the number of iterations needed to compute the diameter if it has
-    /// been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn diameter_iterations(&self) -> Option<usize> {
-        match self {
-            Self::All {
-                diameter_iterations,
-                ..
-            } => Some(*diameter_iterations),
-            Self::AllForward {
-                diameter_iterations,
-                ..
-            } => Some(*diameter_iterations),
-            Self::RadiusDiameter {
-                diameter_iterations,
-                ..
-            } => Some(*diameter_iterations),
-            Self::Diameter {
-                diameter_iterations,
-                ..
-            } => Some(*diameter_iterations),
-            Self::Radius { .. } => None,
-        }
-    }
-
-    /// Returns the number of iterations needed to compute all forward eccentricities
-    /// if they have been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn all_forward_iterations(&self) -> Option<usize> {
-        match self {
-            Self::All {
-                forward_iterations: forward_iter,
-                ..
-            } => Some(*forward_iter),
-            Self::AllForward {
-                forward_iterations: forward_iter,
-                ..
-            } => Some(*forward_iter),
-            Self::RadiusDiameter { .. } => None,
-            Self::Diameter { .. } => None,
-            Self::Radius { .. } => None,
-        }
-    }
-
-    /// Returns the number of iterations needed to compute all eccentricities if they
-    /// have been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn all_iterations(&self) -> Option<usize> {
-        match self {
-            Self::All {
-                all_iterations: all_iter,
-                ..
-            } => Some(*all_iter),
-            Self::AllForward { .. } => None,
-            Self::RadiusDiameter { .. } => None,
-            Self::Diameter { .. } => None,
-            Self::Radius { .. } => None,
-        }
-    }
+/// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs
+/// and returns the results.
+///
+/// # Arguments
+/// * `graph`: the direct graph.
+/// * `transpose`: the transpose of `graph`.
+/// * `output`: the desired output of the algorithm.
+/// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node `i` is to be considered
+///    radial vertex. If [`None`] the algorithm will use the biggest connected component.
+/// * `thread_pool`: The thread pool to use for parallel computation.
+/// * `pl`: a progress logger.
+pub fn compute<OL: OutputLevel + Sync>(
+    graph: impl RandomAccessGraph + Sync,
+    transpose: impl RandomAccessGraph + Sync,
+    radial_vertices: Option<AtomicBitVec>,
+    thread_pool: &ThreadPool,
+    pl: &mut impl ProgressLog,
+) -> OL::DirectedOutput {
+    let mut computer =
+        DirExactSumSweepComputer::<OL, _, _, _, _, _>::new(&graph, &transpose, radial_vertices, pl);
+    dbg!(computer.scc.number_of_components());
+    computer.compute(thread_pool, pl);
+    OL::new_directed(computer)
 }
 
 /// The implementation of the *SumSweep* algorithm on directed graphs.
@@ -409,8 +145,9 @@ impl ExactSumSweep {
 ///
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
-struct DirExactSumSweepComputer<
+pub struct DirExactSumSweepComputer<
     'a,
+    OL: OutputLevel + Sync,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     SCC: StronglyConnectedComponents,
@@ -420,34 +157,33 @@ struct DirExactSumSweepComputer<
     graph: &'a G1,
     transpose: &'a G2,
     num_nodes: usize,
-    output: OutputLevel,
     radial_vertices: AtomicBitVec,
     /// The lower bound of the diameter.
-    diameter_low: usize,
+    pub(super) diameter_low: usize,
     /// The upper bound of the radius.
-    radius_high: usize,
+    pub(super) radius_high: usize,
     /// A vertex whose eccentricity equals the diameter.
-    diameter_vertex: usize,
+    pub(super) diameter_vertex: usize,
     /// A vertex whose eccentrivity equals the radius.
-    radius_vertex: usize,
+    pub(super) radius_vertex: usize,
     /// Number of iterations performed until now.
-    iterations: usize,
+    pub(super) iterations: usize,
     /// The lower bound of the forward eccentricities.
-    forward_low: Vec<usize>,
+    pub(super) forward_low: Vec<usize>,
     /// The upper boung of the forward eccentricities.
-    forward_high: Vec<usize>,
+    pub(super) forward_high: Vec<usize>,
     /// The lower bound of the backward eccentricities.
-    backward_low: Vec<usize>,
+    pub(super) backward_low: Vec<usize>,
     /// The upper bound of the backward eccentricities.
-    backward_high: Vec<usize>,
+    pub(super) backward_high: Vec<usize>,
     /// Number of iterations before the radius was found.
-    radius_iterations: Option<NonMaxUsize>,
+    pub(super) radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter was found.
-    diameter_iterations: Option<NonMaxUsize>,
+    pub(super) diameter_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all forward eccentricities are found.
-    forward_iter: Option<NonMaxUsize>,
+    pub(super) forward_iter: Option<NonMaxUsize>,
     /// Number of iterations before all eccentricities are found.
-    all_iter: Option<NonMaxUsize>,
+    pub(super) all_iter: Option<NonMaxUsize>,
     /// The strongly connected components.
     scc: SCC,
     /// The strongly connected components diagram.
@@ -461,11 +197,13 @@ struct DirExactSumSweepComputer<
     compute_radial_vertices: bool,
     visit: V1,
     transposed_visit: V2,
+    _marker: std::marker::PhantomData<OL>,
 }
 
-impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
+impl<'a, OL: OutputLevel + Sync, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     DirExactSumSweepComputer<
         'a,
+        OL,
         G1,
         G2,
         TarjanStronglyConnectedComponents,
@@ -485,7 +223,6 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     pub fn new(
         graph: &'a G1,
         transpose: &'a G2,
-        output: OutputLevel,
         radial_vertices: Option<AtomicBitVec>,
         pl: &mut impl ProgressLog,
     ) -> Self {
@@ -537,7 +274,6 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             scc,
             diameter_low: 0,
             radius_high: usize::MAX,
-            output,
             radius_iterations: None,
             diameter_iterations: None,
             all_iter: None,
@@ -549,18 +285,20 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             compute_radial_vertices,
             visit: ParFair::new(graph, VISIT_GRANULARITY),
             transposed_visit: ParFair::new(transpose, VISIT_GRANULARITY),
+            _marker: std::marker::PhantomData,
         }
     }
 }
 
 impl<
         'a,
+        OL: OutputLevel + Sync,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: StronglyConnectedComponents + Sync,
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
-    > DirExactSumSweepComputer<'a, G1, G2, C, V1, V2>
+    > DirExactSumSweepComputer<'a, OL, G1, G2, C, V1, V2>
 {
     #[inline(always)]
     fn incomplete_forward(&self, index: usize) -> bool {
@@ -725,7 +463,8 @@ impl<
             ));
         }
 
-        if self.output == OutputLevel::Radius || self.output == OutputLevel::RadiusDiameter {
+        let ol_type_name = type_name::<OL>();
+        if ol_type_name == type_name::<Radius>() || ol_type_name == type_name::<RadiusDiameter>() {
             pl.info(format_args!(
                 "Radius: {} ({} iterations).",
                 self.radius_high,
@@ -733,7 +472,8 @@ impl<
                     .expect("radius iterations should not be None")
             ));
         }
-        if self.output == OutputLevel::Diameter || self.output == OutputLevel::RadiusDiameter {
+        if ol_type_name == type_name::<Diameter>() || ol_type_name == type_name::<RadiusDiameter>()
+        {
             pl.info(format_args!(
                 "Diameter: {} ({} iterations).",
                 self.diameter_low,
@@ -1393,12 +1133,18 @@ impl<
 
         pl.done();
 
-        match self.output {
-            OutputLevel::Radius => missing_r,
-            OutputLevel::Diameter => std::cmp::min(missing_df, missing_db),
-            OutputLevel::RadiusDiameter => missing_r + std::cmp::min(missing_df, missing_db),
-            OutputLevel::AllForward => missing_all_forward,
-            OutputLevel::All => missing_all_backward + missing_all_forward,
+        let ol_type_name = type_name::<OL>();
+
+        if ol_type_name == type_name::<Radius>() {
+            missing_r
+        } else if ol_type_name == type_name::<Diameter>() {
+            std::cmp::min(missing_df, missing_db)
+        } else if ol_type_name == type_name::<RadiusDiameter>() {
+            missing_r + std::cmp::min(missing_df, missing_db)
+        } else if ol_type_name == type_name::<AllForward>() {
+            missing_all_forward
+        } else {
+            missing_all_backward + missing_all_forward
         }
     }
 }
