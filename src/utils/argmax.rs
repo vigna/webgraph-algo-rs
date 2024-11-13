@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 /// Returns the index of the maximum value in the slice `vec` if found, [`None`] otherwise.
 /// If several elements are equally maximum, the first element is returned.
 ///
@@ -15,8 +13,10 @@ use itertools::Itertools;
 /// ```
 pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
     vec.iter()
+        .enumerate()
         .rev()
-        .position_max_by(|x, y| unsafe { x.partial_cmp(y).unwrap_unchecked() })
+        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+        .map(|m| m.0)
 }
 
 /// Returns the index of the maximum value approved by `filter` in the slice `vec` if found, [`None`] otherwise.
