@@ -23,11 +23,11 @@ pub enum UndirExactSumSweep {
         diametral_vertex: usize,
         /// A vertex whose eccentrivity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
-        /// Number of iterations before all eccentricities are found.
+        /// Number of iterations before all eccentricities were found.
         iterations: usize,
     },
     /// See [`OutputLevel::RadiusDiameter`].
@@ -40,9 +40,9 @@ pub enum UndirExactSumSweep {
         diametral_vertex: usize,
         /// A vertex whose eccentrivity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
     },
     /// See [`OutputLevel::Diameter`].
@@ -52,7 +52,7 @@ pub enum UndirExactSumSweep {
         /// The radius.
         /// A vertex whose eccentricity equals the diameter.
         diametral_vertex: usize,
-        /// Number of iterations before the diameter is found.
+        /// Number of iterations before the diameter was found.
         diameter_iterations: usize,
     },
     /// See [`OutputLevel::Radius`].
@@ -61,34 +61,13 @@ pub enum UndirExactSumSweep {
         radius: usize,
         /// A vertex whose eccentrivity equals the radius.
         radial_vertex: usize,
-        /// Number of iterations before the radius is found.
+        /// Number of iterations before the radius was found.
         radius_iterations: usize,
     },
 }
 
-impl UndirExactSumSweep {
-    /// Build a new instance to compute the *ExactSumSweep* algorithm on undirected graphs
-    /// and returns the results.
-    ///
-    /// # Arguments
-    /// * `graph`: the direct graph.
-    /// * `output`: the desired output of the algorithm.
-    /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: a progress logger.
-    pub fn compute(
-        graph: &(impl RandomAccessGraph + Sync),
-        output: OutputLevel,
-        thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
-    ) -> Self {
-        debug_assert!(check_symmetric(graph), "graph should be symmetric");
-        let output = match output {
-            OutputLevel::Radius => OutputLevel::Radius,
-            OutputLevel::Diameter => OutputLevel::Diameter,
-            OutputLevel::RadiusDiameter => OutputLevel::RadiusDiameter,
-            _ => OutputLevel::AllForward,
-        };
-        let sum_sweep = ExactSumSweep::compute(graph, graph, output, None, thread_pool, pl);
+impl From<ExactSumSweep> for UndirExactSumSweep {
+    fn from(sum_sweep: ExactSumSweep) -> Self {
         match sum_sweep {
             ExactSumSweep::AllForward {
                 forward_eccentricities,
@@ -98,7 +77,7 @@ impl UndirExactSumSweep {
                 radial_vertex,
                 radius_iterations,
                 diameter_iterations,
-                forward_iterations: forward_iter,
+                forward_iterations,
             } => Self::All {
                 eccentricities: forward_eccentricities,
                 diameter,
@@ -107,7 +86,7 @@ impl UndirExactSumSweep {
                 radial_vertex,
                 radius_iterations,
                 diameter_iterations,
-                iterations: forward_iter,
+                iterations: forward_iterations,
             },
             ExactSumSweep::RadiusDiameter {
                 diameter,
@@ -142,8 +121,37 @@ impl UndirExactSumSweep {
                 radial_vertex,
                 radius_iterations,
             },
-            _ => panic!(),
+            _ => {
+                unreachable!("The undirected version of the algorithm does not support this output")
+            }
         }
+    }
+}
+
+impl UndirExactSumSweep {
+    /// Build a new instance to compute the *ExactSumSweep* algorithm on undirected graphs
+    /// and returns the results.
+    ///
+    /// # Arguments
+    /// * `graph`: the direct graph.
+    /// * `output`: the desired output of the algorithm.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
+    /// * `pl`: a progress logger.
+    pub fn compute(
+        graph: impl RandomAccessGraph + Sync,
+        output: OutputLevel,
+        thread_pool: &ThreadPool,
+        pl: &mut impl ProgressLog,
+    ) -> Self {
+        debug_assert!(check_symmetric(&graph), "graph should be symmetric");
+        // All and AllForward are equivalent for undirected graphs
+        let output = match output {
+            OutputLevel::Radius => OutputLevel::Radius,
+            OutputLevel::Diameter => OutputLevel::Diameter,
+            OutputLevel::RadiusDiameter => OutputLevel::RadiusDiameter,
+            _ => OutputLevel::AllForward,
+        };
+        ExactSumSweep::compute(&graph, &graph, output, None, thread_pool, pl).into()
     }
 }
 

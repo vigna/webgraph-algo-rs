@@ -34,5 +34,5 @@ mod scc_graph;
 mod exact_sum_sweep;
 pub use exact_sum_sweep::*;
 
-mod undir_sum_sweep;
-pub use undir_sum_sweep::*;
+mod undirected;
+pub use undirected::*;

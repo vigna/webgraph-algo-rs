@@ -103,8 +103,8 @@ const MAX_NODES_DEFAULT: usize = 100_000;
 /// * `graph`: the direct graph.
 /// * `transposed`: the graph to check whether is the transposed of `graph`.
 pub(crate) fn check_transposed<G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>(
-    graph: &G1,
-    transposed: &G2,
+    graph: G1,
+    transposed: G2,
 ) -> bool {
     if graph.num_nodes() != transposed.num_nodes() || graph.num_arcs() != transposed.num_arcs() {
         return false;
@@ -142,7 +142,7 @@ pub(crate) fn check_transposed<G1: RandomAccessGraph + Sync, G2: RandomAccessGra
 ///
 /// # Arguments
 /// * `graph`: the graph.
-pub(crate) fn check_symmetric<G: RandomAccessGraph + Sync>(graph: &G) -> bool {
+pub(crate) fn check_symmetric<G: RandomAccessGraph + Sync>(graph: G) -> bool {
     let max_nodes = std::env::var(MAX_NODES_ENV_VAR)
         .map(|v| v.parse().unwrap_or(MAX_NODES_DEFAULT))
         .unwrap_or(MAX_NODES_DEFAULT);

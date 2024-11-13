@@ -24,7 +24,7 @@ use webgraph::traits::RandomAccessGraph;
 
 const VISIT_GRANULARITY: usize = 32;
 
-/// The results of the computation of the *ExactSumSweep* algorithm on a directed graph.
+/// The results of the computation of the [ExactSumSweep](exact_sum_sweep) algorithm on a directed graph.
 ///
 /// Results can be accessed on a common interface with methods [`Self::radius`], [`Self::diameter`],
 /// [`Self::radial_vertex`], [`Self::diametral_vertex`], [`Self::eccentricity`] and [`Self::eccentricities`].
