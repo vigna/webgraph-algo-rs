@@ -130,7 +130,6 @@ pub fn compute<OL: OutputLevel + Sync>(
 ) -> OL::DirectedOutput {
     let mut computer =
         DirExactSumSweepComputer::<OL, _, _, _, _, _>::new(&graph, &transpose, radial_vertices, pl);
-    dbg!(computer.scc.number_of_components());
     computer.compute(thread_pool, pl);
     OL::new_directed(computer)
 }
