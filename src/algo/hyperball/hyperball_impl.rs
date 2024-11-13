@@ -426,7 +426,7 @@ impl<
     /// * `upper_bound`: an upper bound to the number of iterations.
     /// * `threshold`: a value that will be used to stop the computation by relative increment if the neighbourhood
     ///   function is being computed. If [`None`] the computation will stop when no counters are modified.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     pub fn run(
         &mut self,
@@ -478,7 +478,7 @@ impl<
     ///
     /// # Arguments
     /// * `upper_bound`: an upper bound to the number of iterations.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_stable(
@@ -494,7 +494,7 @@ impl<
     /// Runs HyperBall until no counters are modified with no upper bound on the number of iterations.
     ///
     /// # Arguments
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     #[inline(always)]
     pub fn run_until_done(
@@ -698,7 +698,7 @@ impl<
     /// Performs a new iteration of HyperBall.
     ///
     /// # Arguments
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn iterate(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.info(format_args!("Performing iteration {}", self.iteration + 1));
@@ -1086,7 +1086,7 @@ impl<
     /// Initializes the approximator.
     ///
     /// # Arguments
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn init(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");

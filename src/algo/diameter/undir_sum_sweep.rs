@@ -73,7 +73,7 @@ impl UndirExactSumSweep {
     /// # Arguments
     /// * `graph`: the direct graph.
     /// * `output`: the desired output of the algorithm.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: a progress logger.
     pub fn compute(
         graph: &(impl RandomAccessGraph + Sync),
@@ -88,9 +88,9 @@ impl UndirExactSumSweep {
             OutputLevel::RadiusDiameter => OutputLevel::RadiusDiameter,
             _ => OutputLevel::AllForward,
         };
-        let sum_sweep = DirExactSumSweep::compute(graph, graph, output, None, thread_pool, pl);
+        let sum_sweep = ExactSumSweep::compute(graph, graph, output, None, thread_pool, pl);
         match sum_sweep {
-            DirExactSumSweep::AllForward {
+            ExactSumSweep::AllForward {
                 forward_eccentricities,
                 diameter,
                 radius,
@@ -109,7 +109,7 @@ impl UndirExactSumSweep {
                 diameter_iterations,
                 iterations: forward_iter,
             },
-            DirExactSumSweep::RadiusDiameter {
+            ExactSumSweep::RadiusDiameter {
                 diameter,
                 radius,
                 diametral_vertex,
@@ -124,7 +124,7 @@ impl UndirExactSumSweep {
                 radius_iterations,
                 diameter_iterations,
             },
-            DirExactSumSweep::Diameter {
+            ExactSumSweep::Diameter {
                 diameter,
                 diametral_vertex,
                 diameter_iterations,
@@ -133,7 +133,7 @@ impl UndirExactSumSweep {
                 diametral_vertex,
                 diameter_iterations,
             },
-            DirExactSumSweep::Radius {
+            ExactSumSweep::Radius {
                 radius,
                 radial_vertex,
                 radius_iterations,

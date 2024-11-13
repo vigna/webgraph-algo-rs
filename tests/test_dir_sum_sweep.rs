@@ -24,7 +24,7 @@ fn test_path() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
@@ -78,7 +78,7 @@ fn test_many_scc() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::Radius,
@@ -110,7 +110,7 @@ fn test_lozenge() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::Radius,
@@ -161,7 +161,7 @@ fn test_many_dir_path() -> Result<()> {
     radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
     radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
@@ -198,7 +198,7 @@ fn test_cycle() -> Result<()> {
             transpose(&graph, 32)?.0.iter(),
         ));
 
-        let sum_sweep = DirExactSumSweep::compute(
+        let sum_sweep = ExactSumSweep::compute(
             &graph,
             &transposed,
             OutputLevel::RadiusDiameter,
@@ -242,7 +242,7 @@ fn test_clique() -> Result<()> {
         radial_vertices.set(rngs[1], true, std::sync::atomic::Ordering::Relaxed);
         radial_vertices.set(rngs[2], true, std::sync::atomic::Ordering::Relaxed);
 
-        let sum_sweep = DirExactSumSweep::compute(
+        let sum_sweep = ExactSumSweep::compute(
             &graph,
             &transposed,
             OutputLevel::All,
@@ -271,7 +271,7 @@ fn test_empty() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
@@ -303,7 +303,7 @@ fn test_sparse() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
@@ -336,7 +336,7 @@ fn test_no_radial_vertices() -> Result<()> {
     ));
     let radial_vertices = AtomicBitVec::new(2);
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
@@ -360,7 +360,7 @@ fn test_empty_graph() {
         transpose(&graph, 32).unwrap().0.iter(),
     ));
 
-    DirExactSumSweep::compute(
+    ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,
@@ -382,7 +382,7 @@ fn test_graph_no_edges() -> Result<()> {
         transpose(&graph, 32)?.0.iter(),
     ));
 
-    let sum_sweep = DirExactSumSweep::compute(
+    let sum_sweep = ExactSumSweep::compute(
         &graph,
         &transposed,
         OutputLevel::All,

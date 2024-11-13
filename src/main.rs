@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
-            DirExactSumSweep::compute(
+            ExactSumSweep::compute(
                 &graph,
                 &reversed_graph,
                 OutputLevel::RadiusDiameter,

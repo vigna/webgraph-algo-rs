@@ -31,7 +31,7 @@ const VISIT_GRANULARITY: usize = 32;
 ///
 /// Information on the number of iterations may be retrieved with [`Self::radius_iterations`],
 /// [`Self::diameter_iterations`], [`Self::all_forward_iterations`] and [`Self::all_iterations`].
-pub enum DirExactSumSweep {
+pub enum ExactSumSweep {
     /// See [`OutputLevel::All`].
     All {
         /// The forward eccentricities
@@ -109,7 +109,7 @@ pub enum DirExactSumSweep {
     },
 }
 
-impl DirExactSumSweep {
+impl ExactSumSweep {
     /// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs
     /// and returns the results.
     ///
@@ -119,7 +119,7 @@ impl DirExactSumSweep {
     /// * `output`: the desired output of the algorithm.
     /// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node `i` is to be considered
     ///    radial vertex. If [`None`] the algorithm will use the biggest connected component.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: a progress logger.
     pub fn compute(
         graph: &(impl RandomAccessGraph + Sync),
@@ -190,7 +190,7 @@ impl DirExactSumSweep {
     }
 }
 
-impl DirExactSumSweep {
+impl ExactSumSweep {
     /// Returns the radius of the graph if it has been computed, [`None`] otherwise.
     #[inline(always)]
     pub fn radius(&self) -> Option<usize> {
@@ -577,7 +577,7 @@ impl<
     /// # Arguments
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn sum_sweep_heuristic(
         &mut self,
@@ -621,7 +621,7 @@ impl<
     /// [`Self::diametral_vertex`], [`Self::eccentricity`].
     ///
     /// # Arguments
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     pub fn compute(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         if self.num_nodes == 0 {
@@ -863,7 +863,7 @@ impl<
     /// the biggest strongly connected component.
     ///
     /// # Arguments
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn compute_radial_vertices(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         if self.num_nodes == 0 {
@@ -920,7 +920,7 @@ impl<
     /// * `start`: The starting vertex of the BFS. If [`None`], no visit happens.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn step_sum_sweep(
         &mut self,
@@ -1105,7 +1105,7 @@ impl<
     ///   component.
     /// * `forward`: Whether the BFS is performed following the direction of edges or
     ///   in the opposite direction.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     ///
     /// # Return
@@ -1196,7 +1196,7 @@ impl<
     ///
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn all_cc_upper_bound(
         &mut self,
@@ -1324,7 +1324,7 @@ impl<
     /// Computes how many nodes are still to be processed, before outputting the result.
     ///
     /// # Arguments
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn find_missing_nodes(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> usize {
         pl.item_name("nodes");
