@@ -1,4 +1,5 @@
 /// Returns the index of the maximum value in the slice `vec` if found, [`None`] otherwise.
+/// If several elements are equally maximum, the first element is returned.
 ///
 /// # Arguments
 /// * `vec`: the slice of elements.
@@ -11,23 +12,17 @@
 /// assert_eq!(index, Some(2));
 /// ```
 pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
-    if vec.is_empty() {
-        return None;
-    }
-    let mut max = vec[0];
-    let mut argmax = 0;
-    for (i, &elem) in vec.iter().enumerate().skip(1) {
-        if elem > max {
-            argmax = i;
-            max = elem;
-        }
-    }
-    Some(argmax)
+    vec.iter()
+        .enumerate()
+        .rev()
+        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+        .map(|m| m.0)
 }
 
 /// Returns the index of the maximum value approved by `filter` in the slice `vec` if found, [`None`] otherwise.
 ///
 /// In case of ties, the index for which `tie_break` is maximized is returned.
+/// If several elements are equally maximum, the first element is returned.
 ///
 /// # Arguments
 /// * `vec`: the slice of elements.
@@ -52,24 +47,19 @@ pub fn filtered_argmax<
     tie_break: &[N],
     filter: F,
 ) -> Option<usize> {
-    let mut iter = vec.iter().zip(tie_break.iter()).enumerate();
-    let mut argmax = None;
-
-    while let Some((i, (&elem, &tie))) = iter.next() {
-        if filter(i, elem) {
-            argmax = Some(i);
-            let mut max = elem;
-            let mut max_tie_break = tie;
-
-            for (i, (&elem, &tie)) in iter.by_ref() {
-                if filter(i, elem) && (elem > max || (elem == max && tie > max_tie_break)) {
-                    argmax = Some(i);
-                    max = elem;
-                    max_tie_break = tie;
-                }
+    vec.iter()
+        .zip(tie_break.iter())
+        .enumerate()
+        .rev()
+        .filter(|v| filter(v.0, *v.1 .0))
+        .max_by(|a, b| {
+            let (value_a, tie_a) = a.1;
+            let (value_b, tie_b) = b.1;
+            let mut cmp = value_a.partial_cmp(value_b).unwrap();
+            if cmp == std::cmp::Ordering::Equal {
+                cmp = tie_a.partial_cmp(tie_b).unwrap();
             }
-        }
-    }
-
-    argmax
+            cmp
+        })
+        .map(|m| m.0)
 }

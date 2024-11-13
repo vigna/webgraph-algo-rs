@@ -1,4 +1,5 @@
 /// Returns the index of the minimum value in the slice `vec` if found, [`None`] otherwise.
+/// If several elements are equally minimum, the first element is returned.
 ///
 /// # Arguments
 /// * `vec`: the slice of elements.
@@ -11,23 +12,16 @@
 /// assert_eq!(index, Some(3));
 /// ```
 pub fn argmin<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
-    if vec.is_empty() {
-        return None;
-    }
-    let mut min = vec[0];
-    let mut argmin = 0;
-    for (i, &elem) in vec.iter().enumerate().skip(1) {
-        if elem < min {
-            argmin = i;
-            min = elem;
-        }
-    }
-    Some(argmin)
+    vec.iter()
+        .enumerate()
+        .min_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+        .map(|m| m.0)
 }
 
 /// Returns the index of the minimum value approved by `filter` in the slice `vec` if found, [`None`] otherwise.
 ///
 /// In case of ties, the index for which `tie_break` is minimized is returned.
+/// If several elements are equally minimum, the first element is returned.
 ///
 /// # Arguments
 /// * `vec`: the slice of elements.
@@ -52,24 +46,18 @@ pub fn filtered_argmin<
     tie_break: &[N],
     filter: F,
 ) -> Option<usize> {
-    let mut iter = vec.iter().zip(tie_break.iter()).enumerate();
-    let mut argmin = None;
-
-    while let Some((i, (&elem, &tie))) = iter.next() {
-        if filter(i, elem) {
-            argmin = Some(i);
-            let mut min = elem;
-            let mut min_tie_break = tie;
-
-            for (i, (&elem, &tie)) in iter.by_ref() {
-                if filter(i, elem) && (elem < min || (elem == min && tie < min_tie_break)) {
-                    argmin = Some(i);
-                    min = elem;
-                    min_tie_break = tie;
-                }
+    vec.iter()
+        .zip(tie_break.iter())
+        .enumerate()
+        .filter(|v| filter(v.0, *v.1 .0))
+        .min_by(|a, b| {
+            let (value_a, tie_a) = a.1;
+            let (value_b, tie_b) = b.1;
+            let mut cmp = value_a.partial_cmp(value_b).unwrap();
+            if cmp == std::cmp::Ordering::Equal {
+                cmp = tie_a.partial_cmp(tie_b).unwrap();
             }
-        }
-    }
-
-    argmin
+            cmp
+        })
+        .map(|m| m.0)
 }
