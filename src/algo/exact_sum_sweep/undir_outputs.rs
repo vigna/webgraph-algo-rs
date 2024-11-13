@@ -30,6 +30,10 @@ pub struct RadiusDiameter {
     pub diametral_vertex: usize,
     /// A vertex whose eccentrivity equals the radius.
     pub radial_vertex: usize,
+    /// Number of iterations before the radius was found.
+    pub radius_iterations: usize,
+    /// Number of iterations before the diameter was found.
+    pub diameter_iterations: usize,
 }
 
 /// The results produced by calling [`compute_undirected`](super::OutputLevel::compute_undirected)

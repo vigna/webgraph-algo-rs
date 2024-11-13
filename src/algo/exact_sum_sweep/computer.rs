@@ -33,50 +33,50 @@ pub struct DirExactSumSweepComputer<
     V1: Parallel<Event> + Sync,
     V2: Parallel<Event> + Sync,
 > {
-    graph: &'a G1,
-    transpose: &'a G2,
-    output: Output,
-    num_nodes: usize,
-    radial_vertices: AtomicBitVec,
+    pub graph: &'a G1,
+    pub transpose: &'a G2,
+    pub output: Output,
+    pub num_nodes: usize,
+    pub radial_vertices: AtomicBitVec,
     /// The lower bound of the diameter.
-    diameter_low: usize,
+    pub diameter_low: usize,
     /// The upper bound of the radius.
-    radius_high: usize,
+    pub radius_high: usize,
     /// A vertex whose eccentricity equals the diameter.
-    diameter_vertex: usize,
+    pub diameter_vertex: usize,
     /// A vertex whose eccentrivity equals the radius.
-    radius_vertex: usize,
+    pub radius_vertex: usize,
     /// Number of iterations performed until now.
-    iterations: usize,
+    pub iterations: usize,
     /// The lower bound of the forward eccentricities.
     pub forward_low: Vec<usize>,
     /// The upper boung of the forward eccentricities.
-    forward_high: Vec<usize>,
+    pub forward_high: Vec<usize>,
     /// The lower bound of the backward eccentricities.
     pub backward_low: Vec<usize>,
     /// The upper bound of the backward eccentricities.
-    backward_high: Vec<usize>,
+    pub backward_high: Vec<usize>,
     /// Number of iterations before the radius was found.
-    radius_iterations: Option<NonMaxUsize>,
+    pub radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter was found.
-    diameter_iterations: Option<NonMaxUsize>,
+    pub diameter_iterations: Option<NonMaxUsize>,
     /// Number of iterations before all forward eccentricities are found.
-    forward_iter: Option<NonMaxUsize>,
+    pub forward_iter: Option<NonMaxUsize>,
     /// Number of iterations before all eccentricities are found.
-    all_iter: Option<NonMaxUsize>,
+    pub all_iter: Option<NonMaxUsize>,
     /// The strongly connected components.
-    scc: SCC,
+    pub scc: SCC,
     /// The strongly connected components diagram.
-    scc_graph: SccGraph<G1, G2, SCC>,
+    pub scc_graph: SccGraph<G1, G2, SCC>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    forward_tot: Vec<usize>,
+    pub forward_tot: Vec<usize>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    backward_tot: Vec<usize>,
-    compute_radial_vertices: bool,
-    visit: V1,
-    transposed_visit: V2,
+    pub backward_tot: Vec<usize>,
+    pub compute_radial_vertices: bool,
+    pub visit: V1,
+    pub transposed_visit: V2,
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
@@ -376,58 +376,6 @@ impl<
             ));
         }
         pl.done();
-    }
-
-    /// Returns the radius of the graph if it has already been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn radius(&self) -> Option<usize> {
-        self.radius_iterations.map(|_| self.radius_high)
-    }
-
-    /// Returns the diameter of the graph if is has already been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn diameter(&self) -> Option<usize> {
-        self.diameter_iterations.map(|_| self.diameter_low)
-    }
-
-    /// Returns a radial vertex if it has already been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn radial_vertex(&self) -> Option<usize> {
-        self.radius_iterations.map(|_| self.radius_vertex)
-    }
-
-    /// Returns a diametral vertex if it has already been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn diametral_vertex(&self) -> Option<usize> {
-        self.diameter_iterations.map(|_| self.diameter_vertex)
-    }
-
-    /// Returns the number of iterations needed to compute the radius if it has already
-    /// been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn radius_iterations(&self) -> Option<usize> {
-        self.radius_iterations.map(|v| v.into())
-    }
-
-    /// Returns the number of iterations needed to compute the diameter if it has already
-    /// been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn diameter_iterations(&self) -> Option<usize> {
-        self.diameter_iterations.map(|v| v.into())
-    }
-
-    /// Returns the number of iterations needed to compute all forward eccentricities
-    /// if they have already been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn all_forward_iterations(&self) -> Option<usize> {
-        self.forward_iter.map(|v| v.into())
-    }
-
-    /// Returns the number of iterations needed to compute all eccentricities if they
-    /// have already been computed, [`None`] otherwise.
-    #[inline(always)]
-    pub fn all_iterations(&self) -> Option<usize> {
-        self.all_iter.map(|v| v.into())
     }
 
     /// Uses a heuristic to decide which is the best pivot to choose in each strongly connected

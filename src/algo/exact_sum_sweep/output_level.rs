@@ -80,18 +80,40 @@ impl OutputLevel for All {
             DirExactSumSweepComputer::new(&graph, &transpose, Output::All, radial_vertices, pl);
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let radius = computer.radius_high;
+        let diametral_vertex = computer.diameter_vertex;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+        let forward_iterations = computer
+            .forward_iter
+            .expect("Forward iterations should not be None")
+            .into();
+        let all_iterations = computer
+            .all_iter
+            .expect("All iterations should not be None")
+            .into();
+        let forward_eccentricities = computer.forward_low.into_boxed_slice();
+        let backward_eccentricities = computer.backward_high.into_boxed_slice();
+
         Self::DirectedOutput {
-            // TODO
-            forward_eccentricities: std::mem::take(&mut computer.forward_low).into_boxed_slice(),
-            backward_eccentricities: std::mem::take(&mut computer.backward_low).into_boxed_slice(),
-            diameter: computer.diameter().unwrap(),
-            radius: computer.radius().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
-            radius_iterations: computer.radius_iterations().unwrap(),
-            diameter_iterations: computer.diameter_iterations().unwrap(),
-            forward_iterations: computer.all_forward_iterations().unwrap(),
-            all_iterations: computer.all_iterations().unwrap(),
+            forward_eccentricities,
+            backward_eccentricities,
+            diameter,
+            radius,
+            diametral_vertex,
+            radial_vertex,
+            radius_iterations,
+            diameter_iterations,
+            forward_iterations,
+            all_iterations,
         }
     }
 
@@ -103,15 +125,33 @@ impl OutputLevel for All {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::All, pl);
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let radius = computer.radius_high;
+        let diametral_vertex = computer.diameter_vertex;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+        let iterations = computer
+            .forward_iter
+            .expect("Forward iterations should not be None")
+            .into();
+        let eccentricities = computer.forward_low.into_boxed_slice();
+
         Self::UndirectedOutput {
-            eccentricities: std::mem::take(&mut computer.forward_low).into_boxed_slice(),
-            diameter: computer.diameter().unwrap(),
-            radius: computer.radius().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
-            radius_iterations: computer.radius_iterations().unwrap(),
-            diameter_iterations: computer.diameter_iterations().unwrap(),
-            iterations: computer.all_forward_iterations().unwrap(),
+            eccentricities,
+            diameter,
+            radius,
+            diametral_vertex,
+            radial_vertex,
+            radius_iterations,
+            diameter_iterations,
+            iterations,
         }
     }
 }
@@ -139,15 +179,33 @@ impl OutputLevel for AllForward {
         );
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let radius = computer.radius_high;
+        let diametral_vertex = computer.diameter_vertex;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+        let forward_iterations = computer
+            .forward_iter
+            .expect("Forward iterations should not be None")
+            .into();
+        let forward_eccentricities = computer.forward_low.into_boxed_slice();
+
         Self::DirectedOutput {
-            forward_eccentricities: std::mem::take(&mut computer.forward_low).into_boxed_slice(),
-            diameter: computer.diameter().unwrap(),
-            radius: computer.radius().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
-            radius_iterations: computer.radius_iterations().unwrap(),
-            diameter_iterations: computer.diameter_iterations().unwrap(),
-            forward_iterations: computer.all_forward_iterations().unwrap(),
+            forward_eccentricities,
+            diameter,
+            radius,
+            diametral_vertex,
+            radial_vertex,
+            radius_iterations,
+            diameter_iterations,
+            forward_iterations,
         }
     }
 
@@ -184,13 +242,26 @@ impl OutputLevel for RadiusDiameter {
         );
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let radius = computer.radius_high;
+        let diametral_vertex = computer.diameter_vertex;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+
         Self::DirectedOutput {
-            diameter: computer.diameter().unwrap(),
-            radius: computer.radius().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
-            radius_iterations: computer.radius_iterations().unwrap(),
-            diameter_iterations: computer.diameter_iterations().unwrap(),
+            diameter,
+            radius,
+            diametral_vertex,
+            radial_vertex,
+            radius_iterations,
+            diameter_iterations,
         }
     }
 
@@ -203,11 +274,26 @@ impl OutputLevel for RadiusDiameter {
             DirExactSumSweepComputer::new_undirected(&graph, Output::RadiusDiameter, pl);
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let radius = computer.radius_high;
+        let diametral_vertex = computer.diameter_vertex;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+
         Self::UndirectedOutput {
-            diameter: computer.diameter().unwrap(),
-            radius: computer.radius().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
+            diameter,
+            radius,
+            diametral_vertex,
+            radial_vertex,
+            radius_iterations,
+            diameter_iterations,
         }
     }
 }
@@ -235,10 +321,17 @@ impl OutputLevel for Diameter {
         );
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let diametral_vertex = computer.diameter_vertex;
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+
         Self::DirectedOutput {
-            diameter: computer.diameter().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            diameter_iterations: computer.diameter_iterations().unwrap(),
+            diameter,
+            diametral_vertex,
+            diameter_iterations,
         }
     }
 
@@ -250,10 +343,17 @@ impl OutputLevel for Diameter {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::Diameter, pl);
         computer.compute(thread_pool, pl);
 
+        let diameter = computer.diameter_low;
+        let diametral_vertex = computer.diameter_vertex;
+        let diameter_iterations = computer
+            .diameter_iterations
+            .expect("Diameter iterations should not be None")
+            .into();
+
         Self::UndirectedOutput {
-            diameter: computer.diameter().unwrap(),
-            diametral_vertex: computer.diametral_vertex().unwrap(),
-            diameter_iterations: computer.diameter_iterations().unwrap(),
+            diameter,
+            diametral_vertex,
+            diameter_iterations,
         }
     }
 }
@@ -276,10 +376,17 @@ impl OutputLevel for Radius {
             DirExactSumSweepComputer::new(&graph, &transpose, Output::Radius, radial_vertices, pl);
         computer.compute(thread_pool, pl);
 
+        let radius = computer.radius_high;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+
         Self::DirectedOutput {
-            radius: computer.radius().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
-            radius_iterations: computer.radius_iterations().unwrap(),
+            radius,
+            radial_vertex,
+            radius_iterations,
         }
     }
 
@@ -291,10 +398,17 @@ impl OutputLevel for Radius {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::Radius, pl);
         computer.compute(thread_pool, pl);
 
+        let radius = computer.radius_high;
+        let radial_vertex = computer.radius_vertex;
+        let radius_iterations = computer
+            .radius_iterations
+            .expect("Radius iteations should not be None")
+            .into();
+
         Self::UndirectedOutput {
-            radius: computer.radius().unwrap(),
-            radial_vertex: computer.radial_vertex().unwrap(),
-            radius_iterations: computer.radius_iterations().unwrap(),
+            radius,
+            radial_vertex,
+            radius_iterations,
         }
     }
 }
