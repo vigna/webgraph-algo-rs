@@ -295,13 +295,13 @@ impl<
 
             match step_to_perform {
                 0 => {
-                    pl.info(format_args!("Performing all_cc_upper_bound."));
+                    pl.info(format_args!("Performing all_cc_upper_bound"));
                     let pivot = self.find_best_pivot(&mut pl.clone());
                     self.all_cc_upper_bound(pivot, thread_pool, &mut pl.clone())
                 }
                 1 => {
                     pl.info(format_args!(
-                        "Performing a forward BFS, from a vertex maximizing the upper bound."
+                        "Performing a forward BFS from a vertex maximizing the upper bound"
                     ));
                     let v = math::filtered_argmax(&self.forward_high, &self.forward_tot, |i, _| {
                         self.incomplete_forward(i)
@@ -310,7 +310,7 @@ impl<
                 }
                 2 => {
                     pl.info(format_args!(
-                        "Performing a forward BFS, from a vertex minimizing the lower bound."
+                        "Performing a forward BFS from a vertex minimizing the lower bound"
                     ));
                     let v = math::filtered_argmin(&self.forward_low, &self.forward_tot, |i, _| {
                         self.radial_vertices[i]
@@ -319,7 +319,7 @@ impl<
                 }
                 3 => {
                     pl.info(format_args!(
-                        "Performing a backward BFS from a vertex maximizing the upper bound."
+                        "Performing a backward BFS from a vertex maximizing the upper bound"
                     ));
                     let v =
                         math::filtered_argmax(&self.backward_high, &self.backward_tot, |i, _| {
@@ -329,7 +329,7 @@ impl<
                 }
                 4 => {
                     pl.info(format_args!(
-                        "Performing a backward BFS, from a vertex maximizing the distance sum."
+                        "Performing a backward BFS from a vertex maximizing the distance sum"
                     ));
                     let v =
                         math::filtered_argmax(&self.backward_tot, &self.backward_high, |i, _| {

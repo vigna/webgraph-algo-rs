@@ -20,9 +20,7 @@ pub struct SccGraph<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyCon
     /// in order to reach the first element relative to component `i`.
     segments_offset: Vec<usize>,
     data: Vec<SccGraphConnection>,
-    _phantom_graph: PhantomData<G1>,
-    _phantom_revgraph: PhantomData<G2>,
-    _phantom_component: PhantomData<C>,
+    _marker: PhantomData<(G1, G2, C)>,
 }
 
 #[inline(always)]
@@ -61,9 +59,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
         Self {
             segments_offset: vec_lengths,
             data: vec_connections,
-            _phantom_graph: PhantomData,
-            _phantom_revgraph: PhantomData,
-            _phantom_component: PhantomData,
+            _marker: PhantomData,
         }
     }
 
