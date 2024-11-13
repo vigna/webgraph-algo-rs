@@ -82,28 +82,16 @@ impl OutputLevel for All {
 
         Self::DirectedOutput {
             // TODO
-            forward_eccentricities: computer.forward_low.clone().into_boxed_slice(),
-            backward_eccentricities: computer.backward_low.clone().into_boxed_slice(),
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            radius: computer.radius().expect("Radius should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
-            radius_iterations: computer
-                .radius_iterations()
-                .expect("Radius iteations should not be None"),
-            diameter_iterations: computer
-                .diameter_iterations()
-                .expect("Diameter iterations should not be None"),
-            forward_iterations: computer
-                .all_forward_iterations()
-                .expect("Forward iterations should not be None"),
-            all_iterations: computer
-                .all_iterations()
-                .expect("All iterations should not be None"),
+            forward_eccentricities: std::mem::take(&mut computer.forward_low).into_boxed_slice(),
+            backward_eccentricities: std::mem::take(&mut computer.backward_low).into_boxed_slice(),
+            diameter: computer.diameter().unwrap(),
+            radius: computer.radius().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
+            radius_iterations: computer.radius_iterations().unwrap(),
+            diameter_iterations: computer.diameter_iterations().unwrap(),
+            forward_iterations: computer.all_forward_iterations().unwrap(),
+            all_iterations: computer.all_iterations().unwrap(),
         }
     }
 
@@ -116,24 +104,14 @@ impl OutputLevel for All {
         computer.compute(thread_pool, pl);
 
         Self::UndirectedOutput {
-            eccentricities: computer.forward_low.clone().into_boxed_slice(),
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            radius: computer.radius().expect("Radius should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
-            radius_iterations: computer
-                .radius_iterations()
-                .expect("Radius iteations should not be None"),
-            diameter_iterations: computer
-                .diameter_iterations()
-                .expect("Diameter iterations should not be None"),
-            iterations: computer
-                .all_forward_iterations()
-                .expect("Forward iterations should not be None"),
+            eccentricities: std::mem::take(&mut computer.forward_low).into_boxed_slice(),
+            diameter: computer.diameter().unwrap(),
+            radius: computer.radius().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
+            radius_iterations: computer.radius_iterations().unwrap(),
+            diameter_iterations: computer.diameter_iterations().unwrap(),
+            iterations: computer.all_forward_iterations().unwrap(),
         }
     }
 }
@@ -162,24 +140,14 @@ impl OutputLevel for AllForward {
         computer.compute(thread_pool, pl);
 
         Self::DirectedOutput {
-            forward_eccentricities: computer.forward_low.clone().into_boxed_slice(),
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            radius: computer.radius().expect("Radius should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
-            radius_iterations: computer
-                .radius_iterations()
-                .expect("Radius iteations should not be None"),
-            diameter_iterations: computer
-                .diameter_iterations()
-                .expect("Diameter iterations should not be None"),
-            forward_iterations: computer
-                .all_forward_iterations()
-                .expect("Forward iterations should not be None"),
+            forward_eccentricities: std::mem::take(&mut computer.forward_low).into_boxed_slice(),
+            diameter: computer.diameter().unwrap(),
+            radius: computer.radius().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
+            radius_iterations: computer.radius_iterations().unwrap(),
+            diameter_iterations: computer.diameter_iterations().unwrap(),
+            forward_iterations: computer.all_forward_iterations().unwrap(),
         }
     }
 
@@ -217,20 +185,12 @@ impl OutputLevel for RadiusDiameter {
         computer.compute(thread_pool, pl);
 
         Self::DirectedOutput {
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            radius: computer.radius().expect("Radius should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
-            radius_iterations: computer
-                .radius_iterations()
-                .expect("Radius iteations should not be None"),
-            diameter_iterations: computer
-                .diameter_iterations()
-                .expect("Diameter iterations should not be None"),
+            diameter: computer.diameter().unwrap(),
+            radius: computer.radius().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
+            radius_iterations: computer.radius_iterations().unwrap(),
+            diameter_iterations: computer.diameter_iterations().unwrap(),
         }
     }
 
@@ -244,14 +204,10 @@ impl OutputLevel for RadiusDiameter {
         computer.compute(thread_pool, pl);
 
         Self::UndirectedOutput {
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            radius: computer.radius().expect("Radius should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
+            diameter: computer.diameter().unwrap(),
+            radius: computer.radius().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
         }
     }
 }
@@ -280,13 +236,9 @@ impl OutputLevel for Diameter {
         computer.compute(thread_pool, pl);
 
         Self::DirectedOutput {
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            diameter_iterations: computer
-                .diameter_iterations()
-                .expect("Diameter iterations should not be None"),
+            diameter: computer.diameter().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            diameter_iterations: computer.diameter_iterations().unwrap(),
         }
     }
 
@@ -299,13 +251,9 @@ impl OutputLevel for Diameter {
         computer.compute(thread_pool, pl);
 
         Self::UndirectedOutput {
-            diameter: computer.diameter().expect("Diameter should be computed"),
-            diametral_vertex: computer
-                .diametral_vertex()
-                .expect("Diametral vertex should not be None"),
-            diameter_iterations: computer
-                .diameter_iterations()
-                .expect("Diameter iterations should not be None"),
+            diameter: computer.diameter().unwrap(),
+            diametral_vertex: computer.diametral_vertex().unwrap(),
+            diameter_iterations: computer.diameter_iterations().unwrap(),
         }
     }
 }
@@ -329,13 +277,9 @@ impl OutputLevel for Radius {
         computer.compute(thread_pool, pl);
 
         Self::DirectedOutput {
-            radius: computer.radius().expect("Radius should be computed"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
-            radius_iterations: computer
-                .radius_iterations()
-                .expect("Radius iteations should not be None"),
+            radius: computer.radius().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
+            radius_iterations: computer.radius_iterations().unwrap(),
         }
     }
 
@@ -348,13 +292,9 @@ impl OutputLevel for Radius {
         computer.compute(thread_pool, pl);
 
         Self::UndirectedOutput {
-            radius: computer.radius().expect("Radius should be computed"),
-            radial_vertex: computer
-                .radial_vertex()
-                .expect("Radial vertex should not be None"),
-            radius_iterations: computer
-                .radius_iterations()
-                .expect("Radius iteations should not be None"),
+            radius: computer.radius().unwrap(),
+            radial_vertex: computer.radial_vertex().unwrap(),
+            radius_iterations: computer.radius_iterations().unwrap(),
         }
     }
 }

@@ -160,24 +160,17 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
 
         pl.info(format_args!("Initializing data structure"));
 
-        let lower_forward = vec![0; num_nodes];
-        let lower_backward = vec![0; num_nodes];
-        let upper_forward = vec![num_nodes; num_nodes];
-        let upper_backward = vec![num_nodes; num_nodes];
-        let total_forward = vec![0; num_nodes];
-        let total_backward = vec![0; num_nodes];
-
         DirExactSumSweepComputer {
             graph,
             transpose,
             num_nodes,
             output,
-            forward_tot: total_forward,
-            backward_tot: total_backward,
-            forward_low: lower_forward,
-            forward_high: upper_forward,
-            backward_low: lower_backward,
-            backward_high: upper_backward,
+            forward_tot: vec![0; num_nodes],
+            backward_tot: vec![0; num_nodes],
+            forward_low: vec![0; num_nodes],
+            forward_high: vec![num_nodes; num_nodes],
+            backward_low: vec![0; num_nodes],
+            backward_high: vec![num_nodes; num_nodes],
             scc_graph,
             scc,
             diameter_low: 0,
