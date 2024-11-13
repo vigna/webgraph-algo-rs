@@ -1,4 +1,4 @@
-//! An implementation of the [ExactSumSweep algorithm](dir_sum_sweep).
+//! An implementation of the [ExactSumSweep algorithm](DirExactSumSweep).
 //!
 //! The algorithm has been described by Michele Borassi, Pierluigi Crescenzi,
 //! Michel Habib, Walter A. Kosters, Andrea Marino, and Frank W. Takes in “[Fast
@@ -8,10 +8,10 @@
 //! *Theoretical Computer Science*, 586:59–80, Elsevier, 2015. [DOI
 //! 10.1016/j.tcs.2015.02.033](https://doi.org/10.1016/j.tcs.2015.02.033).
 
-/// The possible outputs of [ExactSumSweep](dir_sum_sweep)
+/// The possible outputs of [ExactSumSweep](DirExactSumSweep)
 ///
 /// Note that the items have a slightly different meaning for the
-/// [`directed`](`dir_sum_sweep`) and the [`undirected`](`undir_sum_sweep`)
+/// [`directed`](`DirExactSumSweep`) and the [`undirected`](`UndirExactSumSweep`)
 /// case.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum OutputLevel {
