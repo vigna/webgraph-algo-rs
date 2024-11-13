@@ -4,7 +4,7 @@ use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::traits::SequentialLabeling;
-use webgraph::transform::{self, transpose};
+use webgraph::transform::transpose;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
@@ -19,14 +19,14 @@ fn test_path() -> Result<()> {
     for i in 0..3 {
         vec_graph.add_node(i);
     }
+    let mut transposed_vec_graph = vec_graph.clone();
     for arc in arcs {
         vec_graph.add_arc(arc.0, arc.1);
+        transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
     let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let transposed = Left(transposed_vec_graph);
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -61,11 +61,10 @@ fn test_many_scc() -> Result<()> {
         (1, 4),
         (2, 5),
     ];
-
-    let transpose = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
+    let transposed_arcs = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
     let graph = Left(VecGraph::from_arc_list(arcs));
-    let transposed = Left(VecGraph::from_arc_list(transpose));
+    let transposed = Left(VecGraph::from_arc_list(transposed_arcs));
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -83,14 +82,14 @@ fn test_lozenge() -> Result<()> {
     for i in 0..4 {
         vec_graph.add_node(i);
     }
+    let mut transposed_vec_graph = vec_graph.clone();
     for arc in arcs {
         vec_graph.add_arc(arc.0, arc.1);
+        transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
     let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let transposed = Left(transposed_vec_graph);
 
     let sum_sweep = Radius::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -124,14 +123,14 @@ fn test_many_dir_path() -> Result<()> {
     for i in 0..19 {
         vec_graph.add_node(i);
     }
+    let mut transposed_vec_graph = vec_graph.clone();
     for arc in arcs {
         vec_graph.add_arc(arc.0, arc.1);
+        transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
     let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let transposed = Left(transposed_vec_graph);
     let radial_vertices = AtomicBitVec::new(19);
     radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
     radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
@@ -159,18 +158,19 @@ fn test_cycle() -> Result<()> {
         for i in 0..size {
             vec_graph.add_node(i);
         }
+        let mut transposed_vec_graph = vec_graph.clone();
         for i in 0..size {
             if i == size - 1 {
                 vec_graph.add_arc(i, 0);
+                transposed_vec_graph.add_arc(0, i);
             } else {
                 vec_graph.add_arc(i, i + 1);
+                transposed_vec_graph.add_arc(i + 1, i);
             }
         }
 
         let graph = Left(vec_graph);
-        let transposed = Left(VecGraph::from_labeled_lender(
-            transpose(&graph, 32)?.0.iter(),
-        ));
+        let transposed = Left(transposed_vec_graph);
 
         let sum_sweep =
             RadiusDiameter::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
@@ -196,10 +196,8 @@ fn test_clique() -> Result<()> {
             }
         }
 
-        let graph = Left(vec_graph);
-        let transposed = Left(VecGraph::from_labeled_lender(
-            transpose(&graph, 32)?.0.iter(),
-        ));
+        let graph = Left(vec_graph.clone());
+        let transposed = Left(vec_graph);
         let radial_vertices = AtomicBitVec::new(size);
         let rngs = [
             rand::random::<usize>() % size,
@@ -233,10 +231,8 @@ fn test_empty() -> Result<()> {
         vec_graph.add_node(i);
     }
 
-    let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let graph = Left(vec_graph.clone());
+    let transposed = Left(vec_graph);
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -254,14 +250,14 @@ fn test_sparse() -> Result<()> {
     for i in 0..100 {
         vec_graph.add_node(i);
     }
+    let mut transposed_vec_graph = vec_graph.clone();
     for arc in arcs {
         vec_graph.add_arc(arc.0, arc.1);
+        transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
     let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let transposed = Left(transposed_vec_graph);
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -279,14 +275,14 @@ fn test_no_radial_vertices() -> Result<()> {
     for i in 0..2 {
         vec_graph.add_node(i);
     }
+    let mut transposed_vec_graph = vec_graph.clone();
     for arc in arcs {
         vec_graph.add_arc(arc.0, arc.1);
+        transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
     let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let transposed = Left(transposed_vec_graph);
     let radial_vertices = AtomicBitVec::new(2);
 
     let sum_sweep = All::compute_directed(
@@ -307,10 +303,8 @@ fn test_no_radial_vertices() -> Result<()> {
 fn test_empty_graph() {
     let vec_graph: VecGraph<()> = VecGraph::new();
 
-    let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32).unwrap().0.iter(),
-    ));
+    let graph = Left(vec_graph.clone());
+    let transposed = Left(vec_graph);
 
     All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 }
@@ -322,10 +316,8 @@ fn test_graph_no_edges() -> Result<()> {
         vec_graph.add_node(i);
     }
 
-    let graph = Left(vec_graph);
-    let transposed = Left(VecGraph::from_labeled_lender(
-        transpose(&graph, 32)?.0.iter(),
-    ));
+    let graph = Left(vec_graph.clone());
+    let transposed = Left(vec_graph);
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -342,9 +334,7 @@ fn test_er() -> Result<()> {
             ErdosRenyi::new(100, (d as f64) / 100.0, 0).iter(),
         ));
 
-        let transpose = Left(VecGraph::from_lender(
-            transform::transpose(&graph, 10000)?.iter(),
-        ));
+        let transpose = Left(VecGraph::from_lender(transpose(&graph, 10000)?.iter()));
 
         let threads = threads![];
 
