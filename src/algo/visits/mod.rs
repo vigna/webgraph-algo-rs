@@ -163,8 +163,8 @@ pub trait Parallel<A: Event> {
     /// * `callback`: The callback function.
     /// * `filter`: A filter function that will be called on each node to
     ///    determine whether the node should be visited or not.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    /// * `thread_pool`: The thread_pool to use for parallel computation.
     fn visit_filtered<
         E: Send,
         C: Fn(A) -> Result<(), E> + Sync,
