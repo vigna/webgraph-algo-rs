@@ -210,7 +210,7 @@ fn test_sparse() -> Result<()> {
 }
 
 #[test]
-#[should_panic(expected = "Radius should be computed")]
+#[should_panic(expected = "Trying to build Radius without the radius computed")]
 fn test_empty() {
     let vec_graph: VecGraph<()> = VecGraph::new();
 

@@ -80,26 +80,31 @@ impl OutputLevel for All {
             DirExactSumSweepComputer::new(&graph, &transpose, Output::All, radial_vertices, pl);
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.all_iter.is_some(),
+            "Trying to build All without all eccentricities computed"
+        );
+        assert!(
+            computer.forward_iter.is_some(),
+            "Trying to build All without all forward eccentricities computed"
+        );
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build All without the diameter computed"
+        );
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build All without the radius computed"
+        );
+
         let diameter = computer.diameter_low;
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
-        let forward_iterations = computer
-            .forward_iter
-            .expect("Forward iterations should not be None")
-            .into();
-        let all_iterations = computer
-            .all_iter
-            .expect("All iterations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let forward_iterations = computer.forward_iter.unwrap().into();
+        let all_iterations = computer.all_iter.unwrap().into();
         let forward_eccentricities = computer.forward_low.into_boxed_slice();
         let backward_eccentricities = computer.backward_high.into_boxed_slice();
 
@@ -125,22 +130,26 @@ impl OutputLevel for All {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::All, pl);
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.forward_iter.is_some(),
+            "Trying to build All without all forward eccentricities computed"
+        );
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build All without the diameter computed"
+        );
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build All without the radius computed"
+        );
+
         let diameter = computer.diameter_low;
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
-        let iterations = computer
-            .forward_iter
-            .expect("Forward iterations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let iterations = computer.forward_iter.unwrap().into();
         let eccentricities = computer.forward_low.into_boxed_slice();
 
         Self::UndirectedOutput {
@@ -179,22 +188,26 @@ impl OutputLevel for AllForward {
         );
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.forward_iter.is_some(),
+            "Trying to build AllForward without all forward eccentricities computed"
+        );
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build AllForward without the diameter computed"
+        );
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build AllForward without the radius computed"
+        );
+
         let diameter = computer.diameter_low;
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
-        let forward_iterations = computer
-            .forward_iter
-            .expect("Forward iterations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let forward_iterations = computer.forward_iter.unwrap().into();
         let forward_eccentricities = computer.forward_low.into_boxed_slice();
 
         Self::DirectedOutput {
@@ -242,18 +255,21 @@ impl OutputLevel for RadiusDiameter {
         );
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build RadiusDiameter without the diameter computed"
+        );
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build RadiusDiameter without the radius computed"
+        );
+
         let diameter = computer.diameter_low;
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
 
         Self::DirectedOutput {
             diameter,
@@ -274,18 +290,21 @@ impl OutputLevel for RadiusDiameter {
             DirExactSumSweepComputer::new_undirected(&graph, Output::RadiusDiameter, pl);
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build RadiusDiameter without the diameter computed"
+        );
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build RadiusDiameter without the radius computed"
+        );
+
         let diameter = computer.diameter_low;
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
 
         Self::UndirectedOutput {
             diameter,
@@ -321,12 +340,14 @@ impl OutputLevel for Diameter {
         );
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build Diameter without the diameter computed"
+        );
+
         let diameter = computer.diameter_low;
         let diametral_vertex = computer.diameter_vertex;
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
 
         Self::DirectedOutput {
             diameter,
@@ -343,12 +364,14 @@ impl OutputLevel for Diameter {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::Diameter, pl);
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.diameter_iterations.is_some(),
+            "Trying to build Diameter without the diameter computed"
+        );
+
         let diameter = computer.diameter_low;
         let diametral_vertex = computer.diameter_vertex;
-        let diameter_iterations = computer
-            .diameter_iterations
-            .expect("Diameter iterations should not be None")
-            .into();
+        let diameter_iterations = computer.diameter_iterations.unwrap().into();
 
         Self::UndirectedOutput {
             diameter,
@@ -376,12 +399,14 @@ impl OutputLevel for Radius {
             DirExactSumSweepComputer::new(&graph, &transpose, Output::Radius, radial_vertices, pl);
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build Radius without the radius computed"
+        );
+
         let radius = computer.radius_high;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
 
         Self::DirectedOutput {
             radius,
@@ -398,12 +423,14 @@ impl OutputLevel for Radius {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::Radius, pl);
         computer.compute(thread_pool, pl);
 
+        assert!(
+            computer.radius_iterations.is_some(),
+            "Trying to build Radius without the radius computed"
+        );
+
         let radius = computer.radius_high;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer
-            .radius_iterations
-            .expect("Radius iteations should not be None")
-            .into();
+        let radius_iterations = computer.radius_iterations.unwrap().into();
 
         Self::UndirectedOutput {
             radius,
