@@ -510,7 +510,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         debug_assert_eq!(graph.num_nodes(), transpose.num_nodes());
         debug_assert_eq!(graph.num_arcs(), transpose.num_arcs());
         debug_assert!(
-            check_transposed(&graph, &transpose),
+            check_transposed(graph, transpose),
             "transpose should be the transpose of graph"
         );
 
