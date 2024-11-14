@@ -71,16 +71,6 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
     /// # Panics
     /// Panics if a non existant component index is passed.
     pub fn children(&self, component: usize) -> &[SccGraphConnection] {
-        if component >= self.segments_offset.len() {
-            panic!(
-                "{}",
-                format!(
-                    "Requested component {}. Graph contains {} components",
-                    component,
-                    self.segments_offset.len()
-                )
-            );
-        }
         let offset = self.segments_offset[component];
         if component + 1 >= self.segments_offset.len() {
             &self.data[offset..]
