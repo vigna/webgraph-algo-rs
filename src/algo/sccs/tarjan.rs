@@ -1,8 +1,8 @@
-use super::traits::StronglyConnectedComponents;
+use super::traits::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 
-use webgraph::traits::RandomAccessGraph;
+use webgraph::{labels::Left, prelude::VecGraph, traits::RandomAccessGraph};
 
 /// Implementation of Tarjan's algorithm to compute the strongly connected components
 /// on a graph.
@@ -12,7 +12,7 @@ pub struct TarjanStronglyConnectedComponents {
 }
 
 impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
-    fn number_of_components(&self) -> usize {
+    fn num_components(&self) -> usize {
         self.n_of_components
     }
 
@@ -24,7 +24,11 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
         self.component.as_mut()
     }
 
-    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
+    fn compute_with_t(
+        graph: impl RandomAccessGraph,
+        _transpose: impl RandomAccessGraph,
+        pl: &mut impl ProgressLog,
+    ) -> Self {
         let mut visit = Tarjan::new(graph);
 
         visit.run(pl);
@@ -33,6 +37,12 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
             component: visit.component,
             n_of_components: visit.number_of_components,
         }
+    }
+}
+
+impl StronglyConnectedComponentsNoT for TarjanStronglyConnectedComponents {
+    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
+        Self::compute_with_t(graph, &Left(VecGraph::<()>::new()), pl)
     }
 }
 

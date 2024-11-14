@@ -1,7 +1,7 @@
 use crate::{
     algo::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
-        strongly_connected_components::TarjanStronglyConnectedComponents,
+        sccs::TarjanStronglyConnectedComponents,
         visits::{
             breadth_first::{Event, ParFair},
             FilterArgs, Parallel,
@@ -141,7 +141,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        let scc = TarjanStronglyConnectedComponents::compute(graph, pl);
+        let scc = TarjanStronglyConnectedComponents::compute_with_t(graph, transpose, pl);
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
@@ -388,7 +388,7 @@ impl<
     fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Vec<usize> {
         debug_assert!(self.num_nodes < usize::MAX);
 
-        let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.number_of_components()];
+        let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.num_components()];
         let components = self.scc.component();
         pl.expected_updates(Some(components.len()));
         pl.item_name("nodes");
@@ -725,7 +725,7 @@ impl<
         thread_pool: &ThreadPool,
     ) -> (Vec<usize>, Vec<usize>) {
         let components = self.scc.component();
-        let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.number_of_components());
+        let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.num_components());
         let mut dist_pivot = vec![0; self.num_nodes];
         let dist_pivot_mut = dist_pivot.as_mut_slice_of_cells();
         let current_index = AtomicUsize::new(0);
@@ -787,7 +787,7 @@ impl<
         pl.item_name("elements");
         pl.display_memory(false);
         pl.expected_updates(Some(
-            pivot.len() + self.scc.number_of_components() + self.num_nodes,
+            pivot.len() + self.scc.num_components() + self.num_nodes,
         ));
         pl.start("Performing AllCCUpperBound step of ExactSumSweep algorithm");
 
@@ -822,7 +822,7 @@ impl<
         // Tarjan's algorithm emits components in reverse topological order.
         // In order to bound backward eccentricities in topological order the components order
         // must be reversed.
-        for c in (0..self.scc.number_of_components()).rev() {
+        for c in (0..self.scc.num_components()).rev() {
             for component in self.scc_graph.children(c) {
                 let next_c = component.target;
                 let start = component.start;

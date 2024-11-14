@@ -36,28 +36,30 @@ pub use output_level::*;
 
 use std::cell::UnsafeCell;
 
-pub struct SyncUnsafeSlice<T>(UnsafeCell<*mut [T]>);
-unsafe impl<'a, T: Send> Sync for SyncUnsafeSlice<T> {}
+pub struct SyncUnsafeSlice<'a, T>(&'a [UnsafeCell<T>]);
+unsafe impl<'a, T: Send> Sync for SyncUnsafeSlice<'a, T> {}
 
-impl<T> SyncUnsafeSlice<T> {
-    pub fn new(slice: &mut [T]) -> Self {
-        Self(UnsafeCell::new(slice as _))
+impl<'a, T> SyncUnsafeSlice<'a, T> {
+    pub fn new(slice: &'a mut [T]) -> Self {
+        let ptr = slice as *mut [T] as *const [UnsafeCell<T>];
+        Self(unsafe { &*ptr })
     }
 
-    #[inline(always)]
     pub unsafe fn get_mut_unchecked(&self, index: usize) -> &mut T {
-        &mut *(*self.0.get() as *mut T).add(index)
+        &mut *self.0.get_unchecked(index).get()
     }
 
     #[inline(always)]
     pub unsafe fn get_mut(&self, index: usize) -> &mut T {
-        let len = (*self.0.get()).len();
-        assert!(
-            index < len,
-            "index out of bounds: the len is {} but the index is {}",
-            index,
-            len
-        );
-        self.get_mut_unchecked(index)
+        &mut *self.0[index].get()
+    }
+
+    pub unsafe fn get_unchecked(&self, index: usize) -> &T {
+        &*(self.0.get_unchecked(index).get() as *const T)
+    }
+
+    #[inline(always)]
+    pub unsafe fn get(&self, index: usize) -> &T {
+        &*(self.0[index].get() as *const T)
     }
 }

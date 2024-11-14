@@ -116,7 +116,7 @@ macro_rules! test_scc_algo {
                     $scc::compute(&graph, no_logging![]);
                 components.sort_by_size();
 
-                assert_eq!(components.number_of_components(), 7);
+                assert_eq!(components.num_components(), 7);
 
                 Ok(())
             }
@@ -134,11 +134,11 @@ fn test_large() -> Result<()> {
     let graph = BvGraph::with_basename(basename).load()?;
     let transpose = BvGraph::with_basename(basename.to_string() + "-t").load()?;
 
-    let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
+    let kosaraju = Kosaraju::compute_with_t(&graph, &transpose, no_logging![]);
     let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
 
-    assert_eq!(kosaraju.number_of_components(), 100977);
-    assert_eq!(tarjan.number_of_components(), 100977);
+    assert_eq!(kosaraju.num_components(), 100977);
+    assert_eq!(tarjan.num_components(), 100977);
 
     Ok(())
 }
@@ -154,13 +154,10 @@ fn test_er() -> Result<()> {
             let transpose = Left(VecGraph::from_lender(
                 transform::transpose(&graph, 10000)?.iter(),
             ));
-            let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
+            let kosaraju = Kosaraju::compute_with_t(&graph, &transpose, no_logging![]);
             let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
 
-            assert_eq!(
-                kosaraju.number_of_components(),
-                tarjan.number_of_components()
-            );
+            assert_eq!(kosaraju.num_components(), tarjan.num_components());
         }
     }
     Ok(())

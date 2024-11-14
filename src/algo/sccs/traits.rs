@@ -5,25 +5,33 @@ use webgraph::{algo::llp, traits::RandomAccessGraph};
 /// The strongly connected components on a graph.
 pub trait StronglyConnectedComponents {
     /// The number of strongly connected components.
-    fn number_of_components(&self) -> usize;
+    fn num_components(&self) -> usize;
 
     /// The component index of each node.
     fn component(&self) -> &[usize];
 
     /// The mutable reference to the component index of each node.
+    #[doc(hidden)]
     fn component_mut(&mut self) -> &mut [usize];
 
-    /// Computes the strongly connected components of a given graph.
+    /// Computes the strongly connected components of a given graph using also
+    /// its transpose.
     ///
     /// # Arguments:
     /// * `graph`: the graph whose strongly connected components are to be computed.
+    /// * `transpose`: the transpose of `graph`.
     /// * `compute_buckets`: if `true`, buckets will be computed.
     /// * `pl`: A progress logger.
-    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self;
+    #[allow(unused_variables)]
+    fn compute_with_t(
+        graph: impl RandomAccessGraph,
+        transpose: impl RandomAccessGraph,
+        pl: &mut impl ProgressLog,
+    ) -> Self;
 
     /// Returns the size array for this set of strongly connected components.
     fn compute_sizes(&self) -> Vec<usize> {
-        let mut sizes = vec![0; self.number_of_components()];
+        let mut sizes = vec![0; self.num_components()];
         for &node_component in self.component() {
             sizes[node_component] += 1;
         }
@@ -44,6 +52,16 @@ pub trait StronglyConnectedComponents {
             .par_iter_mut()
             .for_each(|node_component| *node_component = inv_perm[*node_component]);
     }
+}
+
+pub trait StronglyConnectedComponentsNoT: StronglyConnectedComponents + Sized {
+    /// Computes the strongly connected components of a given graph.
+    ///
+    /// # Arguments:
+    /// * `graph`: the graph whose strongly connected components are to be computed.
+    /// * `compute_buckets`: if `true`, buckets will be computed.
+    /// * `pl`: A progress logger.
+    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self;
 }
 
 #[cfg(test)]
@@ -70,7 +88,11 @@ mod test {
     }
 
     impl<G: RandomAccessGraph> StronglyConnectedComponents for MockStronglyConnectedComponent<G> {
-        fn compute(_graph: impl RandomAccessGraph, _pl: &mut impl ProgressLog) -> Self {
+        fn compute_with_t(
+            _graph: impl RandomAccessGraph,
+            _transpose: impl RandomAccessGraph,
+            _pl: &mut impl ProgressLog,
+        ) -> Self {
             panic!()
         }
         fn component(&self) -> &[usize] {
@@ -79,7 +101,7 @@ mod test {
         fn component_mut(&mut self) -> &mut [usize] {
             self.component.as_mut_slice()
         }
-        fn number_of_components(&self) -> usize {
+        fn num_components(&self) -> usize {
             self.num
         }
     }

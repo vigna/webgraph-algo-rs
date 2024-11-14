@@ -110,7 +110,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
         pl.expected_updates(Some(graph.num_nodes()));
         pl.start("Computing vec-based strongly connected components graph");
 
-        let number_of_scc = scc.number_of_components();
+        let number_of_scc = scc.num_components();
         let node_components = scc.component();
         let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
 
