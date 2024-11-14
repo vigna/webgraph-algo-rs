@@ -3,6 +3,7 @@ use dsi_progress_logger::no_logging;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::traits::SequentialLabeling;
+use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
@@ -222,12 +223,9 @@ fn test_empty() {
 #[test]
 fn test_er() -> Result<()> {
     for d in 2..=4 {
-        /*let graph = Left(VecGraph::from_lender(
-            transform::simplify_sorted(&ErdosRenyi::new(100, (d as f64) / 100.0, 0), 10000)?.iter(),
-        ));*/
-
+        let er = ErdosRenyi::new(100, (d as f64) / 100.0, 0);
         let graph = Left(VecGraph::from_lender(
-            ErdosRenyi::new(100, 100.0 / 100.0, 0).iter(),
+            transform::simplify_sorted(er, 10000)?.iter(),
         ));
 
         let threads = threads![];
