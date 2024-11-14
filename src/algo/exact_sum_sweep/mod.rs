@@ -34,16 +34,30 @@ pub mod outputs {
 
 pub use output_level::*;
 
-pub struct UnsafeSync<'a, T: ?Sized>(std::cell::UnsafeCell<&'a mut T>);
-unsafe impl<'a, T: ?Sized + Send> Sync for UnsafeSync<'a, T> {}
-unsafe impl<'a, T: ?Sized> Send for UnsafeSync<'a, T> {}
+use std::cell::UnsafeCell;
 
-impl<'a, T: ?Sized> UnsafeSync<'a, T> {
-    pub fn new(data: &'a mut T) -> Self {
-        Self(std::cell::UnsafeCell::new(data))
+pub struct SyncUnsafeSlice<T>(UnsafeCell<*mut [T]>);
+unsafe impl<'a, T: Send> Sync for SyncUnsafeSlice<T> {}
+
+impl<T> SyncUnsafeSlice<T> {
+    pub fn new(slice: &mut [T]) -> Self {
+        Self(UnsafeCell::new(slice as _))
     }
 
-    pub unsafe fn as_mut(&self) -> &'a mut T {
-        &mut *self.0.get()
+    #[inline(always)]
+    pub unsafe fn get_mut_unchecked(&self, index: usize) -> &mut T {
+        &mut *(*self.0.get() as *mut T).add(index)
+    }
+
+    #[inline(always)]
+    pub unsafe fn get_mut(&self, index: usize) -> &mut T {
+        let len = (*self.0.get()).len();
+        assert!(
+            index < len,
+            "index out of bounds: the len is {} but the index is {}",
+            index,
+            len
+        );
+        self.get_mut_unchecked(index)
     }
 }

@@ -22,7 +22,7 @@ use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
-use super::UnsafeSync;
+use super::SyncUnsafeSlice;
 
 const VISIT_GRANULARITY: usize = 32;
 
@@ -625,8 +625,8 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
-        let backward_low = UnsafeSync::new(&mut self.backward_low);
-        let backward_tot = UnsafeSync::new(&mut self.backward_tot);
+        let backward_low = SyncUnsafeSlice::new(&mut self.backward_low);
+        let backward_tot = SyncUnsafeSlice::new(&mut self.backward_tot);
 
         self.visit
             .visit(
@@ -639,17 +639,17 @@ impl<
                     } = event
                     {
                         // SAFETY: each node gets accessed exactly once, so no data races can happen
-                        let backward_low = unsafe { backward_low.as_mut() };
-                        let backward_tot = unsafe { backward_tot.as_mut() };
 
                         max_dist.fetch_max(distance, Ordering::Relaxed);
+                        let node_backward_low = unsafe { backward_low.get_mut(node) };
+                        let node_backward_tot = unsafe { backward_tot.get_mut(node) };
 
-                        let node_backward_low = backward_low[node];
                         let node_backward_high = self.backward_high[node];
 
-                        backward_tot[node] += distance;
-                        if node_backward_low != node_backward_high && node_backward_low < distance {
-                            backward_low[node] = distance;
+                        *node_backward_tot += distance;
+                        if *node_backward_low != node_backward_high && *node_backward_low < distance
+                        {
+                            *node_backward_low = distance;
                         }
                     }
                     Ok(())
