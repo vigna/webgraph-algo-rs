@@ -13,7 +13,7 @@ pub use seq::*;
 
 /// Types of callback events generated during depth-first visits
 /// not keeping track of parent nodes.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Event {
     /// This event should be used to set up state at the start of the visit.
     ///
@@ -49,7 +49,7 @@ pub enum Event {
 }
 
 /// Filter arguments for visits that do not keep track of predecessors.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FilterArgs {
     /// The current node.
     pub curr: usize,
@@ -66,7 +66,7 @@ impl super::Event for Event {
 
 /// Types of callback events generated during depth-first visits
 /// keeping track of parent nodes (and possibly of the visit path).
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum EventPred {
     /// This event should be used to set up state at the start of the visit.
     ///
@@ -125,7 +125,7 @@ pub enum EventPred {
 }
 
 /// Filter arguments for visit that keep track of predecessors.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FilterArgsPred {
     /// The current node.
     pub curr: usize,
