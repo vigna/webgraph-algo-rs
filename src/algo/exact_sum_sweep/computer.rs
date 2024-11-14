@@ -22,6 +22,8 @@ use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
+use super::UnsafeSync;
+
 const VISIT_GRANULARITY: usize = 32;
 
 /// The implementation of the *SumSweep* algorithm on directed graphs.
@@ -623,8 +625,8 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
-        let backward_low = self.backward_low.as_mut_slice_of_cells();
-        let backward_tot = self.backward_tot.as_mut_slice_of_cells();
+        let backward_low = UnsafeSync::new(&mut self.backward_low);
+        let backward_tot = UnsafeSync::new(&mut self.backward_tot);
 
         self.visit
             .visit(
@@ -636,22 +638,18 @@ impl<
                         ..
                     } = event
                     {
-                        // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
+                        // SAFETY: each node gets accessed exactly once, so no data races can happen
+                        let backward_low = unsafe { backward_low.as_mut() };
+                        let backward_tot = unsafe { backward_tot.as_mut() };
+
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                        let node_backward_low_ptr = unsafe { backward_low.get_mut_unsafe(node) };
-                        let node_backward_tot_ptr = unsafe { backward_tot.get_mut_unsafe(node) };
-
-                        let node_backward_low = unsafe { *node_backward_low_ptr };
+                        let node_backward_low = backward_low[node];
                         let node_backward_high = self.backward_high[node];
 
-                        unsafe {
-                            *node_backward_tot_ptr += distance;
-                        }
+                        backward_tot[node] += distance;
                         if node_backward_low != node_backward_high && node_backward_low < distance {
-                            unsafe {
-                                *node_backward_low_ptr = distance;
-                            }
+                            backward_low[node] = distance;
                         }
                     }
                     Ok(())

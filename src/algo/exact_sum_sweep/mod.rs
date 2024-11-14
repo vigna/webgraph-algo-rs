@@ -33,3 +33,17 @@ pub mod outputs {
 }
 
 pub use output_level::*;
+
+pub struct UnsafeSync<'a, T: ?Sized>(std::cell::UnsafeCell<&'a mut T>);
+unsafe impl<'a, T: ?Sized + Send> Sync for UnsafeSync<'a, T> {}
+unsafe impl<'a, T: ?Sized> Send for UnsafeSync<'a, T> {}
+
+impl<'a, T: ?Sized> UnsafeSync<'a, T> {
+    pub fn new(data: &'a mut T) -> Self {
+        Self(std::cell::UnsafeCell::new(data))
+    }
+
+    pub unsafe fn as_mut(&self) -> &'a mut T {
+        &mut *self.0.get()
+    }
+}
