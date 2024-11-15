@@ -1,14 +1,16 @@
 use super::traits::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
-use crate::{prelude::depth_first, traits::Sequential, utils::check_symmetric};
+use crate::{algo, prelude::depth_first, traits::Sequential};
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::{labels::Left, prelude::VecGraph};
 
-pub struct SymDepthFirst {
+/// Connected components by sequential visits on symmetric graphs.
+pub struct SymmSeq<A: algo::visits::Event, V: Sequential<A>> {
     num_comps: usize,
     component: Vec<usize>,
+    _marker: std::marker::PhantomData<(A, V)>,
 }
 
-impl StronglyConnectedComponents for SymDepthFirst {
+impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponents for SymmSeq<A, V> {
     fn num_components(&self) -> usize {
         self.num_comps
     }
@@ -49,14 +51,15 @@ impl StronglyConnectedComponents for SymDepthFirst {
             )
             .unwrap_infallible();
 
-        SymDepthFirst {
+        SymmSeq {
             component,
             num_comps: number_of_components + 1,
+            _marker: std::marker::PhantomData,
         }
     }
 }
 
-impl StronglyConnectedComponentsNoT for SymDepthFirst {
+impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponentsNoT for SymmSeq<A, V> {
     fn compute(
         graph: impl webgraph::prelude::RandomAccessGraph,
         pl: &mut impl dsi_progress_logger::ProgressLog,
