@@ -19,9 +19,6 @@ mod mmap_helper;
 pub use mmap_helper::MmapFlags;
 pub use mmap_helper::*;
 
-mod closure_vec;
-pub use closure_vec::closure_vec;
-
 /// Module containing implementations of the `HyperLogLog` algorithm
 /// and implementing efficient Vecs of counters.
 pub mod hyper_log_log;

@@ -722,7 +722,8 @@ impl<
         thread_pool: &ThreadPool,
     ) -> (Vec<usize>, Vec<usize>) {
         let components = self.scc.component();
-        let ecc_pivot = closure_vec(|| AtomicUsize::new(0), self.scc.num_components());
+        let mut ecc_pivot = Vec::with_capacity(self.scc.num_components());
+        ecc_pivot.resize_with(self.scc.num_components(), || AtomicUsize::new(0));
         let mut dist_pivot = vec![0; self.num_nodes];
         let dist_pivot_mut = dist_pivot.as_sync_unsafe_slice();
         let current_index = AtomicUsize::new(0);
