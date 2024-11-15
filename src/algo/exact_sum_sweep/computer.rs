@@ -1,8 +1,10 @@
 use crate::{
     algo::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
-        scc::TarjanStronglyConnectedComponents,
-        sccs::StronglyConnectedComponents,
+        scc::{
+            StronglyConnectedComponents, StronglyConnectedComponentsNoT,
+            TarjanStronglyConnectedComponents,
+        },
         visits::{
             breadth_first::{Event, ParFair},
             FilterArgs, Parallel,
@@ -99,13 +101,30 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// * `pl`: a progress logger.
     pub fn new_undirected(graph: &'a G, output: Output, pl: &mut impl ProgressLog) -> Self {
         debug_assert!(check_symmetric(graph), "graph should be symmetric");
+
         let output = match output {
             Output::Radius => Output::Radius,
             Output::Diameter => Output::Diameter,
             Output::RadiusDiameter => Output::RadiusDiameter,
             _ => Output::AllForward,
         };
-        Self::new(graph, graph, output, None, pl)
+
+        let scc = TarjanStronglyConnectedComponents::compute(graph, pl);
+        let scc_graph = SccGraph::new(graph, graph, &scc, pl);
+        let visit = ParFair::new(graph, VISIT_GRANULARITY);
+        let transposed_visit = ParFair::new(graph, VISIT_GRANULARITY);
+
+        Self::build(
+            graph,
+            graph,
+            output,
+            None,
+            scc,
+            scc_graph,
+            visit,
+            transposed_visit,
+            pl,
+        )
     }
 }
 
@@ -135,13 +154,58 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         radial_vertices: Option<AtomicBitVec>,
         pl: &mut impl ProgressLog,
     ) -> Self {
+        debug_assert_eq!(graph.num_nodes(), transpose.num_nodes());
+        debug_assert_eq!(graph.num_arcs(), transpose.num_arcs());
+        debug_assert!(
+            check_transposed(graph, transpose),
+            "transpose should be the transpose of graph"
+        );
+
+        let scc = TarjanStronglyConnectedComponents::compute_with_t(graph, transpose, pl);
+        let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
+        let visit = ParFair::new(graph, VISIT_GRANULARITY);
+        let transposed_visit = ParFair::new(transpose, VISIT_GRANULARITY);
+
+        Self::build(
+            graph,
+            transpose,
+            output,
+            radial_vertices,
+            scc,
+            scc_graph,
+            visit,
+            transposed_visit,
+            pl,
+        )
+    }
+}
+
+impl<
+        'a,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+        SCC: StronglyConnectedComponents,
+        V1: Parallel<Event> + Sync,
+        V2: Parallel<Event> + Sync,
+    > DirExactSumSweepComputer<'a, G1, G2, SCC, V1, V2>
+{
+    #[allow(clippy::too_many_arguments)]
+    fn build(
+        graph: &'a G1,
+        transpose: &'a G2,
+        output: Output,
+        radial_vertices: Option<AtomicBitVec>,
+        scc: SCC,
+        scc_graph: SccGraph<G1, G2, SCC>,
+        visit: V1,
+        transposed_visit: V2,
+        pl: &mut impl ProgressLog,
+    ) -> Self {
         let num_nodes = graph.num_nodes();
         assert!(
             num_nodes < usize::MAX,
             "Graph should have a number of nodes < usize::MAX"
         );
-
-        let scc = TarjanStronglyConnectedComponents::compute_with_t(graph, transpose, pl);
 
         let compute_radial_vertices = radial_vertices.is_none();
         let acc_radial = if let Some(r) = radial_vertices {
@@ -150,15 +214,6 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         } else {
             AtomicBitVec::new(num_nodes)
         };
-
-        let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
-
-        debug_assert_eq!(graph.num_nodes(), transpose.num_nodes());
-        debug_assert_eq!(graph.num_arcs(), transpose.num_arcs());
-        debug_assert!(
-            check_transposed(graph, transpose),
-            "transpose should be the transpose of graph"
-        );
 
         pl.info(format_args!("Initializing data structure"));
 
@@ -186,8 +241,8 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             radius_vertex: 0,
             diameter_vertex: 0,
             compute_radial_vertices,
-            visit: ParFair::new(graph, VISIT_GRANULARITY),
-            transposed_visit: ParFair::new(transpose, VISIT_GRANULARITY),
+            visit,
+            transposed_visit,
         }
     }
 }
