@@ -1,10 +1,9 @@
+use super::StronglyConnectedComponents;
 use crate::{algo::top_sort, algo::visits::Sequential, prelude::depth_first::*};
 use common_traits::Integer;
 use dsi_progress_logger::ProgressLog;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
-
-use super::traits::StronglyConnectedComponents;
 
 /// Implementation of Kosaraju's algorithm to compute the strongly connected components
 /// on a graph.

@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use super::traits::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
+use super::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
 use crate::{
     algo,
     prelude::breadth_first::{self, ParLowMem},

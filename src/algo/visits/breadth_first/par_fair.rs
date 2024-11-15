@@ -62,7 +62,7 @@ use webgraph::traits::RandomAccessGraph;
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParFair::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
-/// visit.visit(
+/// visit.par_visit(
 ///     0,
 ///     |event|
 ///         {

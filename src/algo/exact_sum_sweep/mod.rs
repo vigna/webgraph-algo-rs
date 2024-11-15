@@ -63,3 +63,13 @@ impl<'a, T> SyncUnsafeSlice<'a, T> {
         &*(self.0[index].get() as *const T)
     }
 }
+
+pub trait SyncUnsafeSliceExt<'a, T> {
+    fn as_sync_unsafe_slice(self) -> SyncUnsafeSlice<'a, T>;
+}
+
+impl<'a, T> SyncUnsafeSliceExt<'a, T> for &'a mut [T] {
+    fn as_sync_unsafe_slice(self) -> SyncUnsafeSlice<'a, T> {
+        SyncUnsafeSlice::new(self)
+    }
+}

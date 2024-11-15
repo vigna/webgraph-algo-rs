@@ -1,4 +1,4 @@
-use super::traits::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
+use super::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 

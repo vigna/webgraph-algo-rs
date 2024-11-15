@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use super::traits::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
+use super::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
 use crate::{algo, prelude::depth_first, traits::Sequential};
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::{labels::Left, prelude::VecGraph};

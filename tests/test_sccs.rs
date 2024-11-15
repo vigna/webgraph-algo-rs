@@ -3,10 +3,81 @@ use dsi_progress_logger::prelude::*;
 use sux::bit_vec;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::prelude::BvGraph;
+use webgraph::traits::RandomAccessGraph;
 use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
 use webgraph_algo::algo::scc::*;
-use webgraph_algo::prelude::*;
+
+struct MockStronglyConnectedComponent<G: RandomAccessGraph> {
+    component: Vec<usize>,
+    num: usize,
+    _g: G,
+}
+
+impl<G: RandomAccessGraph> MockStronglyConnectedComponent<G> {
+    fn mock(component: Vec<usize>, num: usize, g: G) -> MockStronglyConnectedComponent<G> {
+        MockStronglyConnectedComponent {
+            component,
+            num,
+            _g: g,
+        }
+    }
+}
+
+impl<G: RandomAccessGraph> StronglyConnectedComponents for MockStronglyConnectedComponent<G> {
+    fn compute_with_t(
+        _graph: impl RandomAccessGraph,
+        _transpose: impl RandomAccessGraph,
+        _pl: &mut impl ProgressLog,
+    ) -> Self {
+        panic!()
+    }
+    fn component(&self) -> &[usize] {
+        self.component.as_slice()
+    }
+    fn component_mut(&mut self) -> &mut [usize] {
+        self.component.as_mut_slice()
+    }
+    fn num_components(&self) -> usize {
+        self.num
+    }
+}
+
+#[test]
+fn test_compute_sizes() -> Result<()> {
+    let mock_component = vec![0, 0, 0, 1, 2, 2, 1, 2, 0, 0];
+    let mock_strongly_connected_components = MockStronglyConnectedComponent::mock(
+        mock_component,
+        3,
+        BvGraph::with_basename("tests/graphs/cnr-2000").load()?,
+    );
+
+    assert_eq!(
+        mock_strongly_connected_components.compute_sizes(),
+        vec![5, 2, 3]
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_sort_by_size() -> Result<()> {
+    let mock_component = vec![0, 1, 1, 1, 0, 2];
+    let mut mock_strongly_connected_components = MockStronglyConnectedComponent::mock(
+        mock_component,
+        3,
+        BvGraph::with_basename("tests/graphs/cnr-2000").load()?,
+    );
+
+    mock_strongly_connected_components.sort_by_size();
+
+    assert_eq!(
+        mock_strongly_connected_components.component().to_owned(),
+        vec![1, 0, 0, 0, 1, 2]
+    );
+
+    Ok(())
+}
 
 macro_rules! test_scc_algo {
     ($scc:ident, $name:ident) => {
@@ -145,7 +216,7 @@ fn test_large() -> Result<()> {
 
 #[test]
 fn test_er() -> Result<()> {
-    for n in (1..100).step_by(10) {
+    for n in (10..=100).step_by(10) {
         for d in 1..10 {
             let graph = Left(VecGraph::from_lender(
                 ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter(),

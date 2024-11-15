@@ -22,6 +22,6 @@ pub mod scc {
 pub mod traits {
     use super::*;
 
-    pub use sccs::traits::*;
+    pub use sccs::*;
     pub use visits::{Parallel, Sequential};
 }

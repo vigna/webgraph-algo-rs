@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{algo::scc::StronglyConnectedComponents, prelude::*};
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
