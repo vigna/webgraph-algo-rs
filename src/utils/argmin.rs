@@ -33,7 +33,7 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(slice: &[T]) -> Option<usize> {
 /// In case of ties, this method returns the index for which `tie_break` is
 /// minimized.
 ///
-/// If the minimum appears several times with the same tie breack, this methods
+/// If the minimum appears several times with the same tie break, this methods
 /// returns the position of the first instance.
 ///
 /// # Panics

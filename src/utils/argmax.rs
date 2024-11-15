@@ -1,41 +1,67 @@
-/// Returns the index of the maximum value in the slice `vec` if found, [`None`] otherwise.
-/// If several elements are equally maximum, the first element is returned.
+/// Returns the index of the maximum value in a slice, or [`None`] if the slice
+/// is empty.
+///
+/// If the maximum appears several times, this methods returns the
+/// position of the first instance.
 ///
 /// # Arguments
-/// * `vec`: the slice of elements.
+/// * `slice`: the slice of elements.
+///
+/// # Panics
+///
+/// If a comparison returns [`None`].
+///
 ///
 /// # Examples
 /// ```
 /// # use webgraph_algo::utils::math::argmax;
-/// let v = vec![1, 2, 5, 2, 1];
+/// let v = vec![1, 2, 5, 2, 1, 5];
 /// let index = argmax(&v);
 /// assert_eq!(index, Some(2));
 /// ```
-pub fn argmax<T: std::cmp::PartialOrd + Copy>(vec: &[T]) -> Option<usize> {
-    vec.iter()
+pub fn argmax<T: std::cmp::PartialOrd + Copy>(slice: &[T]) -> Option<usize> {
+    slice
+        .iter()
         .enumerate()
         .rev()
         .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
         .map(|m| m.0)
 }
 
-/// Returns the index of the maximum value approved by `filter` in the slice `vec` if found, [`None`] otherwise.
+/// Returns the index of the maximum value approved by a filter in a slice, or
+/// [`None`] if no element is approved by the filter.
 ///
-/// In case of ties, the index for which `tie_break` is maximized is returned.
-/// If several elements are equally maximum, the first element is returned.
+/// In case of ties, this method returns the index for which `tie_break` is
+/// maximized.
+///
+/// If the minimum appears several times with the same tie break, this methods
+/// returns the position of the first instance.
+///
+/// # Panics
+///
+/// If a comparison returns [`None`].
 ///
 /// # Arguments
-/// * `vec`: the slice of elements.
-/// * `tie_break`: in case two elements of `vec` are the same, the index that maximizes this slice is used.
-/// * `filter`: a closure that takes as arguments the index of the element and the element itself and returns
-///   `true` if the element may be selected.
+/// * `slice`: the slice of elements.
 ///
-/// # Examples
+/// * `tie_break`: in case two elements of `slice` are the same, this slice
+///   is used as secondary order.
+///
+/// * `filter`: a closure that takes as arguments the index of the element and
+///   the element itself and returns true if the element is approved.
+///
 /// ```
 /// # use webgraph_algo::utils::math::filtered_argmax;
-/// let v = vec![1, 2, 5, 2, 1];
-/// let tie = vec![1, 2, 3, 4, 5];
+/// let v = vec![1, 2, 5, 2, 1, 2];
+/// let tie = vec![1, 2, 3, 4, 5, 2];
 /// let index = filtered_argmax(&v, &tie, |_, element| element < 4);
+/// // Tie break wins
+/// assert_eq!(index, Some(3));
+///
+/// let v = vec![1, 2, 5, 2, 1, 2];
+/// let tie = vec![1, 1, 3, 2, 5, 2];
+/// let index = filtered_argmax(&v, &tie, |_, element| element < 4);
+/// // Enumeration order wins
 /// assert_eq!(index, Some(3));
 /// ```
 pub fn filtered_argmax<
@@ -43,11 +69,12 @@ pub fn filtered_argmax<
     N: std::cmp::PartialOrd + Copy,
     F: Fn(usize, T) -> bool,
 >(
-    vec: &[T],
+    slice: &[T],
     tie_break: &[N],
     filter: F,
 ) -> Option<usize> {
-    vec.iter()
+    slice
+        .iter()
         .zip(tie_break.iter())
         .enumerate()
         .rev()
@@ -55,11 +82,10 @@ pub fn filtered_argmax<
         .max_by(|a, b| {
             let (value_a, tie_a) = a.1;
             let (value_b, tie_b) = b.1;
-            let mut cmp = value_a.partial_cmp(value_b).unwrap();
-            if cmp == std::cmp::Ordering::Equal {
-                cmp = tie_a.partial_cmp(tie_b).unwrap();
-            }
-            cmp
+            value_a
+                .partial_cmp(value_b)
+                .unwrap()
+                .then(tie_a.partial_cmp(tie_b).unwrap())
         })
         .map(|m| m.0)
 }
