@@ -438,7 +438,7 @@ impl<
         }
 
         let bits = unsafe {
-            // Safety: guaranteed by the caller (no data races to borrowed data)
+            // Safety: bits will be copied so no data races can happen.
             std::slice::from_raw_parts(ptr, self.words_per_counter)
         };
         Self::OwnedCounter {
