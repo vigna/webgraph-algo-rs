@@ -314,7 +314,7 @@ impl<
                     pl.info(format_args!(
                         "Performing a forward BFS from a vertex minimizing the lower bound"
                     ));
-                    let v = math::filtered_argmin(&self.forward_low, &self.forward_tot, |i, _| {
+                    let v = math::argmin_filtered(&self.forward_low, &self.forward_tot, |i, _| {
                         self.radial_vertices[i]
                     });
                     self.step_sum_sweep(v, true, thread_pool, &mut pl.clone())
