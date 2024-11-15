@@ -67,8 +67,8 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> From<&HyperLogLogCounterAr
             num_registers: value.num_registers,
             words_per_counter: value.words_per_counter,
             alpha_m_m: value.alpha_m_m,
-            msb_mask: value.msb_mask.as_slice().to_vec().into_boxed_slice(),
-            lsb_mask: value.lsb_mask.as_slice().to_vec().into_boxed_slice(),
+            msb_mask: value.msb_mask.as_slice().into(),
+            lsb_mask: value.lsb_mask.as_slice().into(),
         }
     }
 }

@@ -442,7 +442,7 @@ impl<
             std::slice::from_raw_parts(ptr, self.words_per_counter)
         };
         Self::OwnedCounter {
-            bits: bits.to_vec().into_boxed_slice(),
+            bits: bits.into(),
             array: self.into(),
             thread_helper: None,
             _phantom_data: std::marker::PhantomData,
