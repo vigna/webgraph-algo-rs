@@ -215,38 +215,41 @@ impl<T> SliceInteriorMutability<T> for [T] {
     }
 }
 
-/// Trait defining a basic counter that can return the number of distinct elements
-/// that have been added so far.
+/// A dictionary that can only count the number of distinct elements that have
+/// been added so far.
+///
+/// Typical implementations will be approximated (e.g.,
+/// [`HyperLogLogCounter`][`super::hyper_log_log::HyperLogLogCounter`]).
 pub trait Counter<T> {
-    /// Adds the element to the counter
+    /// Adds an element to the counter.
     ///
     /// # Arguments
+    ///
     /// * `element`: the element to add.
     fn add(&mut self, element: T);
 
-    /// Returns the number of distinct elements that have been added to the counter
-    /// so far.
-    fn count(&self) -> u64;
+    /// Returns the estimate of the number of distinct elements that have been added
+    /// to the counter so far.
+    fn count(&self) -> f64;
 
     /// Clears the counter.
     fn clear(&mut self);
+}
 
-    /// Merges `other` into `self` inplace.
+/// A [`Counter`] that can be merged with other counters.
+pub trait MergeableCounter<T>: Counter<T> {
+    /// Merges `other` onto `self` inplace.
+    ///
+    /// After this call, the state of the counter is the same as if also the
+    /// elements added to `other` had been added (i.e., the dictionary
+    /// represents the union of the two dictionaries)
     ///
     /// `other` is not modified but `self` is.
     ///
     /// # Arguments
-    /// * `other`: the counter to merge into `self`.
+    ///
+    /// * `other`: the counter to merge onto `self`.
     fn merge(&mut self, other: &Self);
-}
-
-/// Trait defining an approximated counter.
-/// Differently from [`Counter`], this returns an estimate of the number of distinct
-/// elements that have been added to the counter so far as an [`f64`].
-pub trait ApproximatedCounter<T>: Counter<T> {
-    /// Returns the estimate of the number of distinct elements that have been added
-    /// to the counter so far.
-    fn estimate_count(&self) -> f64;
 }
 
 /// A cachable counter capable of copying the borrowed data it points to
@@ -350,15 +353,9 @@ pub trait HyperLogLog<
     T,
     W: Word,
     H,
-    C: Counter<T>
-        + ApproximatedCounter<T>
-        + BitwiseCounter<W>
-        + ThreadHelperCounter<'a, H>
-        + PartialEq
-        + Eq,
+    C: MergeableCounter<T> + BitwiseCounter<W> + ThreadHelperCounter<'a, H> + PartialEq + Eq,
 >:
-    Counter<T>
-    + ApproximatedCounter<T>
+    MergeableCounter<T>
     + CachableCounter<C>
     + BitwiseCounter<W>
     + ThreadHelperCounter<'a, H>
@@ -371,14 +368,8 @@ impl<
         T,
         W: Word,
         H,
-        C: Counter<T>
-            + ApproximatedCounter<T>
-            + BitwiseCounter<W>
-            + ThreadHelperCounter<'a, H>
-            + PartialEq
-            + Eq,
-        I: Counter<T>
-            + ApproximatedCounter<T>
+        C: MergeableCounter<T> + BitwiseCounter<W> + ThreadHelperCounter<'a, H> + PartialEq + Eq,
+        I: MergeableCounter<T>
             + CachableCounter<C>
             + BitwiseCounter<W>
             + ThreadHelperCounter<'a, H>
@@ -403,8 +394,7 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// Obtained when calling [`CachableCounter::get_copy`], [`CachableCounter::into_owned`]
     /// or [`CachableCounter::copy_into_owned`].
-    type OwnedCounter<'h>: Counter<T>
-        + ApproximatedCounter<T>
+    type OwnedCounter<'h>: MergeableCounter<T>
         + BitwiseCounter<W>
         + ThreadHelperCounter<'h, Self::ThreadHelper>
         + PartialEq

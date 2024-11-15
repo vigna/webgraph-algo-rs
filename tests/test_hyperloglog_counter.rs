@@ -38,7 +38,7 @@ fn test_single() -> Result<()> {
 
                 let float_size = size as f64;
 
-                if (float_size - counter.estimate_count()).abs() / float_size < 2.0 * rsd {
+                if (float_size - counter.count()).abs() / float_size < 2.0 * rsd {
                     correct += 1;
                 }
             }
@@ -85,14 +85,10 @@ fn test_double() -> Result<()> {
 
                 let float_size = size as f64;
 
-                if (float_size - counters.get_counter(0).estimate_count()).abs() / float_size
-                    < 2.0 * rsd
-                {
+                if (float_size - counters.get_counter(0).count()).abs() / float_size < 2.0 * rsd {
                     correct_0 += 1;
                 }
-                if (float_size - counters.get_counter(1).estimate_count()).abs() / float_size
-                    < 2.0 * rsd
-                {
+                if (float_size - counters.get_counter(1).count()).abs() / float_size < 2.0 * rsd {
                     correct_1 += 1;
                 }
             }
@@ -153,14 +149,12 @@ fn test_merge_same_type() -> Result<()> {
 
                 let float_size = size as f64;
 
-                if (float_size * 2.0 - counters.get_counter(0).estimate_count()).abs()
-                    / (float_size * 2.0)
+                if (float_size * 2.0 - counters.get_counter(0).count()).abs() / (float_size * 2.0)
                     < 2.0 * rsd
                 {
                     correct_0 += 1;
                 }
-                if (float_size - counters.get_counter(1).estimate_count()).abs()
-                    / (float_size * 2.0)
+                if (float_size - counters.get_counter(1).count()).abs() / (float_size * 2.0)
                     < 2.0 * rsd
                 {
                     correct_1 += 1;
@@ -221,14 +215,12 @@ fn test_merge_bitwise() -> Result<()> {
 
                 let float_size = size as f64;
 
-                if (float_size * 2.0 - counters.get_counter(0).estimate_count()).abs()
-                    / (float_size * 2.0)
+                if (float_size * 2.0 - counters.get_counter(0).count()).abs() / (float_size * 2.0)
                     < 2.0 * rsd
                 {
                     correct_0 += 1;
                 }
-                if (float_size - counters.get_counter(1).estimate_count()).abs()
-                    / (float_size * 2.0)
+                if (float_size - counters.get_counter(1).count()).abs() / (float_size * 2.0)
                     < 2.0 * rsd
                 {
                     correct_1 += 1;

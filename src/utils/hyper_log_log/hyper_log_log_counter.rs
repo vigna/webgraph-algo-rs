@@ -367,37 +367,7 @@ where
         }
     }
 
-    fn count(&self) -> u64 {
-        self.estimate_count() as u64
-    }
-
-    fn merge(&mut self, other: &Self) {
-        assert_eq!(self.array.num_registers(), other.array.num_registers());
-        assert_eq!(self.array.register_size(), other.array.register_size());
-        for i in 0..self.array.num_registers() {
-            let current_value = self.get_register(i);
-            let other_value = other.get_register(i);
-
-            if other_value > current_value {
-                self.set_register(i, other_value);
-            }
-        }
-    }
-}
-
-impl<
-        'a,
-        'b,
-        T: Hash,
-        W: Word + IntoAtomic + UpcastableInto<HashResult> + CastableFrom<HashResult>,
-        H: BuildHasher,
-        B,
-        A: ArrayInfo<W, H>,
-    > ApproximatedCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
-where
-    Self: RegisterEdit<W>,
-{
-    fn estimate_count(&self) -> f64 {
+    fn count(&self) -> f64 {
         let mut harmonic_mean = 0.0;
         let mut zeroes = 0;
         let array = &self.array;
@@ -416,6 +386,32 @@ where
                 array.num_registers() as f64 * (array.num_registers() as f64 / zeroes as f64).ln();
         }
         estimate
+    }
+}
+
+impl<
+        'a,
+        'b,
+        T: Hash,
+        W: Word + IntoAtomic + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+        H: BuildHasher,
+        B,
+        A: ArrayInfo<W, H>,
+    > MergeableCounter<T> for HyperLogLogCounter<'a, 'b, T, W, H, B, A>
+where
+    Self: RegisterEdit<W>,
+{
+    fn merge(&mut self, other: &Self) {
+        assert_eq!(self.array.num_registers(), other.array.num_registers());
+        assert_eq!(self.array.register_size(), other.array.register_size());
+        for i in 0..self.array.num_registers() {
+            let current_value = self.get_register(i);
+            let other_value = other.get_register(i);
+
+            if other_value > current_value {
+                self.set_register(i, other_value);
+            }
+        }
     }
 }
 

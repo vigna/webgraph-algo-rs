@@ -601,8 +601,7 @@ impl<
                     if d == 0.0 {
                         1.0
                     } else {
-                        let count =
-                            unsafe { self.bits.get_counter_from_shared(i) }.estimate_count();
+                        let count = unsafe { self.bits.get_counter_from_shared(i) }.count();
                         count * count / d
                     }
                 })
@@ -625,7 +624,7 @@ impl<
                 .iter()
                 .enumerate()
                 .map(|(i, &d)| {
-                    let count = unsafe { self.bits.get_counter_from_shared(i) }.estimate_count();
+                    let count = unsafe { self.bits.get_counter_from_shared(i) }.count();
                     (count * count) - d
                 })
                 .collect())
@@ -645,7 +644,7 @@ impl<
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
         } else {
-            Ok(unsafe { self.bits.get_counter_from_shared(node) }.estimate_count())
+            Ok(unsafe { self.bits.get_counter_from_shared(node) }.count())
         }
     }
 
@@ -660,7 +659,7 @@ impl<
             ))
         } else {
             Ok((0..self.graph.num_nodes())
-                .map(|n| unsafe { self.bits.get_counter_from_shared(n) }.estimate_count())
+                .map(|n| unsafe { self.bits.get_counter_from_shared(n) }.count())
                 .collect())
         }
     }
@@ -972,14 +971,14 @@ impl<
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
                     if !self.systolic || modified_counter {
-                        post = counter.estimate_count();
+                        post = counter.count();
                     }
                     if !self.systolic {
                         neighbourhood_function_delta += post;
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = old_counter.estimate_count();
+                        let pre = old_counter.count();
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
