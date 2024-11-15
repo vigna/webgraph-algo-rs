@@ -42,7 +42,7 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
 
 impl StronglyConnectedComponentsNoT for TarjanStronglyConnectedComponents {
     fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
-        Self::compute_with_t(graph, &Left(VecGraph::<()>::new()), pl)
+        Self::compute_with_t(graph, Left(VecGraph::<()>::new()), pl)
     }
 }
 

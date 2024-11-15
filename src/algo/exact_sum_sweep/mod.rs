@@ -70,11 +70,11 @@ impl<'a, T> SyncUnsafeSlice<'a, T> {
 }
 
 pub trait SyncUnsafeSliceExt<'a, T> {
-    fn as_sync_unsafe_slice(self) -> SyncUnsafeSlice<'a, T>;
+    fn as_sync_unsafe_slice(&'a mut self) -> SyncUnsafeSlice<'a, T>;
 }
 
-impl<'a, T> SyncUnsafeSliceExt<'a, T> for &'a mut [T] {
-    fn as_sync_unsafe_slice(self) -> SyncUnsafeSlice<'a, T> {
+impl<'a, T> SyncUnsafeSliceExt<'a, T> for [T] {
+    fn as_sync_unsafe_slice(&'a mut self) -> SyncUnsafeSlice<'a, T> {
         SyncUnsafeSlice::new(self)
     }
 }
