@@ -197,7 +197,7 @@ macro_rules! test_bfv_algo_par {
 
                 for node in 0..graph.num_nodes() {
                     visit
-                        .visit(
+                        .par_visit(
                             node,
                             |event| {
                                 if let breadth_first::EventPred::Unknown {
@@ -234,7 +234,7 @@ macro_rules! test_bfv_algo_par {
                 for i in 0..graph.num_nodes() {
                     let node = (i + 10000) % graph.num_nodes();
                     visit
-                        .visit(
+                        .par_visit(
                             node,
                             |event| {
                                 if let breadth_first::EventPred::Unknown {

@@ -480,7 +480,7 @@ impl<
 
         let radial_vertices = &self.radial_vertices;
         self.transposed_visit
-            .visit(
+            .par_visit(
                 v,
                 |event| {
                     if let Event::Unknown { curr, .. } = event {
@@ -542,7 +542,7 @@ impl<
         let forward_tot = self.forward_tot.as_mut_slice_of_cells();
 
         self.transposed_visit
-            .visit(
+            .par_visit(
                 start,
                 |event| {
                     if let Event::Unknown {
@@ -629,7 +629,7 @@ impl<
         let backward_tot = SyncUnsafeSlice::new(&mut self.backward_tot);
 
         self.visit
-            .visit(
+            .par_visit(
                 start,
                 |event| {
                     if let Event::Unknown {
@@ -738,7 +738,7 @@ impl<
                 let pivot_component = components[p];
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
-                bfs.visit_filtered(
+                bfs.par_visit_filtered(
                     p,
                     |event| {
                         if let Event::Unknown { curr, distance, .. } = event {

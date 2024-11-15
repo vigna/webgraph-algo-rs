@@ -41,6 +41,10 @@
 //! [`no_logging![]`](dsi_progress_logger::no_logging) the logging code should
 //! be optimized away by the compiler.
 //!
+//! There is a blanket implementation of the [`Parallel`] trait for all types
+//! implementing the [`Sequential`] trait. This approach makes it possible to
+//! have structures that can use both sequential and parallel visits.
+//!
 //! Visit must provide a `reset` method that makes it possible to reuse the
 //! visit.
 
@@ -165,7 +169,7 @@ pub trait Parallel<A: Event> {
     ///    determine whether the node should be visited or not.
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn visit_filtered<
+    fn par_visit_filtered<
         E: Send,
         C: Fn(A) -> Result<(), E> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
@@ -184,20 +188,20 @@ pub trait Parallel<A: Event> {
     /// [`visit_filtered`](Parallel::visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
-    fn visit<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
+    fn par_visit<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         root: usize,
         callback: C,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        self.visit_filtered(root, callback, |_| true, thread_pool, pl)
+        self.par_visit_filtered(root, callback, |_| true, thread_pool, pl)
     }
 
     /// Visits the whole graph.
     ///
     /// See [`visit`](Parallel::visit_filtered) for more details.
-    fn visit_all_filtered<
+    fn par_visit_all_filtered<
         E: Send,
         C: Fn(A) -> Result<(), E> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
@@ -215,15 +219,50 @@ pub trait Parallel<A: Event> {
     /// [`visit_all_filtered`](Parallel::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
+    fn par_visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
         &mut self,
         callback: C,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
-        self.visit_all_filtered(callback, |_| true, thread_pool, pl)
+        self.par_visit_all_filtered(callback, |_| true, thread_pool, pl)
     }
 
     /// Resets the visit status, making it possible to reuse it.
     fn reset(&mut self);
+}
+
+impl<A: Event, S: Sequential<A>> Parallel<A> for S {
+    fn par_visit_filtered<
+        E: Send,
+        C: Fn(A) -> Result<(), E> + Sync,
+        F: Fn(A::FilterArgs) -> bool + Sync,
+    >(
+        &mut self,
+        root: usize,
+        callback: C,
+        filter: F,
+        _thread_pool: &ThreadPool,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        self.visit_filtered(root, callback, filter, pl)
+    }
+
+    fn par_visit_all_filtered<
+        E: Send,
+        C: Fn(A) -> Result<(), E> + Sync,
+        F: Fn(A::FilterArgs) -> bool + Sync,
+    >(
+        &mut self,
+        callback: C,
+        filter: F,
+        _thread_pool: &ThreadPool,
+        pl: &mut impl ProgressLog,
+    ) -> Result<(), E> {
+        self.visit_all_filtered(callback, filter, pl)
+    }
+
+    fn reset(&mut self) {
+        self.reset()
+    }
 }

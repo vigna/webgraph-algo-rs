@@ -87,7 +87,7 @@ impl<G: RandomAccessGraph> ParLowMem<G> {
 }
 
 impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
-    fn visit_filtered<
+    fn par_visit_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
@@ -176,7 +176,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         Ok(())
     }
 
-    fn visit_all_filtered<
+    fn par_visit_all_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
@@ -188,7 +188,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, thread_pool, pl)?;
+            self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
         Ok(())

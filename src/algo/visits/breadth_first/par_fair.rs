@@ -113,7 +113,7 @@ impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
 }
 
 impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
-    fn visit_filtered<
+    fn par_visit_filtered<
         E: Send,
         C: Fn(Event) -> Result<(), E> + Sync,
         F: Fn(FilterArgs) -> bool + Sync,
@@ -196,7 +196,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
         Ok(())
     }
 
-    fn visit_all_filtered<
+    fn par_visit_all_filtered<
         E: Send,
         C: Fn(Event) -> Result<(), E> + Sync,
         F: Fn(FilterArgs) -> bool + Sync,
@@ -208,7 +208,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, thread_pool, pl)?;
+            self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
         Ok(())
@@ -220,7 +220,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
 }
 
 impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
-    fn visit_filtered<
+    fn par_visit_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(<EventPred as super::super::Event>::FilterArgs) -> bool + Sync,
@@ -306,7 +306,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
         Ok(())
     }
 
-    fn visit_all_filtered<
+    fn par_visit_all_filtered<
         E: Send,
         C: Fn(EventPred) -> Result<(), E> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
@@ -318,7 +318,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &callback, &filter, thread_pool, pl)?;
+            self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
         Ok(())
