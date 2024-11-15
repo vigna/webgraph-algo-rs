@@ -2,7 +2,7 @@ use std::mem::MaybeUninit;
 
 use super::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
 use crate::{
-    algo,
+    algo::{self, exact_sum_sweep::SyncUnsafeSliceExt},
     prelude::breadth_first::{self, ParLowMem},
     threads,
     traits::Parallel,
@@ -39,12 +39,12 @@ impl<A: algo::visits::Event, V: Parallel<A>> StronglyConnectedComponents for Sym
         let mut visit = ParLowMem::new(&graph, 100);
         let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
         let mut number_of_components = 0;
-        let slice = SyncUnsafeSlice::new(&mut component);
+        let slice = component.as_sync_unsafe_slice();
         let threads = &threads![];
 
         for root in 0..graph.num_nodes() {
             /*visit
-            .visit(
+            .par_visit(
                 root,
                 |event| {
                     match event {
