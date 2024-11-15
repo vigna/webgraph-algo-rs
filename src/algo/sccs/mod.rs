@@ -8,3 +8,6 @@ pub mod traits;
 
 mod symm_seq;
 pub use symm_seq::*;
+
+mod symm_par;
+pub use symm_par::*;

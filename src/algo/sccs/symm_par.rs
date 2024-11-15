@@ -1,20 +1,25 @@
 use std::mem::MaybeUninit;
 
 use super::traits::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
-use crate::{algo, prelude::depth_first, traits::Sequential};
+use crate::{
+    algo,
+    prelude::breadth_first::{self, ParLowMem},
+    threads,
+    traits::Parallel,
+};
 use unwrap_infallible::UnwrapInfallible;
-use webgraph::{labels::Left, prelude::VecGraph};
+use webgraph::{labels::Left, prelude::VecGraph, utils::SyncUnsafeSlice};
 
-/// Connected components by sequential visits on symmetric graphs.
-pub struct SymmSeq<A: algo::visits::Event, V: Sequential<A>> {
-    num_components: usize,
+/// Connected components by Parallel visits on symmetric graphs.
+pub struct SymmPar<A: algo::visits::Event, V: Parallel<A>> {
+    num_comps: usize,
     component: Box<[usize]>,
     _marker: std::marker::PhantomData<(A, V)>,
 }
 
-impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponents for SymmSeq<A, V> {
+impl<A: algo::visits::Event, V: Parallel<A>> StronglyConnectedComponents for SymmPar<A, V> {
     fn num_components(&self) -> usize {
-        self.num_components
+        self.num_comps
     }
 
     fn component(&self) -> &[usize] {
@@ -31,40 +36,44 @@ impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponents for S
         pl: &mut impl dsi_progress_logger::ProgressLog,
     ) -> Self {
         // debug_assert!(check_symmetric(&graph)); requires sync
-        let mut visit = depth_first::Seq::new(&graph);
+        let mut visit = ParLowMem::new(&graph, 100);
         let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
-        let mut number_of_components = 0usize.wrapping_sub(1);
+        let mut number_of_components = 0;
+        let slice = SyncUnsafeSlice::new(&mut component);
+        let threads = &threads![];
 
-        visit
-            .visit_all(
+        for root in 0..graph.num_nodes() {
+            /*visit
+            .visit(
+                root,
                 |event| {
                     match event {
-                        depth_first::Event::Init { .. } => {
-                            number_of_components = number_of_components.wrapping_add(1);
-                        }
-                        depth_first::Event::Previsit { curr, .. } => {
-                            component[curr].write(number_of_components);
+                        breadth_first::EventPred::Init { .. } => {}
+                        breadth_first::EventPred::Unknown { curr, .. } => {
+                            unsafe { slice.get_mut(curr).write(number_of_components) };
                         }
                         _ => (),
                     }
                     Ok(())
                 },
+                &threads,
                 pl,
             )
-            .unwrap_infallible();
-
+            .unwrap_infallible();*/
+            number_of_components += 1;
+        }
         let component =
             unsafe { std::mem::transmute::<Box<[MaybeUninit<usize>]>, Box<[usize]>>(component) };
 
-        SymmSeq {
+        SymmPar {
             component,
-            num_components: number_of_components + 1,
+            num_comps: number_of_components + 1,
             _marker: std::marker::PhantomData,
         }
     }
 }
 
-impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponentsNoT for SymmSeq<A, V> {
+impl<A: algo::visits::Event, V: Parallel<A>> StronglyConnectedComponentsNoT for SymmPar<A, V> {
     fn compute(
         graph: impl webgraph::prelude::RandomAccessGraph,
         pl: &mut impl dsi_progress_logger::ProgressLog,
