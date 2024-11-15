@@ -949,12 +949,12 @@ impl<
                         if succ != node && self.modified_counter[succ] {
                             visited_arcs += 1;
                             if !modified {
-                                counter.set_to_bitwise(&old_counter);
+                                counter.set_to(&old_counter);
                                 modified = true;
                             }
                             unsafe {
                                 // Safety: self.bits is never written to in parallel_task
-                                counter.merge_bitwise(&self.bits.get_counter_from_shared(succ));
+                                counter.merge(&self.bits.get_counter_from_shared(succ));
                             }
                         }
                     }
@@ -1047,7 +1047,7 @@ impl<
                     // the present value was not a modified value in the first place,
                     // then we can avoid updating the result altogether.
                     if !modified && self.modified_counter[node] {
-                        counter.set_to_bitwise(&old_counter);
+                        counter.set_to(&old_counter);
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
@@ -1059,7 +1059,7 @@ impl<
                             // no counter is ever written to more than once
                             self.result_bits
                                 .get_counter_from_shared(node)
-                                .set_to_bitwise(&self.bits.get_counter_from_shared(node))
+                                .set_to(&self.bits.get_counter_from_shared(node))
                         };
                     }
                 }

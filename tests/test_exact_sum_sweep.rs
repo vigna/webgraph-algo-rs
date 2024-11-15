@@ -9,7 +9,7 @@ use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
 use webgraph_algo::threads;
-use webgraph_algo::traits::{Sequential, UnsafeSyncCell};
+use webgraph_algo::traits::Sequential;
 
 #[test]
 fn test_ob() {

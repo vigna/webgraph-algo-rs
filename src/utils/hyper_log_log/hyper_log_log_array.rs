@@ -395,7 +395,7 @@ impl<
     > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
     type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self> where T: 'd + 'h, W: 'd + 'h, H: 'd + 'h;
-    type OwnedCounter<'h> = HyperLogLogCounter<'h, 'h, T, W, H, Vec<W>, OwnedArray<W, H>> where T: 'h, W: 'h, H: 'h;
+    type OwnedCounter<'h> = HyperLogLogCounter<'h, 'h, T, W, H, Box<[W]>, OwnedArray<W, H>> where T: 'h, W: 'h, H: 'h;
     type ThreadHelper = ThreadHelper<W>;
 
     #[deny(unsafe_op_in_unsafe_fn)]
@@ -418,9 +418,32 @@ impl<
             // Safety: guaranteed by the caller (no data races to borrowed data)
             std::slice::from_raw_parts_mut(ptr, self.words_per_counter)
         };
-        HyperLogLogCounter {
+        Self::Counter {
             array: self,
             bits,
+            thread_helper: None,
+            _phantom_data: std::marker::PhantomData,
+        }
+    }
+
+    #[inline(always)]
+    fn get_owned_counter<'h>(&self, index: usize) -> Self::OwnedCounter<'h> {
+        assert!(index < self.num_counters);
+        let mut ptr = self.bits.as_ptr() as *const W;
+
+        unsafe {
+            // Safety: bits are allocated so it can never be bigger than
+            // isize::MAX bytes.
+            ptr = ptr.add(self.words_per_counter * index);
+        }
+
+        let bits = unsafe {
+            // Safety: guaranteed by the caller (no data races to borrowed data)
+            std::slice::from_raw_parts(ptr, self.words_per_counter)
+        };
+        Self::OwnedCounter {
+            bits: bits.to_vec().into_boxed_slice(),
+            array: self.into(),
             thread_helper: None,
             _phantom_data: std::marker::PhantomData,
         }

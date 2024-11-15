@@ -46,23 +46,31 @@ impl<'a, T> SyncUnsafeSlice<'a, T> {
         Self(unsafe { &*ptr })
     }
 
+    /// # Safety
+    /// Dummy
     #[allow(clippy::mut_from_ref)]
     #[inline(always)]
     pub unsafe fn get_mut_unchecked(&self, index: usize) -> &mut T {
         &mut *self.0.get_unchecked(index).get()
     }
 
+    /// # Safety
+    /// Dummy
     #[allow(clippy::mut_from_ref)]
     #[inline(always)]
     pub unsafe fn get_mut(&self, index: usize) -> &mut T {
         &mut *self.0[index].get()
     }
 
+    /// # Safety
+    /// Dummy
     #[inline(always)]
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         &*(self.0.get_unchecked(index).get() as *const T)
     }
 
+    /// # Safety
+    /// Dummy
     #[inline(always)]
     pub unsafe fn get(&self, index: usize) -> &T {
         &*(self.0[index].get() as *const T)

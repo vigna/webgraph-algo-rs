@@ -234,6 +234,9 @@ pub trait Counter<T> {
 
     /// Clears the counter.
     fn clear(&mut self);
+
+    /// Sets the contents of `self` to the contents of `other`.
+    fn set_to(&mut self, other: &Self);
 }
 
 /// A [`Counter`] that can be merged with other counters.
@@ -252,87 +255,6 @@ pub trait MergeableCounter<T>: Counter<T> {
     fn merge(&mut self, other: &Self);
 }
 
-/// A cachable counter capable of copying the borrowed data it points to
-/// into an owned counter providing the same interface.
-///
-/// Implementors should ensure that the owned counter `C` contains no references
-/// to the borrowed data the original counter points to.
-///
-/// Default implementations for [`Self::into_owned`] and [`Self::copy_into_owned`]
-/// are provided but should be overridden in case parts of the counter may
-/// be reused to avoid reallocations.
-pub trait CachableCounter<C> {
-    /// Get a copy of [`Self`] that can be modified freely without modified the original data.
-    fn get_copy(&self) -> C;
-
-    /// Copies all the data from the borrowed counter into an instance of
-    /// `C` and then drops it without modifying it.
-    #[inline(always)]
-    fn into_owned(self) -> C
-    where
-        Self: Sized,
-    {
-        self.get_copy()
-    }
-
-    /// Copies the borrowed counter into the provided instance of `C`.
-    ///
-    /// # Arguments
-    /// * `dst`: a mutable reference to an instance of `C`.
-    #[inline(always)]
-    fn copy_into_owned(&self, dst: &mut C) {
-        *dst = self.get_copy()
-    }
-}
-
-/// A counter capable of offering a view of its data as a slice of words `W`
-/// and of performing efficient operations using bitwise logic.
-///
-/// Implementors should ensure that panics conditions are respected and that [`Self::as_words`]
-/// and [`Self::as_mut_words`] always return the same slice, albait one as an immutable one and
-/// the other as a mutable one.
-pub trait BitwiseCounter<W: Word> {
-    /// Returns the counter's data as an immutable slice of `W`.
-    fn as_words(&self) -> &[W];
-
-    /// Returns the counter's data as a mutable slice of `W`.
-    fn as_mut_words(&mut self) -> &mut [W];
-
-    /// Merges `other` into `self` inplace using each counter's
-    /// representation as slice of `W`.
-    ///
-    /// `other` is not modified but `self` is.
-    ///
-    /// # Arguments
-    /// * `other`: the counter to merge into `self`.
-    fn merge_bitwise(&mut self, other: &impl BitwiseCounter<W>);
-
-    /// Sets this counter's contents to the contents of `other`.
-    ///
-    /// # Panics
-    /// This function panics if `self.as_words()` and `other.as_words()` have
-    /// different lengths.
-    ///
-    /// # Arguments
-    /// * `other`: the counter to set this counter's contents to.
-    #[inline(always)]
-    fn set_to_bitwise(&mut self, other: &impl BitwiseCounter<W>) {
-        self.set_to_words(other.as_words());
-    }
-
-    /// Sets this counter's contents to the provided slice of `W`.
-    ///
-    /// # Panics
-    /// This function panics if `self.as_words()` and `words` have different lengths.
-    ///
-    /// # Arguments
-    /// * `words`: the immutable slice of `W` to set this counter's contents to.
-    #[inline(always)]
-    fn set_to_words(&mut self, words: &[W]) {
-        self.as_mut_words().copy_from_slice(words);
-    }
-}
-
 /// A counter capable of using external allocations during its lifetime in order to
 /// avoid to allocate all its data structures each time.
 ///
@@ -348,34 +270,12 @@ pub trait ThreadHelperCounter<'a, H> {
 /// An HyperLogLogCounter.
 ///
 /// This represents a counter capable of performing the `HyperLogLog` algorithm.
-pub trait HyperLogLog<
-    'a,
-    T,
-    W: Word,
-    H,
-    C: MergeableCounter<T> + BitwiseCounter<W> + ThreadHelperCounter<'a, H> + PartialEq + Eq,
->:
-    MergeableCounter<T>
-    + CachableCounter<C>
-    + BitwiseCounter<W>
-    + ThreadHelperCounter<'a, H>
-    + PartialEq
-    + Eq
+pub trait HyperLogLog<'a, T, W: Word, H>:
+    MergeableCounter<T> + ThreadHelperCounter<'a, H> + PartialEq + Eq
 {
 }
-impl<
-        'a,
-        T,
-        W: Word,
-        H,
-        C: MergeableCounter<T> + BitwiseCounter<W> + ThreadHelperCounter<'a, H> + PartialEq + Eq,
-        I: MergeableCounter<T>
-            + CachableCounter<C>
-            + BitwiseCounter<W>
-            + ThreadHelperCounter<'a, H>
-            + PartialEq
-            + Eq,
-    > HyperLogLog<'a, T, W, H, C> for I
+impl<'a, T, W: Word, H, I: MergeableCounter<T> + ThreadHelperCounter<'a, H> + PartialEq + Eq>
+    HyperLogLog<'a, T, W, H> for I
 {
 }
 
@@ -385,7 +285,7 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// Note how lifetime `'h` is the lifetime of the `ThreadHelper` reference
     /// while `'d` is the lifetime of the data pointed to by the borrowed counter.
-    type Counter<'d, 'h>: HyperLogLog<'h, T, W, Self::ThreadHelper, Self::OwnedCounter<'h>>
+    type Counter<'d, 'h>: HyperLogLog<'h, T, W, Self::ThreadHelper>
     where
         Self: 'd,
         Self: 'h;
@@ -395,7 +295,6 @@ pub trait HyperLogLogArray<T, W: Word> {
     /// Obtained when calling [`CachableCounter::get_copy`], [`CachableCounter::into_owned`]
     /// or [`CachableCounter::copy_into_owned`].
     type OwnedCounter<'h>: MergeableCounter<T>
-        + BitwiseCounter<W>
         + ThreadHelperCounter<'h, Self::ThreadHelper>
         + PartialEq
         + Eq
@@ -449,15 +348,7 @@ pub trait HyperLogLogArray<T, W: Word> {
     ///
     /// # Arguments
     /// * `index`: the index of the counter to get.
-    #[inline(always)]
-    fn get_owned_counter<'h>(&self, index: usize) -> Self::OwnedCounter<'h> {
-        unsafe {
-            // Safety: the returned counter is owned, so no shared data exist.
-            // Assumption: Counters created with get_counter_from_shared are used
-            // correctly
-            self.get_counter_from_shared(index).into_owned()
-        }
-    }
+    fn get_owned_counter<'h>(&self, index: usize) -> Self::OwnedCounter<'h>;
 
     /// Returns `true` if the vector contains no counters.
     #[inline(always)]
