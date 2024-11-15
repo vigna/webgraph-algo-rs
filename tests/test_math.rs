@@ -31,35 +31,35 @@ mod test_argmax {
     fn test_filtered_empty() {
         let v: Vec<usize> = Vec::new();
         let t: Vec<usize> = Vec::new();
-        assert_eq!(filtered_argmax(&v, &t, |_, _| true), None);
+        assert_eq!(argmax_filtered(&v, &t, |_, _| true), None);
     }
 
     #[test]
     fn test_all_filtered_away() {
         let v = vec![2, 1, 5, 3, 1];
         let t = vec![5, 4, 3, 2, 1];
-        assert_eq!(filtered_argmax(&v, &t, |_, _| false), None);
+        assert_eq!(argmax_filtered(&v, &t, |_, _| false), None);
     }
 
     #[test]
     fn test_filtered_single_element_min() {
         let v = vec![usize::MIN];
         let t = vec![usize::MIN];
-        assert_eq!(filtered_argmax(&v, &t, |_, _| true), Some(0));
+        assert_eq!(argmax_filtered(&v, &t, |_, _| true), Some(0));
     }
 
     #[test]
     fn test_filtered_normal() {
         let v = vec![1, 2, 3, 4, 5, 4, 3, 2, 1];
         let t = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
-        assert_eq!(filtered_argmax(&v, &t, |_, e| e < 4), Some(6));
+        assert_eq!(argmax_filtered(&v, &t, |_, e| e < 4), Some(6));
     }
 
     #[test]
     fn test_filtered_duplicates() {
         let v = vec![1, 2, 3, 2, 1];
         let t = vec![1, 2, 3, 2, 1];
-        assert_eq!(filtered_argmax(&v, &t, |_, e| e < 3), Some(1));
+        assert_eq!(argmax_filtered(&v, &t, |_, e| e < 3), Some(1));
     }
 }
 

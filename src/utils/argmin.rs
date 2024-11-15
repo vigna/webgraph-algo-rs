@@ -51,17 +51,17 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(slice: &[T]) -> Option<usize> {
 ///
 /// # Examples
 /// ```
-/// # use webgraph_algo::utils::math::filtered_argmin;
+/// # use webgraph_algo::utils::math::argmin_filtered;
 /// let v = vec![3, 2, 5, 2, 3, 2];
 /// let tie = vec![5, 4, 3, 2, 1, 1];
-/// let index = filtered_argmin(&v, &tie, |_, element| element > 1);
+/// let index = argmin_filtered(&v, &tie, |_, element| element > 1);
 /// // Tie break wins
 /// assert_eq!(index, Some(5));
 ///
 /// let v = vec![3, 2, 5, 2, 3, 2];
 /// let tie = vec![5, 4, 3, 2, 1, 2];
 /// // Enumeration order wins
-/// let index = filtered_argmin(&v, &tie, |_, element| element > 1);
+/// let index = argmin_filtered(&v, &tie, |_, element| element > 1);
 /// assert_eq!(index, Some(3));
 
 /// ```

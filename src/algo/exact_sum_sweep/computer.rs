@@ -233,7 +233,7 @@ impl<
 
         for i in 2..=iterations {
             if i % 2 == 0 {
-                let v = math::filtered_argmax(&self.backward_tot, &self.backward_low, |i, _| {
+                let v = math::argmax_filtered(&self.backward_tot, &self.backward_low, |i, _| {
                     self.incomplete_backward(i)
                 });
                 pl.info(format_args!(
@@ -242,7 +242,7 @@ impl<
                 ));
                 self.step_sum_sweep(v, false, thread_pool, pl);
             } else {
-                let v = math::filtered_argmax(&self.forward_tot, &self.forward_low, |i, _| {
+                let v = math::argmax_filtered(&self.forward_tot, &self.forward_low, |i, _| {
                     self.incomplete_forward(i)
                 });
                 pl.info(format_args!(
@@ -305,7 +305,7 @@ impl<
                     pl.info(format_args!(
                         "Performing a forward BFS from a vertex maximizing the upper bound"
                     ));
-                    let v = math::filtered_argmax(&self.forward_high, &self.forward_tot, |i, _| {
+                    let v = math::argmax_filtered(&self.forward_high, &self.forward_tot, |i, _| {
                         self.incomplete_forward(i)
                     });
                     self.step_sum_sweep(v, true, thread_pool, &mut pl.clone())
@@ -324,7 +324,7 @@ impl<
                         "Performing a backward BFS from a vertex maximizing the upper bound"
                     ));
                     let v =
-                        math::filtered_argmax(&self.backward_high, &self.backward_tot, |i, _| {
+                        math::argmax_filtered(&self.backward_high, &self.backward_tot, |i, _| {
                             self.incomplete_backward(i)
                         });
                     self.step_sum_sweep(v, false, thread_pool, &mut pl.clone())
@@ -334,7 +334,7 @@ impl<
                         "Performing a backward BFS from a vertex maximizing the distance sum"
                     ));
                     let v =
-                        math::filtered_argmax(&self.backward_tot, &self.backward_high, |i, _| {
+                        math::argmax_filtered(&self.backward_tot, &self.backward_high, |i, _| {
                             self.incomplete_backward(i)
                         });
                     self.step_sum_sweep(v, false, thread_pool, &mut pl.clone())

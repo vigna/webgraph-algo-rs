@@ -40,20 +40,25 @@ pub struct SyncUnsafeSlice<'a, T>(&'a [UnsafeCell<T>]);
 unsafe impl<'a, T: Send> Sync for SyncUnsafeSlice<'a, T> {}
 
 impl<'a, T> SyncUnsafeSlice<'a, T> {
+    #[inline(always)]
     pub fn new(slice: &'a mut [T]) -> Self {
         let ptr = slice as *mut [T] as *const [UnsafeCell<T>];
         Self(unsafe { &*ptr })
     }
 
+    #[allow(clippy::mut_from_ref)]
+    #[inline(always)]
     pub unsafe fn get_mut_unchecked(&self, index: usize) -> &mut T {
         &mut *self.0.get_unchecked(index).get()
     }
 
+    #[allow(clippy::mut_from_ref)]
     #[inline(always)]
     pub unsafe fn get_mut(&self, index: usize) -> &mut T {
         &mut *self.0[index].get()
     }
 
+    #[inline(always)]
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         &*(self.0.get_unchecked(index).get() as *const T)
     }
