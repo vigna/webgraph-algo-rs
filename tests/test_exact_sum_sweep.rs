@@ -12,16 +12,6 @@ use webgraph_algo::threads;
 use webgraph_algo::traits::Sequential;
 
 #[test]
-fn test_ob() {
-    let mut a = [1, 2, 3];
-    let u = SyncUnsafeSlice::new(&mut a);
-    let p = unsafe { u.get_mut(0) };
-    let q = unsafe { u.get_mut(0) };
-    *p = 0;
-    *q = 1;
-}
-
-#[test]
 fn test_path() -> Result<()> {
     let arcs = vec![(0, 1), (1, 2), (2, 1), (1, 0)];
 
