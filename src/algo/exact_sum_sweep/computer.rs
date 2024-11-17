@@ -591,8 +591,8 @@ impl<
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_high, self.radius_vertex));
 
-        let forward_low = self.forward_low.as_sync_slice();
-        let forward_tot = self.forward_tot.as_sync_slice();
+        let forward_low = unsafe { self.forward_low.as_sync_slice() };
+        let forward_tot = unsafe { self.forward_tot.as_sync_slice() };
 
         self.transposed_visit
             .par_visit(
@@ -672,8 +672,8 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
-        let backward_low = self.backward_low.as_sync_slice();
-        let backward_tot = self.backward_tot.as_sync_slice();
+        let backward_low = unsafe { self.backward_low.as_sync_slice() };
+        let backward_tot = unsafe { self.backward_tot.as_sync_slice() };
 
         self.visit
             .par_visit(
@@ -774,7 +774,7 @@ impl<
         let mut ecc_pivot = Vec::with_capacity(self.scc.num_components());
         ecc_pivot.resize_with(self.scc.num_components(), || AtomicUsize::new(0));
         let mut dist_pivot = vec![0; self.num_nodes];
-        let dist_pivot_mut = dist_pivot.as_sync_slice();
+        let dist_pivot_mut = unsafe { dist_pivot.as_sync_slice() };
         let current_index = AtomicUsize::new(0);
 
         thread_pool.broadcast(|_| {
@@ -887,8 +887,8 @@ impl<
 
         let radius = RwLock::new((self.radius_high, self.radius_vertex));
 
-        let forward_high = self.forward_high.as_sync_slice();
-        let backward_high = self.backward_high.as_sync_slice();
+        let forward_high = unsafe { self.forward_high.as_sync_slice() };
+        let backward_high = unsafe { self.backward_high.as_sync_slice() };
 
         thread_pool.install(|| {
             (0..self.num_nodes).into_par_iter().for_each(|node| {

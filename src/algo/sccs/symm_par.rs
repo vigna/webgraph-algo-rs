@@ -43,7 +43,7 @@ impl<A: algo::visits::Event, V: Parallel<A>> StronglyConnectedComponents for Sym
         let mut visit = ParLowMem::new(&graph, 100);
         let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
         let mut number_of_components = 0;
-        let slice = component.as_sync_slice();
+        let slice = unsafe { component.as_sync_slice() };
         let threads = &threads![];
 
         for root in 0..graph.num_nodes() {
