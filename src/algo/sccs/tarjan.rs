@@ -61,13 +61,6 @@ impl<G: RandomAccessGraph> Tarjan<G> {
     fn run(&mut self, pl: &mut impl ProgressLog) {
         let mut visit = SeqPred::new(&self.graph);
         let num_nodes = self.graph.num_nodes();
-        // We will be using [0..num_nodes) for components
-        // and [num_nodes..2*num_nodes) for low links
-        assert!(
-            num_nodes <= usize::MAX / 2,
-            "This implementation supports at most 2^{} nodes",
-            std::mem::size_of::<usize>() * 8 - 1
-        );
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));
         pl.start("Computing strongly connected components");
@@ -75,11 +68,18 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         // Sentinel value guaranteeing that this stack is never empty
         lead.push(true);
         let mut component_stack = Vec::with_capacity(16);
-        let low_link = &mut self.component;
-        // We initialize the time variable in wuch a way that emitted components
-        // will have a low_link value smaller than any current time
-        let mut time = num_nodes.saturating_sub(1);
-        let end_time = time * 2 + 1; // 2 * num_nodes - 1
+        let high_link = &mut self.component;
+        // Node timestamps will start at num_nodes and will decrease with time,
+        // that is, they will go in opposite order with respect to the classical
+        // implementation. We keep track of the highest index seen, instead
+        // of the lowest index seen, and we number compoments starting from
+        // zero. We also raise index by the number of elements of each emitted
+        // component. In this way unvisited nodes and emitted nodes have always
+        // a lower value than index. This strategy is analogous to that
+        // described in https://www.timl.id.au/scc, but in that case using
+        // increasing timestamps results in components not being labelled
+        // starting from zero, which is the case here instead.
+        let mut index = num_nodes;
         let mut root_low_link = 0;
 
         if visit
@@ -87,31 +87,31 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                 |event| {
                     match event {
                         EventPred::Init { .. } => {
-                            root_low_link = time + 1;
+                            root_low_link = index;
                         }
                         EventPred::Previsit { curr, .. } => {
-                            time += 1;
-                            low_link[curr] = time; // >= num_nodes, <= umax::SIZE
+                            high_link[curr] = index; // >= num_nodes, <= umax::SIZE
+                            index -= 1;
                             lead.push(true);
                         }
                         EventPred::Revisit { curr, pred, .. } => {
-                            // curr has not been emitted yet but it has a lower link
-                            if low_link[curr] >= num_nodes && low_link[curr] < low_link[pred] {
+                            // curr has not been emitted yet but it has a higher link
+                            if high_link[pred] < high_link[curr] {
                                 // Safe as the stack is never empty
                                 *lead.last_mut().unwrap() = false;
-                                low_link[pred] = low_link[curr];
-                                if low_link[pred] == root_low_link && time == end_time {
+                                high_link[pred] = high_link[curr];
+                                if high_link[pred] == root_low_link && index == 0 {
                                     // All nodes have been discovered, and we
-                                    // found a low link identical to that of the
+                                    // found a high link identical to that of the
                                     // root: thus, all nodes on the visit path
                                     // and all nodes in the component stack
                                     // belong to the same component.
 
                                     // pred is the last node on the visit path,
                                     // so it won't be returned by the stack method
-                                    low_link[pred] = self.number_of_components;
+                                    high_link[pred] = self.number_of_components;
                                     for &node in component_stack.iter() {
-                                        low_link[node] = self.number_of_components;
+                                        high_link[node] = self.number_of_components;
                                     }
                                     // Nodes on the visit path will be assigned
                                     // to the same component later
@@ -123,25 +123,27 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                             // Safe as the stack is never empty
                             if lead.pop().unwrap() {
                                 // Set the component index of nodes in the component
-                                // stack with lower low link than the current node
+                                // stack with higher link than the current node
                                 while let Some(node) = component_stack.pop() {
                                     // TODO: ugly
-                                    if low_link[node] < low_link[curr] {
+                                    if high_link[curr] < high_link[node] {
                                         component_stack.push(node);
                                         break;
                                     }
-                                    low_link[node] = self.number_of_components;
+                                    index += 1;
+                                    high_link[node] = self.number_of_components;
                                 }
                                 // Set the component index of the current node
-                                low_link[curr] = self.number_of_components;
+                                high_link[curr] = self.number_of_components;
+                                index += 1;
                                 self.number_of_components += 1;
                             } else {
                                 component_stack.push(curr);
                                 // Propagate knowledge to the parent
-                                if low_link[curr] < low_link[pred] {
+                                if high_link[pred] < high_link[curr] {
                                     // Safe as the stack is never empty
                                     *lead.last_mut().unwrap() = false;
-                                    low_link[pred] = low_link[curr];
+                                    high_link[pred] = high_link[curr];
                                 }
                             }
                         }
