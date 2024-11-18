@@ -432,9 +432,9 @@ where
 
 impl<'a, 'b, T, W: Word, H, B: AsMut<[W]>, A> HyperLogLogCounter<'a, 'b, T, W, H, B, A> {
     /// Sets the contents of `self` to the contents of `other`.
-    pub fn set_to<T2, W2: Word, H2, B2: AsRef<[W]>, A2>(
+    pub fn set_to<B2: AsRef<[W]>, A2>(
         &mut self,
-        other: &HyperLogLogCounter<'_, '_, T2, W2, H2, B2, A2>,
+        other: &HyperLogLogCounter<'_, '_, T, W, H, B2, A2>,
     ) {
         self.bits.as_mut().copy_from_slice(other.bits.as_ref())
     }
