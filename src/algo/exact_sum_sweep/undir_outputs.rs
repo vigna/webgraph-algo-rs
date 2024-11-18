@@ -1,5 +1,5 @@
 /// The results produced by calling [`compute_undirected`](super::OutputLevel::compute_undirected)
-/// on [`All`](super::All).
+/// on [`All`](super::All) or [`AllForward`](super::AllForward).
 pub struct All {
     /// The eccentricities
     pub eccentricities: Box<[usize]>,
