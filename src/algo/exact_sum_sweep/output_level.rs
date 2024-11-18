@@ -105,8 +105,8 @@ impl OutputLevel for All {
         let diameter_iterations = computer.diameter_iterations.unwrap().into();
         let forward_iterations = computer.forward_iter.unwrap().into();
         let all_iterations = computer.all_iter.unwrap().into();
-        let forward_eccentricities = computer.forward_low.into_boxed_slice();
-        let backward_eccentricities = computer.backward_high.into_boxed_slice();
+        let forward_eccentricities = computer.forward_low;
+        let backward_eccentricities = computer.backward_high;
 
         Self::DirectedOutput {
             forward_eccentricities,
@@ -150,7 +150,7 @@ impl OutputLevel for All {
         let radius_iterations = computer.radius_iterations.unwrap().into();
         let diameter_iterations = computer.diameter_iterations.unwrap().into();
         let iterations = computer.forward_iter.unwrap().into();
-        let eccentricities = computer.forward_low.into_boxed_slice();
+        let eccentricities = computer.forward_low;
 
         Self::UndirectedOutput {
             eccentricities,
@@ -208,7 +208,7 @@ impl OutputLevel for AllForward {
         let radius_iterations = computer.radius_iterations.unwrap().into();
         let diameter_iterations = computer.diameter_iterations.unwrap().into();
         let forward_iterations = computer.forward_iter.unwrap().into();
-        let forward_eccentricities = computer.forward_low.into_boxed_slice();
+        let forward_eccentricities = computer.forward_low;
 
         Self::DirectedOutput {
             forward_eccentricities,

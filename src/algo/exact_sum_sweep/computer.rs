@@ -51,13 +51,13 @@ pub struct DirExactSumSweepComputer<
     /// Number of iterations performed until now.
     pub iterations: usize,
     /// The lower bound of the forward eccentricities.
-    pub forward_low: Vec<usize>,
+    pub forward_low: Box<[usize]>,
     /// The upper boung of the forward eccentricities.
-    pub forward_high: Vec<usize>,
+    pub forward_high: Box<[usize]>,
     /// The lower bound of the backward eccentricities.
-    pub backward_low: Vec<usize>,
+    pub backward_low: Box<[usize]>,
     /// The upper bound of the backward eccentricities.
-    pub backward_high: Vec<usize>,
+    pub backward_high: Box<[usize]>,
     /// Number of iterations before the radius was found.
     pub radius_iterations: Option<NonMaxUsize>,
     /// Number of iterations before the diameter was found.
@@ -72,10 +72,10 @@ pub struct DirExactSumSweepComputer<
     pub scc_graph: SccGraph<G1, G2, SCC>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    pub forward_tot: Vec<usize>,
+    pub forward_tot: Box<[usize]>,
     /// Total backward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
-    pub backward_tot: Vec<usize>,
+    pub backward_tot: Box<[usize]>,
     pub compute_radial_vertices: bool,
     pub visit: V1,
     pub transposed_visit: V2,
@@ -220,12 +220,12 @@ impl<
             transpose,
             num_nodes,
             output,
-            forward_tot: vec![0; num_nodes],
-            backward_tot: vec![0; num_nodes],
-            forward_low: vec![0; num_nodes],
-            forward_high: vec![num_nodes; num_nodes],
-            backward_low: vec![0; num_nodes],
-            backward_high: vec![num_nodes; num_nodes],
+            forward_tot: vec![0; num_nodes].into_boxed_slice(),
+            backward_tot: vec![0; num_nodes].into_boxed_slice(),
+            forward_low: vec![0; num_nodes].into_boxed_slice(),
+            forward_high: vec![num_nodes; num_nodes].into_boxed_slice(),
+            backward_low: vec![0; num_nodes].into_boxed_slice(),
+            backward_high: vec![num_nodes; num_nodes].into_boxed_slice(),
             scc_graph,
             scc,
             diameter_low: 0,
