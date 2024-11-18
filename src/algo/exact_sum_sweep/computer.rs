@@ -266,6 +266,8 @@ impl<
 
     /// Performs `iterations` steps of the SumSweep heuristic, starting from vertex `start`.
     ///
+    /// For more information see Section 3 of the paper.
+    ///
     /// # Arguments
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
@@ -394,6 +396,9 @@ impl<
                 }
                 5.. => panic!(),
             }
+
+            // Update each step utility.
+            // For more information see Section 4.6 of the paper.
 
             old_missing_nodes = missing_nodes;
             missing_nodes = self.find_missing_nodes(thread_pool, &mut pl.clone());
@@ -552,6 +557,8 @@ impl<
 
     /// Performs a (forward or backward) BFS, updating lower bounds on the eccentricities
     /// of all visited vertices.
+    ///
+    /// For more information see Section 4.1 of the paper.
     ///
     /// # Arguments
     /// * `start`: The starting vertex of the BFS. If [`None`], no visit happens.
@@ -726,6 +733,8 @@ impl<
     /// Performs a (forward or backward) BFS inside each strongly connected component, starting
     /// from the pivot.
     ///
+    /// For more information see Section 4.2 on the paper.
+    ///
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected
     ///   component.
@@ -818,6 +827,8 @@ impl<
     }
 
     /// Performs a step of the ExactSumSweep algorithm.
+    ///
+    /// For more information see Section 4.2 of the paper.
     ///
     /// # Arguments
     /// * `pivot`: An array containing in position `i` the pivot of the `i`-th strongly connected component.
