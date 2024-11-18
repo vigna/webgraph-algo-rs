@@ -1,14 +1,31 @@
-use super::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
+use super::StronglyConnectedComponents;
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
-
-use webgraph::{labels::Left, prelude::VecGraph, traits::RandomAccessGraph};
+use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of Tarjan's algorithm to compute the strongly connected components
 /// on a graph.
 pub struct TarjanStronglyConnectedComponents {
     n_of_components: usize,
-    component: Vec<usize>,
+    component: Box<[usize]>,
+}
+
+impl TarjanStronglyConnectedComponents {
+    /// Computes the strongly connected components of a graph using Tarkan's algorithm.
+    ///
+    /// # Arguments
+    /// * `graph`: the graph.
+    /// * `pl`: a progress logger.
+    pub fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
+        let mut visit = Tarjan::new(graph);
+
+        visit.run(pl);
+
+        TarjanStronglyConnectedComponents {
+            component: visit.component.into_boxed_slice(),
+            n_of_components: visit.number_of_components,
+        }
+    }
 }
 
 impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
@@ -22,27 +39,6 @@ impl StronglyConnectedComponents for TarjanStronglyConnectedComponents {
 
     fn component_mut(&mut self) -> &mut [usize] {
         self.component.as_mut()
-    }
-
-    fn compute_with_t(
-        graph: impl RandomAccessGraph,
-        _transpose: impl RandomAccessGraph,
-        pl: &mut impl ProgressLog,
-    ) -> Self {
-        let mut visit = Tarjan::new(graph);
-
-        visit.run(pl);
-
-        TarjanStronglyConnectedComponents {
-            component: visit.component,
-            n_of_components: visit.number_of_components,
-        }
-    }
-}
-
-impl StronglyConnectedComponentsNoT for TarjanStronglyConnectedComponents {
-    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
-        Self::compute_with_t(graph, Left(VecGraph::<()>::new()), pl)
     }
 }
 

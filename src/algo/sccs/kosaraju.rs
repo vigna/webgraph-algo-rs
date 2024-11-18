@@ -9,23 +9,17 @@ use webgraph::traits::RandomAccessGraph;
 /// on a graph.
 pub struct Kosaraju {
     n_of_components: usize,
-    component: Vec<usize>,
+    component: Box<[usize]>,
 }
 
-impl StronglyConnectedComponents for Kosaraju {
-    fn num_components(&self) -> usize {
-        self.n_of_components
-    }
-
-    fn component(&self) -> &[usize] {
-        self.component.as_ref()
-    }
-
-    fn component_mut(&mut self) -> &mut [usize] {
-        self.component.as_mut()
-    }
-
-    fn compute_with_t(
+impl Kosaraju {
+    /// Computes the strongly connected components of a graph using Kosaraju's algorithm.
+    ///
+    /// # Arguments
+    /// * `graph`: the graph.
+    /// * `transpose`: the transposed of `graph`.
+    /// * `pl`: a progress logger.
+    pub fn compute(
         graph: impl RandomAccessGraph,
         transpose: impl RandomAccessGraph,
         pl: &mut impl ProgressLog,
@@ -56,8 +50,22 @@ impl StronglyConnectedComponents for Kosaraju {
                 .unwrap_infallible();
         }
         Kosaraju {
-            component,
+            component: component.into_boxed_slice(),
             n_of_components: number_of_components + 1,
         }
+    }
+}
+
+impl StronglyConnectedComponents for Kosaraju {
+    fn num_components(&self) -> usize {
+        self.n_of_components
+    }
+
+    fn component(&self) -> &[usize] {
+        self.component.as_ref()
+    }
+
+    fn component_mut(&mut self) -> &mut [usize] {
+        self.component.as_mut()
     }
 }

@@ -1,35 +1,18 @@
+use super::StronglyConnectedComponents;
+use crate::{prelude::depth_first, traits::Sequential};
+use dsi_progress_logger::ProgressLog;
 use std::mem::MaybeUninit;
-
-use super::{StronglyConnectedComponents, StronglyConnectedComponentsNoT};
-use crate::{algo, prelude::depth_first, traits::Sequential};
 use unwrap_infallible::UnwrapInfallible;
-use webgraph::{labels::Left, prelude::VecGraph};
+use webgraph::traits::RandomAccessGraph;
 
 /// Connected components by sequential visits on symmetric graphs.
-pub struct SymmSeq<A: algo::visits::Event, V: Sequential<A>> {
+pub struct SymmSeq {
     num_components: usize,
     component: Box<[usize]>,
-    _marker: std::marker::PhantomData<(A, V)>,
 }
 
-impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponents for SymmSeq<A, V> {
-    fn num_components(&self) -> usize {
-        self.num_components
-    }
-
-    fn component(&self) -> &[usize] {
-        &self.component
-    }
-
-    fn component_mut(&mut self) -> &mut [usize] {
-        &mut self.component
-    }
-
-    fn compute_with_t(
-        graph: impl webgraph::prelude::RandomAccessGraph,
-        _transpose: impl webgraph::prelude::RandomAccessGraph,
-        pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) -> Self {
+impl SymmSeq {
+    pub fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self {
         // debug_assert!(check_symmetric(&graph)); requires sync
         let mut visit = depth_first::Seq::new(&graph);
         let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
@@ -59,16 +42,20 @@ impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponents for S
         SymmSeq {
             component,
             num_components: number_of_components + 1,
-            _marker: std::marker::PhantomData,
         }
     }
 }
 
-impl<A: algo::visits::Event, V: Sequential<A>> StronglyConnectedComponentsNoT for SymmSeq<A, V> {
-    fn compute(
-        graph: impl webgraph::prelude::RandomAccessGraph,
-        pl: &mut impl dsi_progress_logger::ProgressLog,
-    ) -> Self {
-        Self::compute_with_t(graph, Left(VecGraph::<()>::new()), pl)
+impl StronglyConnectedComponents for SymmSeq {
+    fn num_components(&self) -> usize {
+        self.num_components
+    }
+
+    fn component(&self) -> &[usize] {
+        &self.component
+    }
+
+    fn component_mut(&mut self) -> &mut [usize] {
+        &mut self.component
     }
 }

@@ -1,10 +1,7 @@
 use crate::{
     algo::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
-        scc::{
-            StronglyConnectedComponents, StronglyConnectedComponentsNoT,
-            TarjanStronglyConnectedComponents,
-        },
+        scc::{StronglyConnectedComponents, TarjanStronglyConnectedComponents},
         visits::{
             breadth_first::{Event, ParFair},
             FilterArgs, Parallel,
@@ -159,7 +156,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             "transpose should be the transpose of graph"
         );
 
-        let scc = TarjanStronglyConnectedComponents::compute_with_t(graph, transpose, pl);
+        let scc = TarjanStronglyConnectedComponents::compute(graph, pl);
         let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
         let visit = ParFair::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFair::new(transpose, VISIT_GRANULARITY);

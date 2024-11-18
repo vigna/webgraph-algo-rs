@@ -1,5 +1,4 @@
 mod tarjan;
-use dsi_progress_logger::ProgressLog;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 pub use tarjan::*;
 
@@ -10,7 +9,7 @@ pub use symm_seq::*;
 
 mod symm_par;
 pub use symm_par::*;
-use webgraph::{algo::llp, traits::RandomAccessGraph};
+use webgraph::algo::llp;
 
 /// The strongly connected components on a graph.
 pub trait StronglyConnectedComponents {
@@ -23,21 +22,6 @@ pub trait StronglyConnectedComponents {
     /// The mutable reference to the component index of each node.
     #[doc(hidden)]
     fn component_mut(&mut self) -> &mut [usize];
-
-    /// Computes the strongly connected components of a given graph using also
-    /// its transpose.
-    ///
-    /// # Arguments:
-    /// * `graph`: the graph whose strongly connected components are to be computed.
-    /// * `transpose`: the transpose of `graph`.
-    /// * `compute_buckets`: if `true`, buckets will be computed.
-    /// * `pl`: A progress logger.
-    #[allow(unused_variables)]
-    fn compute_with_t(
-        graph: impl RandomAccessGraph,
-        transpose: impl RandomAccessGraph,
-        pl: &mut impl ProgressLog,
-    ) -> Self;
 
     /// Returns the size array for this set of strongly connected components.
     fn compute_sizes(&self) -> Vec<usize> {
@@ -62,14 +46,4 @@ pub trait StronglyConnectedComponents {
             .par_iter_mut()
             .for_each(|node_component| *node_component = inv_perm[*node_component]);
     }
-}
-
-pub trait StronglyConnectedComponentsNoT: StronglyConnectedComponents + Sized {
-    /// Computes the strongly connected components of a given graph.
-    ///
-    /// # Arguments:
-    /// * `graph`: the graph whose strongly connected components are to be computed.
-    /// * `compute_buckets`: if `true`, buckets will be computed.
-    /// * `pl`: A progress logger.
-    fn compute(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Self;
 }
