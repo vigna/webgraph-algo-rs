@@ -369,11 +369,11 @@ impl<
         H: BuildHasher + Sync + Clone,
     > HyperLogLogCounterArray<T, W, H>
 where
-    Self: HyperLogLogArray<T, W>,
-    for<'a, 'b> <Self as HyperLogLogArray<T, W>>::Counter<'a, 'b>: Send,
+    Self: CounterArray<T, W>,
+    for<'a, 'b> <Self as CounterArray<T, W>>::Counter<'a, 'b>: Send,
 {
     /// Creates a vector where `v[i]` is the counter with index `i`.
-    pub fn to_vec<'b>(&mut self) -> Vec<<Self as HyperLogLogArray<T, W>>::Counter<'_, 'b>> {
+    pub fn to_vec<'b>(&mut self) -> Vec<<Self as CounterArray<T, W>>::Counter<'_, 'b>> {
         let mut vec = Vec::with_capacity(self.num_counters);
         (0..self.num_counters)
             .into_par_iter()
@@ -392,7 +392,7 @@ impl<
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
         H: BuildHasher + Clone,
-    > HyperLogLogArray<T, W> for HyperLogLogCounterArray<T, W, H>
+    > CounterArray<T, W> for HyperLogLogCounterArray<T, W, H>
 {
     type Counter<'d, 'h> = HyperLogLogCounter<'d, 'h, T, W, H, &'d mut [W], &'d Self> where T: 'd + 'h, W: 'd + 'h, H: 'd + 'h;
     type OwnedCounter<'h> = HyperLogLogCounter<'h, 'h, T, W, H, Box<[W]>, OwnedArray<W, H>> where T: 'h, W: 'h, H: 'h;

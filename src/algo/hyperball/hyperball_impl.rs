@@ -352,7 +352,7 @@ pub struct HyperBall<
     G2: RandomAccessGraph + Sync,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
-    A: HyperLogLogArray<G1::Label, W>,
+    A: CounterArray<G1::Label, W>,
 > {
     /// The direct graph to analyze
     graph: &'a G1,
@@ -417,7 +417,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        A: HyperLogLogArray<G1::Label, W> + Sync + Send,
+        A: CounterArray<G1::Label, W> + Sync + Send,
     > HyperBall<'a, G1, G2, D, W, A>
 {
     /// Runs HyperBall.
@@ -671,7 +671,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
-        A: HyperLogLogArray<G1::Label, W>,
+        A: CounterArray<G1::Label, W>,
     > HyperBall<'a, G1, G2, D, W, A>
 {
     /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
@@ -691,7 +691,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        A: HyperLogLogArray<G1::Label, W> + Sync + Send,
+        A: CounterArray<G1::Label, W> + Sync + Send,
     > HyperBall<'a, G1, G2, D, W, A>
 {
     /// Performs a new iteration of HyperBall.

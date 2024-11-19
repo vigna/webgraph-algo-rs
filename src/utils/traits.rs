@@ -43,7 +43,7 @@ pub trait MergeableCounter<T>: Counter<T> {
 /// A counter capable of using external allocations during its lifetime in order to
 /// avoid to allocate all its data structures each time.
 ///
-/// You can obtain a `ThreadHelper` by calling [`HyperLogLogArray::get_thread_helper`].
+/// You can obtain a `ThreadHelper` by calling [`CounterArray::get_thread_helper`].
 pub trait ThreadHelperCounter<'a, H> {
     /// Sets the counter to use the specified thread helper.
     fn use_thread_helper(&mut self, helper: &'a mut H);
@@ -64,13 +64,16 @@ impl<'a, T, W: Word, H, I: MergeableCounter<T> + ThreadHelperCounter<'a, H> + Pa
 {
 }
 
-/// An array of counter implementing [`HyperLogLog`].
-pub trait HyperLogLogArray<T, W: Word> {
+/// An array of counters.
+pub trait CounterArray<T, W: Word> {
     /// The type of counter this array contains.
     ///
     /// Note how lifetime `'h` is the lifetime of the `ThreadHelper` reference
     /// while `'d` is the lifetime of the data pointed to by the borrowed counter.
-    type Counter<'d, 'h>: HyperLogLog<'h, T, W, Self::ThreadHelper>
+    type Counter<'d, 'h>: MergeableCounter<T>
+        + ThreadHelperCounter<'h, Self::ThreadHelper>
+        + PartialEq
+        + Eq
     where
         Self: 'd,
         Self: 'h;
