@@ -37,8 +37,8 @@ use webgraph::traits::RandomAccessGraph;
 /// * [`ParFairNoPred`] generates events of type [`EventNoPred`].
 /// * [`ParFairPred`] generates events of type [`EventPred`].
 ///
-/// With respect to [`EventNoPred`], [`EventPred`] provides the predecessor of the
-/// current node.
+/// With respect to [`EventNoPred`], [`EventPred`] provides the predecessor of
+/// the current node.
 ///
 /// The progress logger will be updated each time all nodes at a given distance
 /// have been processed. This granularity is very low, but it provides more
@@ -60,14 +60,14 @@ use webgraph::traits::RandomAccessGraph;
 /// use unwrap_infallible::UnwrapInfallible;
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
-/// let mut visit = breadth_first::ParFair::new(&graph, 1);
+/// let mut visit = breadth_first::ParFairNoPred::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.par_visit(
 ///     0,
 ///     |event|
 ///         {
 ///             // Set distance from 0
-///             if let Event::Unknown {curr, distance, ..} = event {
+///             if let EventNoPred::Unknown {curr, distance, ..} = event {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
 ///             Ok(())
