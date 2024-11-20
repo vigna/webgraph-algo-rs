@@ -35,13 +35,8 @@ pub(super) fn merge_hyperloglog_bitwise<W: Word>(
     mask: &mut Vec<W>,
     register_size: usize,
 ) {
-    // We split x, y and the masks so we treat the last word appropriately.
-    let (x_last, x_slice) = x.split_last_mut().unwrap();
-    let (&y_last, y_slice) = y.split_last().unwrap();
-    let (&msb_last, msb_slice) = msb_mask.split_last().unwrap();
-
     let register_size_minus_1 = register_size - 1;
-    let num_words_minus_1 = x_slice.len();
+    let num_words_minus_1 = x.len() - 1;
     let shift_register_size_minus_1 = W::BITS - register_size_minus_1;
 
     /* We work in two phases. Let H_r (msb_mask) be the mask with the
@@ -65,42 +60,34 @@ pub(super) fn merge_hyperloglog_bitwise<W: Word>(
 
     // We load y | H_r into the accumulator.
     acc.extend(
-        y_slice
-            .iter()
-            .zip(msb_slice)
+        y.iter()
+            .zip(msb_mask)
             .map(|(&y_word, &msb_word)| y_word | msb_word),
     );
-    acc.push(y_last | msb_last);
 
     // We load x & !H_r into mask as temporary storage.
     mask.extend(
-        x_slice
-            .iter()
-            .zip(msb_slice)
+        x.iter()
+            .zip(msb_mask)
             .map(|(&x_word, &msb_word)| x_word & !msb_word),
     );
-    mask.push(*x_last & !msb_last);
 
     // We subtract x & !H_r, using mask as temporary storage
     subtract(acc, mask);
 
     // We OR with y ^ x, XOR with (y | !x), and finally AND with H_r.
-    {
-        let (acc_last, acc_slice) = acc.split_last_mut().unwrap();
-        acc_slice
-            .iter_mut()
-            .zip(x_slice.iter())
-            .zip(y_slice.iter())
-            .zip(msb_slice.iter())
-            .for_each(|(((acc_word, &x_word), &y_word), &msb_word)| {
-                *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
-            });
-        *acc_last = ((*acc_last | (y_last ^ *x_last)) ^ (y_last | !*x_last)) & msb_last;
-    }
+    acc.iter_mut()
+        .zip(x.iter())
+        .zip(y.iter())
+        .zip(msb_mask.iter())
+        .for_each(|(((acc_word, &x_word), &y_word), &msb_word)| {
+            *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
+        });
 
     // We shift by register_size - 1 places and put the result into mask.
     {
         let (mask_last, mask_slice) = mask.split_last_mut().unwrap();
+        let (&msb_last, msb_slice) = msb_mask.split_last().unwrap();
         mask_slice
             .iter_mut()
             .zip(acc[0..num_words_minus_1].iter())
@@ -120,24 +107,18 @@ pub(super) fn merge_hyperloglog_bitwise<W: Word>(
     subtract(mask, lsb_mask);
 
     // We OR with H_r and XOR with the accumulator.
-    let (mask_last, mask_slice) = mask.split_last_mut().unwrap();
-    let (&acc_last, acc_slice) = acc.split_last().unwrap();
-    mask_slice
-        .iter_mut()
-        .zip(msb_slice.iter())
-        .zip(acc_slice.iter())
+    mask.iter_mut()
+        .zip(msb_mask.iter())
+        .zip(acc.iter())
         .for_each(|((mask_word, &msb_word), &acc_word)| {
             *mask_word = (*mask_word | msb_word) ^ acc_word
         });
-    *mask_last = (*mask_last | msb_last) ^ acc_last;
 
     // Finally, we use mask to select the right bits from x and y and store the result.
-    x_slice
-        .iter_mut()
-        .zip(y_slice.iter())
-        .zip(mask_slice.iter())
+    x.iter_mut()
+        .zip(y.iter())
+        .zip(mask.iter())
         .for_each(|((x_word, &y_word), &mask_word)| {
             *x_word = *x_word ^ ((*x_word ^ y_word) & mask_word);
         });
-    *x_last = *x_last ^ ((*x_last ^ y_last) & *mask_last);
 }
