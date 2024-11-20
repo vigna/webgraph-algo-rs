@@ -1,6 +1,7 @@
 use super::StronglyConnectedComponents;
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
+use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
 /// Implementation of Tarjan's algorithm to compute the strongly connected components
@@ -64,7 +65,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
         pl.item_name("node");
         pl.expected_updates(Some(num_nodes));
         pl.start("Computing strongly connected components");
-        let mut lead = Vec::with_capacity(16);
+        let mut lead = BitVec::with_capacity(128);
         // Sentinel value guaranteeing that this stack is never empty
         lead.push(true);
         let mut component_stack = Vec::with_capacity(16);
@@ -98,7 +99,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                             // curr has not been emitted yet but it has a higher link
                             if high_link[pred] < high_link[curr] {
                                 // Safe as the stack is never empty
-                                *lead.last_mut().unwrap() = false;
+                                lead.set(lead.len() - 1, false);
                                 high_link[pred] = high_link[curr];
                                 if high_link[pred] == root_low_link && index == 0 {
                                     // All nodes have been discovered, and we
@@ -142,7 +143,7 @@ impl<G: RandomAccessGraph> Tarjan<G> {
                                 // Propagate knowledge to the parent
                                 if high_link[pred] < high_link[curr] {
                                     // Safe as the stack is never empty
-                                    *lead.last_mut().unwrap() = false;
+                                    lead.set(lead.len() - 1, false);
                                     high_link[pred] = high_link[curr];
                                 }
                             }
