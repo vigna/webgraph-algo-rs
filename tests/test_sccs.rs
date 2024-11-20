@@ -47,7 +47,7 @@ fn test_compute_sizes() -> Result<()> {
 
     assert_eq!(
         mock_strongly_connected_components.compute_sizes(),
-        vec![5, 2, 3]
+        vec![5, 2, 3].into_boxed_slice()
     );
 
     Ok(())
@@ -62,7 +62,8 @@ fn test_sort_by_size() -> Result<()> {
         BvGraph::with_basename("tests/graphs/cnr-2000").load()?,
     );
 
-    mock_strongly_connected_components.sort_by_size();
+    mock_strongly_connected_components
+        .sort_by_size(mock_strongly_connected_components.compute_sizes());
 
     assert_eq!(
         mock_strongly_connected_components.component().to_owned(),
@@ -110,10 +111,10 @@ macro_rules! test_scc_algo {
                 buckets.set(3, true);
                 buckets.set(4, true);
 
-                components.sort_by_size();
                 let sizes = components.compute_sizes();
-
-                assert_eq!(sizes, vec![2, 2, 1, 1, 1, 1, 1]);
+                components.sort_by_size(&sizes);
+                let sizes = components.compute_sizes();
+                assert_eq!(sizes, vec![2, 2, 1, 1, 1, 1, 1].into_boxed_slice());
 
                 Ok(())
             }
@@ -127,11 +128,11 @@ macro_rules! test_scc_algo {
                 let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
-
-                components.sort_by_size();
+                let sizes = components.compute_sizes();
+                components.sort_by_size(&sizes);
                 let sizes = components.compute_sizes();
 
-                assert_eq!(sizes, vec![3, 1]);
+                assert_eq!(sizes, vec![3, 1].into_boxed_slice());
 
                 Ok(())
             }
@@ -144,12 +145,10 @@ macro_rules! test_scc_algo {
                 let graph = Left(VecGraph::from_arc_list(arcs));
                 let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
 
-                let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
-
-                components.sort_by_size();
+                let components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
                 let sizes = components.compute_sizes();
 
-                assert_eq!(sizes, vec![4]);
+                assert_eq!(sizes, vec![4].into_boxed_slice());
 
                 Ok(())
             }
@@ -175,12 +174,13 @@ macro_rules! test_scc_algo {
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
-                components.sort_by_size();
+                let sizes = components.compute_sizes();
+                components.sort_by_size(&sizes);
 
                 for i in 0..5 {
                     assert_eq!(components.component()[i], 0);
                 }
-                assert_eq!(components.compute_sizes(), vec![5]);
+                assert_eq!(components.compute_sizes(), vec![5].into_boxed_slice());
 
                 Ok(())
             }
@@ -195,7 +195,7 @@ macro_rules! test_scc_algo {
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
-                components.sort_by_size();
+                components.sort_by_size(components.compute_sizes());
 
                 assert_eq!(components.num_components(), 7);
 

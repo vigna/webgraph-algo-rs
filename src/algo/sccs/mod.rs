@@ -23,21 +23,24 @@ pub trait StronglyConnectedComponents {
     #[doc(hidden)]
     fn component_mut(&mut self) -> &mut [usize];
 
-    /// Returns the size array for this set of strongly connected components.
-    fn compute_sizes(&self) -> Vec<usize> {
+    /// Returns the sizes of all components.
+    fn compute_sizes(&self) -> Box<[usize]> {
         let mut sizes = vec![0; self.num_components()];
         for &node_component in self.component() {
             sizes[node_component] += 1;
         }
-        sizes
+        sizes.into_boxed_slice()
     }
 
     /// Renumbers by decreasing size the components of this set.
     ///
-    /// After a call to this method, the internal state of this struct are permuted so that the sizes of
-    /// strongly connected components are decreasing in the component index.
-    fn sort_by_size(&mut self) {
-        let sizes = self.compute_sizes();
+    /// After a call to this method, the sizes of strongly connected components
+    /// are decreasing in the component index. The `sizes` parameter must be
+    /// the [array of sizes of the
+    /// components](StronglyConnectedComponents::compute_sizes).
+    fn sort_by_size(&mut self, sizes: impl AsRef<[usize]>) {
+        let sizes = sizes.as_ref();
+        assert!(sizes.len() == self.num_components());
         let mut sort_perm = Vec::from_iter(0..sizes.len());
         sort_perm.sort_unstable_by(|&x, &y| sizes[y].cmp(&sizes[x]));
         let mut inv_perm = vec![0; sizes.len()];
