@@ -15,6 +15,171 @@ use sux::{
 };
 use webgraph::traits::RandomAccessGraph;
 
+#[inline(always)]
+fn get_register<W: Word>(counter: &[W], register_size: usize, index: usize) -> W {
+    let bit_width = register_size;
+    let mask = W::MAX >> (W::BITS - bit_width);
+    let pos = index * bit_width;
+    let word_index = pos / W::BITS;
+    let bit_index = pos % W::BITS;
+
+    if bit_index + bit_width <= W::BITS {
+        (unsafe { *counter.get_unchecked(word_index) } >> bit_index) & mask
+    } else {
+        (unsafe { *counter.get_unchecked(word_index) } >> bit_index
+            | unsafe { *counter.get_unchecked(word_index + 1) } << (W::BITS - bit_index))
+            & mask
+    }
+}
+
+/// Performs a multiple precision subtraction, leaving the result in the first operand.
+/// The operands MUST have the same length.
+///
+/// # Arguments
+/// * `x`: the first operand. This will contain the final result.
+/// * `y`: the second operand that will be subtracted from `x`.
+#[inline(always)]
+pub(super) fn subtract<W: Word>(x: &mut [W], y: &[W]) {
+    debug_assert_eq!(x.len(), y.len());
+    let mut borrow = false;
+
+    for (x_word, &y) in x.iter_mut().zip(y.iter()) {
+        let mut x = *x_word;
+        if !borrow {
+            borrow = x < y;
+        } else if x != W::ZERO {
+            x = x.wrapping_sub(W::ONE);
+            borrow = x < y;
+        } else {
+            x = x.wrapping_sub(W::ONE);
+        }
+        *x_word = x.wrapping_sub(y);
+    }
+}
+
+#[inline(always)]
+pub(super) fn merge_hyperloglog_bitwise<W: Word>(
+    x: &mut [W],
+    y: &[W],
+    msb_mask: &[W],
+    lsb_mask: &[W],
+    acc: &mut Vec<W>,
+    mask: &mut Vec<W>,
+    register_size: usize,
+) {
+    let register_size_minus_1 = register_size - 1;
+    let num_words_minus_1 = x.len() - 1;
+    let shift_register_size_minus_1 = W::BITS - register_size_minus_1;
+
+    /* We work in two phases. Let H_r (msb_mask) be the mask with the
+     * highest bit of each register (of size r) set, and L_r (lsb_mask)
+     * be the mask with the lowest bit of each register set.
+     * We describe the algorithm on a single word.
+     *
+     * In the first phase we perform an unsigned strict register-by-register
+     * comparison of x and y, using the formula
+     *
+     * z = ((((y | H_r) - (x & !H_r)) | (y ^ x)) ^ (y | !x)) & H_r
+     *
+     * Then, we generate a register-by-register mask of all ones or
+     * all zeroes, depending on the result of the comparison, using the
+     * formula
+     *
+     * (((z >> r-1 | H_r) - L_r) | H_r) ^ z
+     *
+     * At that point, it is trivial to select from x and y the right values.
+     */
+
+    // We load y | H_r into the accumulator.
+    acc.extend(
+        y.iter()
+            .zip(msb_mask)
+            .map(|(&y_word, &msb_word)| y_word | msb_word),
+    );
+
+    // We load x & !H_r into mask as temporary storage.
+    mask.extend(
+        x.iter()
+            .zip(msb_mask)
+            .map(|(&x_word, &msb_word)| x_word & !msb_word),
+    );
+
+    // We subtract x & !H_r, using mask as temporary storage
+    subtract(acc, mask);
+
+    // We OR with y ^ x, XOR with (y | !x), and finally AND with H_r.
+    acc.iter_mut()
+        .zip(x.iter())
+        .zip(y.iter())
+        .zip(msb_mask.iter())
+        .for_each(|(((acc_word, &x_word), &y_word), &msb_word)| {
+            *acc_word = ((*acc_word | (y_word ^ x_word)) ^ (y_word | !x_word)) & msb_word
+        });
+
+    // We shift by register_size - 1 places and put the result into mask.
+    {
+        let (mask_last, mask_slice) = mask.split_last_mut().unwrap();
+        let (&msb_last, msb_slice) = msb_mask.split_last().unwrap();
+        mask_slice
+            .iter_mut()
+            .zip(acc[0..num_words_minus_1].iter())
+            .zip(acc[1..].iter())
+            .zip(msb_slice.iter())
+            .rev()
+            .for_each(|(((mask_word, &acc_word), &next_acc_word), &msb_word)| {
+                // W is always unsigned so the shift is always with a 0
+                *mask_word = (acc_word >> register_size_minus_1)
+                    | (next_acc_word << shift_register_size_minus_1)
+                    | msb_word
+            });
+        *mask_last = (acc[num_words_minus_1] >> register_size_minus_1) | msb_last;
+    }
+
+    // We subtract L_r from mask.
+    subtract(mask, lsb_mask);
+
+    // We OR with H_r and XOR with the accumulator.
+    mask.iter_mut()
+        .zip(msb_mask.iter())
+        .zip(acc.iter())
+        .for_each(|((mask_word, &msb_word), &acc_word)| {
+            *mask_word = (*mask_word | msb_word) ^ acc_word
+        });
+
+    // Finally, we use mask to select the right bits from x and y and store the result.
+    x.iter_mut()
+        .zip(y.iter())
+        .zip(mask.iter())
+        .for_each(|((x_word, &y_word), &mask_word)| {
+            *x_word = *x_word ^ ((*x_word ^ y_word) & mask_word);
+        });
+}
+
+#[inline(always)]
+fn count<W: Word + UpcastableInto<u64>>(
+    counter: &[W],
+    num_registers: usize,
+    register_size: usize,
+    alpha_m_m: f64,
+) -> f64 {
+    let mut harmonic_mean = 0.0;
+    let mut zeroes = 0;
+
+    for i in 0..num_registers {
+        let value = get_register(counter, register_size, i).upcast();
+        if value == 0 {
+            zeroes += 1;
+        }
+        harmonic_mean += 1.0 / (1 << value) as f64;
+    }
+
+    let mut estimate = alpha_m_m / harmonic_mean;
+    if zeroes != 0 && estimate < 2.5 * num_registers as f64 {
+        estimate = num_registers as f64 * (num_registers as f64 / zeroes as f64).ln();
+    }
+    estimate
+}
+
 /// Builder for [`HyperBall`].
 ///
 /// Create a builder with [`HyperBallBuilder::new`], edit parameters with
@@ -283,6 +448,12 @@ impl<
             graph: self.graph,
             rev_graph: self.rev_graph,
             cumulative_outdegree: self.cumulative_outdegree,
+            words_per_counter: bits.words_per_counter(),
+            lsb_mask: bits.lsb_mask.as_slice().into(),
+            msb_mask: bits.msb_mask.as_slice().into(),
+            register_size: bits.register_size(),
+            alpha_m_m: bits.alpha_m_m,
+            num_registers: bits.num_registers(),
             weight: self.weights,
             bits,
             result_bits,
@@ -408,6 +579,12 @@ pub struct HyperBall<
     relative_increment: f64,
     /// Context used in a single iteration
     iteration_context: IterationContext,
+    words_per_counter: usize,
+    msb_mask: Box<[W]>,
+    lsb_mask: Box<[W]>,
+    register_size: usize,
+    num_registers: usize,
+    alpha_m_m: f64,
     _phantom_data: std::marker::PhantomData<W>,
 }
 
@@ -879,7 +1056,8 @@ impl<
         let mut visited_arcs = 0;
         let mut modified_counters = 0;
         let arc_upper_limit = self.graph.num_arcs() as usize;
-        let mut thread_helper = self.bits.get_thread_helper();
+        let mut acc = Vec::with_capacity(self.words_per_counter);
+        let mut mask = Vec::with_capacity(self.words_per_counter);
 
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
         // by this thread. During systolic iterations, cumulates the *increase* of the
@@ -935,27 +1113,30 @@ impl<
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
                     // We write directly to the result
-                    let mut counter = unsafe {
+                    let counter = unsafe {
                         // Safety: no other thread will ever read from or write to this counter
-                        self.result_bits.get_counter_from_shared(node)
+                        self.result_bits.get_mut_slice(node)
                     };
-                    let old_counter = unsafe {
-                        // Safety: self.bits is never written to in parallel_task
-                        self.bits.get_counter_from_shared(node)
-                    };
-                    counter.use_thread_helper(&mut thread_helper);
+                    let old_counter = self.bits.get_slice(node);
                     let mut modified = false;
                     for succ in self.graph.successors(node) {
                         if succ != node && self.modified_counter[succ] {
                             visited_arcs += 1;
                             if !modified {
-                                counter.set_to(&old_counter);
+                                counter.copy_from_slice(old_counter);
                                 modified = true;
                             }
-                            unsafe {
-                                // Safety: self.bits is never written to in parallel_task
-                                counter.merge(&self.bits.get_counter_from_shared(succ));
-                            }
+                            acc.clear();
+                            mask.clear();
+                            merge_hyperloglog_bitwise(
+                                counter,
+                                self.bits.get_slice(succ),
+                                &self.msb_mask,
+                                &self.lsb_mask,
+                                &mut acc,
+                                &mut mask,
+                                self.register_size,
+                            );
                         }
                     }
 
@@ -971,14 +1152,24 @@ impl<
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
                     if !self.systolic || modified_counter {
-                        post = counter.count();
+                        post = count(
+                            counter,
+                            self.num_registers,
+                            self.register_size,
+                            self.alpha_m_m,
+                        );
                     }
                     if !self.systolic {
                         neighbourhood_function_delta += post;
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = old_counter.count();
+                        let pre = count(
+                            old_counter,
+                            self.num_registers,
+                            self.register_size,
+                            self.alpha_m_m,
+                        );
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
@@ -1047,7 +1238,7 @@ impl<
                     // the present value was not a modified value in the first place,
                     // then we can avoid updating the result altogether.
                     if !modified && self.modified_counter[node] {
-                        counter.set_to(&old_counter);
+                        counter.copy_from_slice(old_counter);
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
@@ -1058,8 +1249,8 @@ impl<
                             // Safety: we are only ever writing to the result array and
                             // no counter is ever written to more than once
                             self.result_bits
-                                .get_counter_from_shared(node)
-                                .set_to(&self.bits.get_counter_from_shared(node))
+                                .get_mut_slice(node)
+                                .copy_from_slice(self.bits.get_slice(node))
                         };
                     }
                 }

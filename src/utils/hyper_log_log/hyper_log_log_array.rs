@@ -288,16 +288,16 @@ pub struct HyperLogLogCounterArray<
     /// The size in bits of each register
     pub(super) register_size: usize,
     /// The correct value for αm<sup>2</sup>
-    pub(super) alpha_m_m: f64,
+    pub alpha_m_m: f64,
     /// The mask OR'd with the output of the hash function so that the number of trailing zeroes is not
     /// too large of a value
     pub(super) sentinel_mask: HashResult,
     /// The builder of the hashers
     pub(super) hasher_builder: H,
     /// A mask containing a one in the most significant bit of each register
-    pub(super) msb_mask: BitFieldVec<W>,
+    pub msb_mask: BitFieldVec<W>,
     /// A mask containing a one in the least significant bit of each register
-    pub(super) lsb_mask: BitFieldVec<W>,
+    pub lsb_mask: BitFieldVec<W>,
     /// The number of words per counter
     pub(super) words_per_counter: usize,
     _phantom_data: PhantomData<T>,
@@ -405,18 +405,9 @@ impl<
         T: 'h,
         H: 'h,
     {
-        assert!(index < self.num_counters);
-        let mut ptr = self.bits.as_ptr() as *mut W;
-
-        unsafe {
-            // Safety: bits are allocated so it can never be bigger than
-            // isize::MAX bytes.
-            ptr = ptr.add(self.words_per_counter * index);
-        }
-
         let bits = unsafe {
             // Safety: guaranteed by the caller (no data races to borrowed data)
-            std::slice::from_raw_parts_mut(ptr, self.words_per_counter)
+            self.get_mut_slice(index)
         };
         Self::Counter {
             array: self,
@@ -428,19 +419,7 @@ impl<
 
     #[inline(always)]
     fn get_owned_counter<'h>(&self, index: usize) -> Self::OwnedCounter<'h> {
-        assert!(index < self.num_counters);
-        let mut ptr = self.bits.as_ptr() as *const W;
-
-        unsafe {
-            // Safety: bits are allocated so it can never be bigger than
-            // isize::MAX bytes.
-            ptr = ptr.add(self.words_per_counter * index);
-        }
-
-        let bits = unsafe {
-            // Safety: bits will be copied so no data races can happen.
-            std::slice::from_raw_parts(ptr, self.words_per_counter)
-        };
+        let bits = self.get_slice(index);
         Self::OwnedCounter {
             bits: bits.into(),
             array: self.into(),
@@ -475,5 +454,34 @@ impl<
         assert_eq!(self.num_registers, other.num_registers);
         assert_eq!(self.register_size, other.register_size);
         std::mem::swap(&mut self.bits, &mut other.bits);
+    }
+
+    fn get_slice(&self, index: usize) -> &[W] {
+        assert!(index < self.num_counters);
+        let mut ptr = self.bits.as_ptr() as *const W;
+
+        unsafe {
+            // Safety: bits are allocated so it can never be bigger than
+            // isize::MAX bytes.
+            ptr = ptr.add(self.words_per_counter * index);
+        }
+
+        unsafe { std::slice::from_raw_parts(ptr, self.words_per_counter) }
+    }
+
+    unsafe fn get_mut_slice(&self, index: usize) -> &mut [W] {
+        assert!(index < self.num_counters);
+        let mut ptr = self.bits.as_ptr() as *mut W;
+
+        unsafe {
+            // Safety: bits are allocated so it can never be bigger than
+            // isize::MAX bytes.
+            ptr = ptr.add(self.words_per_counter * index);
+        }
+
+        unsafe {
+            // Safety: guaranteed by the caller (no data races to borrowed data)
+            std::slice::from_raw_parts_mut(ptr, self.words_per_counter)
+        }
     }
 }

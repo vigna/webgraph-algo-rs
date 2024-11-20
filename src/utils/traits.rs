@@ -163,4 +163,8 @@ pub trait CounterArray<T, W: Word> {
     {
         std::mem::swap(self, other);
     }
+
+    fn get_slice(&self, index: usize) -> &[W];
+
+    unsafe fn get_mut_slice(&self, index: usize) -> &mut [W];
 }
