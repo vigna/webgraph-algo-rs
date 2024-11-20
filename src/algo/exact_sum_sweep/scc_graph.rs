@@ -1,4 +1,4 @@
-use crate::algo::scc::StronglyConnectedComponents;
+use crate::algo::sccs::StronglyConnectedComponents;
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use rayon::prelude::*;
@@ -101,7 +101,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
         pl.start("Computing vec-based strongly connected components graph");
 
         let number_of_scc = scc.num_components();
-        let node_components = scc.component();
+        let node_components = scc.components();
         let mut vertices_in_scc = vec![Vec::new(); number_of_scc];
 
         let mut scc_graph = vec![Vec::new(); number_of_scc];

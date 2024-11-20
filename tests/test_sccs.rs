@@ -1,12 +1,14 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
+use lender::for_;
 use sux::bit_vec;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::RandomAccessGraph;
 use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
-use webgraph_algo::{algo::scc::*, threads};
+use webgraph_algo::traits::StronglyConnectedComponents;
+use webgraph_algo::{algo::sccs, threads};
 
 struct MockStronglyConnectedComponent<G: RandomAccessGraph> {
     component: Vec<usize>,
@@ -25,7 +27,7 @@ impl<G: RandomAccessGraph> MockStronglyConnectedComponent<G> {
 }
 
 impl<G: RandomAccessGraph> StronglyConnectedComponents for MockStronglyConnectedComponent<G> {
-    fn component(&self) -> &[usize] {
+    fn components(&self) -> &[usize] {
         self.component.as_slice()
     }
     fn component_mut(&mut self) -> &mut [usize] {
@@ -62,11 +64,10 @@ fn test_sort_by_size() -> Result<()> {
         BvGraph::with_basename("tests/graphs/cnr-2000").load()?,
     );
 
-    mock_strongly_connected_components
-        .sort_by_size(mock_strongly_connected_components.compute_sizes());
+    mock_strongly_connected_components.sort_by_size();
 
     assert_eq!(
-        mock_strongly_connected_components.component().to_owned(),
+        mock_strongly_connected_components.components().to_owned(),
         vec![1, 0, 0, 0, 1, 2]
     );
 
@@ -104,16 +105,14 @@ macro_rules! test_scc_algo {
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
-                assert_eq!(components.component()[3], components.component()[4]);
+                assert_eq!(components.components()[3], components.components()[4]);
 
                 let mut buckets = bit_vec![false; graph.num_nodes()];
                 buckets.set(0, true);
                 buckets.set(3, true);
                 buckets.set(4, true);
 
-                let sizes = components.compute_sizes();
-                components.sort_by_size(&sizes);
-                let sizes = components.compute_sizes();
+                let sizes = components.sort_by_size();
                 assert_eq!(sizes, vec![2, 2, 1, 1, 1, 1, 1].into_boxed_slice());
 
                 Ok(())
@@ -128,9 +127,7 @@ macro_rules! test_scc_algo {
                 let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
-                let sizes = components.compute_sizes();
-                components.sort_by_size(&sizes);
-                let sizes = components.compute_sizes();
+                let sizes = components.sort_by_size();
 
                 assert_eq!(sizes, vec![3, 1].into_boxed_slice());
 
@@ -174,13 +171,12 @@ macro_rules! test_scc_algo {
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
-                let sizes = components.compute_sizes();
-                components.sort_by_size(&sizes);
+                let sizes = components.sort_by_size();
 
                 for i in 0..5 {
-                    assert_eq!(components.component()[i], 0);
+                    assert_eq!(components.components()[i], 0);
                 }
-                assert_eq!(components.compute_sizes(), vec![5].into_boxed_slice());
+                assert_eq!(sizes, vec![5].into_boxed_slice());
 
                 Ok(())
             }
@@ -193,9 +189,7 @@ macro_rules! test_scc_algo {
                 let graph = Left(VecGraph::from_arc_list(arcs));
                 let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
 
-                let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
-
-                components.sort_by_size(components.compute_sizes());
+                let components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
                 assert_eq!(components.num_components(), 7);
 
@@ -205,11 +199,8 @@ macro_rules! test_scc_algo {
     };
 }
 
-test_scc_algo!(
-    |g, _, _, pl| TarjanStronglyConnectedComponents::compute(g, pl),
-    tarjan
-);
-test_scc_algo!(|g, t, _, pl| Kosaraju::compute(g, t, pl), kosaraju);
+test_scc_algo!(|g, _, _, pl| sccs::tarjan(g, pl), tarjan);
+test_scc_algo!(|g, t, _, pl| sccs::kosaraju(g, t, pl), kosaraju);
 
 #[test]
 fn test_large() -> Result<()> {
@@ -218,8 +209,8 @@ fn test_large() -> Result<()> {
     let graph = BvGraph::with_basename(basename).load()?;
     let transpose = BvGraph::with_basename(basename.to_string() + "-t").load()?;
 
-    let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
-    let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
+    let kosaraju = sccs::kosaraju(&graph, &transpose, no_logging![]);
+    let tarjan = sccs::tarjan(&graph, no_logging![]);
 
     assert_eq!(kosaraju.num_components(), 100977);
     assert_eq!(tarjan.num_components(), 100977);
@@ -238,10 +229,37 @@ fn test_er() -> Result<()> {
             let transpose = Left(VecGraph::from_lender(
                 transform::transpose(&graph, 10000)?.iter(),
             ));
-            let kosaraju = Kosaraju::compute(&graph, &transpose, no_logging![]);
-            let tarjan = TarjanStronglyConnectedComponents::compute(&graph, no_logging![]);
+            let kosaraju = sccs::kosaraju(&graph, &transpose, no_logging![]);
+            let tarjan = sccs::tarjan(&graph, no_logging![]);
 
             assert_eq!(kosaraju.num_components(), tarjan.num_components());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_er_symm() -> Result<()> {
+    for n in (10..=100).step_by(10) {
+        for d in 1..10 {
+            let er = Left(VecGraph::from_lender(
+                ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter(),
+            ));
+
+            let mut graph = VecGraph::new();
+            graph.add_node(er.num_nodes() - 1);
+            for_!((src, succ) in er {
+                for dst in succ {
+                    graph.add_arc(src, dst);
+                    graph.add_arc(dst, src);
+                }
+            });
+            let graph = Left(graph);
+            let symm_par = sccs::symm_par(&graph, &threads![], no_logging![]);
+            let symm_seq = sccs::symm_seq(&graph, no_logging![]);
+            let tarjan = sccs::tarjan(graph, no_logging![]);
+            assert_eq!(symm_seq.num_components(), tarjan.num_components());
+            assert_eq!(symm_par.num_components(), tarjan.num_components());
         }
     }
     Ok(())

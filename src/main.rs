@@ -3,9 +3,8 @@ use dsi_progress_logger::prelude::*;
 use epserde::deser::{Deserialize, Flags};
 use webgraph::prelude::{BvGraph, DCF};
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::algo::hyperball::*;
-use webgraph_algo::algo::scc::*;
+use webgraph_algo::algo::{exact_sum_sweep::*, sccs};
 use webgraph_algo::prelude::*;
 use webgraph_algo::threads;
 use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
@@ -32,7 +31,7 @@ fn main() -> Result<()> {
         .as_str()
     {
         "tarjan" => {
-            TarjanStronglyConnectedComponents::compute(&graph, &mut main_pl);
+            sccs::tarjan(&graph, &mut main_pl);
         }
         "diameter" => {
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;

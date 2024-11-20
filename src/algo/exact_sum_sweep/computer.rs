@@ -1,12 +1,13 @@
 use crate::{
     algo::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
-        scc::{StronglyConnectedComponents, TarjanStronglyConnectedComponents},
+        sccs,
         visits::{
             breadth_first::{Event, ParFair},
             FilterArgs, Parallel,
         },
     },
+    traits::{BasicSccs, StronglyConnectedComponents},
     utils::*,
 };
 use dsi_progress_logger::no_logging;
@@ -28,7 +29,6 @@ pub struct DirExactSumSweepComputer<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
-    SCC: StronglyConnectedComponents,
     V1: Parallel<Event> + Sync,
     V2: Parallel<Event> + Sync,
 > {
@@ -64,9 +64,9 @@ pub struct DirExactSumSweepComputer<
     /// Number of iterations before all eccentricities are found.
     pub all_iter: Option<NonMaxUsize>,
     /// The strongly connected components.
-    pub scc: SCC,
+    pub scc: BasicSccs,
     /// The strongly connected components diagram.
-    pub scc_graph: SccGraph<G1, G2, SCC>,
+    pub scc_graph: SccGraph<G1, G2, BasicSccs>,
     /// Total forward distance from already processed vertices (used as tie-break for the choice
     /// of the next vertex to process).
     pub forward_tot: Box<[usize]>,
@@ -79,14 +79,7 @@ pub struct DirExactSumSweepComputer<
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
-    DirExactSumSweepComputer<
-        'a,
-        G,
-        G,
-        TarjanStronglyConnectedComponents,
-        ParFair<&'a G>,
-        ParFair<&'a G>,
-    >
+    DirExactSumSweepComputer<'a, G, G, ParFair<&'a G>, ParFair<&'a G>>
 {
     /// Build a new instance to compute the *ExactSumSweep* algorithm on undirected graphs.
     ///
@@ -104,7 +97,7 @@ impl<'a, G: RandomAccessGraph + Sync>
             _ => Output::AllForward,
         };
 
-        let scc = TarjanStronglyConnectedComponents::compute(graph, pl);
+        let scc = sccs::tarjan(graph, pl);
         let scc_graph = SccGraph::new(graph, graph, &scc, pl);
         let visit = ParFair::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFair::new(graph, VISIT_GRANULARITY);
@@ -124,14 +117,7 @@ impl<'a, G: RandomAccessGraph + Sync>
 }
 
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
-    DirExactSumSweepComputer<
-        'a,
-        G1,
-        G2,
-        TarjanStronglyConnectedComponents,
-        ParFair<&'a G1>,
-        ParFair<&'a G2>,
-    >
+    DirExactSumSweepComputer<'a, G1, G2, ParFair<&'a G1>, ParFair<&'a G2>>
 {
     /// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs.
     ///
@@ -156,7 +142,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
             "transpose should be the transpose of graph"
         );
 
-        let scc = TarjanStronglyConnectedComponents::compute(graph, pl);
+        let scc = sccs::tarjan(graph, pl);
         let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
         let visit = ParFair::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFair::new(transpose, VISIT_GRANULARITY);
@@ -179,10 +165,9 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        SCC: StronglyConnectedComponents,
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
-    > DirExactSumSweepComputer<'a, G1, G2, SCC, V1, V2>
+    > DirExactSumSweepComputer<'a, G1, G2, V1, V2>
 {
     #[allow(clippy::too_many_arguments)]
     fn build(
@@ -190,8 +175,8 @@ impl<
         transpose: &'a G2,
         output: Output,
         radial_vertices: Option<AtomicBitVec>,
-        scc: SCC,
-        scc_graph: SccGraph<G1, G2, SCC>,
+        scc: BasicSccs,
+        scc_graph: SccGraph<G1, G2, BasicSccs>,
         visit: V1,
         transposed_visit: V2,
         pl: &mut impl ProgressLog,
@@ -246,10 +231,9 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: StronglyConnectedComponents + Sync,
         V1: Parallel<Event> + Sync,
         V2: Parallel<Event> + Sync,
-    > DirExactSumSweepComputer<'a, G1, G2, C, V1, V2>
+    > DirExactSumSweepComputer<'a, G1, G2, V1, V2>
 {
     #[inline(always)]
     fn incomplete_forward(&self, index: usize) -> bool {
@@ -444,7 +428,7 @@ impl<
         debug_assert!(self.num_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.num_components()];
-        let components = self.scc.component();
+        let components = self.scc.components();
         pl.expected_updates(Some(components.len()));
         pl.item_name("nodes");
         pl.display_memory(false);
@@ -514,7 +498,7 @@ impl<
         pl.display_memory(false);
         pl.start("Computing radial vertices...");
 
-        let component = self.scc.component();
+        let component = self.scc.components();
         let scc_sizes = self.scc.compute_sizes();
         let max_size_scc = math::argmax(&scc_sizes).expect("Could not find max size scc.");
 
@@ -776,7 +760,7 @@ impl<
         graph: &(impl RandomAccessGraph + Sync),
         thread_pool: &ThreadPool,
     ) -> (Vec<usize>, Vec<usize>) {
-        let components = self.scc.component();
+        let components = self.scc.components();
         let mut ecc_pivot = Vec::with_capacity(self.scc.num_components());
         ecc_pivot.resize_with(self.scc.num_components(), || AtomicUsize::new(0));
         let mut dist_pivot = vec![0; self.num_nodes];
@@ -848,7 +832,7 @@ impl<
             self.compute_dist_pivot(&pivot, true, thread_pool, &mut pl.clone());
         let (dist_pivot_b, mut ecc_pivot_b) =
             self.compute_dist_pivot(&pivot, false, thread_pool, &mut pl.clone());
-        let components = self.scc.component();
+        let components = self.scc.components();
 
         // Tarjan's algorithm emits components in reverse topological order.
         // In order to bound forward eccentricities in reverse topological order the components
