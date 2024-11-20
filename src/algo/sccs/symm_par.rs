@@ -1,11 +1,14 @@
 use crate::{
-    prelude::breadth_first::{Event, ParFair},
+    prelude::breadth_first::{EventPred, ParLowMem},
     traits::{BasicSccs, Parallel},
     utils::*,
 };
 use dsi_progress_logger::ProgressLog;
 use rayon::ThreadPool;
-use std::{mem::MaybeUninit, sync::atomic::*};
+use std::{
+    mem::MaybeUninit,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::{traits::RandomAccessGraph, utils::SyncSliceExt};
 
@@ -17,36 +20,37 @@ pub fn symm_par(
 ) -> BasicSccs {
     debug_assert!(check_symmetric(&graph));
     // TODO: use a better value for granularity
-    let mut visit = ParFair::new(&graph, 100);
+    let mut visit = ParLowMem::new(&graph, 100);
     let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
-    let mut number_of_components = 0;
-    let update_counter = AtomicBool::new(false);
+
+    let number_of_components = AtomicUsize::new(0);
     let slice = unsafe { component.as_sync_slice() };
 
-    for root in 0..graph.num_nodes() {
-        visit
-            .par_visit(
-                root,
-                |event| {
-                    match event {
-                        Event::Init { .. } => update_counter.store(true, Ordering::Relaxed),
-                        Event::Unknown { curr, .. } => {
-                            slice.set(curr, MaybeUninit::new(number_of_components));
-                        }
-                        _ => (),
+    visit
+        .par_visit_all(
+            |event| {
+                match event {
+                    EventPred::Init { .. } => {}
+                    EventPred::Unknown { curr, .. } => {
+                        slice.set(
+                            curr,
+                            MaybeUninit::new(number_of_components.load(Ordering::Relaxed)),
+                        );
                     }
-                    Ok(())
-                },
-                thread_pool,
-                pl,
-            )
-            .unwrap_infallible();
-        if update_counter.swap(false, Ordering::Relaxed) {
-            number_of_components += 1;
-        }
-    }
+                    EventPred::Done { .. } => {
+                        number_of_components.fetch_add(1, Ordering::Relaxed);
+                    }
+                    _ => (),
+                }
+                Ok(())
+            },
+            thread_pool,
+            pl,
+        )
+        .unwrap_infallible();
+
     let component =
         unsafe { std::mem::transmute::<Box<[MaybeUninit<usize>]>, Box<[usize]>>(component) };
 
-    BasicSccs::new(number_of_components, component)
+    BasicSccs::new(number_of_components.load(Ordering::Relaxed), component)
 }

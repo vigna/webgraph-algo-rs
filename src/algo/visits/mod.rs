@@ -155,9 +155,9 @@ pub trait Sequential<A: Event> {
 /// A parallel visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_filtered`](Parallel::visit_filtered) method, which should perform a
+/// [`visit_filtered`](Parallel::par_visit_filtered) method, which should perform a
 /// visit of a graph starting from a given node, and the
-/// [`visit_all_filtered`](Parallel::visit_all_filtered) method, which should
+/// [`visit_all_filtered`](Parallel::par_visit_all_filtered) method, which should
 /// perform a visit of the whole graph by starting a visit from each node.
 pub trait Parallel<A: Event> {
     /// Visits the graph from the specified node.
@@ -185,7 +185,7 @@ pub trait Parallel<A: Event> {
     /// Visits the graph from the specified node without a filter.
     ///
     /// This method just calls
-    /// [`visit_filtered`](Parallel::visit_filtered)
+    /// [`visit_filtered`](Parallel::par_visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
     fn par_visit<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
@@ -200,7 +200,7 @@ pub trait Parallel<A: Event> {
 
     /// Visits the whole graph.
     ///
-    /// See [`visit`](Parallel::visit_filtered) for more details.
+    /// See [`visit`](Parallel::par_visit_filtered) for more details.
     fn par_visit_all_filtered<
         E: Send,
         C: Fn(A) -> Result<(), E> + Sync,
@@ -216,7 +216,7 @@ pub trait Parallel<A: Event> {
     /// Visits the whole graph without a filter.
     ///
     /// The default implementation calls
-    /// [`visit_all_filtered`](Parallel::visit_all_filtered) with a filter that
+    /// [`visit_all_filtered`](Parallel::par_visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
     fn par_visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(

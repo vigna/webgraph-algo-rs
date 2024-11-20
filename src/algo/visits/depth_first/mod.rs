@@ -1,8 +1,9 @@
 //! Depth-first visits.
 //!
-//! Implementations must accept a callback function with argument [`Event`], or
-//! [`EventPred`] if the visit keeps track of parent nodes. The associated filter
-//! argument types are [`FilterArgs`] and [`FilterArgsPred`], respectively.
+//! Implementations must accept a callback function with argument
+//! [`EventNoPred`], or [`EventPred`] if the visit keeps track of parent nodes.
+//! The associated filter argument types are [`FilterArgsNoPred`] and
+//! [`FilterArgsPred`], respectively.
 //!
 //! Note that since [`EventPred`] contains the predecessor of the visited node,
 //! all post-initialization visit events can be interpreted as arc events. The
@@ -14,7 +15,7 @@ pub use seq::*;
 /// Types of callback events generated during depth-first visits
 /// not keeping track of parent nodes.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum Event {
+pub enum EventNoPred {
     /// This event should be used to set up state at the start of the visit.
     ///
     /// Note that this event will not happen if the visit is empty, that
@@ -31,8 +32,9 @@ pub enum Event {
         curr: usize,
         /// The root of the current visit tree.
         root: usize,
-        /// The depth of the visit, that is, the length of the visit path from the
-        /// [root](`Event::Previsit::root`) to [curr](`Event::Previsit::curr`).
+        /// The depth of the visit, that is, the length of the visit path from
+        /// the [root](`EventNoPred::Previsit::root`) to
+        /// [curr](`EventNoPred::Previsit::curr`).
         depth: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
@@ -42,15 +44,25 @@ pub enum Event {
         curr: usize,
         /// The root of the current visit tree.
         root: usize,
-        /// The depth of the visit, that is, the length of the visit path from the
-        /// [root](`Event::Revisit::root`) to [curr](`Event::Revisit::curr`).
+        /// The depth of the visit, that is, the length of the visit path from
+        /// the [root](`EventNoPred::Revisit::root`) to
+        /// [curr](`EventNoPred::Revisit::curr`).
         depth: usize,
+    },
+    /// The visit has been completed.
+    ///
+    /// Note that this event will not happen if the visit is empty (that is, if
+    /// the root has already been visited) or if the visit is stopped by a
+    /// callback returning an error.
+    Done {
+        /// The root of the current visit tree.
+        root: usize,
     },
 }
 
 /// Filter arguments for visits that do not keep track of predecessors.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct FilterArgs {
+pub struct FilterArgsNoPred {
     /// The current node.
     pub curr: usize,
     /// The root of the current visit tree.
@@ -60,8 +72,8 @@ pub struct FilterArgs {
     pub depth: usize,
 }
 
-impl super::Event for Event {
-    type FilterArgs = FilterArgs;
+impl super::Event for EventNoPred {
+    type FilterArgs = FilterArgsNoPred;
 }
 
 /// Types of callback events generated during depth-first visits
@@ -121,6 +133,15 @@ pub enum EventPred {
         /// the [root](`EventPred::Postvisit::root`) to
         /// [curr](`EventPred::Postvisit::curr`).
         depth: usize,
+    },
+    /// The visit has been completed.
+    ///
+    /// Note that this event will not happen if the visit is empty (that is, if
+    /// the root has already been visited) or if the visit is stopped by a
+    /// callback returning an error.
+    Done {
+        /// The root of the current visit tree.
+        root: usize,
     },
 }
 

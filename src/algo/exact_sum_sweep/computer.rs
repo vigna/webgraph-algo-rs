@@ -3,7 +3,7 @@ use crate::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
         sccs,
         visits::{
-            breadth_first::{Event, ParFair},
+            breadth_first::{EventNoPred, ParFairNoPred},
             FilterArgs, Parallel,
         },
     },
@@ -29,8 +29,8 @@ pub struct DirExactSumSweepComputer<
     'a,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
-    V1: Parallel<Event> + Sync,
-    V2: Parallel<Event> + Sync,
+    V1: Parallel<EventNoPred> + Sync,
+    V2: Parallel<EventNoPred> + Sync,
 > {
     pub graph: &'a G1,
     pub transpose: &'a G2,
@@ -79,7 +79,7 @@ pub struct DirExactSumSweepComputer<
 }
 
 impl<'a, G: RandomAccessGraph + Sync>
-    DirExactSumSweepComputer<'a, G, G, ParFair<&'a G>, ParFair<&'a G>>
+    DirExactSumSweepComputer<'a, G, G, ParFairNoPred<&'a G>, ParFairNoPred<&'a G>>
 {
     /// Build a new instance to compute the *ExactSumSweep* algorithm on undirected graphs.
     ///
@@ -99,8 +99,8 @@ impl<'a, G: RandomAccessGraph + Sync>
 
         let scc = sccs::tarjan(graph, pl);
         let scc_graph = SccGraph::new(graph, graph, &scc, pl);
-        let visit = ParFair::new(graph, VISIT_GRANULARITY);
-        let transposed_visit = ParFair::new(graph, VISIT_GRANULARITY);
+        let visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
+        let transposed_visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
 
         Self::build(
             graph,
@@ -117,7 +117,7 @@ impl<'a, G: RandomAccessGraph + Sync>
 }
 
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
-    DirExactSumSweepComputer<'a, G1, G2, ParFair<&'a G1>, ParFair<&'a G2>>
+    DirExactSumSweepComputer<'a, G1, G2, ParFairNoPred<&'a G1>, ParFairNoPred<&'a G2>>
 {
     /// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs.
     ///
@@ -144,8 +144,8 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
 
         let scc = sccs::tarjan(graph, pl);
         let scc_graph = SccGraph::new(graph, transpose, &scc, pl);
-        let visit = ParFair::new(graph, VISIT_GRANULARITY);
-        let transposed_visit = ParFair::new(transpose, VISIT_GRANULARITY);
+        let visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
+        let transposed_visit = ParFairNoPred::new(transpose, VISIT_GRANULARITY);
 
         Self::build(
             graph,
@@ -165,8 +165,8 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        V1: Parallel<Event> + Sync,
-        V2: Parallel<Event> + Sync,
+        V1: Parallel<EventNoPred> + Sync,
+        V2: Parallel<EventNoPred> + Sync,
     > DirExactSumSweepComputer<'a, G1, G2, V1, V2>
 {
     #[allow(clippy::too_many_arguments)]
@@ -231,8 +231,8 @@ impl<
         'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        V1: Parallel<Event> + Sync,
-        V2: Parallel<Event> + Sync,
+        V1: Parallel<EventNoPred> + Sync,
+        V2: Parallel<EventNoPred> + Sync,
     > DirExactSumSweepComputer<'a, G1, G2, V1, V2>
 {
     #[inline(always)]
@@ -522,7 +522,7 @@ impl<
             .par_visit(
                 v,
                 |event| {
-                    if let Event::Unknown { curr, .. } = event {
+                    if let EventNoPred::Unknown { curr, .. } = event {
                         radial_vertices.set(curr, true, Ordering::Relaxed)
                     }
                     Ok(())
@@ -586,7 +586,7 @@ impl<
             .par_visit(
                 start,
                 |event| {
-                    if let Event::Unknown {
+                    if let EventNoPred::Unknown {
                         curr: node,
                         distance,
                         ..
@@ -667,7 +667,7 @@ impl<
             .par_visit(
                 start,
                 |event| {
-                    if let Event::Unknown {
+                    if let EventNoPred::Unknown {
                         curr: node,
                         distance,
                         ..
@@ -768,7 +768,7 @@ impl<
         let current_index = AtomicUsize::new(0);
 
         thread_pool.broadcast(|_| {
-            let mut bfs = ParFair::new(graph, VISIT_GRANULARITY);
+            let mut bfs = ParFairNoPred::new(graph, VISIT_GRANULARITY);
             let mut current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
 
             while let Some(&p) = pivot.get(current_pivot_index) {
@@ -778,14 +778,14 @@ impl<
                 bfs.par_visit_filtered(
                     p,
                     |event| {
-                        if let Event::Unknown { curr, distance, .. } = event {
+                        if let EventNoPred::Unknown { curr, distance, .. } = event {
                             // Safety: each node is accessed exactly once
                             dist_pivot_mut.set(curr, distance);
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         };
                         Ok(())
                     },
-                    |FilterArgs::<Event> { curr, .. }| components[curr] == pivot_component,
+                    |FilterArgs::<EventNoPred> { curr, .. }| components[curr] == pivot_component,
                     thread_pool,
                     no_logging![],
                 )

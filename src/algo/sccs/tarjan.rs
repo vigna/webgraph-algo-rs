@@ -96,6 +96,7 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                             }
                         }
                     }
+                    _ => {}
                 }
                 Ok(())
             },

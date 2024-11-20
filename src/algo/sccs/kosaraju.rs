@@ -1,6 +1,5 @@
 use super::BasicSccs;
 use crate::{algo::top_sort, algo::visits::Sequential, prelude::depth_first::*};
-use common_traits::Integer;
 use dsi_progress_logger::ProgressLog;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
@@ -17,8 +16,8 @@ pub fn kosaraju(
     pl: &mut impl ProgressLog,
 ) -> BasicSccs {
     let top_sort = top_sort::run(&graph, pl);
-    let mut number_of_components = 0.wrapping_sub(1);
-    let mut visit = Seq::new(&transpose);
+    let mut number_of_components = 0;
+    let mut visit = SeqNoPred::new(&transpose);
     let mut components = vec![0; graph.num_nodes()].into_boxed_slice();
 
     for &node in &top_sort {
@@ -27,11 +26,11 @@ pub fn kosaraju(
                 node,
                 |event| {
                     match event {
-                        Event::Init { .. } => {
-                            number_of_components = number_of_components.wrapping_add(1);
-                        }
-                        Event::Previsit { curr, .. } => {
+                        EventNoPred::Previsit { curr, .. } => {
                             components[curr] = number_of_components;
+                        }
+                        EventNoPred::Done { .. } => {
+                            number_of_components += 1;
                         }
                         _ => (),
                     }
@@ -41,5 +40,5 @@ pub fn kosaraju(
             )
             .unwrap_infallible();
     }
-    BasicSccs::new(number_of_components + 1, components)
+    BasicSccs::new(number_of_components, components)
 }

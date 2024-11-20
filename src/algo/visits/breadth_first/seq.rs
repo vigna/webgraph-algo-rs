@@ -185,6 +185,8 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
             }
         }
 
+        callback(EventPred::Done { root })?;
+
         Ok(())
     }
 

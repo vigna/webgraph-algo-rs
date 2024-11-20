@@ -9,19 +9,19 @@ use webgraph::traits::RandomAccessGraph;
 
 pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> BasicSccs {
     // debug_assert!(check_symmetric(&graph)); requires sync
-    let mut visit = depth_first::Seq::new(&graph);
+    let mut visit = depth_first::SeqNoPred::new(&graph);
     let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
-    let mut number_of_components = 0usize.wrapping_sub(1);
+    let mut number_of_components = 0;
 
     visit
         .visit_all(
             |event| {
                 match event {
-                    depth_first::Event::Init { .. } => {
-                        number_of_components = number_of_components.wrapping_add(1);
-                    }
-                    depth_first::Event::Previsit { curr, .. } => {
+                    depth_first::EventNoPred::Previsit { curr, .. } => {
                         component[curr].write(number_of_components);
+                    }
+                    depth_first::EventNoPred::Done { .. } => {
+                        number_of_components += 1;
                     }
                     _ => (),
                 }
@@ -34,5 +34,5 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
     let component =
         unsafe { std::mem::transmute::<Box<[MaybeUninit<usize>]>, Box<[usize]>>(component) };
 
-    BasicSccs::new(number_of_components + 1, component)
+    BasicSccs::new(number_of_components, component)
 }

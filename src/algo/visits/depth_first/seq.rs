@@ -1,5 +1,5 @@
 use crate::algo::visits::{
-    depth_first::{Event, EventPred, FilterArgs, FilterArgsPred},
+    depth_first::{EventNoPred, EventPred, FilterArgsNoPred, FilterArgsPred},
     Sequential,
 };
 use dsi_progress_logger::ProgressLog;
@@ -9,7 +9,7 @@ use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
-pub type Seq<'a, G> = SeqIter<'a, TwoStates, G, (), false>;
+pub type SeqNoPred<'a, G> = SeqIter<'a, TwoStates, G, (), false>;
 
 /// A depth-first visit which keeps track of predecessors, but not nodes on the stack.
 pub type SeqPred<'a, G> = SeqIter<'a, TwoStates, G, usize, true>;
@@ -22,11 +22,11 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// This is an iterative implementation that does not need a large stack size.
 ///
 /// There are three version of the visit, which are type aliases to the same
-/// common implementation: [`Seq`], [`SeqPred`] and [`SeqPath`] (the generic
-/// implementation should not be instantiated by the user).
+/// common implementation: [`SeqNoPred`], [`SeqPred`] and [`SeqPath`] (the
+/// generic implementation should not be instantiated by the user).
 ///
-/// * [`Seq`] does not keep track of predecessors, nor of nodes on the stack; it
-///   can be used, for example, to compute reachability information.
+/// * [`SeqNoPred`] does not keep track of predecessors, nor of nodes on the
+///   stack; it can be used, for example, to compute reachability information.
 /// * [`SeqPred`] keeps track of predecessors, but not of nodes on the stack; it
 ///   can be used, for example, to compute a [topological
 ///   sort](crate::algo::top_sort).
@@ -34,7 +34,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///   used, for example, to establish [acyclicity](crate::algo::acyclicity).
 ///
 /// Each type of visit uses incrementally more space:
-/// * [`Seq`] uses one bit per node to remember known nodes and a stack of
+/// * [`SeqNoPred`] uses one bit per node to remember known nodes and a stack of
 ///   iterators, one for each node on the visit path.
 /// * [`SeqPred`] uses one bit per node to remember known nodes and a stack of
 ///   pairs made of an iterator and a predecessor, one for each node on the
@@ -44,17 +44,17 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///   predecessor, one for each node on the visit path.
 ///
 /// The visits differ also in the type of events they generate:
-/// * [`Seq`] generates events of type [`Event`].
+/// * [`SeqNoPred`] generates events of type [`EventNoPred`].
 /// * [`SeqPred`] generates events of type [`EventPred`], with the proviso that
-///   the Boolean associated with events of type [`Revisit`](`Event::Revisit`)
-///   is always false.
+///   the Boolean associated with events of type
+///   [`Revisit`](`EventPred::Revisit`) is always false.
 /// * [`SeqPath`] generates events of type [`EventPred`].
 ///
-/// With respect to [`Event`], [`EventPred`] provides the predecessor of the
+/// With respect to [`EventNoPred`], [`EventPred`] provides the predecessor of the
 /// current node and a [postvisit event](EventPred::Postvisit).
 ///
 /// If the visit was interrupted, the nodes still on the visit path can be
-/// retrieved using the [`stack`](Seq::stack) method (only for [`SeqPred`] and
+/// retrieved using the [`stack`](SeqPred::stack) method (only for [`SeqPred`] and
 /// [`SeqPath`]).
 ///
 /// The progress logger will be [invoked](ProgressLog::light_update) after
@@ -133,7 +133,7 @@ pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
     state: S,
 }
 
-/// The iterator returned by [`stack`](Seq::stack).
+/// The iterator returned by [`stack`](SeqPred::stack).
 pub struct StackIterator<'a, 'b, S, G: RandomAccessGraph> {
     visit: &'b mut SeqIter<'a, S, G, usize, true>,
 }
@@ -197,16 +197,16 @@ pub trait NodeStates {
 #[doc(hidden)]
 /// A two-state selector type for [sequential depth-first visits](Seq).
 ///
-/// This implementation does not keep track of nodes on the stack,
-/// so events of type [`Revisit`](`Event::Revisit`) will always have the
-/// associated Boolean equal to false.
+/// This implementation does not keep track of nodes on the stack, so events of
+/// type [`Revisit`](`EventPred::Revisit`) will always have the associated
+/// Boolean equal to false.
 pub struct TwoStates(BitVec);
 
 #[doc(hidden)]
 /// A three-state selector type for [sequential depth-first visits](Seq).
 ///
 /// This implementation does keep track of nodes on the stack, so events of type
-/// [`Revisit`](`Event::Revisit`) will provide information about whether the
+/// [`Revisit`](`EventPred::Revisit`) will provide information about whether the
 /// node associated with event is currently on the visit path.
 pub struct ThreeStates(BitVec);
 
@@ -315,6 +315,7 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
         'recurse: loop {
             let depth = self.stack.len();
             let Some((iter, parent)) = self.stack.last_mut() else {
+                callback(EventPred::Done { root })?;
                 return Ok(());
             };
 
@@ -400,8 +401,12 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
     }
 }
 
-impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (), false> {
-    fn visit_filtered<E, C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
+impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates, G, (), false> {
+    fn visit_filtered<
+        E,
+        C: FnMut(EventNoPred) -> Result<(), E>,
+        F: FnMut(FilterArgsNoPred) -> bool,
+    >(
         &mut self,
         root: usize,
         mut callback: C,
@@ -411,7 +416,7 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
         let state = &mut self.state;
 
         if state.known(root)
-            || !filter(FilterArgs {
+            || !filter(FilterArgsNoPred {
                 curr: root,
                 root,
                 depth: 0,
@@ -421,11 +426,11 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
             return Ok(());
         }
 
-        callback(Event::Init { root })?;
+        callback(EventNoPred::Init { root })?;
 
         state.set_known(root);
 
-        callback(Event::Previsit {
+        callback(EventNoPred::Previsit {
             curr: root,
             root,
             depth: 0,
@@ -437,6 +442,7 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
         'recurse: loop {
             let depth = self.stack.len();
             let Some((iter, _)) = self.stack.last_mut() else {
+                callback(EventNoPred::Done { root })?;
                 return Ok(());
             };
 
@@ -444,21 +450,21 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
                 // Check if node should be visited
                 if state.known(succ) {
                     // Node has already been discovered
-                    callback(Event::Revisit {
+                    callback(EventNoPred::Revisit {
                         curr: succ,
                         root,
                         depth: depth + 1,
                     })?;
                 } else {
                     // First time seeing node
-                    if filter(FilterArgs {
+                    if filter(FilterArgsNoPred {
                         curr: succ,
                         root,
                         depth: depth + 1,
                     }) {
                         state.set_known(succ);
 
-                        callback(Event::Previsit {
+                        callback(EventNoPred::Previsit {
                             curr: succ,
                             root,
                             depth: depth + 1,
@@ -480,7 +486,11 @@ impl<'a, G: RandomAccessGraph> Sequential<Event> for SeqIter<'a, TwoStates, G, (
         }
     }
 
-    fn visit_all_filtered<E, C: FnMut(Event) -> Result<(), E>, F: FnMut(FilterArgs) -> bool>(
+    fn visit_all_filtered<
+        E,
+        C: FnMut(EventNoPred) -> Result<(), E>,
+        F: FnMut(FilterArgsNoPred) -> bool,
+    >(
         &mut self,
         mut callback: C,
         mut filter: F,

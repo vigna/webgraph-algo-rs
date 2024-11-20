@@ -79,9 +79,6 @@ pub trait CounterArray<T, W: Word> {
         Self: 'h;
 
     /// The type of the owned counter with all the relevant data copied into itself.
-    ///
-    /// Obtained when calling [`CachableCounter::get_copy`], [`CachableCounter::into_owned`]
-    /// or [`CachableCounter::copy_into_owned`].
     type OwnedCounter<'h>: MergeableCounter<T>
         + ThreadHelperCounter<'h, Self::ThreadHelper>
         + PartialEq

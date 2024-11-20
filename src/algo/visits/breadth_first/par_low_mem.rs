@@ -21,7 +21,7 @@ use webgraph::traits::RandomAccessGraph;
 /// differ significantly between chunks.
 ///
 /// If the cost of the callbacks is significant, you can use a [fair parallel
-/// visit](crate::algo::visits::breadth_first::ParFair) to distribute the
+/// visit](crate::algo::visits::breadth_first::ParFairNoPred) to distribute the
 /// visiting cost evenly among the threads.
 ///
 /// # Examples
@@ -172,6 +172,8 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
             // Clear the frontier we will fill in the next iteration
             next_frontier.clear();
         }
+
+        callback(EventPred::Done { root })?;
 
         Ok(())
     }

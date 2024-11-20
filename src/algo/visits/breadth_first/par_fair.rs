@@ -16,16 +16,16 @@ use webgraph::traits::RandomAccessGraph;
 /// chunk, which might differ significantly between chunks.
 ///
 /// There are two version of the visit, which are type aliases to the same
-/// common implementation: [`ParFair`] and [`ParFairPred`].
+/// common implementation: [`ParFairNoPred`] and [`ParFairPred`].
 ///
-/// * [`ParFair`] does not keep track of predecessors; it can be used, for
+/// * [`ParFairNoPred`] does not keep track of predecessors; it can be used, for
 ///   example, to compute distances.
 /// * [`ParFairPred`] keeps track of predecessors; it can be used, for example,
 ///   to compute a visit tree.
 ///
 /// Each type of visit uses incrementally more space:
-/// * [`ParFair`] uses one bit per node to remember known nodes and a queue of
-///   `usize` representing nodes;
+/// * [`ParFairNoPred`] uses one bit per node to remember known nodes and a
+///   queue of `usize` representing nodes;
 /// * [`ParFairPred`] uses one bit per node to remember known nodes and a queue
 ///   of pairs of `usize` representing nodes and their parents.
 ///
@@ -34,15 +34,15 @@ use webgraph::traits::RandomAccessGraph;
 /// visit](crate::algo::visits::breadth_first::ParLowMem) instead.
 ///
 /// The visits differ also in the type of events they generate:
-/// * [`ParFair`] generates events of type [`Event`].
+/// * [`ParFairNoPred`] generates events of type [`EventNoPred`].
 /// * [`ParFairPred`] generates events of type [`EventPred`].
 ///
-/// With respect to [`Event`], [`EventPred`] provides the predecessor of the
+/// With respect to [`EventNoPred`], [`EventPred`] provides the predecessor of the
 /// current node.
 ///
-/// The progress logger will be updated each time all nodes at a given
-/// distance have been processed. This granularity is very low, but it
-/// provides more realiable results.
+/// The progress logger will be updated each time all nodes at a given distance
+/// have been processed. This granularity is very low, but it provides more
+/// realiable results.
 ///
 /// # Examples
 ///
@@ -91,7 +91,7 @@ pub struct ParFairBase<G: RandomAccessGraph, const PRED: bool = false> {
 pub type ParFairPred<G> = ParFairBase<G, true>;
 
 /// A fair parallel breadth-first visit.
-pub type ParFair<G> = ParFairBase<G, false>;
+pub type ParFairNoPred<G> = ParFairBase<G, false>;
 
 impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
     /// Creates a fair parallel breadth-first visit.
@@ -112,11 +112,11 @@ impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
     }
 }
 
-impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
+impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false> {
     fn par_visit_filtered<
         E: Send,
-        C: Fn(Event) -> Result<(), E> + Sync,
-        F: Fn(FilterArgs) -> bool + Sync,
+        C: Fn(EventNoPred) -> Result<(), E> + Sync,
+        F: Fn(FilterArgsNoPred) -> bool + Sync,
     >(
         &mut self,
         root: usize,
@@ -126,7 +126,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
         pl: &mut impl ProgressLog,
     ) -> Result<(), E> {
         if self.visited.get(root, Ordering::Relaxed)
-            || !filter(FilterArgs {
+            || !filter(FilterArgsNoPred {
                 curr: root,
                 root,
                 distance: 0,
@@ -144,7 +144,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
             curr_frontier.push(root);
         });
 
-        callback(Event::Init { root })?;
+        callback(EventNoPred::Init { root })?;
         self.visited.set(root, true, Ordering::Relaxed);
         let mut distance = 0;
 
@@ -156,7 +156,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
                     .chunks(self.granularity)
                     .try_for_each(|chunk| {
                         chunk.into_iter().try_for_each(|&curr| {
-                            callback(Event::Unknown {
+                            callback(EventNoPred::Unknown {
                                 curr,
                                 root,
                                 distance,
@@ -166,7 +166,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
                                 .into_iter()
                                 .try_for_each(|succ| {
                                     let curr = succ;
-                                    if filter(FilterArgs {
+                                    if filter(FilterArgsNoPred {
                                         curr,
                                         root,
                                         distance: distance_plus_one,
@@ -174,7 +174,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(Event::Known { curr, root })?;
+                                            callback(EventNoPred::Known { curr, root })?;
                                         }
                                     }
 
@@ -193,13 +193,15 @@ impl<G: RandomAccessGraph + Sync> Parallel<Event> for ParFairBase<G, false> {
             next_frontier.clear();
         }
 
+        callback(EventNoPred::Done { root })?;
+
         Ok(())
     }
 
     fn par_visit_all_filtered<
         E: Send,
-        C: Fn(Event) -> Result<(), E> + Sync,
-        F: Fn(FilterArgs) -> bool + Sync,
+        C: Fn(EventNoPred) -> Result<(), E> + Sync,
+        F: Fn(FilterArgsNoPred) -> bool + Sync,
     >(
         &mut self,
         callback: C,
@@ -302,6 +304,8 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
             // Clear the frontier we will fill in the next iteration
             next_frontier.clear();
         }
+
+        callback(EventPred::Done { root })?;
 
         Ok(())
     }

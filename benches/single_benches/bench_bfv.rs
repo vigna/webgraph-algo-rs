@@ -44,7 +44,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFair::new(g, 1);
+                    let mut visit = ParFairNoPred::new(g, 1);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
@@ -60,7 +60,7 @@ pub fn bench_bfv(c: &mut Criterion) {
             &input,
             |b, g| {
                 b.iter_with_large_drop(|| {
-                    let mut visit = ParFair::new(g, 64);
+                    let mut visit = ParFairNoPred::new(g, 64);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
