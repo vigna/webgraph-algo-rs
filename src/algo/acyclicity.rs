@@ -1,7 +1,7 @@
 use crate::{
     algo::visits::depth_first::*, algo::visits::Sequential, algo::visits::StoppedWhenDone,
 };
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::prelude::*;
 use webgraph::traits::RandomAccessGraph;
 
 /// Runs an acyclicity test.
@@ -26,4 +26,35 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
 
     pl.done();
     acyclic.is_ok()
+}
+
+/// Trait providing an easy way to test a [`RandomAccessGraph`] for
+/// acyclicity.
+///
+/// # Examples
+/// ```
+/// use webgraph::{labels::Left, prelude::VecGraph};
+/// use webgraph_algo::traits::Acyclicity;
+///
+/// // This is an acyclic graph
+/// let graph = Left(VecGraph::from_arc_list([(1, 2), (0, 1)]));
+/// assert!(graph.is_acyclic());
+///
+/// // This graph contains a cycle
+/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0)]));
+/// assert!(!graph.is_acyclic());
+/// ```
+pub trait Acyclicity: RandomAccessGraph {
+    /// Returns whether the graph is acyclic.
+    ///
+    /// # Arguments
+    /// * `pl`: a progress logger
+    fn is_acyclic(&self) -> bool;
+}
+
+impl<G: RandomAccessGraph> Acyclicity for G {
+    #[inline(always)]
+    fn is_acyclic(&self) -> bool {
+        acyclicity(self, no_logging![])
+    }
 }

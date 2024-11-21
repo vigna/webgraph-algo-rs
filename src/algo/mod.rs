@@ -19,6 +19,7 @@ pub mod hyperball;
 pub mod traits {
     use super::*;
 
-    pub use sccs::*;
+    pub use acyclicity::Acyclicity;
+    pub use sccs::StronglyConnectedComponents;
     pub use visits::{Parallel, Sequential};
 }
