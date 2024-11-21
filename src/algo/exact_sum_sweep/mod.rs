@@ -10,7 +10,6 @@
 //!
 //!
 //! ```
-//! use std::convert::Infallible;
 //! use webgraph_algo::algo::exact_sum_sweep::{self, *};
 //! use webgraph_algo::threads;
 //! use dsi_progress_logger::no_logging;
@@ -19,9 +18,78 @@
 //!
 //! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
 //! let transpose = Left(VecGraph::from_arc_list([(1, 0), (2, 1), (3, 2), (0, 3), (4, 2)]));
-//! let result = exact_sum_sweep::All::compute_directed(graph, transpose, None, &threads![], no_logging![]);
+//!
+//! // Let's compute all eccentricities
+//! let result = exact_sum_sweep::All::compute_directed(
+//!     &graph,
+//!     &transpose,
+//!     None,
+//!     &threads![],
+//!     no_logging![]
+//! );
+//!
 //! assert_eq!(result.diameter, 4);
 //! assert_eq!(result.radius, 3);
+//! assert_eq!(result.forward_eccentricities.as_ref(), &vec![3, 3, 3, 4, 0]);
+//! assert_eq!(result.backward_eccentricities.as_ref(), &vec![3, 3, 3, 3, 4]);
+//!
+//! // Let's just compute the radius and diameter
+//! let result = exact_sum_sweep::RadiusDiameter::compute_directed(
+//!     &graph,
+//!     &transpose,
+//!     None,
+//!     &threads![],
+//!     no_logging![]
+//! );
+//!
+//! assert_eq!(result.diameter, 4);
+//! assert_eq!(result.radius, 3);
+//! ```
+//!
+//! Note how certain information is not available if not computed.
+//! ```compile_fail
+//! use webgraph_algo::algo::exact_sum_sweep::{self, *};
+//! use webgraph_algo::threads;
+//! use dsi_progress_logger::no_logging;
+//! use webgraph::graphs::vec_graph::VecGraph;
+//! use webgraph::labels::proj::Left;
+//!
+//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
+//! let transpose = Left(VecGraph::from_arc_list([(1, 0), (2, 1), (3, 2), (0, 3), (4, 2)]));
+//!
+//! let result = exact_sum_sweep::RadiusDiameter::compute_directed(
+//!     &graph,
+//!     &transpose,
+//!     None,
+//!     &threads![],
+//!     no_logging![]
+//! );
+//!
+//! assert_eq!(result.diameter, 4);
+//! assert_eq!(result.radius, 3);
+//! // Without these it would compile
+//! assert_eq!(result.forward_eccentricities.as_ref(), &vec![3, 3, 3, 4, 0]);
+//! assert_eq!(result.backward_eccentricities.as_ref(), &vec![3, 3, 3, 3, 4]);
+//! ```
+//!
+//! If the graph is undirected (symmetric), you may use [compute_undirected](OutputLevel::compute_undirected).
+//! ```
+//! use webgraph_algo::algo::exact_sum_sweep::{self, *};
+//! use webgraph_algo::threads;
+//! use dsi_progress_logger::no_logging;
+//! use webgraph::graphs::vec_graph::VecGraph;
+//! use webgraph::labels::proj::Left;
+//!
+//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 0), (1, 2), (2, 1), (2, 0), (0, 2), (3, 4), (4, 3)]));
+//!
+//! let result = exact_sum_sweep::RadiusDiameter::compute_undirected(
+//!     &graph,
+//!     &threads![],
+//!     no_logging![]
+//! );
+//!
+//! assert_eq!(result.diameter, 1);
+//! assert_eq!(result.radius, 1);
 //! ```
 
 mod computer;
