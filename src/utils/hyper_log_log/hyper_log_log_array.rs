@@ -1,4 +1,4 @@
-use super::*;
+/*use super::*;
 use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{ensure, Context, Result};
 use common_traits::{Atomic, CastableFrom, IntoAtomic, Number, UpcastableInto};
@@ -347,7 +347,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T,
         self.log_2_num_registers
     }
 }
-/*
+
 impl<
         T: Sync + Hash,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
