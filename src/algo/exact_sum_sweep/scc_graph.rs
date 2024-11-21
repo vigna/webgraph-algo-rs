@@ -63,7 +63,12 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
     /// * `reversed_graph`: An immutable reference to `graph` transposed.
     /// * `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
     /// * `pl`: A progress logger.
-    pub fn new(graph: &G1, reversed_graph: &G2, scc: &C, pl: &mut impl ProgressLog) -> Self {
+    pub fn new_directed(
+        graph: &G1,
+        reversed_graph: &G2,
+        scc: &C,
+        pl: &mut impl ProgressLog,
+    ) -> Self {
         pl.display_memory(false);
         pl.expected_updates(None);
         pl.start("Computing strongly connected components graph...");
