@@ -11,21 +11,6 @@ use std::{
 };
 use sux::{bits::*, traits::bit_field_slice::*};
 
-fn min_alignment(bits: usize) -> String {
-    if bits % 128 == 0 {
-        "u128"
-    } else if bits % 64 == 0 {
-        "u64"
-    } else if bits % 32 == 0 {
-        "u32"
-    } else if bits % 16 == 0 {
-        "u16"
-    } else {
-        "u8"
-    }
-    .to_string()
-}
-
 /// Builder for [`HyperLogLogCounterArray`].
 ///
 /// Create a builder with [`HyperLogLogCounterArrayBuilder::new`], edit parameters with
@@ -214,7 +199,7 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogCounterArrayBuilde
         ensure!(
             counter_size_in_bits % W::BITS == 0,
             "W should allow counters to be aligned. Use {} or smaller words",
-            min_alignment(counter_size_in_bits)
+            0 //min_alignment(counter_size_in_bits)
         );
         let counter_size_in_words = counter_size_in_bits / W::BITS;
 
@@ -362,7 +347,7 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher + Clone> HyperLogLogCounterArray<T,
         self.log_2_num_registers
     }
 }
-
+/*
 impl<
         T: Sync + Hash,
         W: Word + IntoAtomic + UpcastableInto<u64> + TryFrom<u64>,
@@ -388,6 +373,8 @@ where
     }
 }
 
+    */
+/*
 impl<
         T: Hash,
         W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
@@ -477,3 +464,4 @@ impl<
         std::mem::swap(&mut self.bits, &mut other.bits);
     }
 }
+*/
