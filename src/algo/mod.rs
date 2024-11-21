@@ -13,8 +13,6 @@ pub use top_sort::top_sort;
 
 pub mod hyperball;
 
-/// Algorithms used to compute and work with strongly connected
-/// components in a graph.
 /// Traits used to interact with the implemented algorithms.
 pub mod traits {
     use super::*;

@@ -1,3 +1,26 @@
+//! Algorithms used to compute and work with a graph's Strongly Connected Components.
+//!
+//! All algorithms' results implement [StronglyConnectedComponents], even though
+//! specific algorithms may provide additional information.
+//!
+//! # Examples
+//! ```
+//! use dsi_progress_logger::no_logging;
+//! use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
+//! use webgraph_algo::prelude::sccs::*;
+//!
+//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
+//!
+//! // Let's build the graph's SCC with Tarjan's algorithm
+//! let mut scc = tarjan(graph, no_logging![]);
+//!
+//! // Let's sort the SCC by size
+//! let sizes = scc.sort_by_size();
+//!
+//! assert_eq!(sizes, vec![3, 1].into_boxed_slice());
+//! assert_eq!(scc.components(), &vec![0, 0, 0, 1]);
+//! ```
+
 mod tarjan;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 pub use tarjan::*;
@@ -15,7 +38,7 @@ use webgraph::algo::llp;
 ///
 /// This trait is implemented by the result of all strongly connected components
 /// algorithms. Some algorithms may provide additional information not
-/// accessibe through this trait.
+/// accessible through this trait.
 pub trait StronglyConnectedComponents {
     /// The number of strongly connected components.
     fn num_components(&self) -> usize;
@@ -72,14 +95,17 @@ impl BasicSccs {
 }
 
 impl StronglyConnectedComponents for BasicSccs {
+    #[inline(always)]
     fn num_components(&self) -> usize {
         self.num_components
     }
 
+    #[inline(always)]
     fn components(&self) -> &[usize] {
         &self.components
     }
 
+    #[inline(always)]
     fn component_mut(&mut self) -> &mut [usize] {
         &mut self.components
     }
