@@ -6,8 +6,10 @@ pub mod exact_sum_sweep;
 
 pub mod sccs;
 
-pub mod acyclicity;
-pub mod top_sort;
+mod acyclicity;
+pub use acyclicity::acyclicity;
+mod top_sort;
+pub use top_sort::top_sort;
 
 pub mod hyperball;
 

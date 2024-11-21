@@ -5,12 +5,13 @@ use dsi_progress_logger::ProgressLog;
 use webgraph::traits::RandomAccessGraph;
 
 /// Runs an acyclicity test.
-pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
-    let mut visit = SeqPath::new(&graph);
+pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> bool {
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
     pl.start("Checking acyclicity");
+
+    let mut visit = SeqPath::new(&graph);
 
     let acyclic = visit.visit_all(
         |event| {

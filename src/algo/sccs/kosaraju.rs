@@ -20,7 +20,7 @@ pub fn kosaraju(
     pl.expected_updates(Some(num_nodes));
     pl.start("Computing strongly connected components...");
 
-    let top_sort = top_sort::run(&graph, pl);
+    let top_sort = top_sort::top_sort(&graph, pl);
     let mut number_of_components = 0;
     let mut visit = SeqNoPred::new(&transpose);
     let mut components = vec![0; num_nodes].into_boxed_slice();
