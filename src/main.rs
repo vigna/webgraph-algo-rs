@@ -1,3 +1,5 @@
+use std::hash::{BuildHasherDefault, DefaultHasher};
+
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
 use epserde::deser::{Deserialize, Flags};
@@ -7,6 +9,7 @@ use webgraph_algo::algo::hyperball::*;
 use webgraph_algo::algo::{exact_sum_sweep::*, sccs};
 use webgraph_algo::prelude::*;
 use webgraph_algo::threads;
+use webgraph_algo::utils::hyper_log_log::{HyperLogLog, HyperLogLogBuilder};
 use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
 
 fn main() -> Result<()> {
@@ -52,16 +55,20 @@ fn main() -> Result<()> {
                 .parse()
                 .expect("Expected integer");
 
-            let mut hyperball = HyperBallBuilder::new(&graph, cumulative.as_ref())
-                .hyperloglog_settings(
-                    HyperLogLogCounterArrayBuilder::new()
-                        .log_2_num_registers(log2m)
-                        .mem_options(mem_options.clone())
-                        .num_elements_upper_bound(graph.num_nodes()),
+            let mut hyper_log_log: HyperLogLog<_, _, _> =
+                HyperLogLogBuilder::<BuildHasherDefault<DefaultHasher>, usize>::new()
+                    .log_2_num_registers(log2m)
+                    .mem_options(mem_options.clone())
+                    .num_elements_upper_bound(graph.num_nodes())
+                    .build()?;
+            let mut hyperball =
+                HyperBallBuilder::<_, _, _, BuildHasherDefault<DefaultHasher>, _, _>::new(
+                    hyper_log_log,
+                    &graph,
+                    cumulative.as_ref(),
                 )
                 .sum_of_distances(true)
                 .sum_of_inverse_distances(true)
-                .transposed(Some(&reversed_graph))
                 .build(&mut main_pl)?;
             hyperball.run_until_done(&threads![], &mut main_pl)?;
         }
