@@ -106,10 +106,10 @@ impl OutputLevel for All {
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
-        let forward_iterations = computer.forward_iter.unwrap().into();
-        let all_iterations = computer.all_iter.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
+        let forward_iterations = computer.forward_iter.unwrap();
+        let all_iterations = computer.all_iter.unwrap();
         let forward_eccentricities = computer.forward_low;
         let backward_eccentricities = computer.backward_high;
 
@@ -152,9 +152,9 @@ impl OutputLevel for All {
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
-        let iterations = computer.forward_iter.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
+        let iterations = computer.forward_iter.unwrap();
         let eccentricities = computer.forward_low;
 
         Self::UndirectedOutput {
@@ -210,9 +210,9 @@ impl OutputLevel for AllForward {
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
-        let forward_iterations = computer.forward_iter.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
+        let forward_iterations = computer.forward_iter.unwrap();
         let forward_eccentricities = computer.forward_low;
 
         Self::DirectedOutput {
@@ -273,8 +273,8 @@ impl OutputLevel for RadiusDiameter {
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
 
         Self::DirectedOutput {
             diameter,
@@ -308,8 +308,8 @@ impl OutputLevel for RadiusDiameter {
         let radius = computer.radius_high;
         let diametral_vertex = computer.diameter_vertex;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
 
         Self::UndirectedOutput {
             diameter,
@@ -352,7 +352,7 @@ impl OutputLevel for Diameter {
 
         let diameter = computer.diameter_low;
         let diametral_vertex = computer.diameter_vertex;
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
 
         Self::DirectedOutput {
             diameter,
@@ -376,7 +376,7 @@ impl OutputLevel for Diameter {
 
         let diameter = computer.diameter_low;
         let diametral_vertex = computer.diameter_vertex;
-        let diameter_iterations = computer.diameter_iterations.unwrap().into();
+        let diameter_iterations = computer.diameter_iterations.unwrap();
 
         Self::UndirectedOutput {
             diameter,
@@ -416,7 +416,7 @@ impl OutputLevel for Radius {
 
         let radius = computer.radius_high;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
 
         Self::DirectedOutput {
             radius,
@@ -440,7 +440,7 @@ impl OutputLevel for Radius {
 
         let radius = computer.radius_high;
         let radial_vertex = computer.radius_vertex;
-        let radius_iterations = computer.radius_iterations.unwrap().into();
+        let radius_iterations = computer.radius_iterations.unwrap();
 
         Self::UndirectedOutput {
             radius,

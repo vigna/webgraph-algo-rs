@@ -57,13 +57,13 @@ pub struct DirExactSumSweepComputer<
     /// The upper bound of the backward eccentricities.
     pub backward_high: Box<[usize]>,
     /// Number of iterations before the radius was found.
-    pub radius_iterations: Option<NonMaxUsize>,
+    pub radius_iterations: Option<usize>,
     /// Number of iterations before the diameter was found.
-    pub diameter_iterations: Option<NonMaxUsize>,
+    pub diameter_iterations: Option<usize>,
     /// Number of iterations before all forward eccentricities are found.
-    pub forward_iter: Option<NonMaxUsize>,
+    pub forward_iter: Option<usize>,
     /// Number of iterations before all eccentricities are found.
-    pub all_iter: Option<NonMaxUsize>,
+    pub all_iter: Option<usize>,
     /// The strongly connected components.
     pub scc: BasicSccs,
     /// The strongly connected components diagram.
@@ -987,20 +987,17 @@ impl<
 
         pl.update_with_count(self.num_nodes);
 
-        let iterations =
-            NonMaxUsize::new(self.iterations).expect("Iterations should never be usize::MAX");
-
         if missing_r == 0 && self.radius_iterations.is_none() {
-            self.radius_iterations = Some(iterations);
+            self.radius_iterations = Some(self.iterations);
         }
         if (missing_df == 0 || missing_db == 0) && self.diameter_iterations.is_none() {
-            self.diameter_iterations = Some(iterations);
+            self.diameter_iterations = Some(self.iterations);
         }
         if missing_all_forward == 0 && self.forward_iter.is_none() {
-            self.forward_iter = Some(iterations);
+            self.forward_iter = Some(self.iterations);
         }
         if missing_all_forward == 0 && missing_all_backward == 0 {
-            self.all_iter = Some(iterations);
+            self.all_iter = Some(self.iterations);
         }
 
         pl.done();
