@@ -1,5 +1,6 @@
 /// The results produced by calling [`compute_directed`](super::OutputLevel::compute_directed)
 /// on [`All`](super::All).
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct All {
     /// The forward eccentricities
     pub forward_eccentricities: Box<[usize]>,
@@ -25,6 +26,7 @@ pub struct All {
 
 /// The results produced by calling [`compute_directed`](super::OutputLevel::compute_directed)
 /// on [`AllForward`](super::AllForward).
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct AllForward {
     /// The forward eccentricities
     pub forward_eccentricities: Box<[usize]>,
@@ -46,6 +48,7 @@ pub struct AllForward {
 
 /// The results produced by calling [`compute_directed`](super::OutputLevel::compute_directed)
 /// on [`RadiusDiameter`](super::RadiusDiameter).
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct RadiusDiameter {
     /// The diameter.
     pub diameter: usize,
@@ -63,6 +66,7 @@ pub struct RadiusDiameter {
 
 /// The results produced by calling [`compute_directed`](super::OutputLevel::compute_directed)
 /// on [`Diameter`](super::Diameter).
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Diameter {
     /// The diameter.
     pub diameter: usize,
@@ -74,6 +78,7 @@ pub struct Diameter {
 
 /// The results produced by calling [`compute_directed`](super::OutputLevel::compute_directed)
 /// on [`Radius`](super::Radius).
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Radius {
     /// The radius.
     pub radius: usize,
