@@ -44,7 +44,7 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0)]));
 /// assert!(!graph.is_acyclic());
 /// ```
-pub trait Acyclicity: RandomAccessGraph {
+pub trait Acyclicity {
     /// Returns whether the graph is acyclic.
     ///
     /// # Arguments
