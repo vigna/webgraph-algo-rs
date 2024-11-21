@@ -52,7 +52,6 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph + Sync>
     pub fn new(graph: &'a G, cumulative_outdegree: &'a D) -> Self {
         let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
             .log_2_num_registers(4)
-            .num_elements_upper_bound(graph.num_nodes())
             .mem_options(TempMmapOptions::Default);
         Self {
             graph,
@@ -219,15 +218,17 @@ impl<
         pl: &mut impl ProgressLog,
     ) -> Result<HyperBall<'a, G1, G2, D, W, HyperLogLogCounterArray<G1::Label, W, H>>> {
         let num_nodes = self.graph.num_nodes();
+        let num_elements = self.weights.map(|w| w.iter().sum()).unwrap_or(num_nodes);
+        let hyper_log_log_settings = self
+            .hyper_log_log_settings
+            .num_elements_upper_bound(num_elements);
 
         pl.info(format_args!("Initializing HyperLogLogCounterArrays"));
-        let bits = self
-            .hyper_log_log_settings
+        let bits = hyper_log_log_settings
             .clone()
             .build(num_nodes)
             .with_context(|| "Could not initialize bits")?;
-        let result_bits = self
-            .hyper_log_log_settings
+        let result_bits = hyper_log_log_settings
             .build(num_nodes)
             .with_context(|| "Could not initialize result_bits")?;
 
