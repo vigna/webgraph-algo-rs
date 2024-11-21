@@ -115,7 +115,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
         pl.item_name("nodes");
         pl.display_memory(false);
         pl.expected_updates(Some(graph.num_nodes()));
-        pl.start("Computing vec-based strongly connected components graph");
+        pl.start("Selecting arcs...");
 
         let number_of_scc = scc.num_components();
         let node_components = scc.components();
@@ -183,7 +183,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
 
         pl.item_name("connections");
         pl.expected_updates(Some(scc_graph.par_iter().map(|v| v.len()).sum()));
-        pl.start("Creating connections slice");
+        pl.start("Creating connections...");
 
         let mut lengths = Vec::new();
         let mut connections = Vec::new();

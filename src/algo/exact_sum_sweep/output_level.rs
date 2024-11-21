@@ -76,8 +76,13 @@ impl OutputLevel for All {
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Self::DirectedOutput {
-        let mut computer =
-            DirExactSumSweepComputer::new(&graph, &transpose, Output::All, radial_vertices, pl);
+        let mut computer = DirExactSumSweepComputer::new_directed(
+            &graph,
+            &transpose,
+            Output::All,
+            radial_vertices,
+            pl,
+        );
         computer.compute(thread_pool, pl);
 
         assert!(
@@ -179,7 +184,7 @@ impl OutputLevel for AllForward {
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Self::DirectedOutput {
-        let mut computer = DirExactSumSweepComputer::new(
+        let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
             &transpose,
             Output::AllForward,
@@ -246,7 +251,7 @@ impl OutputLevel for RadiusDiameter {
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Self::DirectedOutput {
-        let mut computer = DirExactSumSweepComputer::new(
+        let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
             &transpose,
             Output::RadiusDiameter,
@@ -331,7 +336,7 @@ impl OutputLevel for Diameter {
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Self::DirectedOutput {
-        let mut computer = DirExactSumSweepComputer::new(
+        let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
             &transpose,
             Output::Diameter,
@@ -395,8 +400,13 @@ impl OutputLevel for Radius {
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
     ) -> Self::DirectedOutput {
-        let mut computer =
-            DirExactSumSweepComputer::new(&graph, &transpose, Output::Radius, radial_vertices, pl);
+        let mut computer = DirExactSumSweepComputer::new_directed(
+            &graph,
+            &transpose,
+            Output::Radius,
+            radial_vertices,
+            pl,
+        );
         computer.compute(thread_pool, pl);
 
         assert!(

@@ -14,7 +14,7 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
     pl.expected_updates(Some(num_nodes));
     pl.start("Computing topological sort");
 
-    let mut topol_sort = vec![MaybeUninit::uninit(); num_nodes];
+    let mut topol_sort = vec![MaybeUninit::uninit(); num_nodes].into_boxed_slice();
     let mut pos = num_nodes;
 
     visit
@@ -32,7 +32,7 @@ pub fn run(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box<[usi
         .unwrap_infallible();
 
     pl.done();
+    let mut topol_sort = std::mem::ManuallyDrop::new(topol_sort);
     // SAFETY: we write in each element of top_sort
-    unsafe { std::mem::transmute::<Vec<MaybeUninit<usize>>, Vec<usize>>(topol_sort) }
-        .into_boxed_slice()
+    unsafe { Box::from_raw(topol_sort.as_mut() as *mut [MaybeUninit<_>] as *mut [usize]) }
 }

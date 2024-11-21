@@ -22,7 +22,8 @@ use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::{traits::RandomAccessGraph, utils::SyncSliceExt};
 
-const VISIT_GRANULARITY: usize = 32;
+/// Experimentally obtained sane value for the granularity of the visits.
+const VISIT_GRANULARITY: usize = 64;
 
 /// The implementation of the *SumSweep* algorithm on directed graphs.
 pub struct DirExactSumSweepComputer<
@@ -97,12 +98,12 @@ impl<'a, G: RandomAccessGraph + Sync>
             _ => Output::AllForward,
         };
 
-        let scc = sccs::tarjan(graph, pl);
+        let scc = sccs::symm_seq(graph, pl);
         let scc_graph = SccGraph::new_undirected(graph, &scc, pl);
         let visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
 
-        Self::build(
+        Self::_new(
             graph,
             graph,
             output,
@@ -119,16 +120,18 @@ impl<'a, G: RandomAccessGraph + Sync>
 impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
     DirExactSumSweepComputer<'a, G1, G2, ParFairNoPred<&'a G1>, ParFairNoPred<&'a G2>>
 {
-    /// Build a new instance to compute the *ExactSumSweep* algorithm on directed graphs.
+    /// Build a new instance to compute the *ExactSumSweep* algorithm on
+    /// directed graphs.
     ///
     /// # Arguments
     /// * `graph`: the direct graph.
     /// * `transpose`: the transpose of `graph`.
     /// * `output`: the desired output of the algorithm.
-    /// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node `i` is to be considered
-    ///    radial vertex. If [`None`] the algorithm will use the biggest connected component.
+    /// * `radial_vertices`: an [`AtomicBitVec`] where `v[i]` is true if node
+    ///    `i` is to be considered radial vertex. If [`None`] the algorithm will
+    ///    use the biggest connected component.
     /// * `pl`: a progress logger.
-    pub fn new(
+    pub fn new_directed(
         graph: &'a G1,
         transpose: &'a G2,
         output: Output,
@@ -147,7 +150,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         let visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFairNoPred::new(transpose, VISIT_GRANULARITY);
 
-        Self::build(
+        Self::_new(
             graph,
             transpose,
             output,
@@ -170,7 +173,7 @@ impl<
     > DirExactSumSweepComputer<'a, G1, G2, V1, V2>
 {
     #[allow(clippy::too_many_arguments)]
-    fn build(
+    fn _new(
         graph: &'a G1,
         transpose: &'a G2,
         output: Output,
