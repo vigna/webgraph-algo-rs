@@ -98,7 +98,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         };
 
         let scc = sccs::tarjan(graph, pl);
-        let scc_graph = SccGraph::new(graph, graph, &scc, pl);
+        let scc_graph = SccGraph::new_undirected(graph, &scc, pl);
         let visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
 

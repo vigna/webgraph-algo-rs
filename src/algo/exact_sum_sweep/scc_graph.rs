@@ -35,6 +35,23 @@ fn arc_value<G1: RandomAccessGraph, G2: RandomAccessGraph>(
     start_value + end_value
 }
 
+impl<G: RandomAccessGraph, C: StronglyConnectedComponents> SccGraph<G, G, C> {
+    /// Creates a strongly connected components graph from the provided undirected graph.
+    ///
+    /// # Arguments
+    /// * `graph`: An immutable reference to the graph.
+    /// * `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
+    /// * `pl`: A progress logger.
+    #[allow(unused_variables)]
+    pub fn new_undirected(graph: &G, scc: &C, pl: &mut impl ProgressLog) -> Self {
+        Self {
+            segments_offset: vec![0; scc.num_components()].into_boxed_slice(),
+            data: Vec::new().into_boxed_slice(),
+            _marker: PhantomData,
+        }
+    }
+}
+
 impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponents>
     SccGraph<G1, G2, C>
 {
