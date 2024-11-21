@@ -32,10 +32,10 @@ def log_and_run(command: str):
 
 def prepare_graph(graph_name: str, path: str) -> str:
     basename = f"{path}{os.sep}{graph_name}"
-    print(f"Downloading base graph {graph}...")
+    print(f"Downloading base graph {graph_name}...")
     log_and_run(f'curl -o "{basename}.graph" {base_datasets}{graph_name}/{graph_name}.graph')
     log_and_run(f'curl -o "{basename}.properties" {base_datasets}{graph_name}/{graph_name}.properties')
-    print(f"Downloading transposed graph {graph}...")
+    print(f"Downloading transposed graph {graph_name}...")
     log_and_run(f'curl -o "{basename}-t.graph" {base_datasets}{graph_name}/{graph_name}-t.graph')
     log_and_run(f'curl -o "{basename}-t.properties" {base_datasets}{graph_name}/{graph_name}-t.properties')
     print(f"Padding downloaded graphs...")
