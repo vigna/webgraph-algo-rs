@@ -15,10 +15,15 @@ pub fn kosaraju(
     transpose: impl RandomAccessGraph,
     pl: &mut impl ProgressLog,
 ) -> BasicSccs {
+    let num_nodes = graph.num_nodes();
+    pl.item_name("node");
+    pl.expected_updates(Some(num_nodes));
+    pl.start("Computing strongly connected components...");
+
     let top_sort = top_sort::run(&graph, pl);
     let mut number_of_components = 0;
     let mut visit = SeqNoPred::new(&transpose);
-    let mut components = vec![0; graph.num_nodes()].into_boxed_slice();
+    let mut components = vec![0; num_nodes].into_boxed_slice();
 
     for &node in &top_sort {
         visit
@@ -40,5 +45,8 @@ pub fn kosaraju(
             )
             .unwrap_infallible();
     }
+
+    pl.done();
+
     BasicSccs::new(number_of_components, components)
 }

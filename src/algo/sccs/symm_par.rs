@@ -19,9 +19,15 @@ pub fn symm_par(
     pl: &mut impl ProgressLog,
 ) -> BasicSccs {
     debug_assert!(check_symmetric(&graph));
+
+    let num_nodes = graph.num_nodes();
+    pl.item_name("node");
+    pl.expected_updates(Some(num_nodes));
+    pl.start("Computing strongly connected components...");
+
     // TODO: use a better value for granularity
     let mut visit = ParLowMem::new(&graph, 100);
-    let mut component = vec![MaybeUninit::uninit(); graph.num_nodes()].into_boxed_slice();
+    let mut component = vec![MaybeUninit::uninit(); num_nodes].into_boxed_slice();
 
     let number_of_components = AtomicUsize::new(0);
     let slice = unsafe { component.as_sync_slice() };
@@ -51,6 +57,8 @@ pub fn symm_par(
 
     let component =
         unsafe { std::mem::transmute::<Box<[MaybeUninit<usize>]>, Box<[usize]>>(component) };
+
+    pl.done();
 
     BasicSccs::new(number_of_components.load(Ordering::Relaxed), component)
 }

@@ -7,11 +7,12 @@ use super::BasicSccs;
 
 /// Tarjan's algorithm for strongly connected components.
 pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> BasicSccs {
-    let mut visit = SeqPred::new(&graph);
     let num_nodes = graph.num_nodes();
     pl.item_name("node");
     pl.expected_updates(Some(num_nodes));
     pl.start("Computing strongly connected components...");
+
+    let mut visit = SeqPred::new(&graph);
     let mut lead = BitVec::with_capacity(128);
     // Sentinel value guaranteeing that this stack is never empty
     lead.push(true);

@@ -74,7 +74,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
         pl.start("Computing strongly connected components graph...");
 
         let (vec_lengths, vec_connections) =
-            Self::find_edges_through_scc(graph, reversed_graph, scc, pl);
+            Self::find_edges_through_scc(graph, reversed_graph, scc, &mut pl.clone());
 
         pl.done();
 
@@ -117,7 +117,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
             "Graph should have a number of nodes < usize::MAX"
         );
 
-        pl.item_name("nodes");
+        pl.item_name("node");
         pl.display_memory(false);
         pl.expected_updates(Some(graph.num_nodes()));
         pl.start("Selecting arcs...");
@@ -186,7 +186,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
 
         pl.done();
 
-        pl.item_name("connections");
+        pl.item_name("connection");
         pl.expected_updates(Some(scc_graph.par_iter().map(|v| v.len()).sum()));
         pl.start("Creating connections...");
 
