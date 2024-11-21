@@ -571,6 +571,7 @@ impl<
             }
             self.iterations += 1;
         }
+        self.delta_debug(pl);
     }
 
     #[inline(always)]
@@ -932,6 +933,8 @@ impl<
 
         self.iterations += 3;
 
+        self.delta_debug(pl);
+
         pl.done();
     }
 
@@ -1011,5 +1014,25 @@ impl<
             Output::AllForward => missing_all_forward,
             Output::All => missing_all_backward + missing_all_forward,
         }
+    }
+
+    fn delta_debug(&self, pl: &mut impl ProgressLog) {
+        let header = "Delta debug:";
+        pl.info(format_args!(
+            "{} forward eccentricities upper bounds -> {:?}",
+            header, &self.forward_high
+        ));
+        pl.info(format_args!(
+            "{} forward eccentricities lower bounds -> {:?}",
+            header, &self.forward_low
+        ));
+        pl.info(format_args!(
+            "{} backward eccentricities upper bounds -> {:?}",
+            header, &self.backward_high
+        ));
+        pl.info(format_args!(
+            "{} backward eccentricities lower bounds -> {:?}",
+            header, &self.backward_low
+        ));
     }
 }
