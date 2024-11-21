@@ -1,5 +1,5 @@
 use crate::{prelude::*, utils::*};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use common_traits::Atomic;
 use common_traits::{CastableFrom, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
@@ -260,11 +260,11 @@ impl<
 
         Ok(HyperBall {
             graph: self.graph,
-            rev_graph: self.rev_graph,
+            transpose: self.rev_graph,
             cumulative_outdegree: self.cumulative_outdegree,
             weight: self.weights,
-            bits,
-            result_bits,
+            prev_state: bits,
+            next_state: result_bits,
             iteration: 0,
             completed: false,
             systolic: false,
@@ -277,8 +277,8 @@ impl<
             neighbourhood_function: Vec::new(),
             last: 0.0,
             current: Mutex::new(0.0),
-            modified_counter,
-            modified_result_counter,
+            prev_modified: modified_counter,
+            next_modified: modified_result_counter,
             local_checklist: Vec::new(),
             local_next_must_be_checked: Mutex::new(Vec::new()),
             must_be_checked,
@@ -333,61 +333,62 @@ pub struct HyperBall<
     W: Word + IntoAtomic,
     C: MergeCounterLogic<usize> + Sync,
 > {
-    /// The direct graph to analyze
-    graph: &'a G1,
-    /// The transposed of the graph to analyze
-    rev_graph: Option<&'a G2>,
-    /// The cumulative list of outdegrees
-    cumulative_outdegree: &'a D,
-    /// A slice of nonegative node weights
-    weight: Option<&'a [usize]>,
-    /// The base number of nodes per task. Must be a multiple of `bits.chuk_size()`
-    granularity: usize,
-    /// The current status of Hyperball
-    bits: MmapSlice<W>,
-    /// The new status of Hyperball after an iteration
-    result_bits: MmapSlice<W>,
-    /// The current iteration
-    iteration: usize,
-    /// `true` if the computation is over
-    completed: bool,
-    /// `true` if we started a systolic computation
-    systolic: bool,
-    /// `true` if we started a local computation
-    local: bool,
-    /// `true` if we are preparing a local computation (systolic is `true` and less than 1% nodes were modified)
-    pre_local: bool,
-    /// The sum of the distances from every give node, if requested
-    sum_of_distances: Option<Mutex<Vec<f64>>>,
-    /// The sum of inverse distances from each given node, if requested
-    sum_of_inverse_distances: Option<Mutex<Vec<f64>>>,
-    /// A number of discounted centralities to be computed, possibly none
-    discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
-    /// The overall discount centrality for every [`Self::discount_functions`]
-    discounted_centralities: Vec<Mutex<Vec<f64>>>,
-    /// The neighbourhood fuction
-    neighbourhood_function: Vec<f64>,
-    /// The value computed by the last iteration
-    last: f64,
-    /// The value computed by the current iteration
-    current: Mutex<f64>,
-    /// `modified_counter[i]` is `true` if `bits.get_counter(i)` has been modified
-    modified_counter: AtomicBitVec,
-    /// `modified_result_counter[i]` is `true` if `result_bits.get_counter(i)` has been modified
-    modified_result_counter: AtomicBitVec,
-    /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned
-    local_checklist: Vec<G1::Label>,
-    /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration
-    local_next_must_be_checked: Mutex<Vec<G1::Label>>,
-    /// Used in systolic iterations to keep track of nodes to check
-    must_be_checked: AtomicBitVec,
-    /// Used in systolic iterations to keep track of nodes to check in the next iteration
-    next_must_be_checked: AtomicBitVec,
-    /// The relative increment of the neighbourhood function for the last iteration
-    relative_increment: f64,
-    /// Context used in a single iteration
-    iteration_context: IterationContext,
+    /// The counter logic used by this instance.
     counter_logic: C,
+    /// The graph to analyze.
+    graph: &'a G1,
+    /// The transpose of [`Self::graph`], if any.
+    transpose: Option<&'a G2>,
+    /// The cumulative list of outdegrees.
+    cumulative_outdegree: &'a D,
+    /// An optional slice of nonegative node weights.
+    weight: Option<&'a [usize]>,
+    /// The base number of nodes per task. TODO.
+    granularity: usize,
+    /// The previous state.
+    prev_state: MmapSlice<W>,
+    /// The next state.
+    next_state: MmapSlice<W>,
+    /// The current iteration.
+    iteration: usize,
+    /// `true` if the computation is over.
+    completed: bool,
+    /// `true` if we started a systolic computation.
+    systolic: bool,
+    /// `true` if we started a local computation.
+    local: bool,
+    /// `true` if we are preparing a local computation (systolic is `true` and less than 1% nodes were modified).
+    pre_local: bool,
+    /// The sum of the distances from every given node, if requested.
+    sum_of_distances: Option<Mutex<Vec<f64>>>,
+    /// The sum of inverse distances from each given node, if requested.
+    sum_of_inverse_distances: Option<Mutex<Vec<f64>>>,
+    /// A number of discounted centralities to be computed, possibly none.
+    discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
+    /// The overall discount centrality for every [`Self::discount_functions`].
+    discounted_centralities: Vec<Mutex<Vec<f64>>>,
+    /// The neighbourhood fuction.
+    neighbourhood_function: Vec<f64>,
+    /// The value computed by the last iteration.
+    last: f64,
+    /// The value computed by the current iteration.
+    current: Mutex<f64>,
+    /// Whether each counter has been modified during the previous iteration.
+    prev_modified: AtomicBitVec,
+    /// Whether each counter has been modified during the current iteration.
+    next_modified: AtomicBitVec,
+    /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned.
+    local_checklist: Vec<G1::Label>,
+    /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration.
+    local_next_must_be_checked: Mutex<Vec<G1::Label>>,
+    /// Used in systolic iterations to keep track of nodes to check.
+    must_be_checked: AtomicBitVec,
+    /// Used in systolic iterations to keep track of nodes to check in the next iteration.
+    next_must_be_checked: AtomicBitVec,
+    /// The relative increment of the neighbourhood function for the last iteration.
+    relative_increment: f64,
+    /// Context used in a single iteration.
+    iteration_context: IterationContext,
 }
 
 impl<
@@ -500,40 +501,37 @@ impl<
             .with_context(|| "Could not complete run_until_done")
     }
 
+    fn ensure_iteration(&self) -> Result<()> {
+        ensure!(
+            self.iteration > 0,
+            "HyperBall was not run. Please call self.run(...) before accessing computed fields"
+        );
+    }
+
     /// Returns the neighbourhood function computed by this instance.
     pub fn neighbourhood_function(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else {
-            Ok(self.neighbourhood_function.clone())
-        }
+        self.ensure_iteration()?;
+        Ok(self.neighbourhood_function.clone())
     }
 
     /// Returns the sum of distances computed by this instance if requested.
     pub fn sum_of_distances(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else if let Some(distances) = &self.sum_of_distances {
+        self.ensure_iteration()?;
+        if let Some(distances) = &self.sum_of_distances {
+            // TODO these are COPIES
             Ok(distances.lock().unwrap().to_vec())
         } else {
-            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute them"))
+            bail!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute them")
         }
     }
 
     /// Returns the harmonic centralities (sum of inverse distances) computed by this instance if requested.
     pub fn harmonic_centralities(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else if let Some(distances) = &self.sum_of_inverse_distances {
+        self.ensure_iteration()?;
+        if let Some(distances) = &self.sum_of_inverse_distances {
             Ok(distances.lock().unwrap().to_vec())
         } else {
-            Err(anyhow!("Sum of inverse distances were not requested. Use builder.with_sum_of_inverse_distances(true) while building HyperBall to compute them"))
+            bail!("Sum of inverse distances were not requested. Use builder.with_sum_of_inverse_distances(true) while building HyperBall to compute them")
         }
     }
 
@@ -542,30 +540,19 @@ impl<
     /// # Arguments
     /// * `index`: the index of the requested discounted centrality.
     pub fn discounted_centrality(&self, index: usize) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
+        self.ensure_iteration()?;
+        let d = self.discounted_centralities.get(index);
+        if let Some(distaces) = d {
+            Ok(distaces.lock().unwrap().to_vec())
         } else {
-            let d = self.discounted_centralities.get(index);
-            if let Some(distaces) = d {
-                Ok(distaces.lock().unwrap().to_vec())
-            } else {
-                Err(anyhow!(
-                    "Discount centrality of index {} does not exist",
-                    index
-                ))
-            }
+            bail!("Discount centrality of index {} does not exist", index)
         }
     }
 
     /// Computes and returns the closeness centralities from the sum of distances computed by this instance.
     pub fn closeness_cetrality(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else if let Some(distances) = &self.sum_of_distances {
+        self.ensure_iteration()?;
+        if let Some(distances) = &self.sum_of_distances {
             Ok(distances
                 .lock()
                 .unwrap()
@@ -573,7 +560,7 @@ impl<
                 .map(|&d| if d == 0.0 { 0.0 } else { d.recip() })
                 .collect())
         } else {
-            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute closeness centrality"))
+            bail!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute closeness centrality")
         }
     }
 
@@ -581,13 +568,10 @@ impl<
     ///
     /// Note that lin's index for isolated nodes is by (our) definition one (it's smaller than any other node).
     pub fn lin_centrality(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else if let Some(distances) = &self.sum_of_distances {
+        self.ensure_iteration()?;
+        if let Some(distances) = &self.sum_of_distances {
             let counter_logic = &self.counter_logic;
-            let bits = self.bits.as_ref();
+            let bits = self.prev_state.as_ref();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -603,19 +587,16 @@ impl<
                 })
                 .collect())
         } else {
-            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
+            bail!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality")
         }
     }
 
     /// Computes and returns the nieminen centralities from the sum of distances computed by this instance.
     pub fn nieminen_centrality(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else if let Some(distances) = &self.sum_of_distances {
+        self.ensure_iteration()?;
+        if let Some(distances) = &self.sum_of_distances {
             let counter_logic = &self.counter_logic;
-            let bits = self.bits.as_ref();
+            let bits = self.prev_state.as_ref();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -627,7 +608,7 @@ impl<
                 })
                 .collect())
         } else {
-            Err(anyhow!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality"))
+            bail!("Sum of distances were not requested. Use builder.with_sum_of_distances(true) while building HyperBall to compute lin centrality")
         }
     }
 
@@ -637,15 +618,10 @@ impl<
     /// # Arguments
     /// * `node`: the index of the node to compute reachable nodes from.
     pub fn reachable_nodes_from(&self, node: usize) -> Result<f64> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else {
-            let counter_logic = &self.counter_logic;
-            let bits = self.bits.as_ref();
-            Ok(counter_logic.count(self.get_counter(bits, node)))
-        }
+        self.ensure_iteration()?;
+        let counter_logic = &self.counter_logic;
+        let bits = self.prev_state.as_ref();
+        Ok(counter_logic.count(self.get_counter(bits, node)))
     }
 
     /// Reads from the internal [`HyperLogLogCounterArray`] and estimates the number of nodes reachable
@@ -653,17 +629,12 @@ impl<
     ///
     /// `hyperball.reachable_nodes().unwrap()[i]` is equal to `hyperball.reachable_nodes_from(i).unwrap()`.
     pub fn reachable_nodes(&self) -> Result<Vec<f64>> {
-        if self.iteration == 0 {
-            Err(anyhow!(
-                "HyperBall was not run. Please call self.run(...) before accessing computed fields"
-            ))
-        } else {
-            let counter_logic = &self.counter_logic;
-            let bits = self.bits.as_ref();
-            Ok((0..self.graph.num_nodes())
-                .map(|n| counter_logic.count(self.get_counter(bits, n)))
-                .collect())
-        }
+        self.ensure_iteration()?;
+        let counter_logic = &self.counter_logic;
+        let bits = self.prev_state.as_ref();
+        Ok((0..self.graph.num_nodes())
+            .map(|n| counter_logic.count(self.get_counter(bits, n)))
+            .collect())
     }
 }
 
@@ -678,11 +649,8 @@ impl<
 {
     #[inline(always)]
     fn swap_arrays(&mut self) {
-        std::mem::swap(&mut self.bits, &mut self.result_bits);
-        std::mem::swap(
-            &mut self.modified_counter,
-            &mut self.modified_result_counter,
-        );
+        std::mem::swap(&mut self.prev_state, &mut self.next_state);
+        std::mem::swap(&mut self.prev_modified, &mut self.next_modified);
     }
 }
 
@@ -715,7 +683,7 @@ impl<
         // If less than one fourth of the nodes have been modified, and we have the transpose,
         // it is time to pass to a systolic computation.
         self.systolic =
-            self.rev_graph.is_some() && self.iteration > 0 && modified_counters < num_nodes / 4;
+            self.transpose.is_some() && self.iteration > 0 && modified_counters < num_nodes / 4;
 
         // Non-systolic computations add up the value of all counter.
         // Systolic computations modify the last value by compensating for each modified counter.
@@ -740,11 +708,10 @@ impl<
         pl.info(format_args!("Preparing modified_result_counter"));
         if previous_was_local {
             for &node in self.local_checklist.iter() {
-                self.modified_result_counter
-                    .set(node, false, Ordering::Relaxed);
+                self.next_modified.set(node, false, Ordering::Relaxed);
             }
         } else {
-            thread_pool.install(|| self.modified_result_counter.fill(false, Ordering::Relaxed));
+            thread_pool.install(|| self.next_modified.fill(false, Ordering::Relaxed));
         }
 
         if self.local {
@@ -930,13 +897,13 @@ impl<
                     i
                 };
 
-                let mut counter = unsafe {
+                let mut next_counter = unsafe {
                     // Safety: no other thread will ever read from or write to this counter
-                    self.get_counter_mut(&self.result_bits, node)
+                    self.get_counter_mut(&self.next_state, node)
                 };
-                let old_counter = unsafe {
+                let prev_counter = unsafe {
                     // Safety: self.bits is never written to in parallel_task
-                    self.get_counter(&self.bits, node)
+                    self.get_counter(&self.prev_state, node)
                 };
 
                 // The three cases in which we enumerate successors:
@@ -948,16 +915,16 @@ impl<
 
                     let mut modified = false;
                     for succ in self.graph.successors(node) {
-                        if succ != node && self.modified_counter[succ] {
+                        if succ != node && self.prev_modified[succ] {
                             visited_arcs += 1;
                             if !modified {
-                                self.counter_logic.set_to(&mut counter, &old_counter);
+                                self.counter_logic.set_to(&mut next_counter, &prev_counter);
                                 modified = true;
                             }
                             // Safety: self.bits is never written to in parallel_task
                             self.counter_logic.merge_into_with_helper(
-                                &mut counter,
-                                self.get_counter(&self.bits, succ),
+                                &mut next_counter,
+                                self.get_counter(&self.prev_state, succ),
                                 &mut helper,
                             );
                         }
@@ -965,7 +932,8 @@ impl<
 
                     let mut post = f64::NAN;
                     let modified_counter = if modified {
-                        counter != old_counter
+                        // TODO: ??
+                        next_counter != prev_counter
                     } else {
                         false
                     };
@@ -975,14 +943,14 @@ impl<
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
                     if !self.systolic || modified_counter {
-                        post = self.counter_logic.count(&mut counter);
+                        post = self.counter_logic.count(&mut next_counter);
                     }
                     if !self.systolic {
                         neighbourhood_function_delta += post;
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = self.counter_logic.count(&old_counter);
+                        let pre = self.counter_logic.count(&prev_counter);
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
@@ -1020,17 +988,16 @@ impl<
                         if self.pre_local {
                             self.local_next_must_be_checked.lock().unwrap().push(node);
                         }
-                        self.modified_result_counter
-                            .set(node, true, Ordering::Relaxed);
+                        self.next_modified.set(node, true, Ordering::Relaxed);
 
                         if self.systolic {
-                            debug_assert!(self.rev_graph.is_some());
+                            debug_assert!(self.transpose.is_some());
                             // In systolic computations we must keep track of which counters must
                             // be checked on the next iteration. If we are preparing a local computation,
                             // we do this explicitly, by adding the predecessors of the current
                             // node to a set. Otherwise, we do this implicitly, by setting the
                             // corresponding entry in an array.
-                            let rev_graph = self.rev_graph.expect("Should have transpose");
+                            let rev_graph = self.transpose.expect("Should have transpose");
                             if self.pre_local {
                                 let mut local_next_must_be_checked =
                                     self.local_next_must_be_checked.lock().unwrap();
@@ -1050,17 +1017,17 @@ impl<
                     // This is slightly subtle: if a counter is not modified, and
                     // the present value was not a modified value in the first place,
                     // then we can avoid updating the result altogether.
-                    if !modified && self.modified_counter[node] {
-                        self.counter_logic.set_to(&mut counter, &old_counter);
+                    if !modified && self.prev_modified[node] {
+                        self.counter_logic.set_to(&mut next_counter, &prev_counter);
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
                     // in the result vector might need to be updated because it does not
                     // reflect our current value.
-                    if self.modified_counter[node] {
+                    if self.prev_modified[node] {
                         // Safety: we are only ever writing to the result array and
                         // no counter is ever written to more than once
-                        self.counter_logic.set_to(counter, old_counter);
+                        self.counter_logic.set_to(next_counter, prev_counter);
                     }
                 }
             }
@@ -1091,15 +1058,15 @@ impl<
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
         thread_pool.join(
-            || self.bits.fill(W::ZERO),
-            || self.result_bits.fill(W::ZERO),
+            || self.prev_state.fill(W::ZERO),
+            || self.next_state.fill(W::ZERO),
         );
 
         pl.info(format_args!("Initializing registers"));
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
             for (i, &node_weight) in w.iter().enumerate() {
-                let mut counter = self.get_counter_mut(&self.bits, i);
+                let mut counter = self.get_counter_mut(&self.prev_state, i);
                 for _ in 0..node_weight {
                     self.counter_logic.add(&mut counter, random());
                 }
@@ -1108,7 +1075,7 @@ impl<
             thread_pool.install(|| {
                 (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
                     self.counter_logic
-                        .add(self.get_counter_mut(&self.bits, i), i);
+                        .add(self.get_counter_mut(&self.prev_state, i), i);
                 });
             });
         }
@@ -1138,7 +1105,7 @@ impl<
         self.neighbourhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
-        thread_pool.install(|| self.modified_counter.fill(true, Ordering::Relaxed));
+        thread_pool.install(|| self.prev_modified.fill(true, Ordering::Relaxed));
 
         pl.done();
 
