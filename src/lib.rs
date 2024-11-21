@@ -12,6 +12,8 @@ pub mod traits {
 /// all traits.
 pub mod prelude {
     use super::*;
+    pub use algo::exact_sum_sweep;
+    pub use algo::hyperball;
     pub use algo::sccs;
     pub use algo::visits::breadth_first;
     pub use algo::visits::depth_first;
