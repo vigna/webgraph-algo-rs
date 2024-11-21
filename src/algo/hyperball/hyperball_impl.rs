@@ -1,10 +1,14 @@
 use crate::{prelude::*, utils::*};
 use anyhow::{anyhow, Context, Result};
+use common_traits::Atomic;
 use common_traits::{CastableFrom, IntoAtomic, Number, UpcastableInto};
 use dsi_progress_logger::ProgressLog;
+use hyper_log_log::HyperLogLog;
 use kahan::KahanSum;
 use rand::random;
 use rayon::{prelude::*, ThreadPool};
+use std::cell::UnsafeCell;
+use std::fmt::Display;
 use std::{
     hash::{BuildHasher, BuildHasherDefault, DefaultHasher},
     sync::{atomic::*, Mutex},
@@ -23,10 +27,11 @@ use webgraph::traits::RandomAccessGraph;
 pub struct HyperBallBuilder<
     'a,
     D: Succ<Input = usize, Output = usize>,
-    W: Word + IntoAtomic,
-    H: BuildHasher + Clone,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync = G1,
+    H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
+    W: Word + IntoAtomic = usize,
+    C: MergeCounterLogic<W, usize> + Sync = HyperLogLog<usize, W, H>,
 > {
     graph: &'a G1,
     rev_graph: Option<&'a G2>,
@@ -36,23 +41,25 @@ pub struct HyperBallBuilder<
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
     granularity: usize,
     weights: Option<&'a [usize]>,
-    hyper_log_log_settings: HyperLogLogCounterArrayBuilder<H, W>,
+    counter_logic: C,
+    _phantom_data: std::marker::PhantomData<(H, W)>,
 }
 
-impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph + Sync>
-    HyperBallBuilder<'a, D, usize, BuildHasherDefault<DefaultHasher>, G>
+impl<
+        'a,
+        W: Word + IntoAtomic,
+        H: BuildHasher + Clone,
+        D: Succ<Input = usize, Output = usize>,
+        G1: RandomAccessGraph + Sync,
+        C: MergeCounterLogic<W, usize> + Sync,
+    > HyperBallBuilder<'a, D, G1, G1, H, W, C>
 {
-    const DEFAULT_GRANULARITY: usize = 16 * 1024;
-
     /// Creates a new builder with default parameters.
     ///
     /// # Arguments
     /// * `graph`: the direct graph to analyze.
     /// * `cumulative_outdegree`: the degree cumulative function of the graph.
-    pub fn new(graph: &'a G, cumulative_outdegree: &'a D) -> Self {
-        let hyper_log_log_settings = HyperLogLogCounterArrayBuilder::new_with_word_type()
-            .log_2_num_registers(4)
-            .mem_options(TempMmapOptions::Default);
+    pub fn new(counter_logic: C, graph: &'a G1, cumulative_outdegree: &'a D) -> Self {
         Self {
             graph,
             rev_graph: None,
@@ -62,59 +69,58 @@ impl<'a, D: Succ<Input = usize, Output = usize>, G: RandomAccessGraph + Sync>
             discount_functions: Vec::new(),
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
-            hyper_log_log_settings,
+            counter_logic,
+            _phantom_data: std::marker::PhantomData,
         }
     }
 }
 
 impl<
         'a,
-        D: Succ<Input = usize, Output = usize>,
         W: Word + IntoAtomic,
         H: BuildHasher + Clone,
+        D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-    > HyperBallBuilder<'a, D, W, H, G1, G2>
+        C: MergeCounterLogic<W, usize> + Sync,
+    > HyperBallBuilder<'a, D, G1, G2, H, W, C>
 {
-    /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
-    ///
-    /// # Arguments
-    /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
-    ///   and no systolic iterations will be performed by the built [`HyperBall`].
-    pub fn transposed<G: RandomAccessGraph + Sync>(
-        self,
-        transposed: Option<&'a G>,
-    ) -> HyperBallBuilder<'a, D, W, H, G1, G> {
-        if let Some(t) = transposed {
-            assert_eq!(
-                t.num_nodes(),
-                self.graph.num_nodes(),
-                "transposed should have same number of nodes ({}). Got {}.",
-                self.graph.num_nodes(),
-                t.num_nodes()
-            );
-            assert_eq!(
-                t.num_arcs(),
-                self.graph.num_arcs(),
-                "transposed should have the same number of arcs ({}). Got {}.",
-                self.graph.num_arcs(),
-                t.num_arcs()
-            );
-            debug_assert!(
-                check_transposed(self.graph, t),
-                "transposed should be the transposed of the direct graph"
-            );
-        }
-        HyperBallBuilder {
-            graph: self.graph,
-            rev_graph: transposed,
-            cumulative_outdegree: self.cumulative_outdegree,
-            sum_of_distances: self.sum_of_distances,
-            sum_of_inverse_distances: self.sum_of_inverse_distances,
-            discount_functions: self.discount_functions,
-            granularity: self.granularity,
-            weights: self.weights,
-            hyper_log_log_settings: self.hyper_log_log_settings,
+    const DEFAULT_GRANULARITY: usize = 16 * 1024;
+    pub fn with_transpose(
+        counter_logic: C,
+        graph: &'a G1,
+        transpose: &'a G2,
+        cumulative_outdegree: &'a D,
+    ) -> Self {
+        assert_eq!(
+            transpose.num_nodes(),
+            graph.num_nodes(),
+            "transpose should have same number of nodes ({}). Got {}.",
+            graph.num_nodes(),
+            transpose.num_nodes()
+        );
+        assert_eq!(
+            transpose.num_arcs(),
+            graph.num_arcs(),
+            "transpose should have the same number of arcs ({}). Got {}.",
+            graph.num_arcs(),
+            transpose.num_arcs()
+        );
+        debug_assert!(
+            check_transposed(graph, transpose),
+            "transpose should be the transpose of graph"
+        );
+        Self {
+            graph,
+            rev_graph: Some(transpose),
+            cumulative_outdegree,
+            sum_of_distances: false,
+            sum_of_inverse_distances: false,
+            discount_functions: Vec::new(),
+            granularity: Self::DEFAULT_GRANULARITY,
+            weights: None,
+            counter_logic,
+            _phantom_data: std::marker::PhantomData,
         }
     }
 
@@ -175,27 +181,6 @@ impl<
         self.discount_functions.clear();
         self
     }
-
-    /// Sets the settings for the [`HyperLogLogCounterArray`] used to hold the counters.
-    ///
-    /// # Arguments
-    /// * `settings`: the new settings to use.
-    pub fn hyperloglog_settings<W2: Word + IntoAtomic, H2: BuildHasher + Clone>(
-        self,
-        settings: HyperLogLogCounterArrayBuilder<H2, W2>,
-    ) -> HyperBallBuilder<'a, D, W2, H2, G1, G2> {
-        HyperBallBuilder {
-            graph: self.graph,
-            rev_graph: self.rev_graph,
-            cumulative_outdegree: self.cumulative_outdegree,
-            sum_of_distances: self.sum_of_distances,
-            sum_of_inverse_distances: self.sum_of_inverse_distances,
-            discount_functions: self.discount_functions,
-            granularity: self.granularity,
-            weights: self.weights,
-            hyper_log_log_settings: settings,
-        }
-    }
 }
 
 impl<
@@ -205,7 +190,8 @@ impl<
         H: BuildHasher + Clone,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-    > HyperBallBuilder<'a, D, W, H, G1, G2>
+        C: MergeCounterLogic<W, usize> + Display + Sync,
+    > HyperBallBuilder<'a, D, G1, G2, H, W, C>
 {
     /// Builds the [`HyperBall`] instance with the specified settings and
     /// logs progress with the provided logger.
@@ -213,10 +199,7 @@ impl<
     /// # Arguments
     /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
-    pub fn build(
-        self,
-        pl: &mut impl ProgressLog,
-    ) -> Result<HyperBall<'a, G1, G2, D, W, HyperLogLogCounterArray<G1::Label, W, H>>> {
+    pub fn build(self, pl: &mut impl ProgressLog) -> Result<HyperBall<'a, G1, G2, D, W, C>> {
         let num_nodes = self.graph.num_nodes();
         let num_elements = self.weights.map(|w| w.iter().sum()).unwrap_or(num_nodes);
         let hyper_log_log_settings = self
@@ -224,13 +207,18 @@ impl<
             .num_elements_upper_bound(num_elements);
 
         pl.info(format_args!("Initializing HyperLogLogCounterArrays"));
-        let bits = hyper_log_log_settings
-            .clone()
-            .build(num_nodes)
-            .with_context(|| "Could not initialize bits")?;
-        let result_bits = hyper_log_log_settings
-            .build(num_nodes)
-            .with_context(|| "Could not initialize result_bits")?;
+        let bits = MmapSlice::from_closure(
+            || W::ZERO,
+            num_nodes * self.counter_logic.words_per_counter(),
+            TempMmapOptions::Default,
+        )
+        .with_context(|| "Could not initialize bits")?;
+        let result_bits = MmapSlice::from_closure(
+            || W::ZERO,
+            num_nodes * self.counter_logic.words_per_counter(),
+            TempMmapOptions::Default,
+        )
+        .with_context(|| "Could not initialize result_bits")?;
 
         let sum_of_distances = if self.sum_of_distances {
             pl.info(format_args!("Initializing sum of distances"));
@@ -272,13 +260,7 @@ impl<
 
         let granularity = (self.granularity + W::BITS - 1) & W::BITS.wrapping_neg();
 
-        pl.info(format_args!(
-            "Relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
-            100.0 * HyperLogLogCounterArray::relative_standard_deviation(bits.log_2_num_registers()),
-            bits.num_registers(),
-            bits.register_size(),
-            (bits.num_registers() * bits.register_size()) / 8
-        ));
+        pl.info(format_args!("{}", self.counter_logic));
 
         Ok(HyperBall {
             graph: self.graph,
@@ -308,7 +290,7 @@ impl<
             relative_increment: 0.0,
             granularity,
             iteration_context: IterationContext::default(),
-            _phantom_data: std::marker::PhantomData,
+            counter_logic: self.counter_logic,
         })
     }
 }
@@ -353,7 +335,7 @@ pub struct HyperBall<
     G2: RandomAccessGraph + Sync,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
-    A: CounterArray<G1::Label, W>,
+    C: MergeCounterLogic<W, usize> + Sync,
 > {
     /// The direct graph to analyze
     graph: &'a G1,
@@ -366,9 +348,9 @@ pub struct HyperBall<
     /// The base number of nodes per task. Must be a multiple of `bits.chuk_size()`
     granularity: usize,
     /// The current status of Hyperball
-    bits: A,
+    bits: MmapSlice<W>,
     /// The new status of Hyperball after an iteration
-    result_bits: A,
+    result_bits: MmapSlice<W>,
     /// The current iteration
     iteration: usize,
     /// `true` if the computation is over
@@ -409,7 +391,7 @@ pub struct HyperBall<
     relative_increment: f64,
     /// Context used in a single iteration
     iteration_context: IterationContext,
-    _phantom_data: std::marker::PhantomData<W>,
+    counter_logic: C,
 }
 
 impl<
@@ -418,9 +400,24 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        A: CounterArray<G1::Label, W> + Sync + Send,
-    > HyperBall<'a, G1, G2, D, W, A>
+        C: MergeCounterLogic<W, usize> + Sync,
+    > HyperBall<'a, G1, G2, D, W, C>
 {
+    fn get_counter(&self, bits: &'a [W], index: usize) -> &'a [W] {
+        let bits = bits.as_ref();
+        let start = index * self.counter_logic.words_per_counter();
+        let end = start + self.counter_logic.words_per_counter();
+        &bits[start..end]
+    }
+
+    #[warn(invalid_reference_casting)]
+    fn get_counter_mut(&self, bits: &'a [W], index: usize) -> &'a mut [W] {
+        let start = index * self.counter_logic.words_per_counter();
+        let end = start + self.counter_logic.words_per_counter();
+        // SAFETY: unsafe
+        unsafe { &mut *(&bits[start..end] as *const [W] as *mut [W]) }
+    }
+
     /// Runs HyperBall.
     ///
     /// # Arguments
@@ -593,16 +590,18 @@ impl<
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
         } else if let Some(distances) = &self.sum_of_distances {
+            let counter_logic = &self.counter_logic;
+            let bits = self.bits.as_ref();
             Ok(distances
                 .lock()
                 .unwrap()
                 .iter()
                 .enumerate()
-                .map(|(i, &d)| {
+                .map(|(node, &d)| {
                     if d == 0.0 {
                         1.0
                     } else {
-                        let count = unsafe { self.bits.get_counter_from_shared(i) }.count();
+                        let count = counter_logic.count(self.get_counter(bits, node));
                         count * count / d
                     }
                 })
@@ -619,13 +618,15 @@ impl<
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
         } else if let Some(distances) = &self.sum_of_distances {
+            let counter_logic = &self.counter_logic;
+            let bits = self.bits.as_ref();
             Ok(distances
                 .lock()
                 .unwrap()
                 .iter()
                 .enumerate()
-                .map(|(i, &d)| {
-                    let count = unsafe { self.bits.get_counter_from_shared(i) }.count();
+                .map(|(node, &d)| {
+                    let count = counter_logic.count(self.get_counter(bits, node));
                     (count * count) - d
                 })
                 .collect())
@@ -645,7 +646,9 @@ impl<
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
         } else {
-            Ok(unsafe { self.bits.get_counter_from_shared(node) }.count())
+            let counter_logic = &self.counter_logic;
+            let bits = self.bits.as_ref();
+            Ok(counter_logic.count(self.get_counter(bits, node)))
         }
     }
 
@@ -659,8 +662,10 @@ impl<
                 "HyperBall was not run. Please call self.run(...) before accessing computed fields"
             ))
         } else {
+            let counter_logic = &self.counter_logic;
+            let bits = self.bits.as_ref();
             Ok((0..self.graph.num_nodes())
-                .map(|n| unsafe { self.bits.get_counter_from_shared(n) }.count())
+                .map(|n| counter_logic.count(self.get_counter(bits, n)))
                 .collect())
         }
     }
@@ -672,13 +677,12 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
-        A: CounterArray<G1::Label, W>,
-    > HyperBall<'a, G1, G2, D, W, A>
+        C: MergeCounterLogic<W, usize> + Sync,
+    > HyperBall<'a, G1, G2, D, W, C>
 {
-    /// Swaps the undelying backend [`HyperLogLogCounterArray`] between current and result.
     #[inline(always)]
     fn swap_arrays(&mut self) {
-        self.bits.swap_with(&mut self.result_bits);
+        std::mem::swap(&mut self.bits, &mut self.result_bits);
         std::mem::swap(
             &mut self.modified_counter,
             &mut self.modified_result_counter,
@@ -692,8 +696,8 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        A: CounterArray<G1::Label, W> + Sync + Send,
-    > HyperBall<'a, G1, G2, D, W, A>
+        C: MergeCounterLogic<W, usize> + Sync,
+    > HyperBall<'a, G1, G2, D, W, C>
 {
     /// Performs a new iteration of HyperBall.
     ///
@@ -880,12 +884,12 @@ impl<
         let mut visited_arcs = 0;
         let mut modified_counters = 0;
         let arc_upper_limit = self.graph.num_arcs() as usize;
-        let mut thread_helper = self.bits.get_thread_helper();
 
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
         // by this thread. During systolic iterations, cumulates the *increase* of the
         // neighbourhood function for the nodes scanned by this thread.
         let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
+        let mut helper = self.counter_logic.new_helper();
 
         loop {
             // Get work
@@ -930,33 +934,36 @@ impl<
                     i
                 };
 
+                let mut counter = unsafe {
+                    // Safety: no other thread will ever read from or write to this counter
+                    self.get_counter_mut(&self.result_bits, node)
+                };
+                let old_counter = unsafe {
+                    // Safety: self.bits is never written to in parallel_task
+                    self.get_counter(&self.bits, node)
+                };
+
                 // The three cases in which we enumerate successors:
                 // 1) A non-systolic computation (we don't know anything, so we enumerate).
                 // 2) A systolic, local computation (the node is by definition to be checked, as it comes from the local check list).
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
                     // We write directly to the result
-                    let mut counter = unsafe {
-                        // Safety: no other thread will ever read from or write to this counter
-                        self.result_bits.get_counter_from_shared(node)
-                    };
-                    let old_counter = unsafe {
-                        // Safety: self.bits is never written to in parallel_task
-                        self.bits.get_counter_from_shared(node)
-                    };
-                    counter.use_thread_helper(&mut thread_helper);
+
                     let mut modified = false;
                     for succ in self.graph.successors(node) {
                         if succ != node && self.modified_counter[succ] {
                             visited_arcs += 1;
                             if !modified {
-                                counter.set_to(&old_counter);
+                                self.counter_logic.set_to(&mut counter, &old_counter);
                                 modified = true;
                             }
-                            unsafe {
-                                // Safety: self.bits is never written to in parallel_task
-                                counter.merge(&self.bits.get_counter_from_shared(succ));
-                            }
+                            // Safety: self.bits is never written to in parallel_task
+                            self.counter_logic.merge_into_with_helper(
+                                &mut counter,
+                                self.get_counter(&self.bits, succ),
+                                &mut helper,
+                            );
                         }
                     }
 
@@ -972,14 +979,14 @@ impl<
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
                     if !self.systolic || modified_counter {
-                        post = counter.count();
+                        post = self.counter_logic.count(&mut counter);
                     }
                     if !self.systolic {
                         neighbourhood_function_delta += post;
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = old_counter.count();
+                        let pre = self.counter_logic.count(&old_counter);
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
@@ -1048,20 +1055,16 @@ impl<
                     // the present value was not a modified value in the first place,
                     // then we can avoid updating the result altogether.
                     if !modified && self.modified_counter[node] {
-                        counter.set_to(&old_counter);
+                        self.counter_logic.set_to(&mut counter, &old_counter);
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
                     // in the result vector might need to be updated because it does not
                     // reflect our current value.
                     if self.modified_counter[node] {
-                        unsafe {
-                            // Safety: we are only ever writing to the result array and
-                            // no counter is ever written to more than once
-                            self.result_bits
-                                .get_counter_from_shared(node)
-                                .set_to(&self.bits.get_counter_from_shared(node))
-                        };
+                        // Safety: we are only ever writing to the result array and
+                        // no counter is ever written to more than once
+                        self.counter_logic.set_to(counter, old_counter);
                     }
                 }
             }
@@ -1091,21 +1094,25 @@ impl<
     fn init(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
-        thread_pool.join(|| self.bits.clear(), || self.result_bits.clear());
+        thread_pool.join(
+            || self.bits.fill(W::ZERO),
+            || self.result_bits.fill(W::ZERO),
+        );
 
         pl.info(format_args!("Initializing registers"));
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
             for (i, &node_weight) in w.iter().enumerate() {
-                let mut counter = self.bits.get_counter(i);
+                let mut counter = self.get_counter_mut(&self.bits, i);
                 for _ in 0..node_weight {
-                    counter.add(random());
+                    self.counter_logic.add(&mut counter, random());
                 }
             }
         } else {
             thread_pool.install(|| {
                 (0..self.graph.num_nodes()).into_par_iter().for_each(|i| {
-                    unsafe { self.bits.get_counter_from_shared(i) }.add(i);
+                    self.counter_logic
+                        .add(self.get_counter_mut(&self.bits, i), i);
                 });
             });
         }

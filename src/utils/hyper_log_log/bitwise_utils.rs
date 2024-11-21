@@ -27,17 +27,29 @@ pub(super) fn subtract<W: Word>(x: &mut [W], y: &[W]) {
 
 #[inline(always)]
 pub(super) fn merge_hyperloglog_bitwise<W: Word>(
-    x: &mut [W],
-    y: &[W],
-    msb_mask: &[W],
-    lsb_mask: &[W],
+    mut x: impl AsMut<[W]>,
+    y: impl AsRef<[W]>,
+    msb_mask: impl AsRef<[W]>,
+    lsb_mask: impl AsRef<[W]>,
     acc: &mut Vec<W>,
     mask: &mut Vec<W>,
     register_size: usize,
 ) {
+    let x = x.as_mut();
+    let y = y.as_ref();
+    let msb_mask = msb_mask.as_ref();
+    let lsb_mask = lsb_mask.as_ref();
+
+    debug_assert_eq!(x.len(), y.len());
+    debug_assert_eq!(x.len(), msb_mask.len());
+    debug_assert_eq!(x.len(), lsb_mask.len());
+
     let register_size_minus_1 = register_size - 1;
     let num_words_minus_1 = x.len() - 1;
     let shift_register_size_minus_1 = W::BITS - register_size_minus_1;
+
+    acc.clear();
+    mask.clear();
 
     /* We work in two phases. Let H_r (msb_mask) be the mask with the
      * highest bit of each register (of size r) set, and L_r (lsb_mask)
