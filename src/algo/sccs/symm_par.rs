@@ -1,5 +1,5 @@
 use crate::{
-    prelude::breadth_first::{EventPred, ParLowMem},
+    prelude::breadth_first::{EventNoPred, ParFairNoPred},
     traits::{BasicSccs, Parallel},
     utils::*,
 };
@@ -26,8 +26,8 @@ pub fn symm_par(
     pl.start("Computing strongly connected components...");
 
     // TODO: use a better value for granularity
-    let mut visit = ParLowMem::new(&graph, 100);
-    let mut component = vec![MaybeUninit::uninit(); num_nodes].into_boxed_slice();
+    let mut visit = ParFairNoPred::new(&graph, 100);
+    let mut component = Box::new_uninit_slice(num_nodes);
 
     let number_of_components = AtomicUsize::new(0);
     let slice = unsafe { component.as_sync_slice() };
@@ -36,14 +36,14 @@ pub fn symm_par(
         .par_visit_all(
             |event| {
                 match event {
-                    EventPred::Init { .. } => {}
-                    EventPred::Unknown { curr, .. } => {
+                    EventNoPred::Init { .. } => {}
+                    EventNoPred::Unknown { curr, .. } => {
                         slice.set(
                             curr,
                             MaybeUninit::new(number_of_components.load(Ordering::Relaxed)),
                         );
                     }
-                    EventPred::Done { .. } => {
+                    EventNoPred::Done { .. } => {
                         number_of_components.fetch_add(1, Ordering::Relaxed);
                     }
                     _ => (),
@@ -55,8 +55,7 @@ pub fn symm_par(
         )
         .unwrap_infallible();
 
-    let component =
-        unsafe { std::mem::transmute::<Box<[MaybeUninit<usize>]>, Box<[usize]>>(component) };
+    let component = unsafe { component.assume_init() };
 
     pl.done();
 

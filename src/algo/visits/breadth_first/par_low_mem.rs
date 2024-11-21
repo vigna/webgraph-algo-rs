@@ -61,7 +61,6 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(tree[2].load(Ordering::Relaxed), 1);
 /// assert_eq!(tree[3].load(Ordering::Relaxed), 1);
 /// ```
-
 pub struct ParLowMem<G: RandomAccessGraph> {
     graph: G,
     granularity: usize,

@@ -80,7 +80,6 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-
 pub struct ParFairBase<G: RandomAccessGraph, const PRED: bool = false> {
     graph: G,
     granularity: usize,

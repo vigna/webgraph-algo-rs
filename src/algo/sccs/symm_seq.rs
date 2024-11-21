@@ -1,12 +1,10 @@
 use super::BasicSccs;
 use crate::{prelude::depth_first, traits::Sequential};
 use dsi_progress_logger::ProgressLog;
-use std::mem::MaybeUninit;
 use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Connected components of symmetric graphs by sequential visits.
-
 pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> BasicSccs {
     // debug_assert!(check_symmetric(&graph)); requires sync
 
@@ -16,7 +14,7 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
     pl.start("Computing strongly connected components...");
 
     let mut visit = depth_first::SeqNoPred::new(&graph);
-    let mut component = vec![MaybeUninit::uninit(); num_nodes].into_boxed_slice();
+    let mut component = Box::new_uninit_slice(num_nodes);
     let mut number_of_components = 0;
 
     visit
@@ -37,8 +35,7 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
         )
         .unwrap_infallible();
 
-    let component =
-        unsafe { std::mem::transmute::<Box<[MaybeUninit<usize>]>, Box<[usize]>>(component) };
+    let component = unsafe { component.assume_init() };
 
     pl.done();
 
