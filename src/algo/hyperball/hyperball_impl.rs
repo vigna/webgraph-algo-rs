@@ -31,7 +31,7 @@ pub struct HyperBallBuilder<
     G2: RandomAccessGraph + Sync = G1,
     H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
     W: Word + IntoAtomic = usize,
-    C: MergeCounterLogic<W, usize> + Sync = HyperLogLog<W, H>,
+    C: MergeCounterLogic<usize> + Sync = HyperLogLog<W, H>,
 > {
     graph: &'a G1,
     rev_graph: Option<&'a G2>,
@@ -51,7 +51,7 @@ impl<
         H: BuildHasher + Clone,
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
-        C: MergeCounterLogic<W, usize> + Sync,
+        C: MergeCounterLogic<usize> + Sync,
     > HyperBallBuilder<'a, D, G1, G1, H, W, C>
 {
     /// Creates a new builder with default parameters.
@@ -82,7 +82,7 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: MergeCounterLogic<W, usize> + Sync,
+        C: MergeCounterLogic<usize> + Sync,
     > HyperBallBuilder<'a, D, G1, G2, H, W, C>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
@@ -190,7 +190,7 @@ impl<
         H: BuildHasher + Clone,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: MergeCounterLogic<W, usize> + Display + Sync,
+        C: MergeCounterLogic<usize> + Display + Sync,
     > HyperBallBuilder<'a, D, G1, G2, H, W, C>
 {
     /// Builds the [`HyperBall`] instance with the specified settings and
@@ -335,7 +335,7 @@ pub struct HyperBall<
     G2: RandomAccessGraph + Sync,
     D: Succ<Input = usize, Output = usize>,
     W: Word + IntoAtomic,
-    C: MergeCounterLogic<W, usize> + Sync,
+    C: MergeCounterLogic<usize> + Sync,
 > {
     /// The direct graph to analyze
     graph: &'a G1,
@@ -400,7 +400,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        C: MergeCounterLogic<W, usize> + Sync,
+        C: MergeCounterLogic<usize, Backend = [W]> + Sync,
     > HyperBall<'a, G1, G2, D, W, C>
 {
     fn get_counter(&self, bits: &'a [W], index: usize) -> &'a [W] {
@@ -677,7 +677,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + IntoAtomic + UpcastableInto<u64> + CastableFrom<u64>,
-        C: MergeCounterLogic<W, usize> + Sync,
+        C: MergeCounterLogic<usize> + Sync,
     > HyperBall<'a, G1, G2, D, W, C>
 {
     #[inline(always)]
@@ -696,7 +696,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         W: Word + CastableFrom<u64> + UpcastableInto<u64> + IntoAtomic,
-        C: MergeCounterLogic<W, usize> + Sync,
+        C: MergeCounterLogic<usize, Backend = [W]> + Sync,
     > HyperBall<'a, G1, G2, D, W, C>
 {
     /// Performs a new iteration of HyperBall.
