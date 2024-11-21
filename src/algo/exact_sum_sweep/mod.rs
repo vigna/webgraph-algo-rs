@@ -80,7 +80,9 @@
 //! use webgraph::graphs::vec_graph::VecGraph;
 //! use webgraph::labels::proj::Left;
 //!
-//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 0), (1, 2), (2, 1), (2, 0), (0, 2), (3, 4), (4, 3)]));
+//! let graph = Left(VecGraph::from_arc_list(
+//!     [(0, 1), (1, 0), (1, 2), (2, 1), (2, 0), (0, 2), (3, 4), (4, 3)]
+//! ));
 //!
 //! let result = exact_sum_sweep::RadiusDiameter::compute_undirected(
 //!     &graph,
