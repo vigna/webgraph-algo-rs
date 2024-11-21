@@ -1,9 +1,8 @@
+use super::BasicSccs;
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
-
-use super::BasicSccs;
 
 /// Tarjan's algorithm for strongly connected components.
 pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> BasicSccs {

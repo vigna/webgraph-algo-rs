@@ -1,13 +1,13 @@
 use crate::{
     algo::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
-        sccs,
+        sccs::{self, BasicSccs},
         visits::{
             breadth_first::{EventNoPred, ParFairNoPred},
             FilterArgs, Parallel,
         },
     },
-    traits::{BasicSccs, StronglyConnectedComponents},
+    traits::StronglyConnectedComponents,
     utils::*,
 };
 use dsi_progress_logger::no_logging;

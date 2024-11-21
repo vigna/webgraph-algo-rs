@@ -1,6 +1,9 @@
 use crate::{
-    prelude::breadth_first::{EventNoPred, ParFairNoPred},
-    traits::{BasicSccs, Parallel},
+    prelude::{
+        breadth_first::{EventNoPred, ParFairNoPred},
+        sccs::BasicSccs,
+        Parallel,
+    },
     utils::*,
 };
 use dsi_progress_logger::ProgressLog;

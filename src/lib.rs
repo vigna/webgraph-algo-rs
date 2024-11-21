@@ -12,6 +12,7 @@ pub mod traits {
 /// all traits.
 pub mod prelude {
     use super::*;
+    pub use algo::sccs;
     pub use algo::visits::breadth_first;
     pub use algo::visits::depth_first;
     pub use traits::*;
