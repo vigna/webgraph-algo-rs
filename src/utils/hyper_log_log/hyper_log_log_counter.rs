@@ -1,11 +1,8 @@
 use super::*;
-use crate::{prelude::*, utils::MmapSlice};
+use crate::prelude::*;
 use anyhow::ensure;
-use anyhow::Context;
-use common_traits::Atomic;
 use common_traits::CastableFrom;
 use common_traits::CastableInto;
-use common_traits::FiniteRangeNumber;
 use common_traits::IntoAtomic;
 use common_traits::Number;
 use common_traits::UpcastableFrom;
@@ -306,11 +303,13 @@ pub struct HyperLogLogHelper<W> {
     mask: Vec<W>,
 }
 
-impl<T: Hash, W: Word, H: BuildHasher> CounterLogic<W, T> for HyperLogLog<W, H>
+impl<T: Hash, W: Word, H: BuildHasher> CounterLogic<T> for HyperLogLog<W, H>
 where
     u64: UpcastableFrom<W>,
     W: CastableFrom<u64>,
 {
+    type Backend = [W];
+
     fn add(&self, mut counter: impl AsMut<[W]>, element: T) {
         let mut counter = counter.as_mut();
         let x = self.build_hasher.hash_one(element);
@@ -363,7 +362,7 @@ where
     }
 }
 
-impl<T: Hash, W: Word, H: BuildHasher> MergeCounterLogic<W, T> for HyperLogLog<W, H>
+impl<T: Hash, W: Word, H: BuildHasher> MergeCounterLogic<T> for HyperLogLog<W, H>
 where
     u64: UpcastableFrom<W>,
     W: CastableFrom<u64>,
@@ -585,38 +584,36 @@ impl<W, H> Display for HyperLogLog<W, H> {
     }
 }
 
-pub struct HyperLogLogCounter<L, W, B: AsMut<[W]>> {
+pub struct HyperLogLogCounter<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W> {
     logic: L,
     backend: B,
-    _marker: PhantomData<W>,
+    _marker: PhantomData<(T, W)>,
 }
 
-impl<T, L: CounterLogic<W, T>, W: Word, B: AsRef<[W]> + AsMut<[W]>> Counter<T>
-    for HyperLogLogCounter<L, W, B>
+impl<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> Counter<T>
+    for HyperLogLogCounter<T, L, B, W>
 {
     fn add(&mut self, element: T) {
-        self.logic.add(self.backend.as_mut(), element);
+        self.logic.add(&mut self.backend, element);
     }
 
     fn count(&self) -> f64 {
-        self.logic.count(self.backend.as_ref())
+        self.logic.count(&self.backend)
     }
 
     fn clear(&mut self) {
-        self.logic.clear(self.backend.as_mut());
+        self.logic.clear(&mut self.backend);
     }
 
     fn set_to(&mut self, other: &Self) {
-        self.logic
-            .set_to(self.backend.as_mut(), other.backend.as_ref());
+        self.logic.set_to(&mut self.backend, &other.backend);
     }
 }
 
-impl<T, L: MergeCounterLogic<W, T>, W: Word, B: AsRef<[W]> + AsMut<[W]>> MergeCounter<T>
-    for HyperLogLogCounter<L, W, B>
+impl<T, L: MergeCounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> MergeCounter<T>
+    for HyperLogLogCounter<T, L, B, W>
 {
     fn merge(&mut self, other: &Self) {
-        self.logic
-            .merge_into(self.backend.as_mut(), other.backend.as_ref());
+        self.logic.merge_into(&mut self.backend, &other.backend);
     }
 }

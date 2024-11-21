@@ -1,38 +1,39 @@
 use sux::traits::Word;
 
-pub trait CounterLogic<W: Word, T> {
+pub trait CounterLogic<T> {
+    type Backend: ?Sized;
     /// Adds an element to the counter.
     ///
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&self, counter: impl AsMut<[W]>, element: T);
+    fn add(&self, counter: impl AsMut<Self::Backend>, element: T);
 
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
-    fn count(&self, counter: impl AsRef<[W]>) -> f64;
+    fn count(&self, counter: impl AsRef<Self::Backend>) -> f64;
 
     /// Clears the counter.
-    fn clear(&self, counter: impl AsMut<[W]>);
+    fn clear(&self, counter: impl AsMut<Self::Backend>);
 
     /// Sets the contents of `self` to the contents of `other`.
-    fn set_to(&self, dst: impl AsMut<[W]>, src: impl AsRef<[W]>);
+    fn set_to(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>);
 
     /// The number of words of type `W` used by the counter.
     fn words_per_counter(&self) -> usize;
 }
 
-pub trait MergeCounterLogic<W: Word, T>: CounterLogic<W, T> {
+pub trait MergeCounterLogic<T>: CounterLogic<T> {
     type Helper;
     fn new_helper(&self) -> Self::Helper;
-    fn merge_into(&self, dst: impl AsMut<[W]>, src: impl AsRef<[W]>) {
+    fn merge_into(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>) {
         let mut helper = self.new_helper();
         self.merge_into_with_helper(dst, src, &mut helper);
     }
     fn merge_into_with_helper(
         &self,
-        dst: impl AsMut<[W]>,
-        src: impl AsRef<[W]>,
+        dst: impl AsMut<Self::Backend>,
+        src: impl AsRef<Self::Backend>,
         helper: &mut Self::Helper,
     );
 }
