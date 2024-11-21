@@ -10,7 +10,6 @@ use webgraph_algo::algo::{exact_sum_sweep::*, sccs};
 use webgraph_algo::prelude::*;
 use webgraph_algo::threads;
 use webgraph_algo::utils::hyper_log_log::{HyperLogLog, HyperLogLogBuilder};
-use webgraph_algo::utils::HyperLogLogCounterArrayBuilder;
 
 fn main() -> Result<()> {
     stderrlog::new()
@@ -48,23 +47,24 @@ fn main() -> Result<()> {
         }
         "hyperball" => {
             let cumulative = DCF::load_mmap(basename.clone() + ".dcf", Flags::empty())?;
-            let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
+            let transpose = BvGraph::with_basename(basename.clone() + "-t").load()?;
             let log2m = std::env::args()
                 .nth(3)
                 .expect("No log2m value provided")
                 .parse()
                 .expect("Expected integer");
 
-            let mut hyper_log_log: HyperLogLog<_, _, _> =
+            let hyper_log_log: HyperLogLog<_, _> =
                 HyperLogLogBuilder::<BuildHasherDefault<DefaultHasher>, usize>::new()
                     .log_2_num_registers(log2m)
                     .mem_options(mem_options.clone())
                     .num_elements_upper_bound(graph.num_nodes())
                     .build()?;
             let mut hyperball =
-                HyperBallBuilder::<_, _, _, BuildHasherDefault<DefaultHasher>, _, _>::new(
+                HyperBallBuilder::<_, _, _, BuildHasherDefault<DefaultHasher>, _, _>::with_transpose(
                     hyper_log_log,
                     &graph,
+                    &transpose,
                     cumulative.as_ref(),
                 )
                 .sum_of_distances(true)
