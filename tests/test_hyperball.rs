@@ -8,7 +8,9 @@ use webgraph::{
     traits::SequentialLabeling,
 };
 use webgraph_algo::{
-    algo::hyperball::HyperBallBuilder, threads, utils::HyperLogLogCounterArrayBuilder,
+    algo::hyperball::HyperBallBuilder,
+    threads,
+    utils::hyper_log_log::{HyperLogLog, HyperLogLogBuilder},
 };
 
 /// Jenkins Hasher as implemented in the
@@ -213,7 +215,7 @@ fn test_cnr_2000() -> Result<()> {
     let basename = "tests/graphs/cnr-2000";
 
     let graph = BvGraph::with_basename(basename).load()?;
-    let rev_graph = BvGraph::with_basename(basename.to_owned() + "-t").load()?;
+    let transpose = BvGraph::with_basename(basename.to_owned() + "-t").load()?;
     let cumulative = DCF::load_mmap(basename.to_owned() + ".dcf", Flags::empty())?;
 
     // These are created using the Java implementation of Hyperball on cnr-2000 with a log2m equal to 8 and seed 42 with Jenkins hash.
@@ -228,13 +230,17 @@ fn test_cnr_2000() -> Result<()> {
     let expected_nieminen_centralities =
         read_float_array("./tests/hyperball_results/cnr-2000_nieminen_centrality")?;
 
-    let mut hyperball = HyperBallBuilder::new(&graph, cumulative.as_ref())
-        .transposed(Some(&rev_graph))
-        .hyperloglog_settings(
-            HyperLogLogCounterArrayBuilder::new()
-                .log_2_num_registers(8)
-                .num_elements_upper_bound(graph.num_nodes())
-                .hasher_builder(JenkinsHasherBuilder::new(42)),
+    let hyper_log_log: HyperLogLog<_, _> =
+        HyperLogLogBuilder::<BuildHasherDefault<DefaultHasher>, usize>::new()
+            .log_2_num_registers(9)
+            .num_elements_upper_bound(graph.num_nodes())
+            .build()?;
+    let mut hyperball =
+        HyperBallBuilder::<_, _, _, BuildHasherDefault<DefaultHasher>, _, _>::with_transpose(
+            hyper_log_log,
+            &graph,
+            &transpose,
+            cumulative.as_ref(),
         )
         .sum_of_distances(true)
         .sum_of_inverse_distances(true)

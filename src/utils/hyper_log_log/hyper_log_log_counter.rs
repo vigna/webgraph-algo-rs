@@ -18,7 +18,7 @@ use std::{
 };
 use sux::{bits::BitFieldVec, traits::bit_field_slice::*};
 
-/// Concretized view of an HyperLogLogCounter stored in a [`HyperLogLog`].
+/*/// Concretized view of an HyperLogLogCounter stored in a [`HyperLogLog`].
 ///
 /// This stores minimal information as a reference to the original array as an
 /// `&'a HyperLogLog<T, W, H>` or as a copy of the relevant information
@@ -36,7 +36,7 @@ pub struct HyperLogLogCounter<'a, T, W: Word, H, B, A> {
     pub(super) array: A,
     pub(super) bits: B,
     pub(super) _phantom_data: std::marker::PhantomData<&'a (W, T, H)>,
-}
+}*/
 /*
 /// Internal structure storing owned information from an [`HyperLogLog`] used by
 /// the owned version of [`HyperLogLogCounter`].
@@ -210,7 +210,7 @@ impl<'a, 'b, T: Hash, W: Word, H: BuildHasher, A: ArrayInfo<W, H>> RegisterEdit<
 */
 
 #[derive(Debug, Clone)]
-pub struct HyperLogLog<T, W, H> {
+pub struct HyperLogLog<W, H> {
     build_hasher: H,
     register_size: usize,
     num_registers_minus_1: HashResult,
@@ -221,7 +221,6 @@ pub struct HyperLogLog<T, W, H> {
     alpha_m_m: f64,
     msb_mask: Box<[W]>,
     lsb_mask: Box<[W]>,
-    _phantom_data: PhantomData<T>,
 }
 
 /// Returns the logarithm of the number of registers per counter that are necessary to attain a
@@ -256,7 +255,7 @@ pub fn register_size_from_number_of_elements(n: usize) -> usize {
     std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
 }
 
-impl<T, W: Word, H> HyperLogLog<T, W, H> {
+impl<W: Word, H> HyperLogLog<W, H> {
     #[inline(always)]
     fn get_register(&self, counter: impl AsRef<[W]>, index: usize) -> W {
         let counter = counter.as_ref();
@@ -307,7 +306,7 @@ pub struct HyperLogLogHelper<W> {
     mask: Vec<W>,
 }
 
-impl<T: Hash, W: Word, H: BuildHasher> CounterLogic<W, T> for HyperLogLog<T, W, H>
+impl<T: Hash, W: Word, H: BuildHasher> CounterLogic<W, T> for HyperLogLog<W, H>
 where
     u64: UpcastableFrom<W>,
     W: CastableFrom<u64>,
@@ -364,7 +363,7 @@ where
     }
 }
 
-impl<T: Hash, W: Word, H: BuildHasher> MergeCounterLogic<W, T> for HyperLogLog<T, W, H>
+impl<T: Hash, W: Word, H: BuildHasher> MergeCounterLogic<W, T> for HyperLogLog<W, H>
 where
     u64: UpcastableFrom<W>,
     W: CastableFrom<u64>,
@@ -509,7 +508,7 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
     ///
     /// # Arguments
     /// * `len`: the length of the counter array in counters.
-    pub fn build<T>(self) -> anyhow::Result<HyperLogLog<T, W, H>> {
+    pub fn build(self) -> anyhow::Result<HyperLogLog<W, H>> {
         let log_2_num_registers = self.log_2_num_registers;
         let num_elements = self.num_elements;
         let hasher_builder = self.hasher_builder;
@@ -568,21 +567,56 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
             msb_mask: msb.into_raw_parts().0.into_boxed_slice(),
             lsb_mask: lsb.into_raw_parts().0.into_boxed_slice(),
             words_per_counter: counter_size_in_words,
-            _phantom_data: PhantomData,
         })
     }
 }
 
-impl<T, W, H> Display for HyperLogLog<T, W, H> {
+impl<W, H> Display for HyperLogLog<W, H> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
 
             "Relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
-            100.0 * HyperLogLogCounterArray::relative_standard_deviation(self.log_2_num_registers),
+            100.0 * relative_standard_deviation(self.log_2_num_registers),
             self.num_registers,
             self.register_size,
             (self.num_registers * self.register_size) / 8
         )
+    }
+}
+
+pub struct HyperLogLogCounter<L, W, B: AsMut<[W]>> {
+    logic: L,
+    backend: B,
+    _marker: PhantomData<W>,
+}
+
+impl<T, L: CounterLogic<W, T>, W: Word, B: AsRef<[W]> + AsMut<[W]>> Counter<T>
+    for HyperLogLogCounter<L, W, B>
+{
+    fn add(&mut self, element: T) {
+        self.logic.add(self.backend.as_mut(), element);
+    }
+
+    fn count(&self) -> f64 {
+        self.logic.count(self.backend.as_ref())
+    }
+
+    fn clear(&mut self) {
+        self.logic.clear(self.backend.as_mut());
+    }
+
+    fn set_to(&mut self, other: &Self) {
+        self.logic
+            .set_to(self.backend.as_mut(), other.backend.as_ref());
+    }
+}
+
+impl<T, L: MergeCounterLogic<W, T>, W: Word, B: AsRef<[W]> + AsMut<[W]>> MergeCounter<T>
+    for HyperLogLogCounter<L, W, B>
+{
+    fn merge(&mut self, other: &Self) {
+        self.logic
+            .merge_into(self.backend.as_mut(), other.backend.as_ref());
     }
 }

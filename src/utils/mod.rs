@@ -22,9 +22,7 @@ pub use mmap_helper::*;
 /// Module containing implementations of the `HyperLogLog` algorithm
 /// and implementing efficient Vecs of counters.
 pub mod hyper_log_log;
-pub use hyper_log_log::{
-    HyperLogLogCounter, HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder,
-};
+pub use hyper_log_log::HyperLogLogCounter;
 
 /// Module containing utility traits.
 pub mod traits;

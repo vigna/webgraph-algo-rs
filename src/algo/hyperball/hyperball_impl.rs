@@ -31,7 +31,7 @@ pub struct HyperBallBuilder<
     G2: RandomAccessGraph + Sync = G1,
     H: BuildHasher + Clone = BuildHasherDefault<DefaultHasher>,
     W: Word + IntoAtomic = usize,
-    C: MergeCounterLogic<W, usize> + Sync = HyperLogLog<usize, W, H>,
+    C: MergeCounterLogic<W, usize> + Sync = HyperLogLog<W, H>,
 > {
     graph: &'a G1,
     rev_graph: Option<&'a G2>,
