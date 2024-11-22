@@ -1,20 +1,45 @@
 use super::*;
+use crate::utils::DefaultCounter;
 use crate::{prelude::*, utils::MmapSlice};
-use common_traits::{Atomic, CastableFrom, IntoAtomic, UpcastableInto};
+use common_traits::{CastableFrom, UpcastableInto};
+use std::cell::UnsafeCell;
 use std::hash::*;
 use sux::traits::Word;
 
-pub struct HyperLogLogArray<
-    T,
-    W: Word + IntoAtomic,
-    H: BuildHasher = BuildHasherDefault<DefaultHasher>,
-> {
-    logic: HyperLogLog<T, W, H>,
-    backend: MmapSlice<W::AtomicType>,
-    len: usize,
+pub(super) struct UnsafeSyncCell<T>(UnsafeCell<T>);
+
+impl<T> UnsafeSyncCell<T> {
+    #[inline(always)]
+    fn new(value: T) -> Self {
+        Self(UnsafeCell::new(value))
+    }
 }
 
-impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogArray<T, W, H> {
+impl<T: Default> Default for UnsafeSyncCell<T> {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
+
+unsafe impl<T: Sync> Sync for UnsafeSyncCell<T> {}
+
+impl<T> std::ops::Deref for UnsafeSyncCell<T> {
+    type Target = UnsafeCell<T>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub struct HyperLogLogArray<T, W: Word, H: BuildHasher = BuildHasherDefault<DefaultHasher>> {
+    pub(super) logic: HyperLogLog<T, W, H>,
+    pub(super) backend: MmapSlice<UnsafeSyncCell<W>>,
+    pub(super) len: usize,
+}
+
+impl<T, W: Word, H: BuildHasher> HyperLogLogArray<T, W, H> {
     ///Returns the number of elements in the array, also referred to as its ‘length’.
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -30,47 +55,17 @@ impl<T, W: Word + IntoAtomic, H: BuildHasher> HyperLogLogArray<T, W, H> {
 
 impl<
         T: Hash,
-        W: Word + IntoAtomic + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
         H: BuildHasher + Clone,
     > CounterArray<T, HyperLogLog<T, W, H>> for HyperLogLogArray<T, W, H>
 {
-    type SharedCounter<'a> = HyperLogLogCounter<T, W, H, &'a HyperLogLog<T,W, H>, &'a [W]> where T: 'a, W: 'a, H: 'a;
-    type MutCounter<'a> = HyperLogLogCounter<T, W, H, &'a HyperLogLog<T,W, H>, &'a mut [W]> where T: 'a, W: 'a, H: 'a;
-    type OwnedCounter = HyperLogLogCounter<T, W, H, HyperLogLog<T, W, H>, Box<[W]>>;
+    type Counter<'a> = DefaultCounter<T, W, H, HyperLogLog<T, W, H>, &'a HyperLogLog<T, W, H>, &'a mut [W]> where T: 'a, W: 'a, H: 'a;
 
     fn get_backend(&self, index: usize) -> &<HyperLogLog<T, W, H> as CounterLogic<T>>::Backend {
         let offset = index * self.logic.words_per_counter();
-        let mut ptr = self.backend.as_ptr() as *const W;
-
-        unsafe {
-            ptr = ptr.add(offset);
-        }
+        let ptr = self.backend[offset].get();
 
         unsafe { std::slice::from_raw_parts(ptr, self.logic.words_per_counter()) }
-    }
-
-    unsafe fn get_backend_mut_unsafe(
-        &self,
-        index: usize,
-    ) -> &mut <HyperLogLog<T, W, H> as CounterLogic<T>>::Backend {
-        let offset = index * self.logic.words_per_counter();
-        let mut ptr = self.backend.as_ptr() as *const W as *mut W;
-
-        unsafe {
-            ptr = ptr.add(offset);
-        }
-
-        unsafe {
-            // Safety:
-            // * data is valid for both reads and writes for `len * mem::size_of::<W>()`,
-            //   the entire range is a single allocated object and is non-null and aligned
-            //   as the pointer was obtained from an already existing slice.
-            // * data points to `len` consecutive initialized values of W
-            // * The caller guarantees that the memory referenced by the returned slice
-            //   will not be accessed through any other pointer for the lifetime of the slice
-            // * The total size of the slice is not larger than `isize::MAX`
-            std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter())
-        }
     }
 
     #[inline(always)]
@@ -78,34 +73,37 @@ impl<
         &self.logic
     }
 
-    fn get_counter(&self, index: usize) -> Self::SharedCounter<'_> {
-        let bits = self.get_backend(index);
-        Self::SharedCounter {
+    fn get_backend_mut(
+        &mut self,
+        index: usize,
+    ) -> &mut <HyperLogLog<T, W, H> as CounterLogic<T>>::Backend {
+        let offset = index * self.logic.words_per_counter();
+        let ptr = self.backend[offset].get();
+
+        unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) }
+    }
+
+    fn get_mut_counter(&mut self, index: usize) -> Self::Counter<'_> {
+        let offset = index * self.logic.words_per_counter();
+        let ptr = self.backend[offset].get();
+
+        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) }
+        Self::Counter {
+            backend: bits,
             logic: &self.logic,
-            backend: bits,
             _marker: std::marker::PhantomData,
         }
     }
 
-    unsafe fn get_mut_counter_unsafe(&self, index: usize) -> Self::MutCounter<'_> {
-        let bits = self.get_backend_mut_unsafe(index);
-        Self::MutCounter {
-            logic: &self.logic,
-            backend: bits,
-            _marker: std::marker::PhantomData,
+    unsafe fn set_to(&self, index: usize, content: impl AsRef<[W]>) {
+        let offset = index * self.logic.words_per_counter();
+        for (c, &b) in self.backend[offset..].iter().zip(content.as_ref()) {
+            *c.get() = b;
         }
     }
 
-    fn get_owned_counter(&self, index: usize) -> Self::OwnedCounter {
-        let bits = self.get_backend(index).into();
-        Self::OwnedCounter {
-            logic: self.logic.clone(),
-            backend: bits,
-            _marker: std::marker::PhantomData,
-        }
-    }
-
+    #[inline(always)]
     fn clear(&mut self) {
-        self.backend.fill_with(|| W::AtomicType::new(W::ZERO));
+        self.backend.fill_with(|| UnsafeSyncCell::new(W::ZERO));
     }
 }

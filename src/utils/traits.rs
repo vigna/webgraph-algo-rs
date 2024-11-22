@@ -1,54 +1,56 @@
 pub trait CounterLogic<T> {
-    type Helper;
-    type Backend: ?Sized + PartialEq;
-
-    fn new_helper(&self) -> Self::Helper;
+    type Backend: ?Sized;
 
     /// Adds an element to the counter.
     ///
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&self, counter: &mut Self::Backend, element: T);
+    fn add(&self, counter: impl AsMut<Self::Backend>, element: T);
 
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
-    fn count(&self, counter: &Self::Backend) -> f64;
+    fn count(&self, counter: impl AsRef<Self::Backend>) -> f64;
 
     /// Clears the counter.
-    fn clear(&self, counter: &mut Self::Backend);
+    fn clear(&self, counter: impl AsMut<Self::Backend>);
 
     /// Sets the contents of `self` to the contents of `other`.
-    fn set_to(&self, dst: &mut Self::Backend, src: &Self::Backend);
+    fn set_to(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>);
 
     /// The number of words of type `W` used by a counter.
     fn words_per_counter(&self) -> usize;
 }
 
 pub trait MergeCounterLogic<T>: CounterLogic<T> {
-    fn merge_into(&self, dst: &mut Self::Backend, src: &Self::Backend) {
-        let mut helper = self.new_helper();
+    type MergeHelper;
+
+    fn new_merge_helper(&self) -> Self::MergeHelper;
+
+    fn merge_into(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>) {
+        let mut helper = self.new_merge_helper();
         self.merge_into_with_helper(dst, src, &mut helper);
     }
+
     fn merge_into_with_helper(
         &self,
-        dst: &mut Self::Backend,
-        src: &Self::Backend,
-        helper: &mut Self::Helper,
+        dst: impl AsMut<Self::Backend>,
+        src: impl AsRef<Self::Backend>,
+        helper: &mut Self::MergeHelper,
     );
 }
 
-pub trait ImmutableCounter<T, C: CounterLogic<T>> {
+pub trait Counter<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
+    type OwnedCounter: Counter<T, C>;
+
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
     fn count(&self) -> f64;
 
     fn as_backend(&self) -> &C::Backend;
 
-    fn new_helper(&self) -> C::Helper;
-}
+    fn new_merge_helper(&self) -> C::MergeHelper;
 
-pub trait MutableCounter<T, C: CounterLogic<T>>: ImmutableCounter<T, C> {
     /// Adds an element to the counter.
     ///
     /// # Arguments
@@ -60,54 +62,34 @@ pub trait MutableCounter<T, C: CounterLogic<T>>: ImmutableCounter<T, C> {
     fn clear(&mut self);
 
     /// Sets the contents of `self` to the contents of `other`.
-    fn set_to(&mut self, other: &C::Backend);
+    fn set_to(&mut self, other: impl AsRef<C::Backend>);
 
-    fn merge(&mut self, other: &C::Backend) {
-        let mut helper = self.new_helper();
+    fn merge(&mut self, other: impl AsRef<C::Backend>) {
+        let mut helper = self.new_merge_helper();
         self.merge_with_helper(other, &mut helper);
     }
 
-    fn merge_with_helper(&mut self, other: &C::Backend, helper: &mut C::Helper);
+    fn merge_with_helper(&mut self, other: impl AsRef<C::Backend>, helper: &mut C::MergeHelper);
 
     fn as_mut_backend(&mut self) -> &mut C::Backend;
+
+    fn into_owned(self) -> Self::OwnedCounter;
 }
 
-pub trait CounterArray<T, C: CounterLogic<T>> {
-    type SharedCounter<'a>: ImmutableCounter<T, C>
+pub trait CounterArray<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
+    type Counter<'a>: Counter<T, C>
     where
         Self: 'a;
-    type MutCounter<'a>: MutableCounter<T, C>
-    where
-        Self: 'a;
-    type OwnedCounter: MutableCounter<T, C>;
 
     fn get_counter_logic(&self) -> &C;
 
-    fn get_counter(&self, index: usize) -> Self::SharedCounter<'_>;
-
-    unsafe fn get_mut_counter_unsafe(&self, index: usize) -> Self::MutCounter<'_>;
-
-    fn get_owned_counter(&self, index: usize) -> Self::OwnedCounter;
-
     fn get_backend(&self, index: usize) -> &C::Backend;
 
-    unsafe fn get_backend_mut_unsafe(&self, index: usize) -> &mut C::Backend;
+    unsafe fn set_to(&self, index: usize, content: impl AsRef<C::Backend>);
 
-    #[inline(always)]
-    fn get_mut_counter(&mut self, index: usize) -> Self::MutCounter<'_> {
-        unsafe {
-            // Safety: we have a mut ref
-            self.get_mut_counter_unsafe(index)
-        }
-    }
+    fn get_mut_counter(&mut self, index: usize) -> Self::Counter<'_>;
 
-    #[inline(always)]
-    fn get_backend_mut(&mut self, index: usize) -> &mut C::Backend {
-        unsafe {
-            // Safety: we have a mut ref
-            self.get_backend_mut_unsafe(index)
-        }
-    }
+    fn get_backend_mut(&mut self, index: usize) -> &mut C::Backend;
 
     fn clear(&mut self);
 }
