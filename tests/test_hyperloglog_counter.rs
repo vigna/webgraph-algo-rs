@@ -1,10 +1,8 @@
 use anyhow::Result;
 use webgraph_algo::{
     prelude::*,
-    utils::{HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder},
+    utils::{HyperLogLog, HyperLogLogBuilder},
 };
-use xxhash_rust::xxh3::Xxh3Builder;
-
 /// The number of trials to run to ensure a bad seed does not
 /// fail the test
 const NUM_TRIALS: u64 = 100;
@@ -18,7 +16,7 @@ fn test_single() -> Result<()> {
 
     for size in sizes {
         for log2m in log2ms {
-            let rsd = HyperLogLogCounterArray::relative_standard_deviation(log2m);
+            let rsd = HyperLogLog::relative_standard_deviation(log2m);
             let mut correct = 0;
 
             for trial in 0..NUM_TRIALS {

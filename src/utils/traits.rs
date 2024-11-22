@@ -1,5 +1,8 @@
 pub trait CounterLogic<T> {
     type Backend: ?Sized;
+    type Counter<'a>: Counter<T, Self>
+    where
+        Self: 'a + Sized;
 
     /// Adds an element to the counter.
     ///
@@ -20,6 +23,10 @@ pub trait CounterLogic<T> {
 
     /// The number of words of type `W` used by a counter.
     fn words_per_counter(&self) -> usize;
+
+    fn new_counter(&self) -> Self::Counter<'_>
+    where
+        Self: Sized;
 }
 
 pub trait MergeCounterLogic<T>: CounterLogic<T> {
@@ -40,16 +47,14 @@ pub trait MergeCounterLogic<T>: CounterLogic<T> {
     );
 }
 
-pub trait Counter<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
+pub trait Counter<T, C: CounterLogic<T>> {
     type OwnedCounter: Counter<T, C>;
 
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
     fn count(&self) -> f64;
 
-    fn as_backend(&self) -> &C::Backend;
-
-    fn new_merge_helper(&self) -> C::MergeHelper;
+    fn as_backend(&self) -> impl AsRef<C::Backend>;
 
     /// Adds an element to the counter.
     ///
@@ -64,16 +69,20 @@ pub trait Counter<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
     /// Sets the contents of `self` to the contents of `other`.
     fn set_to(&mut self, other: impl AsRef<C::Backend>);
 
+    fn as_mut_backend(&mut self) -> impl AsMut<C::Backend>;
+
+    fn into_owned(self) -> Self::OwnedCounter;
+}
+
+pub trait MergableCounter<T, C: CounterLogic<T> + MergeCounterLogic<T>>: Counter<T, C> {
+    fn new_merge_helper(&self) -> C::MergeHelper;
+
     fn merge(&mut self, other: impl AsRef<C::Backend>) {
         let mut helper = self.new_merge_helper();
         self.merge_with_helper(other, &mut helper);
     }
 
     fn merge_with_helper(&mut self, other: impl AsRef<C::Backend>, helper: &mut C::MergeHelper);
-
-    fn as_mut_backend(&mut self) -> &mut C::Backend;
-
-    fn into_owned(self) -> Self::OwnedCounter;
 }
 
 pub trait CounterArray<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
@@ -83,13 +92,13 @@ pub trait CounterArray<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
 
     fn get_counter_logic(&self) -> &C;
 
-    fn get_backend(&self, index: usize) -> &C::Backend;
+    fn get_backend(&self, index: usize) -> impl AsRef<C::Backend>;
 
     unsafe fn set_to(&self, index: usize, content: impl AsRef<C::Backend>);
 
     fn get_mut_counter(&mut self, index: usize) -> Self::Counter<'_>;
 
-    fn get_backend_mut(&mut self, index: usize) -> &mut C::Backend;
+    fn get_backend_mut(&mut self, index: usize) -> impl AsMut<C::Backend>;
 
     fn clear(&mut self);
 }
