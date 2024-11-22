@@ -506,6 +506,7 @@ impl<
             self.iteration > 0,
             "HyperBall was not run. Please call self.run(...) before accessing computed fields"
         );
+        Ok(())
     }
 
     /// Returns the neighbourhood function computed by this instance.

@@ -72,6 +72,29 @@ fn main() -> Result<()> {
                 .build(&mut main_pl)?;
             hyperball.run_until_done(&threads![], &mut main_pl)?;
         }
+        "test" => {
+            let mut a = vec![1, 2, 3, 4, 5, 6].into_boxed_slice();
+            rayon::scope(|s| {
+                let (send, receive) = crossbeam::channel::bounded(5);
+                let mut b = a.as_mut();
+                s.spawn(move |_| loop {
+                    let c;
+                    (c, b) = b.split_at_mut(2);
+                    send.send(c);
+                    if b.len() == 0 {
+                        break;
+                    }
+                });
+
+                s.spawn(move |_| loop {
+                    if let Ok(value) = receive.recv() {
+                        println!("Received: {:?}", value);
+                    } else {
+                        break;
+                    }
+                });
+            });
+        }
         _ => panic!(),
     }
 

@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use sux::traits::Word;
 
 pub trait CounterLogic<T> {
@@ -76,4 +78,38 @@ pub trait MergeCounter<T>: Counter<T> {
     ///
     /// * `other`: the counter to merge onto `self`.
     fn merge(&mut self, other: &Self);
+}
+
+pub struct DefaultCounter<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W> {
+    logic: L,
+    backend: B,
+    _marker: PhantomData<(T, W)>,
+}
+
+impl<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> Counter<T>
+    for DefaultCounter<T, L, B, W>
+{
+    fn add(&mut self, element: T) {
+        self.logic.add(&mut self.backend, element);
+    }
+
+    fn count(&self) -> f64 {
+        self.logic.count(&self.backend)
+    }
+
+    fn clear(&mut self) {
+        self.logic.clear(&mut self.backend);
+    }
+
+    fn set_to(&mut self, other: &Self) {
+        self.logic.set_to(&mut self.backend, &other.backend);
+    }
+}
+
+impl<T, L: MergeCounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> MergeCounter<T>
+    for DefaultCounter<T, L, B, W>
+{
+    fn merge(&mut self, other: &Self) {
+        self.logic.merge_into(&mut self.backend, &other.backend);
+    }
 }

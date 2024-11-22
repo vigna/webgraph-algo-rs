@@ -220,36 +220,38 @@ pub struct HyperLogLog<W, H> {
     lsb_mask: Box<[W]>,
 }
 
-/// Returns the logarithm of the number of registers per counter that are necessary to attain a
-/// given relative stadard deviation.
-///
-/// # Arguments
-/// * `rsd`: the relative standard deviation to be attained.
-pub fn log_2_number_of_registers(rsd: f64) -> usize {
-    ((1.106 / rsd).pow(2.0)).log2().ceil() as usize
-}
+impl HyperLogLog<(), ()> {
+    /// Returns the logarithm of the number of registers per counter that are necessary to attain a
+    /// given relative stadard deviation.
+    ///
+    /// # Arguments
+    /// * `rsd`: the relative standard deviation to be attained.
+    pub fn log_2_number_of_registers(rsd: f64) -> usize {
+        ((1.106 / rsd).pow(2.0)).log2().ceil() as usize
+    }
 
-/// Returns the relative standard deviation corresponding to a given number of registers per counter.
-///
-/// # Arguments
-/// * `log_2_num_registers`: the logarithm of the number of registers per counter.
-pub fn relative_standard_deviation(log_2_num_registers: usize) -> f64 {
-    let tmp = match log_2_num_registers {
-        4 => 1.106,
-        5 => 1.070,
-        6 => 1.054,
-        7 => 1.046,
-        _ => 1.04,
-    };
-    tmp / ((1 << log_2_num_registers) as f64).sqrt()
-}
+    /// Returns the relative standard deviation corresponding to a given number of registers per counter.
+    ///
+    /// # Arguments
+    /// * `log_2_num_registers`: the logarithm of the number of registers per counter.
+    pub fn relative_standard_deviation(log_2_num_registers: usize) -> f64 {
+        let tmp = match log_2_num_registers {
+            4 => 1.106,
+            5 => 1.070,
+            6 => 1.054,
+            7 => 1.046,
+            _ => 1.04,
+        };
+        tmp / ((1 << log_2_num_registers) as f64).sqrt()
+    }
 
-/// Returns the register size in bits, given an upper bound on the number of distinct elements.
-///
-/// # Arguments
-/// * `n`: an upper bound on the number of distinct elements.
-pub fn register_size_from_number_of_elements(n: usize) -> usize {
-    std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
+    /// Returns the register size in bits, given an upper bound on the number of distinct elements.
+    ///
+    /// # Arguments
+    /// * `n`: an upper bound on the number of distinct elements.
+    pub fn register_size_from_number_of_elements(n: usize) -> usize {
+        std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
+    }
 }
 
 impl<W: Word, H> HyperLogLog<W, H> {
@@ -439,7 +441,7 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
     /// # Arguments
     /// * `rsd`: the relative standard deviation to be attained.
     pub fn rsd(self, rsd: f64) -> Self {
-        self.log_2_num_registers(log_2_number_of_registers(rsd))
+        self.log_2_num_registers(HyperLogLog::log_2_number_of_registers(rsd))
     }
 
     /// Sets the log₂*m* number of registers for the array of counters.
@@ -576,7 +578,7 @@ impl<W, H> Display for HyperLogLog<W, H> {
             f,
 
             "Relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
-            100.0 * relative_standard_deviation(self.log_2_num_registers),
+            100.0 * HyperLogLog::relative_standard_deviation(self.log_2_num_registers),
             self.num_registers,
             self.register_size,
             (self.num_registers * self.register_size) / 8
@@ -584,14 +586,14 @@ impl<W, H> Display for HyperLogLog<W, H> {
     }
 }
 
-pub struct HyperLogLogCounter<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W> {
+pub struct DefaultCounter<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W> {
     logic: L,
     backend: B,
     _marker: PhantomData<(T, W)>,
 }
 
 impl<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> Counter<T>
-    for HyperLogLogCounter<T, L, B, W>
+    for DefaultCounter<T, L, B, W>
 {
     fn add(&mut self, element: T) {
         self.logic.add(&mut self.backend, element);
@@ -611,7 +613,7 @@ impl<T, L: CounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> C
 }
 
 impl<T, L: MergeCounterLogic<T>, B: AsRef<L::Backend> + AsMut<L::Backend>, W: Word> MergeCounter<T>
-    for HyperLogLogCounter<T, L, B, W>
+    for DefaultCounter<T, L, B, W>
 {
     fn merge(&mut self, other: &Self) {
         self.logic.merge_into(&mut self.backend, &other.backend);
