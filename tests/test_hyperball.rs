@@ -1,8 +1,7 @@
 use anyhow::Result;
-use common_traits::{AsBytes, Float};
+use common_traits::Float;
 use dsi_progress_logger::no_logging;
 use epserde::deser::{Deserialize, Flags};
-use std::hash::*;
 use webgraph::{
     prelude::{BvGraph, DCF},
     traits::SequentialLabeling,
@@ -80,21 +79,29 @@ fn test_cnr_2000() -> Result<()> {
     let expected_nieminen_centralities =
         read_float_array("./tests/hyperball_results/cnr-2000_nieminen_centrality")?;
 
-    let hyper_log_log: HyperLogLog<_, _> =
-        HyperLogLogBuilder::<BuildHasherDefault<DefaultHasher>, usize>::new()
-            .log_2_num_registers(9)
-            .num_elements_upper_bound(graph.num_nodes())
-            .build()?;
-    let mut hyperball =
-        HyperBallBuilder::<_, _, _, BuildHasherDefault<DefaultHasher>, _, _>::with_transpose(
-            hyper_log_log,
-            &graph,
-            &transpose,
-            cumulative.as_ref(),
-        )
-        .sum_of_distances(true)
-        .sum_of_inverse_distances(true)
-        .build(no_logging![])?;
+    let hyper_log_log: HyperLogLog<_, _> = HyperLogLogBuilder::new()
+        .log_2_num_registers(8)
+        .num_elements_upper_bound(graph.num_nodes())
+        .seed(42)
+        .build_logic()?;
+    let bits = hyper_log_log.new_array(
+        graph.num_nodes(),
+        webgraph_algo::utils::TempMmapOptions::Default,
+    )?;
+    let result_bits = hyper_log_log.new_array(
+        graph.num_nodes(),
+        webgraph_algo::utils::TempMmapOptions::Default,
+    )?;
+    let mut hyperball = HyperBallBuilder::with_transposed(
+        &graph,
+        &transpose,
+        cumulative.as_ref(),
+        bits,
+        result_bits,
+    )
+    .sum_of_distances(true)
+    .sum_of_inverse_distances(true)
+    .build(no_logging![]);
 
     hyperball.run_until_done(&threads![], no_logging![])?;
 
