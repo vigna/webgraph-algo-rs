@@ -1,7 +1,7 @@
 use super::*;
 use crate::prelude::*;
-use anyhow::ensure;
-use common_traits::{CastableFrom, CastableInto, IntoAtomic, Number, UpcastableInto};
+use anyhow::{ensure, Result};
+use common_traits::{CastableFrom, CastableInto, Number, UpcastableInto};
 use std::f64::consts::LN_2;
 use std::hash::*;
 use sux::{
@@ -98,16 +98,9 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
     CounterLogic<T> for HyperLogLog<T, W, H>
 {
     type Backend = [W];
-    type Helper = HyperLogLogHelper<W>;
 
-    fn new_helper(&self) -> Self::Helper {
-        HyperLogLogHelper {
-            acc: vec![W::ZERO; self.words_per_counter].into(),
-            mask: vec![W::ZERO; self.words_per_counter].into(),
-        }
-    }
-
-    fn add(&self, mut counter: &mut [W], element: T) {
+    fn add(&self, mut counter: impl AsMut<[W]>, element: T) {
+        let mut counter = counter.as_mut();
         let x = self.build_hasher.hash_one(element);
         let j = x & self.num_registers_minus_1;
         let r = (x >> self.log_2_num_registers | self.sentinel_mask).trailing_zeros() as HashResult;
@@ -124,7 +117,8 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
         }
     }
 
-    fn count(&self, counter: &[W]) -> f64 {
+    fn count(&self, counter: impl AsRef<[W]>) -> f64 {
+        let counter = counter.as_ref();
         let mut harmonic_mean = 0.0;
         let mut zeroes = 0;
 
@@ -143,13 +137,13 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
         estimate
     }
 
-    fn clear(&self, counter: &mut [W]) {
-        counter.fill(W::ZERO);
+    fn clear(&self, mut counter: impl AsMut<[W]>) {
+        counter.as_mut().fill(W::ZERO);
     }
 
-    fn set_to(&self, dst: &mut [W], src: &[W]) {
-        debug_assert_eq!(dst.len(), src.as_ref().len());
-        dst.copy_from_slice(src.as_ref());
+    fn set_to(&self, mut dst: impl AsMut<[W]>, src: impl AsRef<[W]>) {
+        debug_assert_eq!(dst.as_mut().len(), src.as_ref().len());
+        dst.as_mut().copy_from_slice(src.as_ref());
     }
 
     fn words_per_counter(&self) -> usize {
@@ -160,7 +154,21 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
 impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H: BuildHasher>
     MergeCounterLogic<T> for HyperLogLog<T, W, H>
 {
-    fn merge_into_with_helper(&self, dst: &mut [W], src: &[W], helper: &mut Self::Helper) {
+    type MergeHelper = HyperLogLogHelper<W>;
+
+    fn new_merge_helper(&self) -> Self::MergeHelper {
+        HyperLogLogHelper {
+            acc: vec![W::ZERO; self.words_per_counter].into(),
+            mask: vec![W::ZERO; self.words_per_counter].into(),
+        }
+    }
+
+    fn merge_into_with_helper(
+        &self,
+        dst: impl AsMut<[W]>,
+        src: impl AsRef<[W]>,
+        helper: &mut Self::MergeHelper,
+    ) {
         merge_hyperloglog_bitwise(
             dst,
             src,
@@ -173,20 +181,32 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct HyperLogLogBuilder<H = BuildHasherDefault<DefaultHasher>, W = usize> {
     log_2_num_registers: usize,
     num_elements: usize,
     hasher_builder: H,
+    mmap_options: TempMmapOptions,
     _marker: std::marker::PhantomData<W>,
 }
 
-impl<H: Default, W> HyperLogLogBuilder<H, W> {
-    /// Creates a new builder for an [`HyperLogLog`] with a word type of `W`.
+impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
+    /// Creates a new builder for an [`HyperLogLog`] with a default word type
+    /// of [`usize`].
+    #[inline(always)]
     pub fn new() -> Self {
+        Self::new_with_word_type()
+    }
+}
+
+impl<W> HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, W> {
+    /// Creates a new builder for an [`HyperLogLog`] with a word type of `W`.
+    pub fn new_with_word_type() -> Self {
         Self {
             log_2_num_registers: 4,
             num_elements: 1,
-            hasher_builder: H::default(),
+            hasher_builder: BuildHasherDefault::default(),
+            mmap_options: TempMmapOptions::Default,
             _marker: std::marker::PhantomData,
         }
     }
@@ -241,7 +261,7 @@ impl HyperLogLog<(), ()> {
     }
 }
 
-impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
+impl<H: BuildHasher + Clone, W: Word> HyperLogLogBuilder<H, W> {
     /// Sets the counters desired relative standard deviation.
     ///
     /// ## Note
@@ -277,6 +297,26 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
         self
     }
 
+    /// Sets the memory options for the couters.
+    ///
+    /// # Arguments
+    /// * `options`: the memory options for the backend of the counter array.
+    pub fn mem_options(mut self, options: TempMmapOptions) -> Self {
+        self.mmap_options = options;
+        self
+    }
+
+    /// Sets the word type to be used by the counters.
+    pub fn word_type<W2: Word>(self) -> HyperLogLogBuilder<H, W2> {
+        HyperLogLogBuilder {
+            log_2_num_registers: self.log_2_num_registers,
+            num_elements: self.num_elements,
+            mmap_options: self.mmap_options,
+            hasher_builder: self.hasher_builder,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
     /// Sets the hasher builder to be used by the counters.
     ///
     /// # Arguments
@@ -290,6 +330,7 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
             log_2_num_registers: self.log_2_num_registers,
             num_elements: self.num_elements,
             hasher_builder,
+            mmap_options: self.mmap_options,
             _marker: std::marker::PhantomData,
         }
     }
@@ -302,14 +343,14 @@ impl<H: BuildHasher + Clone, W: Word + IntoAtomic> HyperLogLogBuilder<H, W> {
         std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
     }
 
-    /// Builds the counter array with the specified len, consuming the builder.
+    /// Builds the counter logic.
     ///
     /// The type of objects the counters keep track of is defined here by `T`, but
     /// it is usually inferred by the compiler.
-    pub fn build<T>(self) -> anyhow::Result<HyperLogLog<T, W, H>> {
+    pub fn build_logic<T>(&self) -> Result<HyperLogLog<T, W, H>> {
         let log_2_num_registers = self.log_2_num_registers;
         let num_elements = self.num_elements;
-        let hasher_builder = self.hasher_builder;
+        let hasher_builder = self.hasher_builder.clone();
 
         // This ensures counters are at least 16-bit-aligned.
         ensure!(
