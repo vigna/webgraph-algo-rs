@@ -33,13 +33,13 @@ impl<T> std::ops::Deref for UnsafeSyncCell<T> {
     }
 }
 
-pub struct HyperLogLogArray<T, W: Word, H: BuildHasher = BuildHasherDefault<DefaultHasher>> {
-    pub(super) logic: HyperLogLog<T, W, H>,
+pub struct HyperLogLogArray<T, W: Word> {
+    pub(super) logic: HyperLogLog<T, W>,
     pub(super) backend: MmapSlice<UnsafeSyncCell<W>>,
     pub(super) len: usize,
 }
 
-impl<T, W: Word, H: BuildHasher> HyperLogLogArray<T, W, H> {
+impl<T, W: Word> HyperLogLogArray<T, W> {
     ///Returns the number of elements in the array, also referred to as its ‘length’.
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -53,15 +53,15 @@ impl<T, W: Word, H: BuildHasher> HyperLogLogArray<T, W, H> {
     }
 }
 
-impl<
-        T: Hash,
-        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
-        H: BuildHasher + Clone,
-    > CounterArray<T, HyperLogLog<T, W, H>> for HyperLogLogArray<T, W, H>
+impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
+    CounterArray<T, HyperLogLog<T, W>> for HyperLogLogArray<T, W>
 {
-    type Counter<'a> = DefaultCounter<T, W, H, HyperLogLog<T, W, H>, &'a HyperLogLog<T, W, H>, &'a mut [W]> where T: 'a, W: 'a, H: 'a;
+    type Counter<'a> = DefaultCounter<T, W, HyperLogLog<T, W>, &'a HyperLogLog<T, W>, &'a mut [W]> where T: 'a, W: 'a;
 
-    fn get_backend(&self, index: usize) -> &<HyperLogLog<T, W, H> as CounterLogic<T>>::Backend {
+    fn get_backend(
+        &self,
+        index: usize,
+    ) -> impl AsRef<<HyperLogLog<T, W> as CounterLogic<T>>::Backend> {
         let offset = index * self.logic.words_per_counter();
         let ptr = self.backend[offset].get();
 
@@ -69,14 +69,14 @@ impl<
     }
 
     #[inline(always)]
-    fn get_counter_logic(&self) -> &HyperLogLog<T, W, H> {
+    fn get_counter_logic(&self) -> &HyperLogLog<T, W> {
         &self.logic
     }
 
     fn get_backend_mut(
         &mut self,
         index: usize,
-    ) -> &mut <HyperLogLog<T, W, H> as CounterLogic<T>>::Backend {
+    ) -> impl AsMut<<HyperLogLog<T, W> as CounterLogic<T>>::Backend> {
         let offset = index * self.logic.words_per_counter();
         let ptr = self.backend[offset].get();
 
@@ -87,7 +87,7 @@ impl<
         let offset = index * self.logic.words_per_counter();
         let ptr = self.backend[offset].get();
 
-        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) }
+        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) };
         Self::Counter {
             backend: bits,
             logic: &self.logic,
@@ -95,7 +95,11 @@ impl<
         }
     }
 
-    unsafe fn set_to(&self, index: usize, content: impl AsRef<[W]>) {
+    unsafe fn set_to(
+        &self,
+        index: usize,
+        content: impl AsRef<<HyperLogLog<T, W> as CounterLogic<T>>::Backend>,
+    ) {
         let offset = index * self.logic.words_per_counter();
         for (c, &b) in self.backend[offset..].iter().zip(content.as_ref()) {
             *c.get() = b;

@@ -1,6 +1,9 @@
 use super::*;
-use crate::prelude::*;
-use anyhow::{ensure, Result};
+use crate::{
+    prelude::*,
+    utils::{DefaultCounter, JenkinsHasherBuilder, MmapSlice},
+};
+use anyhow::{ensure, Context, Result};
 use common_traits::{CastableFrom, CastableInto, Number, UpcastableInto};
 use std::f64::consts::LN_2;
 use std::hash::*;
@@ -10,8 +13,8 @@ use sux::{
 };
 
 #[derive(Debug)]
-pub struct HyperLogLog<T, W, H = BuildHasherDefault<DefaultHasher>> {
-    build_hasher: H,
+pub struct HyperLogLog<T, W> {
+    build_hasher: JenkinsHasherBuilder,
     register_size: usize,
     num_registers_minus_1: HashResult,
     log_2_num_registers: usize,
@@ -24,7 +27,7 @@ pub struct HyperLogLog<T, W, H = BuildHasherDefault<DefaultHasher>> {
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<T, W: Clone, H: Clone> Clone for HyperLogLog<T, W, H> {
+impl<T, W: Clone> Clone for HyperLogLog<T, W> {
     fn clone(&self) -> Self {
         Self {
             build_hasher: self.build_hasher.clone(),
@@ -42,7 +45,7 @@ impl<T, W: Clone, H: Clone> Clone for HyperLogLog<T, W, H> {
     }
 }
 
-impl<T, W: Word, H> HyperLogLog<T, W, H> {
+impl<T, W: Word> HyperLogLog<T, W> {
     #[inline(always)]
     fn get_register(&self, counter: impl AsRef<[W]>, index: usize) -> W {
         let counter = counter.as_ref();
@@ -87,6 +90,20 @@ impl<T, W: Word, H> HyperLogLog<T, W, H> {
             unsafe { *counter.get_unchecked_mut(word_index + 1) = word };
         }
     }
+
+    pub fn new_array(
+        &self,
+        len: usize,
+        mmap_options: TempMmapOptions,
+    ) -> Result<HyperLogLogArray<T, W>> {
+        let bits = MmapSlice::from_default(len * self.words_per_counter, mmap_options)
+            .with_context(|| "Could not create CounterArray with mmap")?;
+        Ok(HyperLogLogArray {
+            backend: bits,
+            len,
+            logic: self.clone(),
+        })
+    }
 }
 
 pub struct HyperLogLogHelper<W> {
@@ -94,10 +111,19 @@ pub struct HyperLogLogHelper<W> {
     mask: Vec<W>,
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H: BuildHasher>
-    CounterLogic<T> for HyperLogLog<T, W, H>
+impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> CounterLogic<T>
+    for HyperLogLog<T, W>
 {
     type Backend = [W];
+    type Counter<'a> = DefaultCounter<T, W, Self, &'a Self, Box<[W]>> where T: 'a, W: 'a;
+
+    fn new_counter(&self) -> Self::Counter<'_> {
+        Self::Counter {
+            logic: self,
+            backend: vec![W::ZERO; self.words_per_counter].into_boxed_slice(),
+            _marker: std::marker::PhantomData,
+        }
+    }
 
     fn add(&self, mut counter: impl AsMut<[W]>, element: T) {
         let mut counter = counter.as_mut();
@@ -151,8 +177,8 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
     }
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H: BuildHasher>
-    MergeCounterLogic<T> for HyperLogLog<T, W, H>
+impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> MergeCounterLogic<T>
+    for HyperLogLog<T, W>
 {
     type MergeHelper = HyperLogLogHelper<W>;
 
@@ -182,15 +208,14 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>, H
 }
 
 #[derive(Debug, Clone)]
-pub struct HyperLogLogBuilder<H = BuildHasherDefault<DefaultHasher>, W = usize> {
+pub struct HyperLogLogBuilder<W = usize> {
     log_2_num_registers: usize,
     num_elements: usize,
-    hasher_builder: H,
-    mmap_options: TempMmapOptions,
+    seed: u64,
     _marker: std::marker::PhantomData<W>,
 }
 
-impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
+impl HyperLogLogBuilder<usize> {
     /// Creates a new builder for an [`HyperLogLog`] with a default word type
     /// of [`usize`].
     #[inline(always)]
@@ -199,14 +224,13 @@ impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
     }
 }
 
-impl<W> HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, W> {
+impl<W> HyperLogLogBuilder<W> {
     /// Creates a new builder for an [`HyperLogLog`] with a word type of `W`.
     pub fn new_with_word_type() -> Self {
         Self {
             log_2_num_registers: 4,
             num_elements: 1,
-            hasher_builder: BuildHasherDefault::default(),
-            mmap_options: TempMmapOptions::Default,
+            seed: 0,
             _marker: std::marker::PhantomData,
         }
     }
@@ -261,7 +285,7 @@ impl HyperLogLog<(), ()> {
     }
 }
 
-impl<H: BuildHasher + Clone, W: Word> HyperLogLogBuilder<H, W> {
+impl<W: Word> HyperLogLogBuilder<W> {
     /// Sets the counters desired relative standard deviation.
     ///
     /// ## Note
@@ -297,60 +321,28 @@ impl<H: BuildHasher + Clone, W: Word> HyperLogLogBuilder<H, W> {
         self
     }
 
-    /// Sets the memory options for the couters.
-    ///
-    /// # Arguments
-    /// * `options`: the memory options for the backend of the counter array.
-    pub fn mem_options(mut self, options: TempMmapOptions) -> Self {
-        self.mmap_options = options;
+    pub fn seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
         self
     }
 
     /// Sets the word type to be used by the counters.
-    pub fn word_type<W2: Word>(self) -> HyperLogLogBuilder<H, W2> {
+    pub fn word_type<W2: Word>(self) -> HyperLogLogBuilder<W2> {
         HyperLogLogBuilder {
             log_2_num_registers: self.log_2_num_registers,
             num_elements: self.num_elements,
-            mmap_options: self.mmap_options,
-            hasher_builder: self.hasher_builder,
+            seed: self.seed,
             _marker: std::marker::PhantomData,
         }
-    }
-
-    /// Sets the hasher builder to be used by the counters.
-    ///
-    /// # Arguments
-    /// * `hasher_builder`: the builder of the hasher used by the array that implements
-    ///   [`BuildHasher`].
-    pub fn hasher_builder<H2: BuildHasher + Clone>(
-        self,
-        hasher_builder: H2,
-    ) -> HyperLogLogBuilder<H2, W> {
-        HyperLogLogBuilder {
-            log_2_num_registers: self.log_2_num_registers,
-            num_elements: self.num_elements,
-            hasher_builder,
-            mmap_options: self.mmap_options,
-            _marker: std::marker::PhantomData,
-        }
-    }
-
-    /// Returns the register size in bits, given an upper bound on the number of distinct elements.
-    ///
-    /// # Arguments
-    /// * `n`: an upper bound on the number of distinct elements.
-    pub fn register_size_from_number_of_elements(n: usize) -> usize {
-        std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
     }
 
     /// Builds the counter logic.
     ///
     /// The type of objects the counters keep track of is defined here by `T`, but
     /// it is usually inferred by the compiler.
-    pub fn build_logic<T>(&self) -> Result<HyperLogLog<T, W, H>> {
+    pub fn build_logic<T>(&self) -> Result<HyperLogLog<T, W>> {
         let log_2_num_registers = self.log_2_num_registers;
         let num_elements = self.num_elements;
-        let hasher_builder = self.hasher_builder.clone();
 
         // This ensures counters are at least 16-bit-aligned.
         ensure!(
@@ -360,7 +352,7 @@ impl<H: BuildHasher + Clone, W: Word> HyperLogLogBuilder<H, W> {
         );
 
         let number_of_registers = 1 << log_2_num_registers;
-        let register_size = Self::register_size_from_number_of_elements(num_elements);
+        let register_size = HyperLogLog::register_size_from_number_of_elements(num_elements);
         let sentinel_mask = 1 << ((1 << register_size) - 2);
         let alpha = match log_2_num_registers {
             4 => 0.673,
@@ -396,7 +388,7 @@ impl<H: BuildHasher + Clone, W: Word> HyperLogLogBuilder<H, W> {
             register_size,
             alpha_m_m: alpha * (number_of_registers as f64).powi(2),
             sentinel_mask,
-            build_hasher: hasher_builder,
+            build_hasher: JenkinsHasherBuilder::new(self.seed),
             msb_mask: msb.as_slice().into(),
             lsb_mask: lsb.as_slice().into(),
             words_per_counter: counter_size_in_words,
