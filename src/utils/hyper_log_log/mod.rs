@@ -4,6 +4,9 @@ pub use hyper_log_log_array::*;
 mod hyper_log_log_counter;
 pub use hyper_log_log_counter::*;
 
+mod hyper_log_log_logic;
+pub use hyper_log_log_logic::*;
+
 mod bitwise_utils;
 use bitwise_utils::*;
 
