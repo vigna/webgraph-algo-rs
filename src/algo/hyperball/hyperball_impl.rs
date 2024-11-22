@@ -1060,3 +1060,99 @@ where
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::threads;
+    use dsi_progress_logger::no_logging;
+    use epserde::deser::{Deserialize, Flags};
+    use webgraph::{
+        prelude::{BvGraph, DCF},
+        traits::SequentialLabeling,
+    };
+
+    struct SeqHyperBall<'a, G: RandomAccessGraph> {
+        graph: &'a G,
+        bits: HyperLogLogArray<G::Label, usize>,
+        result_bits: HyperLogLogArray<G::Label, usize>,
+    }
+
+    impl<'a, G: RandomAccessGraph> SeqHyperBall<'a, G> {
+        fn init(&mut self) {
+            for i in 0..self.graph.num_nodes() {
+                self.bits.get_mut_counter(i).add(i);
+            }
+        }
+
+        fn iterate(&mut self) {
+            for i in 0..self.graph.num_nodes() {
+                let mut counter = self.result_bits.get_mut_counter(i);
+                counter.set_to(self.bits.get_backend(i));
+                for succ in self.graph.successors(i) {
+                    counter.merge(self.bits.get_backend(succ));
+                }
+            }
+            std::mem::swap(&mut self.bits, &mut self.result_bits);
+        }
+    }
+
+    #[test]
+    fn test_cnr_2000() -> Result<()> {
+        let basename = "tests/graphs/cnr-2000";
+
+        let graph = BvGraph::with_basename(basename).load()?;
+        let transpose = BvGraph::with_basename(basename.to_owned() + "-t").load()?;
+        let cumulative = DCF::load_mmap(basename.to_owned() + ".dcf", Flags::empty())?;
+
+        let num_nodes = graph.num_nodes();
+
+        let hyper_log_log = HyperLogLogBuilder::<usize>::new_with_word_type()
+            .seed(42)
+            .log_2_num_registers(6)
+            .num_elements_upper_bound(num_nodes)
+            .build_logic()?;
+
+        let seq_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
+        let seq_result_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
+        let par_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
+        let par_result_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
+
+        let mut hyperball = HyperBallBuilder::with_transposed(
+            &graph,
+            &transpose,
+            cumulative.as_ref(),
+            par_bits,
+            par_result_bits,
+        )
+        .build(no_logging![]);
+        let mut seq_hyperball = SeqHyperBall {
+            bits: seq_bits,
+            result_bits: seq_result_bits,
+            graph: &graph,
+        };
+
+        let mut modified_counters = num_nodes as u64;
+        let threads = threads![];
+        hyperball.init(&threads, no_logging![])?;
+        seq_hyperball.init();
+
+        while modified_counters != 0 {
+            hyperball.iterate(&threads, no_logging![])?;
+            seq_hyperball.iterate();
+
+            modified_counters = hyperball.modified_counters();
+
+            assert_eq!(
+                hyperball.next_state.as_slice(),
+                seq_hyperball.result_bits.as_slice()
+            );
+            assert_eq!(
+                hyperball.prev_state.as_slice(),
+                seq_hyperball.bits.as_slice()
+            );
+        }
+
+        Ok(())
+    }
+}
