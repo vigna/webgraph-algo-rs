@@ -51,6 +51,13 @@ impl<T, W: Word> HyperLogLogArray<T, W> {
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
+
+    #[allow(dead_code)]
+    pub(crate) fn as_slice(&self) -> &[W] {
+        let len = self.backend.len();
+        let ptr = UnsafeCell::raw_get(self.backend.as_slice() as *const [_] as *const _);
+        unsafe { std::slice::from_raw_parts(ptr, len) }
+    }
 }
 
 impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
