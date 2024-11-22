@@ -46,9 +46,6 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
 /// ```
 pub trait Acyclicity {
     /// Returns whether the graph is acyclic.
-    ///
-    /// # Arguments
-    /// * `pl`: a progress logger
     fn is_acyclic(&self) -> bool;
 }
 
