@@ -317,7 +317,7 @@ impl<
                 (0..self.num_nodes)
                     .into_par_iter()
                     .map(|v| (self.graph.outdegree(v), v))
-                    .max_by_key(|x| x.0)
+                    .max_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)))
             })
             .unwrap()
             .1; // The iterator is not empty
