@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 pub trait CounterLogic {
     type Item;
     type Backend: ?Sized;
@@ -10,7 +12,7 @@ pub trait CounterLogic {
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&self, counter: impl AsMut<Self::Backend>, element: &Self::Item);
+    fn add(&self, counter: impl AsMut<Self::Backend>, element: impl Borrow<Self::Item>);
 
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
@@ -61,7 +63,7 @@ pub trait Counter<C: CounterLogic> {
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&mut self, element: &C::Item);
+    fn add(&mut self, element: impl Borrow<C::Item>);
 
     /// Clears the counter.
     fn clear(&mut self);

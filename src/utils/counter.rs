@@ -26,7 +26,7 @@ impl<L: CounterLogic + Clone, B: AsRef<L::Backend> + AsMut<L::Backend>> Counter<
     }
 
     #[inline(always)]
-    fn add(&mut self, element: &L::Item) {
+    fn add(&mut self, element: impl Borrow<L::Item>) {
         self.logic.add(&mut self.backend, element)
     }
 
