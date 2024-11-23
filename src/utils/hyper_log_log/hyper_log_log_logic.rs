@@ -126,8 +126,8 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         }
     }
 
-    fn add(&self, mut counter: impl AsMut<Self::Backend>, element: impl Borrow<T>) {
-        let mut counter = counter.as_mut();
+    fn add(&self, counter: &mut Self::Backend, element: impl Borrow<T>) {
+        let mut counter = counter;
         let x = self.build_hasher.hash_one(element.borrow());
         let j = x & self.num_registers_minus_1;
         let r = (x >> self.log_2_num_registers | self.sentinel_mask).trailing_zeros() as HashResult;
@@ -144,8 +144,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         }
     }
 
-    fn count(&self, counter: impl AsRef<[W]>) -> f64 {
-        let counter = counter.as_ref();
+    fn count(&self, counter: &[W]) -> f64 {
         let mut harmonic_mean = 0.0;
         let mut zeroes = 0;
 
@@ -164,11 +163,11 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         estimate
     }
 
-    fn clear(&self, mut counter: impl AsMut<[W]>) {
+    fn clear(&self, counter: &mut [W]) {
         counter.as_mut().fill(W::ZERO);
     }
 
-    fn set_to(&self, mut dst: impl AsMut<[W]>, src: impl AsRef<[W]>) {
+    fn set(&self, dst: &mut [W], src: &[W]) {
         debug_assert_eq!(dst.as_mut().len(), src.as_ref().len());
         dst.as_mut().copy_from_slice(src.as_ref());
     }
@@ -185,17 +184,12 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> M
 
     fn new_helper(&self) -> Self::Helper {
         HyperLogLogHelper {
-            acc: vec![W::ZERO; self.words_per_counter].into(),
-            mask: vec![W::ZERO; self.words_per_counter].into(),
+            acc: vec![W::ZERO; self.words_per_counter],
+            mask: vec![W::ZERO; self.words_per_counter],
         }
     }
 
-    fn merge_with_helper(
-        &self,
-        dst: impl AsMut<[W]>,
-        src: impl AsRef<[W]>,
-        helper: &mut Self::Helper,
-    ) {
+    fn merge_with_helper(&self, dst: &mut [W], src: &[W], helper: &mut Self::Helper) {
         merge_hyperloglog_bitwise(
             dst,
             src,

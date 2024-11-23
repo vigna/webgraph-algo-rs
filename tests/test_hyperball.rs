@@ -7,9 +7,7 @@ use webgraph::{
     traits::SequentialLabeling,
 };
 use webgraph_algo::{
-    algo::hyperball::HyperBallBuilder,
-    threads,
-    utils::hyper_log_log::{HyperLogLog, HyperLogLogBuilder},
+    algo::hyperball::HyperBallBuilder, threads, utils::hyper_log_log::HyperLogLogBuilder,
 };
 
 fn read_float_array(path: impl AsRef<std::path::Path>) -> Result<Vec<f64>> {

@@ -189,6 +189,7 @@ fn test_no_edges() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::needless_range_loop)]
 #[test]
 fn test_sparse() -> Result<()> {
     let arcs = vec![(10, 32), (32, 10), (10, 65), (65, 10), (21, 44), (44, 21)];
@@ -220,6 +221,7 @@ fn test_empty() {
     Radius::compute_undirected(&graph, &threads![], no_logging![]);
 }
 
+#[allow(clippy::needless_range_loop)]
 #[test]
 fn test_er() -> Result<()> {
     for d in 2..=4 {

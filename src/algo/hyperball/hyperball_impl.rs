@@ -1,3 +1,4 @@
+use crate::utils::traits::CounterMut;
 use crate::{prelude::*, utils::*};
 use anyhow::{bail, ensure, Context, Result};
 use common_traits::Number;
@@ -18,7 +19,7 @@ pub struct HyperBallBuilder<
     'a,
     D: Succ<Input = usize, Output = usize>,
     C: CounterLogic<Item = G1::Label> + MergeCounterLogic,
-    A: CounterArray<C>,
+    A: CounterArrayMut<C>,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync = G1,
 > {
@@ -40,7 +41,7 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G: RandomAccessGraph + Sync,
         C: CounterLogic<Item = G::Label> + MergeCounterLogic,
-        A: CounterArray<C>,
+        A: CounterArrayMut<C>,
     > HyperBallBuilder<'a, D, C, A, G, G>
 {
     /// Creates a new builder with default parameters.
@@ -71,7 +72,7 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: CounterLogic<Item = G1::Label> + MergeCounterLogic,
-        A: CounterArray<C>,
+        A: CounterArrayMut<C>,
     > HyperBallBuilder<'a, D, C, A, G1, G2>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
@@ -109,7 +110,7 @@ impl<
         Self {
             graph,
             rev_graph: Some(transposed),
-            cumulative_outdegree: cumulative_outdegree,
+            cumulative_outdegree,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
@@ -186,7 +187,7 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         C: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync,
-        A: CounterArray<C>,
+        A: CounterArrayMut<C>,
     > HyperBallBuilder<'a, D, C, A, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified [`HyperLogLogBuilder`] and
@@ -309,7 +310,7 @@ pub struct HyperBall<
     G2: RandomAccessGraph + Sync,
     D: Succ<Input = usize, Output = usize>,
     C: MergeCounterLogic<Item = G1::Label> + Sync,
-    A: CounterArray<C>,
+    A: CounterArrayMut<C>,
 > {
     /// The graph to analyze.
     graph: &'a G1,
@@ -374,7 +375,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         C: MergeCounterLogic<Item = usize> + Sync,
-        A: CounterArray<C> + Sync,
+        A: CounterArrayMut<C> + Sync,
     > HyperBall<'a, G1, G2, D, C, A>
 where
     C::Backend: PartialEq,
@@ -608,7 +609,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         C: MergeCounterLogic<Item = G1::Label> + Sync,
-        A: CounterArray<C> + Sync,
+        A: CounterArrayMut<C> + Sync,
     > HyperBall<'a, G1, G2, D, C, A>
 {
     #[inline(always)]
@@ -624,7 +625,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         C: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
-        A: CounterArray<C> + Sync,
+        A: CounterArrayMut<C> + Sync,
     > HyperBall<'a, G1, G2, D, C, A>
 where
     C::Backend: PartialEq,
@@ -871,7 +872,7 @@ where
                 // 2) A systolic, local computation (the node is by definition to be checked, as it comes from the local check list).
                 // 3) A systolic, non-local computation in which the node should be checked.
                 if !self.systolic || self.local || self.must_be_checked[node] {
-                    next_counter.set_to(&prev_counter);
+                    next_counter.set(prev_counter);
                     let mut modified = false;
                     for succ in self.graph.successors(node) {
                         if succ != node && self.prev_modified[succ] {
@@ -889,7 +890,7 @@ where
 
                     let mut post = f64::NAN;
                     let modified_counter = if modified {
-                        next_counter.as_backend().as_ref() != prev_counter.as_ref()
+                        next_counter.as_backend() != prev_counter
                     } else {
                         false
                     };
@@ -906,7 +907,7 @@ where
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = counter_logic.count(&prev_counter);
+                        let pre = counter_logic.count(prev_counter);
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
@@ -971,7 +972,7 @@ where
                     }
 
                     unsafe {
-                        self.next_state.set_to(node, next_counter.as_backend());
+                        self.next_state.set(node, next_counter.as_backend());
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
@@ -979,7 +980,7 @@ where
                     // reflect our current value.
                     if self.prev_modified[node] {
                         unsafe {
-                            self.next_state.set_to(node, prev_counter);
+                            self.next_state.set(node, prev_counter);
                         }
                     }
                 }
@@ -1023,7 +1024,7 @@ where
                 }
             }
         } else {
-            (0..self.graph.num_nodes()).into_iter().for_each(|i| {
+            (0..self.graph.num_nodes()).for_each(|i| {
                 self.prev_state.get_counter_mut(i).add(i);
             });
         }
@@ -1081,14 +1082,14 @@ mod test {
     impl<'a, G: RandomAccessGraph> SeqHyperBall<'a, G> {
         fn init(&mut self) {
             for i in 0..self.graph.num_nodes() {
-                self.bits.get_counter_mut(i).add(&i);
+                self.bits.get_counter_mut(i).add(i);
             }
         }
 
         fn iterate(&mut self) {
             for i in 0..self.graph.num_nodes() {
                 let mut counter = self.result_bits.get_counter_mut(i);
-                counter.set_to(self.bits.get_backend(i));
+                counter.set(self.bits.get_backend(i));
                 for succ in self.graph.successors(i) {
                     counter.merge(self.bits.get_backend(succ));
                 }

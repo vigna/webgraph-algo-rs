@@ -1,10 +1,9 @@
 use std::borrow::Borrow;
 
-use impl_tools::autoimpl;
 pub trait CounterLogic {
     type Item;
     type Backend: ?Sized;
-    type Counter<'a>: Counter<Self>
+    type Counter<'a>: CounterMut<Self>
     where
         Self: 'a;
 
@@ -13,17 +12,17 @@ pub trait CounterLogic {
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&self, counter: impl AsMut<Self::Backend>, element: impl Borrow<Self::Item>);
+    fn add(&self, counter: &mut Self::Backend, element: impl Borrow<Self::Item>);
 
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
-    fn count(&self, counter: impl AsRef<Self::Backend>) -> f64;
+    fn count(&self, counter: &Self::Backend) -> f64;
 
     /// Clears the counter.
-    fn clear(&self, counter: impl AsMut<Self::Backend>);
+    fn clear(&self, counter: &mut Self::Backend);
 
     /// Sets the contents of `self` to the contents of `other`.
-    fn set_to(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>);
+    fn set(&self, dst: &mut Self::Backend, src: &Self::Backend);
 
     fn new_counter(&self) -> Self::Counter<'_>;
 }
@@ -33,15 +32,15 @@ pub trait MergeCounterLogic: CounterLogic {
 
     fn new_helper(&self) -> Self::Helper;
 
-    fn merge(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>) {
+    fn merge(&self, dst: &mut Self::Backend, src: &Self::Backend) {
         let mut helper = self.new_helper();
         self.merge_with_helper(dst, src, &mut helper);
     }
 
     fn merge_with_helper(
         &self,
-        dst: impl AsMut<Self::Backend>,
-        src: impl AsRef<Self::Backend>,
+        dst: &mut Self::Backend,
+        src: &Self::Backend,
         helper: &mut Self::Helper,
     );
 }
@@ -54,6 +53,12 @@ pub trait Counter<C: CounterLogic + ?Sized> {
     /// to the counter so far.
     fn count(&self) -> f64;
 
+    fn as_backend(&self) -> &C::Backend;
+
+    fn into_owned(self) -> Self::OwnedCounter;
+}
+
+pub trait CounterMut<C: CounterLogic + ?Sized>: Counter<C> {
     /// Adds an element to the counter.
     ///
     /// # Arguments
@@ -64,30 +69,23 @@ pub trait Counter<C: CounterLogic + ?Sized> {
     /// Clears the counter.
     fn clear(&mut self);
 
-    fn as_backend(&self) -> impl AsRef<C::Backend>;
-
-    fn as_backend_mut(&mut self) -> impl AsMut<C::Backend>;
+    fn as_backend_mut(&mut self) -> &mut C::Backend;
 
     /// Sets the contents of `self` to the contents of `other`.
-    fn set_to(&mut self, other: impl AsRef<C::Backend>);
-
-    fn into_owned(self) -> Self::OwnedCounter;
+    fn set(&mut self, other: &C::Backend);
 }
 
-pub trait MergeCounter<C: CounterLogic + MergeCounterLogic + ?Sized>: Counter<C> {
-    fn merge(&mut self, other: impl AsRef<C::Backend>) {
+pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
+    fn merge(&mut self, other: &L::Backend) {
         let mut helper = self.get_logic().new_helper();
         self.merge_with_helper(other, &mut helper);
     }
 
-    fn merge_with_helper(&mut self, other: impl AsRef<C::Backend>, helper: &mut C::Helper);
+    fn merge_with_helper(&mut self, other: &L::Backend, helper: &mut L::Helper);
 }
 
-pub trait CounterArray<C: CounterLogic + MergeCounterLogic + ?Sized> {
+pub trait CounterArray<C: CounterLogic + ?Sized> {
     type Counter<'a>: Counter<C>
-    where
-        Self: 'a;
-    type CounterMut<'a>: Counter<C>
     where
         Self: 'a;
 
@@ -95,13 +93,25 @@ pub trait CounterArray<C: CounterLogic + MergeCounterLogic + ?Sized> {
 
     fn get_counter(&self, index: usize) -> Self::Counter<'_>;
 
+    fn get_backend(&self, index: usize) -> &C::Backend;
+}
+
+pub trait CounterArrayMut<L: MergeCounterLogic + ?Sized>: CounterArray<L> {
+    type CounterMut<'a>: CounterMut<L>
+    where
+        Self: 'a;
+
     fn get_counter_mut(&mut self, index: usize) -> Self::CounterMut<'_>;
 
-    fn get_backend(&self, index: usize) -> impl AsRef<C::Backend>;
+    fn get_backend_mut(&mut self, index: usize) -> &mut L::Backend;
 
-    fn get_backend_mut(&mut self, index: usize) -> &mut C::Backend;
-
-    unsafe fn set_to(&self, index: usize, content: impl AsRef<C::Backend>);
+    /// Sets the contents of the counter at `index` to `content`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `content` has the same length as the counter
+    /// at `index`. The caller must ensure that there are no data races.
+    unsafe fn set(&self, index: usize, content: &L::Backend);
 
     fn clear(&mut self);
 }

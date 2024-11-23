@@ -145,7 +145,7 @@ fn test_merge_same_type() -> Result<()> {
                 let mut counter_0 = counters.get_owned_counter(0);
                 let counter_1 = counters.get_owned_counter(1);
                 counter_0.merge(&counter_1);
-                counters.get_counter(0).set_to(&counter_0);
+                counters.get_counter(0).set(&counter_0);
 
                 let float_size = size as f64;
 
@@ -212,7 +212,7 @@ fn test_merge_bitwise() -> Result<()> {
 
                 let mut counter = counters.get_owned_counter(0);
                 counter.merge(&counters.get_owned_counter(1));
-                counters.get_counter(0).set_to(&counter);
+                counters.get_counter(0).set(&counter);
 
                 let float_size = size as f64;
 
