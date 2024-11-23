@@ -17,8 +17,8 @@ use webgraph::traits::RandomAccessGraph;
 pub struct HyperBallBuilder<
     'a,
     D: Succ<Input = usize, Output = usize>,
-    C: CounterLogic<G1::Label> + MergeCounterLogic<G1::Label>,
-    A: CounterArray<G1::Label, C>,
+    C: CounterLogic<Item = G1::Label> + MergeCounterLogic,
+    A: CounterArray<C>,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync = G1,
 > {
@@ -39,8 +39,8 @@ impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
         G: RandomAccessGraph + Sync,
-        C: CounterLogic<G::Label> + MergeCounterLogic<G::Label>,
-        A: CounterArray<G::Label, C>,
+        C: CounterLogic<Item = G::Label> + MergeCounterLogic,
+        A: CounterArray<C>,
     > HyperBallBuilder<'a, D, C, A, G, G>
 {
     /// Creates a new builder with default parameters.
@@ -70,8 +70,8 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: CounterLogic<G1::Label> + MergeCounterLogic<G1::Label>,
-        A: CounterArray<G1::Label, C>,
+        C: CounterLogic<Item = G1::Label> + MergeCounterLogic,
+        A: CounterArray<C>,
     > HyperBallBuilder<'a, D, C, A, G1, G2>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
@@ -185,8 +185,8 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: CounterLogic<G1::Label> + MergeCounterLogic<G1::Label> + Sync,
-        A: CounterArray<G1::Label, C>,
+        C: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync,
+        A: CounterArray<C>,
     > HyperBallBuilder<'a, D, C, A, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified [`HyperLogLogBuilder`] and
@@ -308,8 +308,8 @@ pub struct HyperBall<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     D: Succ<Input = usize, Output = usize>,
-    C: MergeCounterLogic<G1::Label> + Sync,
-    A: CounterArray<G1::Label, C>,
+    C: MergeCounterLogic<Item = G1::Label> + Sync,
+    A: CounterArray<C>,
 > {
     /// The graph to analyze.
     graph: &'a G1,
@@ -373,8 +373,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        C: MergeCounterLogic<usize> + Sync,
-        A: CounterArray<G1::Label, C> + Sync,
+        C: MergeCounterLogic<Item = usize> + Sync,
+        A: CounterArray<C> + Sync,
     > HyperBall<'a, G1, G2, D, C, A>
 where
     C::Backend: PartialEq,
@@ -536,7 +536,7 @@ where
     pub fn lin_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.sum_of_distances {
-            let logic = self.prev_state.get_counter_logic();
+            let logic = self.prev_state.get_logic();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -560,7 +560,7 @@ where
     pub fn nieminen_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.sum_of_distances {
-            let logic = self.prev_state.get_counter_logic();
+            let logic = self.prev_state.get_logic();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -585,7 +585,7 @@ where
         self.ensure_iteration()?;
         Ok(self
             .prev_state
-            .get_counter_logic()
+            .get_logic()
             .count(self.prev_state.get_backend(node)))
     }
 
@@ -595,7 +595,7 @@ where
     /// `hyperball.reachable_nodes().unwrap()[i]` is equal to `hyperball.reachable_nodes_from(i).unwrap()`.
     pub fn reachable_nodes(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
-        let logic = self.prev_state.get_counter_logic();
+        let logic = self.prev_state.get_logic();
         Ok((0..self.graph.num_nodes())
             .map(|n| logic.count(self.prev_state.get_backend(n)))
             .collect())
@@ -607,8 +607,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        C: MergeCounterLogic<G1::Label> + Sync,
-        A: CounterArray<G1::Label, C> + Sync,
+        C: MergeCounterLogic<Item = G1::Label> + Sync,
+        A: CounterArray<C> + Sync,
     > HyperBall<'a, G1, G2, D, C, A>
 {
     #[inline(always)]
@@ -623,8 +623,8 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        C: MergeCounterLogic<usize> + Sync,
-        A: CounterArray<G1::Label, C> + Sync,
+        C: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
+        A: CounterArray<C> + Sync,
     > HyperBall<'a, G1, G2, D, C, A>
 where
     C::Backend: PartialEq,
@@ -817,8 +817,8 @@ where
         // by this thread. During systolic iterations, cumulates the *increase* of the
         // neighbourhood function for the nodes scanned by this thread.
         let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
-        let mut helper = self.prev_state.get_counter_logic().new_merge_helper();
-        let counter_logic = self.prev_state.get_counter_logic();
+        let mut helper = self.prev_state.get_logic().new_helper();
+        let counter_logic = self.prev_state.get_logic();
         let mut next_counter = counter_logic.new_counter();
 
         loop {
@@ -879,8 +879,8 @@ where
                             if !modified {
                                 modified = true;
                             }
-                            counter_logic.merge_into_with_helper(
-                                next_counter.as_mut_backend(),
+                            counter_logic.merge_with_helper(
+                                next_counter.as_backend_mut(),
                                 self.prev_state.get_backend(succ),
                                 &mut helper,
                             );
@@ -1017,14 +1017,14 @@ where
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
             for (i, &node_weight) in w.iter().enumerate() {
-                let mut counter = self.prev_state.get_mut_counter(i);
+                let mut counter = self.prev_state.get_counter_mut(i);
                 for _ in 0..node_weight {
-                    counter.add(random());
+                    counter.add(&random());
                 }
             }
         } else {
             (0..self.graph.num_nodes()).into_iter().for_each(|i| {
-                self.prev_state.get_mut_counter(i).add(i);
+                self.prev_state.get_counter_mut(i).add(&i);
             });
         }
 
@@ -1081,13 +1081,13 @@ mod test {
     impl<'a, G: RandomAccessGraph> SeqHyperBall<'a, G> {
         fn init(&mut self) {
             for i in 0..self.graph.num_nodes() {
-                self.bits.get_mut_counter(i).add(i);
+                self.bits.get_counter_mut(i).add(&i);
             }
         }
 
         fn iterate(&mut self) {
             for i in 0..self.graph.num_nodes() {
-                let mut counter = self.result_bits.get_mut_counter(i);
+                let mut counter = self.result_bits.get_counter_mut(i);
                 counter.set_to(self.bits.get_backend(i));
                 for succ in self.graph.successors(i) {
                     counter.merge(self.bits.get_backend(succ));

@@ -1,6 +1,7 @@
-pub trait CounterLogic<T> {
+pub trait CounterLogic {
+    type Item;
     type Backend: ?Sized;
-    type Counter<'a>: Counter<T, Self>
+    type Counter<'a>: Counter<Self>
     where
         Self: 'a + Sized;
 
@@ -9,7 +10,7 @@ pub trait CounterLogic<T> {
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&self, counter: impl AsMut<Self::Backend>, element: T);
+    fn add(&self, counter: impl AsMut<Self::Backend>, element: &Self::Item);
 
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
@@ -29,76 +30,80 @@ pub trait CounterLogic<T> {
         Self: Sized;
 }
 
-pub trait MergeCounterLogic<T>: CounterLogic<T> {
-    type MergeHelper;
+pub trait MergeCounterLogic: CounterLogic {
+    type Helper;
 
-    fn new_merge_helper(&self) -> Self::MergeHelper;
+    fn new_helper(&self) -> Self::Helper;
 
-    fn merge_into(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>) {
-        let mut helper = self.new_merge_helper();
-        self.merge_into_with_helper(dst, src, &mut helper);
+    fn merge(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>) {
+        let mut helper = self.new_helper();
+        self.merge_with_helper(dst, src, &mut helper);
     }
 
-    fn merge_into_with_helper(
+    fn merge_with_helper(
         &self,
         dst: impl AsMut<Self::Backend>,
         src: impl AsRef<Self::Backend>,
-        helper: &mut Self::MergeHelper,
+        helper: &mut Self::Helper,
     );
 }
 
-pub trait Counter<T, C: CounterLogic<T>> {
-    type OwnedCounter: Counter<T, C>;
+pub trait Counter<C: CounterLogic> {
+    type OwnedCounter: Counter<C>;
 
+    fn get_logic(&self) -> &C;
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
     fn count(&self) -> f64;
-
-    fn as_backend(&self) -> impl AsRef<C::Backend>;
 
     /// Adds an element to the counter.
     ///
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&mut self, element: T);
+    fn add(&mut self, element: &C::Item);
 
     /// Clears the counter.
     fn clear(&mut self);
 
+    fn as_backend(&self) -> impl AsRef<C::Backend>;
+
+    fn as_backend_mut(&mut self) -> impl AsMut<C::Backend>;
+
     /// Sets the contents of `self` to the contents of `other`.
     fn set_to(&mut self, other: impl AsRef<C::Backend>);
-
-    fn as_mut_backend(&mut self) -> impl AsMut<C::Backend>;
 
     fn into_owned(self) -> Self::OwnedCounter;
 }
 
-pub trait MergableCounter<T, C: CounterLogic<T> + MergeCounterLogic<T>>: Counter<T, C> {
-    fn new_merge_helper(&self) -> C::MergeHelper;
-
+pub trait MergeCounter<C: CounterLogic + MergeCounterLogic>: Counter<C> {
     fn merge(&mut self, other: impl AsRef<C::Backend>) {
-        let mut helper = self.new_merge_helper();
+        let mut helper = self.get_logic().new_helper();
         self.merge_with_helper(other, &mut helper);
     }
 
-    fn merge_with_helper(&mut self, other: impl AsRef<C::Backend>, helper: &mut C::MergeHelper);
+    fn merge_with_helper(&mut self, other: impl AsRef<C::Backend>, helper: &mut C::Helper);
 }
 
-pub trait CounterArray<T, C: CounterLogic<T> + MergeCounterLogic<T>> {
-    type Counter<'a>: Counter<T, C>
+pub trait CounterArray<C: CounterLogic + MergeCounterLogic> {
+    type Counter<'a>: Counter<C>
+    where
+        Self: 'a;
+    type CounterMut<'a>: Counter<C>
     where
         Self: 'a;
 
-    fn get_counter_logic(&self) -> &C;
+    fn get_logic(&self) -> &C;
+
+    fn get_counter(&self, index: usize) -> Self::Counter<'_>;
+
+    fn get_counter_mut(&mut self, index: usize) -> Self::CounterMut<'_>;
 
     fn get_backend(&self, index: usize) -> impl AsRef<C::Backend>;
 
+    fn get_backend_mut(&mut self, index: usize) -> &mut C::Backend;
+
     unsafe fn set_to(&self, index: usize, content: impl AsRef<C::Backend>);
-
-    fn get_mut_counter(&mut self, index: usize) -> Self::Counter<'_>;
-
-    fn get_backend_mut(&mut self, index: usize) -> impl AsMut<C::Backend>;
 
     fn clear(&mut self);
 }
