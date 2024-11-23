@@ -52,10 +52,9 @@ fn main() -> Result<()> {
                 .parse()
                 .expect("Expected integer");
 
-            let hyper_log_log = HyperLogLogBuilder::<usize>::new()
-                .log_2_num_registers(log2m)
-                .num_elements_upper_bound(graph.num_nodes())
-                .build_logic()?;
+            let hyper_log_log = HyperLogLogBuilder::<usize>::new(graph.num_nodes())
+                .log_2_num_reg(log2m)
+                .build()?;
             let bits = hyper_log_log.new_array(graph.num_nodes(), mem_options.clone())?;
             let result_bits = hyper_log_log.new_array(graph.num_nodes(), mem_options)?;
             let mut hyperball = HyperBallBuilder::with_transposed(
