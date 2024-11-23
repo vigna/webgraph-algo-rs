@@ -24,9 +24,6 @@ pub trait CounterLogic {
     /// Sets the contents of `self` to the contents of `other`.
     fn set_to(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>);
 
-    /// The number of words of type `W` used by a counter.
-    fn words_per_counter(&self) -> usize;
-
     fn new_counter(&self) -> Self::Counter<'_>
     where
         Self: Sized;
