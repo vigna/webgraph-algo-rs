@@ -20,7 +20,7 @@ pub struct HyperLogLog<T, W> {
     log_2_num_registers: usize,
     sentinel_mask: HashResult,
     num_registers: usize,
-    words_per_counter: usize,
+    pub(super) words_per_counter: usize,
     alpha_m_m: f64,
     msb_mask: Box<[W]>,
     lsb_mask: Box<[W]>,
@@ -172,9 +172,9 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         dst.as_mut().copy_from_slice(src.as_ref());
     }
 
-    fn words_per_counter(&self) -> usize {
+    /*    fn words_per_counter(&self) -> usize {
         self.words_per_counter
-    }
+    }*/
 }
 
 impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> MergeCounterLogic

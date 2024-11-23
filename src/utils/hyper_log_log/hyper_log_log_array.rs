@@ -70,10 +70,10 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
         &self,
         index: usize,
     ) -> impl AsRef<<HyperLogLog<T, W> as CounterLogic>::Backend> {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.words_per_counter;
         let ptr = self.backend[offset].get();
 
-        unsafe { std::slice::from_raw_parts(ptr, self.logic.words_per_counter()) }
+        unsafe { std::slice::from_raw_parts(ptr, self.logic.words_per_counter) }
     }
 
     #[inline(always)]
@@ -85,17 +85,17 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
         &mut self,
         index: usize,
     ) -> &mut <HyperLogLog<T, W> as CounterLogic>::Backend {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.words_per_counter;
         let ptr = self.backend[offset].get();
 
-        unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) }
+        unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter) }
     }
 
     fn get_counter(&self, index: usize) -> Self::Counter<'_> {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.words_per_counter;
         let ptr = self.backend[offset].get();
 
-        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) };
+        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter) };
         DefaultCounter {
             logic: self.logic.clone(), // TODO: avoid cloning the logic
             backend: bits,
@@ -103,10 +103,10 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     }
 
     fn get_counter_mut(&mut self, index: usize) -> Self::CounterMut<'_> {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.words_per_counter;
         let ptr = self.backend[offset].get();
 
-        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter()) };
+        let bits = unsafe { std::slice::from_raw_parts_mut(ptr, self.logic.words_per_counter) };
         DefaultCounter {
             logic: self.logic.clone(),
             backend: bits,
@@ -118,7 +118,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
         index: usize,
         content: impl AsRef<<HyperLogLog<T, W> as CounterLogic>::Backend>,
     ) {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.words_per_counter;
         for (c, &b) in self.backend[offset..].iter().zip(content.as_ref()) {
             *c.get() = b;
         }
