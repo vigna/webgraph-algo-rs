@@ -68,7 +68,7 @@ impl<T, W: Word> HyperLogLogArray<T, W> {
 impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     CounterArray<HyperLogLog<T, W>> for HyperLogLogArray<T, W>
 {
-    type Counter<'a> = DefaultCounter<HyperLogLog<T, W>, &'a [W]> where Self: 'a; // TODO: avoid mut
+    type Counter<'a> = DefaultCounter<HyperLogLog<T, W>, &'a [W]> where Self: 'a;
 
     fn get_backend(&self, index: usize) -> &<HyperLogLog<T, W> as CounterLogic>::Backend {
         let offset = index * self.logic.words_per_counter;
