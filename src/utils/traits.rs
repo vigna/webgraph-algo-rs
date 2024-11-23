@@ -1,11 +1,12 @@
 use std::borrow::Borrow;
 
+use impl_tools::autoimpl;
 pub trait CounterLogic {
     type Item;
     type Backend: ?Sized;
     type Counter<'a>: Counter<Self>
     where
-        Self: 'a + Sized;
+        Self: 'a;
 
     /// Adds an element to the counter.
     ///
@@ -24,9 +25,7 @@ pub trait CounterLogic {
     /// Sets the contents of `self` to the contents of `other`.
     fn set_to(&self, dst: impl AsMut<Self::Backend>, src: impl AsRef<Self::Backend>);
 
-    fn new_counter(&self) -> Self::Counter<'_>
-    where
-        Self: Sized;
+    fn new_counter(&self) -> Self::Counter<'_>;
 }
 
 pub trait MergeCounterLogic: CounterLogic {
@@ -47,7 +46,7 @@ pub trait MergeCounterLogic: CounterLogic {
     );
 }
 
-pub trait Counter<C: CounterLogic> {
+pub trait Counter<C: CounterLogic + ?Sized> {
     type OwnedCounter: Counter<C>;
 
     fn get_logic(&self) -> &C;
@@ -75,7 +74,7 @@ pub trait Counter<C: CounterLogic> {
     fn into_owned(self) -> Self::OwnedCounter;
 }
 
-pub trait MergeCounter<C: CounterLogic + MergeCounterLogic>: Counter<C> {
+pub trait MergeCounter<C: CounterLogic + MergeCounterLogic + ?Sized>: Counter<C> {
     fn merge(&mut self, other: impl AsRef<C::Backend>) {
         let mut helper = self.get_logic().new_helper();
         self.merge_with_helper(other, &mut helper);
@@ -84,7 +83,7 @@ pub trait MergeCounter<C: CounterLogic + MergeCounterLogic>: Counter<C> {
     fn merge_with_helper(&mut self, other: impl AsRef<C::Backend>, helper: &mut C::Helper);
 }
 
-pub trait CounterArray<C: CounterLogic + MergeCounterLogic> {
+pub trait CounterArray<C: CounterLogic + MergeCounterLogic + ?Sized> {
     type Counter<'a>: Counter<C>
     where
         Self: 'a;
