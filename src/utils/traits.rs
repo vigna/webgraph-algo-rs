@@ -45,34 +45,34 @@ pub trait MergeCounterLogic: CounterLogic {
     );
 }
 
-pub trait Counter<C: CounterLogic + ?Sized> {
-    type OwnedCounter: Counter<C>;
+pub trait Counter<L: CounterLogic + ?Sized> {
+    type OwnedCounter: Counter<L>;
 
-    fn get_logic(&self) -> &C;
+    fn get_logic(&self) -> &L;
     /// Returns the estimate of the number of distinct elements that have been added
     /// to the counter so far.
     fn count(&self) -> f64;
 
-    fn as_backend(&self) -> &C::Backend;
+    fn as_backend(&self) -> &L::Backend;
 
     fn into_owned(self) -> Self::OwnedCounter;
 }
 
-pub trait CounterMut<C: CounterLogic + ?Sized>: Counter<C> {
+pub trait CounterMut<L: CounterLogic + ?Sized>: Counter<L> {
     /// Adds an element to the counter.
     ///
     /// # Arguments
     ///
     /// * `element`: the element to add.
-    fn add(&mut self, element: impl Borrow<C::Item>);
+    fn add(&mut self, element: impl Borrow<L::Item>);
 
     /// Clears the counter.
     fn clear(&mut self);
 
-    fn as_backend_mut(&mut self) -> &mut C::Backend;
+    fn as_backend_mut(&mut self) -> &mut L::Backend;
 
     /// Sets the contents of `self` to the contents of `other`.
-    fn set(&mut self, other: &C::Backend);
+    fn set(&mut self, other: &L::Backend);
 }
 
 pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
@@ -84,16 +84,16 @@ pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
     fn merge_with_helper(&mut self, other: &L::Backend, helper: &mut L::Helper);
 }
 
-pub trait CounterArray<C: CounterLogic + ?Sized> {
-    type Counter<'a>: Counter<C>
+pub trait CounterArray<L: CounterLogic + ?Sized> {
+    type Counter<'a>: Counter<L>
     where
         Self: 'a;
 
-    fn logic(&self) -> &C;
+    fn logic(&self) -> &L;
 
     fn get_counter(&self, index: usize) -> Self::Counter<'_>;
 
-    fn get_backend(&self, index: usize) -> &C::Backend;
+    fn get_backend(&self, index: usize) -> &L::Backend;
 }
 
 pub trait CounterArrayMut<L: MergeCounterLogic + ?Sized>: CounterArray<L> {
