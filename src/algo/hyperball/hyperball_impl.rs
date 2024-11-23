@@ -536,7 +536,7 @@ where
     pub fn lin_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.sum_of_distances {
-            let logic = self.prev_state.get_logic();
+            let logic = self.prev_state.logic();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -560,7 +560,7 @@ where
     pub fn nieminen_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.sum_of_distances {
-            let logic = self.prev_state.get_logic();
+            let logic = self.prev_state.logic();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -585,7 +585,7 @@ where
         self.ensure_iteration()?;
         Ok(self
             .prev_state
-            .get_logic()
+            .logic()
             .count(self.prev_state.get_backend(node)))
     }
 
@@ -595,7 +595,7 @@ where
     /// `hyperball.reachable_nodes().unwrap()[i]` is equal to `hyperball.reachable_nodes_from(i).unwrap()`.
     pub fn reachable_nodes(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
-        let logic = self.prev_state.get_logic();
+        let logic = self.prev_state.logic();
         Ok((0..self.graph.num_nodes())
             .map(|n| logic.count(self.prev_state.get_backend(n)))
             .collect())
@@ -817,8 +817,8 @@ where
         // by this thread. During systolic iterations, cumulates the *increase* of the
         // neighbourhood function for the nodes scanned by this thread.
         let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
-        let mut helper = self.prev_state.get_logic().new_helper();
-        let counter_logic = self.prev_state.get_logic();
+        let mut helper = self.prev_state.logic().new_helper();
+        let counter_logic = self.prev_state.logic();
         let mut next_counter = counter_logic.new_counter();
 
         loop {

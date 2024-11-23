@@ -91,7 +91,7 @@ pub trait CounterArray<C: CounterLogic + MergeCounterLogic + ?Sized> {
     where
         Self: 'a;
 
-    fn get_logic(&self) -> &C;
+    fn logic(&self) -> &C;
 
     fn get_counter(&self, index: usize) -> Self::Counter<'_>;
 
