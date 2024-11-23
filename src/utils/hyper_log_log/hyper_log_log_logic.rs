@@ -47,7 +47,7 @@ impl<T, W: Clone> Clone for HyperLogLog<T, W> {
 
 impl<T, W: Word> HyperLogLog<T, W> {
     #[inline(always)]
-    fn get_register(&self, counter: impl AsRef<[W]>, index: usize) -> W {
+    fn get_register_unchecked(&self, counter: impl AsRef<[W]>, index: usize) -> W {
         let counter = counter.as_ref();
         let bit_width = self.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
@@ -65,7 +65,7 @@ impl<T, W: Word> HyperLogLog<T, W> {
     }
 
     #[inline(always)]
-    fn set_register(&self, mut counter: impl AsMut<[W]>, index: usize, new_value: W) {
+    fn set_register_unchecked(&self, mut counter: impl AsMut<[W]>, index: usize, new_value: W) {
         let counter = counter.as_mut();
         let bit_width = self.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
@@ -91,6 +91,7 @@ impl<T, W: Word> HyperLogLog<T, W> {
         }
     }
 
+    // TODO not here
     pub fn new_array(
         &self,
         len: usize,
@@ -135,11 +136,11 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         debug_assert!(r < (1 << self.register_size) - 1);
         debug_assert!(register < self.num_registers);
 
-        let current_value = self.get_register(&mut counter, register);
+        let current_value = self.get_register_unchecked(&mut counter, register);
         let candidate_value = r + 1;
         let new_value = std::cmp::max(current_value, candidate_value.cast());
         if current_value != new_value {
-            self.set_register(counter, register, new_value);
+            self.set_register_unchecked(counter, register, new_value);
         }
     }
 
@@ -149,7 +150,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         let mut zeroes = 0;
 
         for i in 0..self.num_registers {
-            let value: u64 = self.get_register(counter, i).upcast();
+            let value: u64 = self.get_register_unchecked(counter, i).upcast();
             if value == 0 {
                 zeroes += 1;
             }
@@ -210,26 +211,17 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> M
 #[derive(Debug, Clone)]
 pub struct HyperLogLogBuilder<W = usize> {
     log_2_num_registers: usize,
-    num_elements: usize,
+    n: usize,
     seed: u64,
     _marker: std::marker::PhantomData<W>,
 }
 
-impl HyperLogLogBuilder<usize> {
-    /// Creates a new builder for an [`HyperLogLog`] with a default word type
-    /// of [`usize`].
-    #[inline(always)]
-    pub fn new() -> Self {
-        Self::new_with_word_type()
-    }
-}
-
 impl<W> HyperLogLogBuilder<W> {
     /// Creates a new builder for an [`HyperLogLog`] with a word type of `W`.
-    pub fn new_with_word_type() -> Self {
+    pub fn new(n: usize) -> Self {
         Self {
             log_2_num_registers: 4,
-            num_elements: 1,
+            n,
             seed: 0,
             _marker: std::marker::PhantomData,
         }
@@ -295,7 +287,7 @@ impl<W: Word> HyperLogLogBuilder<W> {
     /// # Arguments
     /// * `rsd`: the relative standard deviation to be attained.
     pub fn rsd(self, rsd: f64) -> Self {
-        self.log_2_num_registers(HyperLogLog::log_2_number_of_registers(rsd))
+        self.log_2_num_reg(HyperLogLog::log_2_number_of_registers(rsd))
     }
 
     /// Sets the log₂*m* number of registers for the array of counters.
@@ -306,18 +298,8 @@ impl<W: Word> HyperLogLogBuilder<W> {
     ///
     /// # Arguments
     /// * `log_2_num_registers`: the logarithm of the number of registers per counter.
-    pub fn log_2_num_registers(mut self, log_2_num_registers: usize) -> Self {
+    pub fn log_2_num_reg(mut self, log_2_num_registers: usize) -> Self {
         self.log_2_num_registers = log_2_num_registers;
-        self
-    }
-
-    /// Sets the upper bound on the number of distinct elements to be added to the
-    /// counters.
-    ///
-    /// # Arguments
-    /// * `num_elements`: an upper bound on the number of distinct elements.
-    pub fn num_elements_upper_bound(mut self, num_elements: usize) -> Self {
-        self.num_elements = num_elements;
         self
     }
 
@@ -326,23 +308,13 @@ impl<W: Word> HyperLogLogBuilder<W> {
         self
     }
 
-    /// Sets the word type to be used by the counters.
-    pub fn word_type<W2: Word>(self) -> HyperLogLogBuilder<W2> {
-        HyperLogLogBuilder {
-            log_2_num_registers: self.log_2_num_registers,
-            num_elements: self.num_elements,
-            seed: self.seed,
-            _marker: std::marker::PhantomData,
-        }
-    }
-
     /// Builds the counter logic.
     ///
     /// The type of objects the counters keep track of is defined here by `T`, but
     /// it is usually inferred by the compiler.
-    pub fn build_logic<T>(&self) -> Result<HyperLogLog<T, W>> {
+    pub fn build<T>(&self) -> Result<HyperLogLog<T, W>> {
         let log_2_num_registers = self.log_2_num_registers;
-        let num_elements = self.num_elements;
+        let num_elements = self.n;
 
         // This ensures counters are at least 16-bit-aligned.
         ensure!(

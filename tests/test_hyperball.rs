@@ -79,11 +79,10 @@ fn test_cnr_2000() -> Result<()> {
     let expected_nieminen_centralities =
         read_float_array("./tests/hyperball_results/cnr-2000_nieminen_centrality")?;
 
-    let hyper_log_log: HyperLogLog<_, _> = HyperLogLogBuilder::new()
-        .log_2_num_registers(8)
-        .num_elements_upper_bound(graph.num_nodes())
+    let hyper_log_log = HyperLogLogBuilder::<usize>::new(graph.num_nodes())
+        .log_2_num_reg(8)
         .seed(42)
-        .build_logic()?;
+        .build()?;
     let bits = hyper_log_log.new_array(
         graph.num_nodes(),
         webgraph_algo::utils::TempMmapOptions::Default,

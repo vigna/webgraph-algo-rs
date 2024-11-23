@@ -1107,11 +1107,10 @@ mod test {
 
         let num_nodes = graph.num_nodes();
 
-        let hyper_log_log = HyperLogLogBuilder::<usize>::new_with_word_type()
+        let hyper_log_log = HyperLogLogBuilder::<usize>::new(num_nodes)
             .seed(42)
-            .log_2_num_registers(6)
-            .num_elements_upper_bound(num_nodes)
-            .build_logic()?;
+            .log_2_num_reg(6)
+            .build()?;
 
         let seq_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
         let seq_result_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
