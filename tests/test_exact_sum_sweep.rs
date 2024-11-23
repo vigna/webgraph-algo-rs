@@ -327,6 +327,7 @@ fn test_graph_no_edges() -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::needless_range_loop)]
 #[test]
 fn test_er() -> Result<()> {
     for d in 2..=4 {
