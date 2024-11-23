@@ -77,7 +77,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     }
 
     #[inline(always)]
-    fn get_logic(&self) -> &HyperLogLog<T, W> {
+    fn logic(&self) -> &HyperLogLog<T, W> {
         &self.logic
     }
 
