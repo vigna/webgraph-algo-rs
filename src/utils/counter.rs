@@ -1,51 +1,48 @@
 use crate::prelude::*;
 use std::borrow::Borrow;
-use sux::traits::Word;
 
-pub struct DefaultCounter<T, W: Word, C: CounterLogic<T> + MergeCounterLogic<T>, L: Borrow<C>, B> {
+pub struct DefaultCounter<L: CounterLogic, B: AsRef<L::Backend> + AsMut<L::Backend>> {
     pub(super) logic: L,
     pub(super) backend: B,
-    pub(super) _marker: std::marker::PhantomData<(T, W, C)>,
 }
 
-impl<
-        T,
-        W: Word,
-        C: CounterLogic<T> + MergeCounterLogic<T>,
-        L: Borrow<C> + Clone,
-        B: AsRef<C::Backend> + AsMut<C::Backend>,
-    > Counter<T, C> for DefaultCounter<T, W, C, L, B>
+impl<L: CounterLogic + Clone, B: AsRef<L::Backend> + AsMut<L::Backend>> Counter<L>
+    for DefaultCounter<L, B>
 {
-    type OwnedCounter = DefaultCounter<T, W, C, L, Box<<C as CounterLogic<T>>::Backend>>;
+    type OwnedCounter = DefaultCounter<L, Box<L::Backend>>;
+
+    fn get_logic(&self) -> &L {
+        &self.logic
+    }
 
     #[inline(always)]
-    fn as_backend(&self) -> impl AsRef<<C as CounterLogic<T>>::Backend> {
+    fn as_backend(&self) -> impl AsRef<L::Backend> {
         &self.backend
     }
 
     #[inline(always)]
     fn count(&self) -> f64 {
-        self.logic.borrow().count(&self.backend)
+        self.logic.count(&self.backend)
     }
 
     #[inline(always)]
-    fn add(&mut self, element: T) {
-        self.logic.borrow().add(&mut self.backend, element)
+    fn add(&mut self, element: &L::Item) {
+        self.logic.add(&mut self.backend, element)
     }
 
     #[inline(always)]
-    fn as_mut_backend(&mut self) -> impl AsMut<<C as CounterLogic<T>>::Backend> {
+    fn as_backend_mut(&mut self) -> impl AsMut<L::Backend> {
         &mut self.backend
     }
 
     #[inline(always)]
     fn clear(&mut self) {
-        self.logic.borrow().clear(&mut self.backend)
+        self.logic.clear(&mut self.backend)
     }
 
     #[inline(always)]
-    fn set_to(&mut self, other: impl AsRef<C::Backend>) {
-        self.logic.borrow().set_to(&mut self.backend, &other)
+    fn set_to(&mut self, other: impl AsRef<L::Backend>) {
+        self.logic.set_to(&mut self.backend, &other)
     }
 
     #[inline(always)]
@@ -54,32 +51,21 @@ impl<
     }
 }
 
-impl<
-        T,
-        W: Word,
-        C: CounterLogic<T> + MergeCounterLogic<T>,
-        L: Borrow<C> + Clone,
-        B: AsRef<C::Backend> + AsMut<C::Backend>,
-    > MergableCounter<T, C> for DefaultCounter<T, W, C, L, B>
+impl<L: CounterLogic + MergeCounterLogic + Clone, B: AsRef<L::Backend> + AsMut<L::Backend>>
+    MergeCounter<L> for DefaultCounter<L, B>
 {
     #[inline(always)]
-    fn new_merge_helper(&self) -> <C as MergeCounterLogic<T>>::MergeHelper {
-        self.logic.borrow().new_merge_helper()
-    }
-
-    #[inline(always)]
-    fn merge(&mut self, other: impl AsRef<C::Backend>) {
-        self.logic.borrow().merge_into(&mut self.backend, &other)
+    fn merge(&mut self, other: impl AsRef<L::Backend>) {
+        self.logic.merge(&mut self.backend, &other)
     }
 
     #[inline(always)]
     fn merge_with_helper(
         &mut self,
-        other: impl AsRef<C::Backend>,
-        helper: &mut <C as MergeCounterLogic<T>>::MergeHelper,
+        other: impl AsRef<L::Backend>,
+        helper: &mut <L as MergeCounterLogic>::Helper,
     ) {
         self.logic
-            .borrow()
-            .merge_into_with_helper(&mut self.backend, &other, helper)
+            .merge_with_helper(&mut self.backend, &other, helper)
     }
 }

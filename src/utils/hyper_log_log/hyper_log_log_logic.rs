@@ -5,8 +5,8 @@ use crate::{
 };
 use anyhow::{ensure, Context, Result};
 use common_traits::{CastableFrom, CastableInto, Number, UpcastableInto};
-use std::f64::consts::LN_2;
 use std::hash::*;
+use std::{borrow::Borrow, f64::consts::LN_2};
 use sux::{
     bits::BitFieldVec,
     traits::{BitFieldSliceMut, Word},
@@ -111,23 +111,23 @@ pub struct HyperLogLogHelper<W> {
     mask: Vec<W>,
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> CounterLogic<T>
+impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> CounterLogic
     for HyperLogLog<T, W>
 {
+    type Item = T;
     type Backend = [W];
-    type Counter<'a> = DefaultCounter<T, W, Self, &'a Self, Box<[W]>> where T: 'a, W: 'a;
+    type Counter<'a> = DefaultCounter<Self, Box<[W]>> where T: 'a, W: 'a;
 
     fn new_counter(&self) -> Self::Counter<'_> {
         Self::Counter {
-            logic: self,
+            logic: self.clone(), // TODO: avoid clone
             backend: vec![W::ZERO; self.words_per_counter].into_boxed_slice(),
-            _marker: std::marker::PhantomData,
         }
     }
 
-    fn add(&self, mut counter: impl AsMut<[W]>, element: T) {
+    fn add(&self, mut counter: impl AsMut<Self::Backend>, element: &T) {
         let mut counter = counter.as_mut();
-        let x = self.build_hasher.hash_one(element);
+        let x = self.build_hasher.hash_one(element.borrow());
         let j = x & self.num_registers_minus_1;
         let r = (x >> self.log_2_num_registers | self.sentinel_mask).trailing_zeros() as HashResult;
         let register = j as usize;
@@ -177,23 +177,23 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
     }
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> MergeCounterLogic<T>
+impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> MergeCounterLogic
     for HyperLogLog<T, W>
 {
-    type MergeHelper = HyperLogLogHelper<W>;
+    type Helper = HyperLogLogHelper<W>;
 
-    fn new_merge_helper(&self) -> Self::MergeHelper {
+    fn new_helper(&self) -> Self::Helper {
         HyperLogLogHelper {
             acc: vec![W::ZERO; self.words_per_counter].into(),
             mask: vec![W::ZERO; self.words_per_counter].into(),
         }
     }
 
-    fn merge_into_with_helper(
+    fn merge_with_helper(
         &self,
         dst: impl AsMut<[W]>,
         src: impl AsRef<[W]>,
-        helper: &mut Self::MergeHelper,
+        helper: &mut Self::Helper,
     ) {
         merge_hyperloglog_bitwise(
             dst,
