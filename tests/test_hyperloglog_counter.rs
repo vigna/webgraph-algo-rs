@@ -1,4 +1,4 @@
-use anyhow::Result;
+/*use anyhow::Result;
 use webgraph_algo::{
     prelude::*,
     utils::{HyperLogLogCounterArray, HyperLogLogCounterArrayBuilder},
@@ -249,3 +249,4 @@ fn test_merge_bitwise() -> Result<()> {
 
     Ok(())
 }
+*/

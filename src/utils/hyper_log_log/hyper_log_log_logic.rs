@@ -125,7 +125,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
         }
     }
 
-    fn add(&self, mut counter: impl AsMut<Self::Backend>, element: &T) {
+    fn add(&self, mut counter: impl AsMut<Self::Backend>, element: impl Borrow<T>) {
         let mut counter = counter.as_mut();
         let x = self.build_hasher.hash_one(element.borrow());
         let j = x & self.num_registers_minus_1;

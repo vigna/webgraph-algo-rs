@@ -1024,7 +1024,7 @@ where
             }
         } else {
             (0..self.graph.num_nodes()).into_iter().for_each(|i| {
-                self.prev_state.get_counter_mut(i).add(&i);
+                self.prev_state.get_counter_mut(i).add(i);
             });
         }
 
