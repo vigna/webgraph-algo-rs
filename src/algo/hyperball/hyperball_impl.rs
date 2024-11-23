@@ -18,8 +18,8 @@ use webgraph::traits::RandomAccessGraph;
 pub struct HyperBallBuilder<
     'a,
     D: Succ<Input = usize, Output = usize>,
-    C: CounterLogic<Item = G1::Label> + MergeCounterLogic,
-    A: CounterArrayMut<C>,
+    L: CounterLogic<Item = G1::Label> + MergeCounterLogic,
+    A: CounterArrayMut<L>,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync = G1,
 > {
@@ -33,16 +33,16 @@ pub struct HyperBallBuilder<
     weights: Option<&'a [usize]>,
     bits: A,
     result_bits: A,
-    _marker: std::marker::PhantomData<C>,
+    _marker: std::marker::PhantomData<L>,
 }
 
 impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
         G: RandomAccessGraph + Sync,
-        C: CounterLogic<Item = G::Label> + MergeCounterLogic,
-        A: CounterArrayMut<C>,
-    > HyperBallBuilder<'a, D, C, A, G, G>
+        L: CounterLogic<Item = G::Label> + MergeCounterLogic,
+        A: CounterArrayMut<L>,
+    > HyperBallBuilder<'a, D, L, A, G, G>
 {
     /// Creates a new builder with default parameters.
     ///
@@ -71,9 +71,9 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: CounterLogic<Item = G1::Label> + MergeCounterLogic,
-        A: CounterArrayMut<C>,
-    > HyperBallBuilder<'a, D, C, A, G1, G2>
+        L: CounterLogic<Item = G1::Label> + MergeCounterLogic,
+        A: CounterArrayMut<L>,
+    > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
 
@@ -186,9 +186,9 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        C: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync,
-        A: CounterArrayMut<C>,
-    > HyperBallBuilder<'a, D, C, A, G1, G2>
+        L: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync,
+        A: CounterArrayMut<L>,
+    > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
     /// Builds the [`HyperBall`] instance with the specified [`HyperLogLogBuilder`] and
     /// logs progress with the provided logger.
@@ -196,7 +196,7 @@ impl<
     /// # Arguments
     /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
-    pub fn build(self, pl: &mut impl ProgressLog) -> HyperBall<'a, G1, G2, D, C, A> {
+    pub fn build(self, pl: &mut impl ProgressLog) -> HyperBall<'a, G1, G2, D, L, A> {
         let num_nodes = self.graph.num_nodes();
 
         let sum_of_distances = if self.sum_of_distances {
@@ -309,8 +309,8 @@ pub struct HyperBall<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
     D: Succ<Input = usize, Output = usize>,
-    C: MergeCounterLogic<Item = G1::Label> + Sync,
-    A: CounterArrayMut<C>,
+    L: MergeCounterLogic<Item = G1::Label> + Sync,
+    A: CounterArrayMut<L>,
 > {
     /// The graph to analyze.
     graph: &'a G1,
@@ -366,7 +366,7 @@ pub struct HyperBall<
     relative_increment: f64,
     /// Context used in a single iteration.
     iteration_context: IterationContext,
-    _marker: std::marker::PhantomData<C>,
+    _marker: std::marker::PhantomData<L>,
 }
 
 impl<
@@ -374,11 +374,11 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        C: MergeCounterLogic<Item = usize> + Sync,
-        A: CounterArrayMut<C> + Sync,
-    > HyperBall<'a, G1, G2, D, C, A>
+        L: MergeCounterLogic<Item = usize> + Sync,
+        A: CounterArrayMut<L> + Sync,
+    > HyperBall<'a, G1, G2, D, L, A>
 where
-    C::Backend: PartialEq,
+    L::Backend: PartialEq,
 {
     /// Runs HyperBall.
     ///
@@ -608,9 +608,9 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        C: MergeCounterLogic<Item = G1::Label> + Sync,
-        A: CounterArrayMut<C> + Sync,
-    > HyperBall<'a, G1, G2, D, C, A>
+        L: MergeCounterLogic<Item = G1::Label> + Sync,
+        A: CounterArrayMut<L> + Sync,
+    > HyperBall<'a, G1, G2, D, L, A>
 {
     #[inline(always)]
     fn swap_arrays(&mut self) {
@@ -624,11 +624,11 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        C: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
-        A: CounterArrayMut<C> + Sync,
-    > HyperBall<'a, G1, G2, D, C, A>
+        L: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
+        A: CounterArrayMut<L> + Sync,
+    > HyperBall<'a, G1, G2, D, L, A>
 where
-    C::Backend: PartialEq,
+    L::Backend: PartialEq,
 {
     /// Performs a new iteration of HyperBall.
     ///

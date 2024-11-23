@@ -68,7 +68,7 @@ impl<T, W: Word> HyperLogLogArray<T, W> {
 impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     CounterArray<HyperLogLog<T, W>> for HyperLogLogArray<T, W>
 {
-    type Counter<'a> = DefaultCounter<HyperLogLog<T, W>, &'a [W]> where Self: 'a;
+    type Counter<'a> = DefaultCounter<HyperLogLog<T, W>, &'a HyperLogLog<T, W>, &'a [W]> where Self: 'a;
 
     fn get_backend(&self, index: usize) -> &<HyperLogLog<T, W> as CounterLogic>::Backend {
         let offset = index * self.logic.words_per_counter;
@@ -86,17 +86,14 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     }
 
     fn get_counter(&self, index: usize) -> Self::Counter<'_> {
-        DefaultCounter {
-            logic: self.logic.clone(), // TODO: avoid cloning the logic
-            backend: self.get_backend(index),
-        }
+        DefaultCounter::new(&self.logic, self.get_backend(index))
     }
 }
 
 impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     CounterArrayMut<HyperLogLog<T, W>> for HyperLogLogArray<T, W>
 {
-    type CounterMut<'a> = DefaultCounter<HyperLogLog<T, W>, &'a mut [W]> where Self: 'a;
+    type CounterMut<'a> = DefaultCounter<HyperLogLog<T, W>, &'a HyperLogLog<T, W>, &'a mut [W]> where Self: 'a;
 
     fn get_backend_mut(
         &mut self,
@@ -113,10 +110,20 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     }
 
     fn get_counter_mut(&mut self, index: usize) -> Self::CounterMut<'_> {
-        DefaultCounter {
-            logic: self.logic.clone(), // TODO: avoid cloning the logic
-            backend: self.get_backend_mut(index),
-        }
+        let logic = &self.logic;
+
+        // We have to extract manually the backend because get_backend_mut
+        // borrows self mutably, but we need to borrow just self.backend.
+        let offset = index * self.logic.words_per_counter;
+
+        // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
+        // has the same memory layout as `T`.
+        let backend = unsafe {
+            &mut *(self.backend[offset..][..self.logic.words_per_counter].as_mut()
+                as *mut [SyncCell<W>] as *mut [Cell<W>] as *mut [W])
+        };
+
+        DefaultCounter::new(logic, backend)
     }
 
     unsafe fn set(&self, index: usize, content: &<HyperLogLog<T, W> as CounterLogic>::Backend) {

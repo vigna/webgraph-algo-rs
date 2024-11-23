@@ -117,13 +117,13 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
 {
     type Item = T;
     type Backend = [W];
-    type Counter<'a> = DefaultCounter<Self, Box<[W]>> where T: 'a, W: 'a;
+    type Counter<'a> = DefaultCounter<Self, &'a Self, Box<[W]>> where T: 'a, W: 'a;
 
     fn new_counter(&self) -> Self::Counter<'_> {
-        Self::Counter {
-            logic: self.clone(), // TODO: avoid clone
-            backend: vec![W::ZERO; self.words_per_counter].into_boxed_slice(),
-        }
+        Self::Counter::new(
+            self,
+            vec![W::ZERO; self.words_per_counter].into_boxed_slice(),
+        )
     }
 
     fn add(&self, counter: &mut Self::Backend, element: impl Borrow<T>) {
