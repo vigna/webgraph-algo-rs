@@ -96,14 +96,25 @@ impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
         &self,
         len: usize,
         mmap_options: TempMmapOptions,
-    ) -> Result<HyperLogLogArray<T, H, W>> {
+    ) -> Result<SliceCounterArray<Self, W>> {
         let bits = MmapSlice::from_default(len * self.words_per_counter, mmap_options)
             .with_context(|| "Could not create CounterArray with mmap")?;
-        Ok(HyperLogLogArray {
+        Ok(SliceCounterArray {
             backend: bits,
             len,
             logic: self.clone(),
         })
+    }
+}
+
+impl<
+        T: Hash,
+        H: BuildHasher + Clone,
+        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+    > SliceCounterLogic for HyperLogLog<T, H, W>
+{
+    fn words_per_counter(&self) -> usize {
+        self.words_per_counter
     }
 }
 

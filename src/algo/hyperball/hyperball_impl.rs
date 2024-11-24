@@ -1064,6 +1064,8 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::hash::{BuildHasherDefault, DefaultHasher};
+
     use super::*;
     use crate::threads;
     use dsi_progress_logger::no_logging;
@@ -1075,8 +1077,14 @@ mod test {
 
     struct SeqHyperBall<'a, G: RandomAccessGraph> {
         graph: &'a G,
-        bits: HyperLogLogArray<G::Label, usize>,
-        result_bits: HyperLogLogArray<G::Label, usize>,
+        bits: SliceCounterArray<
+            HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
+            usize,
+        >,
+        result_bits: SliceCounterArray<
+            HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
+            usize,
+        >,
     }
 
     impl<'a, G: RandomAccessGraph> SeqHyperBall<'a, G> {
@@ -1108,7 +1116,7 @@ mod test {
 
         let num_nodes = graph.num_nodes();
 
-        let hyper_log_log = HyperLogLogBuilder::<usize>::new(num_nodes)
+        let hyper_log_log = HyperLogLogBuilder::new(num_nodes)
             .seed(42)
             .log_2_num_reg(6)
             .build()?;

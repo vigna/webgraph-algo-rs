@@ -45,6 +45,10 @@ pub trait MergeCounterLogic: CounterLogic {
     );
 }
 
+pub trait SliceCounterLogic: CounterLogic {
+    fn words_per_counter(&self) -> usize;
+}
+
 pub trait Counter<L: CounterLogic + ?Sized> {
     type OwnedCounter: Counter<L>;
 
@@ -96,7 +100,7 @@ pub trait CounterArray<L: CounterLogic + ?Sized> {
     fn get_backend(&self, index: usize) -> &L::Backend;
 }
 
-pub trait CounterArrayMut<L: MergeCounterLogic + ?Sized>: CounterArray<L> {
+pub trait CounterArrayMut<L: CounterLogic + ?Sized>: CounterArray<L> {
     type CounterMut<'a>: CounterMut<L>
     where
         Self: 'a;
