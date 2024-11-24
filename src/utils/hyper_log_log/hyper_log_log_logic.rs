@@ -13,8 +13,8 @@ use sux::{
 };
 
 #[derive(Debug)]
-pub struct HyperLogLog<T, W> {
-    build_hasher: JenkinsHasherBuilder,
+pub struct HyperLogLog<T, H, W> {
+    build_hasher: H,
     register_size: usize,
     num_registers_minus_1: HashResult,
     log_2_num_registers: usize,
@@ -27,7 +27,7 @@ pub struct HyperLogLog<T, W> {
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<T, W: Clone> Clone for HyperLogLog<T, W> {
+impl<T, H: Clone, W: Clone> Clone for HyperLogLog<T, H, W> {
     fn clone(&self) -> Self {
         Self {
             build_hasher: self.build_hasher.clone(),
@@ -45,7 +45,7 @@ impl<T, W: Clone> Clone for HyperLogLog<T, W> {
     }
 }
 
-impl<T, W: Word> HyperLogLog<T, W> {
+impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
     #[inline(always)]
     fn get_register_unchecked(&self, counter: impl AsRef<[W]>, index: usize) -> W {
         let counter = counter.as_ref();
@@ -96,7 +96,7 @@ impl<T, W: Word> HyperLogLog<T, W> {
         &self,
         len: usize,
         mmap_options: TempMmapOptions,
-    ) -> Result<HyperLogLogArray<T, W>> {
+    ) -> Result<HyperLogLogArray<T, H, W>> {
         let bits = MmapSlice::from_default(len * self.words_per_counter, mmap_options)
             .with_context(|| "Could not create CounterArray with mmap")?;
         Ok(HyperLogLogArray {
@@ -112,12 +112,15 @@ pub struct HyperLogLogHelper<W> {
     mask: Vec<W>,
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> CounterLogic
-    for HyperLogLog<T, W>
+impl<
+        T: Hash,
+        H: BuildHasher + Clone,
+        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+    > CounterLogic for HyperLogLog<T, H, W>
 {
     type Item = T;
     type Backend = [W];
-    type Counter<'a> = DefaultCounter<Self, &'a Self, Box<[W]>> where T: 'a, W: 'a;
+    type Counter<'a> = DefaultCounter<Self, &'a Self, Box<[W]>> where T: 'a, W: 'a, H: 'a;
 
     fn new_counter(&self) -> Self::Counter<'_> {
         Self::Counter::new(
@@ -177,8 +180,11 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> C
     }*/
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> MergeCounterLogic
-    for HyperLogLog<T, W>
+impl<
+        T: Hash,
+        H: BuildHasher + Clone,
+        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+    > MergeCounterLogic for HyperLogLog<T, H, W>
 {
     type Helper = HyperLogLogHelper<W>;
 
@@ -203,17 +209,19 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>> M
 }
 
 #[derive(Debug, Clone)]
-pub struct HyperLogLogBuilder<W = usize> {
+pub struct HyperLogLogBuilder<H, W = usize> {
+    build_hasher: H,
     log_2_num_registers: usize,
     n: usize,
     seed: u64,
-    _marker: std::marker::PhantomData<W>,
+    _marker: std::marker::PhantomData<(H, W)>,
 }
 
-impl<W> HyperLogLogBuilder<W> {
+impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
     /// Creates a new builder for an [`HyperLogLog`] with a word type of `W`.
     pub fn new(n: usize) -> Self {
         Self {
+            build_hasher: BuildHasherDefault::default(),
             log_2_num_registers: 4,
             n,
             seed: 0,
@@ -237,7 +245,7 @@ fn min_alignment(bits: usize) -> String {
     .to_string()
 }
 
-impl HyperLogLog<(), ()> {
+impl HyperLogLog<(), (), ()> {
     /// Returns the logarithm of the number of registers per counter that are necessary to attain a
     /// given relative stadard deviation.
     ///
@@ -271,7 +279,7 @@ impl HyperLogLog<(), ()> {
     }
 }
 
-impl<W: Word> HyperLogLogBuilder<W> {
+impl<H, W: Word> HyperLogLogBuilder<H, W> {
     /// Sets the counters desired relative standard deviation.
     ///
     /// ## Note
@@ -306,7 +314,7 @@ impl<W: Word> HyperLogLogBuilder<W> {
     ///
     /// The type of objects the counters keep track of is defined here by `T`, but
     /// it is usually inferred by the compiler.
-    pub fn build<T>(&self) -> Result<HyperLogLog<T, W>> {
+    pub fn build<T>(self) -> Result<HyperLogLog<T, H, W>> {
         let log_2_num_registers = self.log_2_num_registers;
         let num_elements = self.n;
 
@@ -354,7 +362,7 @@ impl<W: Word> HyperLogLogBuilder<W> {
             register_size,
             alpha_m_m: alpha * (number_of_registers as f64).powi(2),
             sentinel_mask,
-            build_hasher: JenkinsHasherBuilder::new(self.seed),
+            build_hasher: self.build_hasher,
             msb_mask: msb.as_slice().into(),
             lsb_mask: lsb.as_slice().into(),
             words_per_counter: counter_size_in_words,
@@ -363,7 +371,7 @@ impl<W: Word> HyperLogLogBuilder<W> {
     }
 }
 
-impl<W, H> std::fmt::Display for HyperLogLog<W, H> {
+impl<T, H, W> std::fmt::Display for HyperLogLog<T, H, W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

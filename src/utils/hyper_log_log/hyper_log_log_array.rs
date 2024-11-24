@@ -38,13 +38,13 @@ impl<T> std::ops::Deref for SyncCell<T> {
     }
 }
 
-pub struct HyperLogLogArray<T, W: Word> {
-    pub(super) logic: HyperLogLog<T, W>,
+pub struct HyperLogLogArray<T, H, W: Word> {
+    pub(super) logic: HyperLogLog<T, H, W>,
     pub(super) backend: MmapSlice<SyncCell<W>>,
     pub(super) len: usize,
 }
 
-impl<T, W: Word> HyperLogLogArray<T, W> {
+impl<T, H, W: Word> HyperLogLogArray<T, H, W> {
     ///Returns the number of elements in the array, also referred to as its ‘length’.
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -65,12 +65,15 @@ impl<T, W: Word> HyperLogLogArray<T, W> {
     }
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
-    CounterArray<HyperLogLog<T, W>> for HyperLogLogArray<T, W>
+impl<
+        T: Hash,
+        H: BuildHasher + Clone,
+        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+    > CounterArray<HyperLogLog<T, H, W>> for HyperLogLogArray<T, H, W>
 {
-    type Counter<'a> = DefaultCounter<HyperLogLog<T, W>, &'a HyperLogLog<T, W>, &'a [W]> where Self: 'a;
+    type Counter<'a> = DefaultCounter<HyperLogLog<T, H, W>, &'a HyperLogLog<T, H, W>, &'a [W]> where Self: 'a;
 
-    fn get_backend(&self, index: usize) -> &<HyperLogLog<T, W> as CounterLogic>::Backend {
+    fn get_backend(&self, index: usize) -> &<HyperLogLog<T, H, W> as CounterLogic>::Backend {
         let offset = index * self.logic.words_per_counter;
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
         // has the same memory layout as `T`.
@@ -81,7 +84,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     }
 
     #[inline(always)]
-    fn logic(&self) -> &HyperLogLog<T, W> {
+    fn logic(&self) -> &HyperLogLog<T, H, W> {
         &self.logic
     }
 
@@ -90,15 +93,18 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
     }
 }
 
-impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
-    CounterArrayMut<HyperLogLog<T, W>> for HyperLogLogArray<T, W>
+impl<
+        T: Hash,
+        H: BuildHasher + Clone,
+        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
+    > CounterArrayMut<HyperLogLog<T, H, W>> for HyperLogLogArray<T, H, W>
 {
-    type CounterMut<'a> = DefaultCounter<HyperLogLog<T, W>, &'a HyperLogLog<T, W>, &'a mut [W]> where Self: 'a;
+    type CounterMut<'a> = DefaultCounter<HyperLogLog<T, H, W>, &'a HyperLogLog<T, H, W>, &'a mut [W]> where Self: 'a;
 
     fn get_backend_mut(
         &mut self,
         index: usize,
-    ) -> &mut <HyperLogLog<T, W> as CounterLogic>::Backend {
+    ) -> &mut <HyperLogLog<T, H, W> as CounterLogic>::Backend {
         let offset = index * self.logic.words_per_counter;
 
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
@@ -126,7 +132,7 @@ impl<T: Hash, W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>>
         DefaultCounter::new(logic, backend)
     }
 
-    unsafe fn set(&self, index: usize, content: &<HyperLogLog<T, W> as CounterLogic>::Backend) {
+    unsafe fn set(&self, index: usize, content: &<HyperLogLog<T, H, W> as CounterLogic>::Backend) {
         debug_assert!(content.as_ref().len() == self.logic.words_per_counter);
         let offset = index * self.logic.words_per_counter;
         for (c, &b) in self.backend[offset..].iter().zip(content.as_ref()) {

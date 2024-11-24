@@ -77,7 +77,7 @@ fn test_cnr_2000() -> Result<()> {
     let expected_nieminen_centralities =
         read_float_array("./tests/hyperball_results/cnr-2000_nieminen_centrality")?;
 
-    let hyper_log_log = HyperLogLogBuilder::<usize>::new(graph.num_nodes())
+    let hyper_log_log = HyperLogLogBuilder::new(graph.num_nodes())
         .log_2_num_reg(8)
         .seed(42)
         .build()?;

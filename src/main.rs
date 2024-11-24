@@ -52,7 +52,7 @@ fn main() -> Result<()> {
                 .parse()
                 .expect("Expected integer");
 
-            let hyper_log_log = HyperLogLogBuilder::<usize>::new(graph.num_nodes())
+            let hyper_log_log = HyperLogLogBuilder::new(graph.num_nodes())
                 .log_2_num_reg(log2m)
                 .build()?;
             let bits = hyper_log_log.new_array(graph.num_nodes(), mem_options.clone())?;
