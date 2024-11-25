@@ -211,8 +211,8 @@ fn assert_array_equal<T: Float>(expected: &[T], actual: &[T], threshold: T, name
     }
 }
 
-#[test]
-#[ignore = "Takes too long, will only run in CI"]
+#[cfg_attr(feature = "slow_tests", test)]
+#[cfg_attr(not(feature = "slow_tests"), allow(dead_code))]
 fn test_cnr_2000() -> Result<()> {
     let basename = "tests/graphs/cnr-2000";
 

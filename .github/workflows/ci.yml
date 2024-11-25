@@ -47,6 +47,6 @@ jobs:
       - name: Test build
         run: cargo build --release
       - name: Build tests
-        run: cargo test --no-run
+        run: cargo test --no-run --features slow_tests
       - name: Run tests
-        run: cargo test -- --ignored
+        run: cargo test --features slow_tests
