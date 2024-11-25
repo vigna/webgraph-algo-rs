@@ -104,7 +104,7 @@ pub trait SliceCounterLogic: CounterLogic {
 /// or they contain some useful immutable state that can be reused.
 ///
 /// A counter must implement [`AsRef`] so to return a reference to its backend.
-pub trait Counter<L: CounterLogic>: AsRef<L::Backend> {
+pub trait Counter<L: CounterLogic + ?Sized>: AsRef<L::Backend> {
     /// The type returned by [`Counter::into_owned`].
     type OwnedCounter: CounterMut<L>;
 
@@ -123,7 +123,7 @@ pub trait Counter<L: CounterLogic>: AsRef<L::Backend> {
 ///
 /// A mutable counter must implement [`AsMut`] so to return a mutable reference
 /// to its backend.
-pub trait CounterMut<L: CounterLogic>: Counter<L> + AsMut<L::Backend> {
+pub trait CounterMut<L: CounterLogic + ?Sized>: Counter<L> + AsMut<L::Backend> {
     /// Adds an element to the counter.
     fn add(&mut self, element: impl Borrow<L::Item>);
 
@@ -139,7 +139,7 @@ pub trait CounterMut<L: CounterLogic>: Counter<L> + AsMut<L::Backend> {
 }
 
 /// A counter capable of merging.
-pub trait MergeCounter<L: MergeCounterLogic>: CounterMut<L> {
+pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
     /// Merges a backend into `self`.
     ///
     /// If you need to merge with the content of another counter, just use
@@ -160,7 +160,7 @@ pub trait MergeCounter<L: MergeCounterLogic>: CounterMut<L> {
 }
 
 /// An array of immutable counters sharing a [`CounterLogic`].
-pub trait CounterArray<L: CounterLogic> {
+pub trait CounterArray<L: CounterLogic + ?Sized> {
     /// The type of immutable counter returned by
     /// [`get_counter`](CounterArray::get_counter).
     type Counter<'a>: Counter<L>
@@ -184,7 +184,7 @@ pub trait CounterArray<L: CounterLogic> {
 }
 
 /// An array of mutable counters sharing a [`CounterLogic`].
-pub trait CounterArrayMut<L: CounterLogic>: CounterArray<L> {
+pub trait CounterArrayMut<L: CounterLogic + ?Sized>: CounterArray<L> {
     /// The type of mutable counter returned by
     /// [`get_counter_mut`](CounterArrayMut::get_counter_mut).
     type CounterMut<'a>: CounterMut<L>
