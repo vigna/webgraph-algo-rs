@@ -61,7 +61,7 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
     }
 
     /// Creates a new counter slice with the provided logic allocating memory
-    /// with the provided options.
+    /// by memory mapping, using the provided options.
     ///
     /// # Arguments
     /// * `logic`: the counter logic to use.
