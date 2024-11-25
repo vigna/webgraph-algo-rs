@@ -6,6 +6,11 @@ import json
 
 graphs = [
     ("cnr-2000", 1),
+    ("in-2004", 1),
+    ("eu-2005", 1),
+    ("uk-2005", 1),
+    ("it-2004", 1),
+    ("arabic-2005", 1),
 ]
 
 base_datasets = "data.law.di.unimi.it/webdata/"
