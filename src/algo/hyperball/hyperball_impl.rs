@@ -82,7 +82,7 @@ impl<
             graph.num_nodes()
         };
 
-        let logic = HyperLogLogBuilder::new(num_elements)
+        let logic = BuildHyperLogLog::new(num_elements)
             .log_2_num_reg(log2m)
             .build()
             .with_context(|| "Could not build hyperloglog logic")?;
@@ -269,7 +269,7 @@ impl<
         A: CounterArrayMut<L>,
     > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
-    /// Builds the [`HyperBall`] instance with the specified [`HyperLogLogBuilder`] and
+    /// Builds the [`HyperBall`] instance with the specified [`BuildHyperLogLog`] and
     /// logs progress with the provided logger.
     ///
     /// # Arguments
@@ -962,7 +962,7 @@ where
                                 modified = true;
                             }
                             logic.merge_with_helper(
-                                next_counter.as_backend_mut(),
+                                next_counter.as_mut(),
                                 self.prev_state.get_backend(succ),
                                 &mut helper,
                             );
@@ -971,7 +971,7 @@ where
 
                     let mut post = f64::NAN;
                     let modified_counter = if modified {
-                        next_counter.as_backend() != prev_counter
+                        next_counter.as_ref() != prev_counter
                     } else {
                         false
                     };
@@ -981,7 +981,7 @@ where
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
                     if !self.systolic || modified_counter {
-                        post = logic.count(next_counter.as_backend())
+                        post = logic.count(next_counter.as_ref())
                     }
                     if !self.systolic {
                         neighbourhood_function_delta += post;
@@ -1053,7 +1053,7 @@ where
                     }
 
                     unsafe {
-                        self.next_state.set(node, next_counter.as_backend());
+                        self.next_state.set(node, next_counter.as_ref());
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
@@ -1198,9 +1198,7 @@ mod test {
 
         let num_nodes = graph.num_nodes();
 
-        let hyper_log_log = HyperLogLogBuilder::new(num_nodes)
-            .log_2_num_reg(6)
-            .build()?;
+        let hyper_log_log = BuildHyperLogLog::new(num_nodes).log_2_num_reg(6).build()?;
 
         let seq_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;
         let seq_result_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;

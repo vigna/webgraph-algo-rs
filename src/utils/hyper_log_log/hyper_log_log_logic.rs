@@ -10,6 +10,20 @@ use sux::{
 };
 
 /// Counter logic implementing the HyperLogLog algorithm.
+///
+/// Instances are built using [`BuildHyperLogLog`], which provides convenient
+/// ways to set the internal parameters.
+///
+/// Note that `T` can be any type satisfying the [`Hash`] trait. The parameter
+/// `H` makes it possible to select a hashing algorithm, and `W` is the unsigned
+/// type used to store backends.
+///
+/// An important constraint is that `W` must be able to represent exactly the
+/// backend of a counter. While usually `usize` will work (and it is the default
+/// type chosen by [`new`](BuildHyperLogLog::new)), with odd register sizes and small
+/// number of registers it might be necessary to select a smaller type,
+/// resulting in slower merges. For example, using 16 5-bit registers one needs
+/// to use `u16`, whereas for 16 6-bit registers `u32` will be sufficient.
 #[derive(Debug)]
 pub struct HyperLogLog<T, H, W> {
     build_hasher: H,
@@ -44,9 +58,10 @@ impl<T, H: Clone, W: Clone> Clone for HyperLogLog<T, H, W> {
 }
 
 impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
+    /// Returns the value contained in a register of a given backend.
     #[inline(always)]
-    fn get_register_unchecked(&self, counter: impl AsRef<[W]>, index: usize) -> W {
-        let counter = counter.as_ref();
+    fn get_register_unchecked(&self, backend: impl AsRef<[W]>, index: usize) -> W {
+        let backend = backend.as_ref();
         let bit_width = self.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
         let pos = index * bit_width;
@@ -54,17 +69,18 @@ impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
         let bit_index = pos % W::BITS;
 
         if bit_index + bit_width <= W::BITS {
-            (unsafe { *counter.get_unchecked(word_index) } >> bit_index) & mask
+            (unsafe { *backend.get_unchecked(word_index) } >> bit_index) & mask
         } else {
-            (unsafe { *counter.get_unchecked(word_index) } >> bit_index
-                | unsafe { *counter.get_unchecked(word_index + 1) } << (W::BITS - bit_index))
+            (unsafe { *backend.get_unchecked(word_index) } >> bit_index
+                | unsafe { *backend.get_unchecked(word_index + 1) } << (W::BITS - bit_index))
                 & mask
         }
     }
 
+    /// Sets the value contained in a register of a given backend.
     #[inline(always)]
-    fn set_register_unchecked(&self, mut counter: impl AsMut<[W]>, index: usize, new_value: W) {
-        let counter = counter.as_mut();
+    fn set_register_unchecked(&self, mut backend: impl AsMut<[W]>, index: usize, new_value: W) {
+        let backend = backend.as_mut();
         let bit_width = self.register_size;
         let mask = W::MAX >> (W::BITS - bit_width);
         let pos = index * bit_width;
@@ -72,20 +88,20 @@ impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
         let bit_index = pos % W::BITS;
 
         if bit_index + bit_width <= W::BITS {
-            let mut word = unsafe { *counter.get_unchecked_mut(word_index) };
+            let mut word = unsafe { *backend.get_unchecked_mut(word_index) };
             word &= !(mask << bit_index);
             word |= new_value << bit_index;
-            unsafe { *counter.get_unchecked_mut(word_index) = word };
+            unsafe { *backend.get_unchecked_mut(word_index) = word };
         } else {
-            let mut word = unsafe { *counter.get_unchecked_mut(word_index) };
+            let mut word = unsafe { *backend.get_unchecked_mut(word_index) };
             word &= (W::ONE << bit_index) - W::ONE;
             word |= new_value << bit_index;
-            unsafe { *counter.get_unchecked_mut(word_index) = word };
+            unsafe { *backend.get_unchecked_mut(word_index) = word };
 
-            let mut word = unsafe { *counter.get_unchecked_mut(word_index + 1) };
+            let mut word = unsafe { *backend.get_unchecked_mut(word_index + 1) };
             word &= !(mask >> (W::BITS - bit_index));
             word |= new_value >> (W::BITS - bit_index);
-            unsafe { *counter.get_unchecked_mut(word_index + 1) = word };
+            unsafe { *backend.get_unchecked_mut(word_index + 1) = word };
         }
     }
 }
@@ -99,12 +115,6 @@ impl<
     fn backend_len(&self) -> usize {
         self.words_per_counter
     }
-}
-
-/// utility struct for merge operations with [HyperLogLog] logic.
-pub struct HyperLogLogHelper<W> {
-    acc: Vec<W>,
-    mask: Vec<W>,
 }
 
 impl<
@@ -171,6 +181,12 @@ impl<
     }
 }
 
+/// Helper for merge operations with [`HyperLogLog`] logic.
+pub struct HyperLogLogHelper<W> {
+    acc: Vec<W>,
+    mask: Vec<W>,
+}
+
 impl<
         T: Hash,
         H: BuildHasher + Clone,
@@ -199,17 +215,18 @@ impl<
     }
 }
 
-/// Builder for [HyperLogLog] counter logic.
+/// Builds a [`HyperLogLog`] counter logic.
 #[derive(Debug, Clone)]
-pub struct HyperLogLogBuilder<H, W = usize> {
+pub struct BuildHyperLogLog<H, W = usize> {
     build_hasher: H,
     log_2_num_registers: usize,
     n: usize,
     _marker: std::marker::PhantomData<(H, W)>,
 }
 
-impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
-    /// Creates a new builder for an [`HyperLogLog`] with a default word type of [usize].
+impl BuildHyperLogLog<BuildHasherDefault<DefaultHasher>, usize> {
+    /// Creates a new builder for a [`HyperLogLog`] logic with a default word
+    /// type of `usize`.
     pub fn new(n: usize) -> Self {
         Self {
             build_hasher: BuildHasherDefault::default(),
@@ -236,20 +253,22 @@ fn min_alignment(bits: usize) -> String {
 }
 
 impl HyperLogLog<(), (), ()> {
-    /// Returns the logarithm of the number of registers per counter that are necessary to attain a
-    /// given relative stadard deviation.
+    /// Returns the logarithm of the number of registers per counter that are
+    /// necessary to attain a given relative stadard deviation.
     ///
     /// # Arguments
     /// * `rsd`: the relative standard deviation to be attained.
-    pub fn log_2_number_of_registers(rsd: f64) -> usize {
+    pub fn log_2_num_of_registers(rsd: f64) -> usize {
         ((1.106 / rsd).pow(2.0)).log2().ceil() as usize
     }
 
-    /// Returns the relative standard deviation corresponding to a given number of registers per counter.
+    /// Returns the relative standard deviation corresponding to a given number
+    /// of registers per counter.
     ///
     /// # Arguments
-    /// * `log_2_num_registers`: the logarithm of the number of registers per counter.
-    pub fn relative_standard_deviation(log_2_num_registers: usize) -> f64 {
+    /// * `log_2_num_registers`: the logarithm of the number of registers per
+    ///   counter.
+    pub fn rel_std(log_2_num_registers: usize) -> f64 {
         let tmp = match log_2_num_registers {
             4 => 1.106,
             5 => 1.070,
@@ -260,29 +279,31 @@ impl HyperLogLog<(), (), ()> {
         tmp / ((1 << log_2_num_registers) as f64).sqrt()
     }
 
-    /// Returns the register size in bits, given an upper bound on the number of distinct elements.
+    /// Returns the register size in bits, given an upper bound on the number of
+    /// distinct elements.
     ///
     /// # Arguments
     /// * `n`: an upper bound on the number of distinct elements.
-    pub fn register_size_from_number_of_elements(n: usize) -> usize {
+    pub fn register_size(n: usize) -> usize {
         std::cmp::max(5, (((n as f64).ln() / LN_2) / LN_2).ln().ceil() as usize)
     }
 }
 
-impl<H, W: Word> HyperLogLogBuilder<H, W> {
-    /// Sets the counters desired relative standard deviation.
+impl<H, W: Word> BuildHyperLogLog<H, W> {
+    /// Sets the desired relative standard deviation.
     ///
     /// ## Note
-    /// This is a high-level alternative to [`Self::log_2_num_reg`].
-    /// Calling one after the other invalidates the work done by the first one.
+    ///
+    /// This is a high-level alternative to [`Self::log_2_num_reg`]. Calling one
+    /// after the other invalidates the work done by the first one.
     ///
     /// # Arguments
     /// * `rsd`: the relative standard deviation to be attained.
     pub fn rsd(self, rsd: f64) -> Self {
-        self.log_2_num_reg(HyperLogLog::log_2_number_of_registers(rsd))
+        self.log_2_num_reg(HyperLogLog::log_2_num_of_registers(rsd))
     }
 
-    /// Sets the log₂*m* number of registers for the array of counters.
+    /// Sets the base-2 logarithm of the number of register.
     ///
     /// ## Note
     /// This is a low-level alternative to [`Self::rsd`].
@@ -295,9 +316,12 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
         self
     }
 
-    /// Sets the type `W` to use as backend.
-    pub fn word_type<W2>(self) -> HyperLogLogBuilder<H, W2> {
-        HyperLogLogBuilder {
+    /// Sets the type `W` to use to represent backends.
+    ///
+    /// See the [`struct documentation`] for the limitations
+    /// on the choice of `W2`.
+    pub fn word_type<W2>(self) -> BuildHyperLogLog<H, W2> {
+        BuildHyperLogLog {
             n: self.n,
             build_hasher: self.build_hasher,
             log_2_num_registers: self.log_2_num_registers,
@@ -311,9 +335,12 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
         self
     }
 
-    /// Sets the hasher builder to use.
-    pub fn build_hasher<H2>(self, build_hasher: H2) -> HyperLogLogBuilder<H2, W> {
-        HyperLogLogBuilder {
+    /// Sets the [`BuildHasher`] to use.
+    ///
+    /// Note that using this method you can select a specific
+    /// hashed based on one or more seeds.
+    pub fn build_hasher<H2>(self, build_hasher: H2) -> BuildHyperLogLog<H2, W> {
+        BuildHyperLogLog {
             n: self.n,
             log_2_num_registers: self.log_2_num_registers,
             build_hasher,
@@ -321,10 +348,15 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
         }
     }
 
-    /// Builds the counter logic.
+    /// Builds the logic.
     ///
-    /// The type of objects the counters keep track of is defined here by `T`, but
-    /// it is usually inferred by the compiler.
+    /// The type of objects the counters keep track of is defined here by `T`,
+    /// but it is usually inferred by the compiler.
+    ///
+    /// # Errors
+    ///
+    /// Errors will be caused by consistency checks (at least 16 registers per counter,
+    /// backend bits divisible exactly `W::BITS`)
     pub fn build<T>(self) -> Result<HyperLogLog<T, H, W>> {
         let log_2_num_registers = self.log_2_num_registers;
         let num_elements = self.n;
@@ -332,12 +364,12 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
         // This ensures counters are at least 16-bit-aligned.
         ensure!(
             log_2_num_registers >= 4,
-            "the logarithm of the number of registers per counter should be at least 4. Got {}",
+            "the logarithm of the number of registers per counter should be at least 4; got {}",
             log_2_num_registers
         );
 
         let number_of_registers = 1 << log_2_num_registers;
-        let register_size = HyperLogLog::register_size_from_number_of_elements(num_elements);
+        let register_size = HyperLogLog::register_size(num_elements);
         let sentinel_mask = 1 << ((1 << register_size) - 2);
         let alpha = match log_2_num_registers {
             4 => 0.673,
@@ -352,7 +384,7 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
         // This ensures counters are always aligned to W
         ensure!(
             counter_size_in_bits % W::BITS == 0,
-            "W should allow counters to be aligned. Use {} or smaller words",
+            "W should allow counter backends to be aligned. Use {} or smaller unsigned integer types",
             min_alignment(counter_size_in_bits)
         );
         let counter_size_in_words = counter_size_in_bits / W::BITS;
@@ -386,10 +418,8 @@ impl<T, H, W> std::fmt::Display for HyperLogLog<T, H, W> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-
             "HyperLogLog with relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
-
-            100.0 * HyperLogLog::relative_standard_deviation(self.log_2_num_registers),
+            100.0 * HyperLogLog::rel_std(self.log_2_num_registers),
             self.num_registers,
             self.register_size,
             (self.num_registers * self.register_size) / 8

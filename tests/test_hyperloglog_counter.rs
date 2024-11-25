@@ -1,7 +1,7 @@
 use anyhow::Result;
 use webgraph_algo::{
     prelude::*,
-    utils::{HyperLogLog, HyperLogLogBuilder, SliceCounterArray},
+    utils::{BuildHyperLogLog, HyperLogLog, SliceCounterArray},
 };
 use xxhash_rust::xxh3::Xxh3Builder;
 
@@ -18,11 +18,11 @@ fn test_single() -> Result<()> {
 
     for size in sizes {
         for log2m in log2ms {
-            let rsd = HyperLogLog::relative_standard_deviation(log2m);
+            let rsd = HyperLogLog::rel_std(log2m);
             let mut correct = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = HyperLogLogBuilder::new(size)
+                let logic = BuildHyperLogLog::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
@@ -63,12 +63,12 @@ fn test_double() -> Result<()> {
 
     for size in sizes {
         for log2m in log2ms {
-            let rsd = HyperLogLog::relative_standard_deviation(log2m);
+            let rsd = HyperLogLog::rel_std(log2m);
             let mut correct_0 = 0;
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = HyperLogLogBuilder::new(size)
+                let logic = BuildHyperLogLog::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
@@ -122,12 +122,12 @@ fn test_merge() -> Result<()> {
 
     for size in sizes {
         for log2m in log2ms {
-            let rsd = HyperLogLog::relative_standard_deviation(log2m);
+            let rsd = HyperLogLog::rel_std(log2m);
             let mut correct_0 = 0;
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = HyperLogLogBuilder::new(size)
+                let logic = BuildHyperLogLog::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
@@ -143,7 +143,7 @@ fn test_merge() -> Result<()> {
                     x += incr;
                 }
 
-                counter_0.merge(counter_1.as_backend());
+                counter_0.merge(counter_1.as_ref());
 
                 let float_size = size as f64;
 
@@ -184,12 +184,12 @@ fn test_merge_array() -> Result<()> {
 
     for size in sizes {
         for log2m in log2ms {
-            let rsd = HyperLogLog::relative_standard_deviation(log2m);
+            let rsd = HyperLogLog::rel_std(log2m);
             let mut correct_0 = 0;
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = HyperLogLogBuilder::new(size)
+                let logic = BuildHyperLogLog::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))

@@ -23,6 +23,22 @@ impl<L: CounterLogic, BL: Borrow<L>, B> DefaultCounter<L, BL, B> {
     }
 }
 
+impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsRef<L::Backend>> AsRef<L::Backend>
+    for DefaultCounter<L, BL, B>
+{
+    fn as_ref(&self) -> &L::Backend {
+        self.backend.as_ref()
+    }
+}
+
+impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsMut<L::Backend>> AsMut<L::Backend>
+    for DefaultCounter<L, BL, B>
+{
+    fn as_mut(&mut self) -> &mut L::Backend {
+        self.backend.as_mut()
+    }
+}
+
 impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsRef<L::Backend>> Counter<L>
     for DefaultCounter<L, BL, B>
 {
@@ -30,11 +46,6 @@ impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsRef<L::Backend>> Counter<L>
 
     fn logic(&self) -> &L {
         self.logic.borrow()
-    }
-
-    #[inline(always)]
-    fn as_backend(&self) -> &L::Backend {
-        self.backend.as_ref()
     }
 
     #[inline(always)]
@@ -53,11 +64,6 @@ impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsRef<L::Backend> + AsMut<L::Bac
     #[inline(always)]
     fn add(&mut self, element: impl Borrow<L::Item>) {
         self.logic.borrow().add(self.backend.as_mut(), element)
-    }
-
-    #[inline(always)]
-    fn as_backend_mut(&mut self) -> &mut L::Backend {
-        self.backend.as_mut()
     }
 
     #[inline(always)]

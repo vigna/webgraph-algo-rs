@@ -102,7 +102,9 @@ pub trait SliceCounterLogic: CounterLogic {
 ///
 /// Immutable counters are usually immutable views over some larger structure,
 /// or they contain some useful immutable state that can be reused.
-pub trait Counter<L: CounterLogic + ?Sized> {
+///
+/// A counter must implement [`AsRef`] so to return a reference to its backend.
+pub trait Counter<L: CounterLogic + ?Sized>: AsRef<L::Backend> {
     /// The type returned by [`Counter::into_owned`].
     type OwnedCounter: CounterMut<L>;
 
@@ -113,28 +115,25 @@ pub trait Counter<L: CounterLogic + ?Sized> {
     /// elements that have been added to the counter so far.
     fn count(&self) -> f64;
 
-    /// Returns a reference to the counter backend.
-    fn as_backend(&self) -> &L::Backend;
-
     /// Converts this counter into an owned version capable of mutation.
     fn into_owned(self) -> Self::OwnedCounter;
 }
 
 /// A mutable counter.
-pub trait CounterMut<L: CounterLogic + ?Sized>: Counter<L> {
+///
+/// A mutable counter must implement [`AsMut`] so to return a mutable reference
+/// to its backend.
+pub trait CounterMut<L: CounterLogic + ?Sized>: Counter<L> + AsMut<L::Backend> {
     /// Adds an element to the counter.
     fn add(&mut self, element: impl Borrow<L::Item>);
 
     /// Clears the counter, making it empty.
     fn clear(&mut self);
 
-    /// Returns a mutable reference to the counter backend.
-    fn as_backend_mut(&mut self) -> &mut L::Backend;
-
     /// Sets the contents of `self` to the the given backend.
     ///
     /// If you need to set to the content of another counter, just use
-    /// [`as_backend`](Counter::as_backend) on the counter. This approach makes it
+    /// [`as_ref`](AsRef) on the counter. This approach makes it
     /// possible to extract content from both owned and non-owned counters.
     fn set(&mut self, backend: &L::Backend);
 }
@@ -144,7 +143,7 @@ pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
     /// Merges a backend into `self`.
     ///
     /// If you need to merge with the content of another counter, just use
-    /// [`as_backend`](Counter::as_backend) on the counter. This approach
+    /// [`as_ref`](AsRef) on the counter. This approach
     /// makes it possible to merge both owned and non-owned counters.
     fn merge(&mut self, backend: &L::Backend) {
         let mut helper = self.logic().new_helper();
@@ -155,7 +154,7 @@ pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
     /// excessive allocations.
     ///
     /// If you need to merge with the content of another counter, just use
-    /// [`as_backend`](Counter::as_backend) on the counter. This approach makes it
+    /// [`as_ref`](AsRef) on the counter. This approach makes it
     /// possible to merge both owned and non-owned counters.
     fn merge_with_helper(&mut self, backend: &L::Backend, helper: &mut L::Helper);
 }

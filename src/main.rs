@@ -7,7 +7,7 @@ use webgraph_algo::algo::hyperball::*;
 use webgraph_algo::algo::{exact_sum_sweep::*, sccs};
 use webgraph_algo::prelude::*;
 use webgraph_algo::threads;
-use webgraph_algo::utils::hyper_log_log::HyperLogLogBuilder;
+use webgraph_algo::utils::hyper_log_log::BuildHyperLogLog;
 use webgraph_algo::utils::SliceCounterArray;
 
 fn main() -> Result<()> {
@@ -53,7 +53,7 @@ fn main() -> Result<()> {
                 .parse()
                 .expect("Expected integer");
 
-            let hyper_log_log = HyperLogLogBuilder::new(graph.num_nodes())
+            let hyper_log_log = BuildHyperLogLog::new(graph.num_nodes())
                 .log_2_num_reg(log2m)
                 .build()?;
             let bits = SliceCounterArray::with_mmap(
