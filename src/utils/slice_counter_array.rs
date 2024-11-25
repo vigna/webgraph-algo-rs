@@ -5,9 +5,11 @@ use std::cell::{Cell, UnsafeCell};
 use sux::traits::Word;
 use webgraph::utils::SyncCell;
 
-/// A generic array for counters implementing a [CounterLogic].
+/// An array for counters implementing a shared [`CounterLogic`] whose backend
+/// is a slice.
 ///
-/// It uses [MmapSlice] as a backend.
+/// Note that we need a specific type for arrays slice backends as one
+/// cannot create a slice of slices.
 pub struct SliceCounterArray<L, W> {
     pub(super) logic: L,
     pub(super) backend: MmapSlice<SyncCell<W>>,
