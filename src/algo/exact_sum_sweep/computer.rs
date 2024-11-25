@@ -677,9 +677,10 @@ impl<
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
                         let node_backward_high = self.backward_high[node];
+                        let node_backward_low = unsafe { backward_low[node].get() };
 
                         unsafe { backward_tot[node].set(backward_tot[node].get() + distance) };
-                        let node_backward_low = unsafe { backward_low[node].get() };
+
                         if node_backward_low != node_backward_high && node_backward_low < distance {
                             unsafe { backward_low[node].set(distance) };
                         }
@@ -883,13 +884,13 @@ impl<
                 // Safety for unsafe blocks: each node gets accessed exactly
                 // once, so no data races can happen
 
-                unsafe {
-                    forward_high[node].set(std::cmp::min(
-                        forward_high[node].get(),
-                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
-                    ))
-                };
-                let node_forward_high = unsafe { forward_high[node].get() };
+                let mut node_forward_high = unsafe { forward_high[node].get() };
+                let pivot_value = dist_pivot_b[node] + ecc_pivot_f[components[node]];
+
+                if pivot_value < node_forward_high {
+                    unsafe { forward_high[node].set(pivot_value) };
+                    node_forward_high = pivot_value;
+                }
 
                 if node_forward_high == self.forward_low[node] {
                     let new_ecc = node_forward_high;
