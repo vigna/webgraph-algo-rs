@@ -6,6 +6,7 @@ use dsi_progress_logger::ProgressLog;
 use kahan::KahanSum;
 use rand::random;
 use rayon::{prelude::*, ThreadPool};
+use std::hash::{BuildHasherDefault, DefaultHasher};
 use std::sync::{atomic::*, Mutex};
 use sux::{bits::AtomicBitVec, traits::Succ};
 use webgraph::traits::RandomAccessGraph;
@@ -34,6 +35,77 @@ pub struct HyperBallBuilder<
     bits: A,
     result_bits: A,
     _marker: std::marker::PhantomData<L>,
+}
+
+impl<
+        'a,
+        D: Succ<Input = usize, Output = usize>,
+        G1: RandomAccessGraph + Sync,
+        G2: RandomAccessGraph + Sync,
+    >
+    HyperBallBuilder<
+        'a,
+        D,
+        HyperLogLog<G1::Label, BuildHasherDefault<DefaultHasher>, usize>,
+        SliceCounterArray<HyperLogLog<G1::Label, BuildHasherDefault<DefaultHasher>, usize>, usize>,
+        G1,
+        G2,
+    >
+{
+    /// Utility method to create a builder using an [HyperLogLog counter logic](HyperLogLog).
+    ///
+    /// # Arguments
+    /// * `graph`: the direct graph to analyze.
+    /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
+    ///   and no systolic iterations will be performed by the built [`HyperBall`].
+    /// * `cumulative_outdegree`: the degree cumulative function of the graph.
+    /// * `log2m`: the log₂*m* number of registers for the array of counters.
+    /// * `weights`: the new weights to use. If [`None`] every node is assumed to be
+    ///   of weight equal to 1.
+    /// * `mmap_options`: the options to use for the backend of the counter arrays as a
+    ///   [TempMmapOptions].
+    pub fn with_hyper_log_log(
+        graph: &'a G1,
+        transposed: Option<&'a G2>,
+        cumulative_outdegree: &'a D,
+        log2m: usize,
+        weights: Option<&'a [usize]>,
+        mmap_options: TempMmapOptions,
+    ) -> Result<Self> {
+        let num_elements = if let Some(w) = weights {
+            ensure!(
+                w.len() == graph.num_nodes(),
+                "weights should have length equal to the graph's number of nodes"
+            );
+            w.iter().sum()
+        } else {
+            graph.num_nodes()
+        };
+
+        let logic = HyperLogLogBuilder::new(num_elements)
+            .log_2_num_reg(log2m)
+            .build()
+            .with_context(|| "Could not build hyperloglog logic")?;
+
+        let bits = SliceCounterArray::new(logic.clone(), graph.num_nodes(), mmap_options.clone())
+            .with_context(|| "Could not initialize bits")?;
+        let result_bits = SliceCounterArray::new(logic, graph.num_nodes(), mmap_options)
+            .with_context(|| "Could not initialize result_bits")?;
+
+        Ok(Self {
+            graph,
+            rev_graph: transposed,
+            cumulative_outdegree,
+            sum_of_distances: false,
+            sum_of_inverse_distances: false,
+            discount_functions: Vec::new(),
+            granularity: Self::DEFAULT_GRANULARITY,
+            weights,
+            bits,
+            result_bits,
+            _marker: std::marker::PhantomData,
+        })
+    }
 }
 
 impl<
