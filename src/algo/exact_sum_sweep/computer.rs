@@ -576,8 +576,8 @@ impl<
         let max_dist = AtomicUsize::new(0);
         let radius = RwLock::new((self.radius_high, self.radius_vertex));
 
-        let forward_low = unsafe { self.forward_low.as_sync_slice() };
-        let forward_tot = unsafe { self.forward_tot.as_sync_slice() };
+        let forward_low = self.forward_low.as_sync_slice();
+        let forward_tot = self.forward_tot.as_sync_slice();
 
         self.transposed_visit
             .par_visit(
@@ -592,13 +592,13 @@ impl<
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                        let node_forward_low = forward_low[node].get();
+                        let node_forward_low = unsafe { forward_low[node].get() };
                         let node_forward_high = self.forward_high[node];
 
-                        forward_tot[node].set(forward_tot[node].get() + distance);
+                        unsafe { forward_tot[node].set(forward_tot[node].get() + distance) };
 
                         if node_forward_low != node_forward_high && node_forward_low < distance {
-                            forward_low[node].set(distance);
+                            unsafe { forward_low[node].set(distance) };
 
                             if distance == node_forward_high && self.radial_vertices[node] {
                                 let mut update_radius = false;
@@ -658,9 +658,10 @@ impl<
 
         let max_dist = AtomicUsize::new(0);
 
-        let backward_low = unsafe { self.backward_low.as_sync_slice() };
-        let backward_tot = unsafe { self.backward_tot.as_sync_slice() };
+        let backward_low = self.backward_low.as_sync_slice();
+        let backward_tot = self.backward_tot.as_sync_slice();
 
+        self.visit.reset();
         self.visit
             .par_visit(
                 start,
@@ -676,12 +677,11 @@ impl<
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
                         let node_backward_high = self.backward_high[node];
-                        let node_backward_low = backward_low[node].get();
 
-                        backward_tot[node].set(backward_tot[node].get() + distance);
-
+                        unsafe { backward_tot[node].set(backward_tot[node].get() + distance) };
+                        let node_backward_low = unsafe { backward_low[node].get() };
                         if node_backward_low != node_backward_high && node_backward_low < distance {
-                            backward_low[node].set(distance);
+                            unsafe { backward_low[node].set(distance) };
                         }
                     }
                     Ok(())
@@ -690,7 +690,6 @@ impl<
                 pl,
             )
             .unwrap_infallible();
-        self.visit.reset();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -762,7 +761,7 @@ impl<
         let mut ecc_pivot = Vec::with_capacity(self.scc.num_components());
         ecc_pivot.resize_with(self.scc.num_components(), || AtomicUsize::new(0));
         let mut dist_pivot = vec![0; self.num_nodes];
-        let dist_pivot_mut = unsafe { dist_pivot.as_sync_slice() };
+        let dist_pivot_mut = dist_pivot.as_sync_slice();
         let current_index = AtomicUsize::new(0);
 
         thread_pool.broadcast(|_| {
@@ -778,7 +777,7 @@ impl<
                     |event| {
                         if let EventNoPred::Unknown { curr, distance, .. } = event {
                             // Safety: each node is accessed exactly once
-                            dist_pivot_mut[curr].set(distance);
+                            unsafe { dist_pivot_mut[curr].set(distance) };
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         };
                         Ok(())
@@ -875,8 +874,8 @@ impl<
 
         let radius = RwLock::new((self.radius_high, self.radius_vertex));
 
-        let forward_high = unsafe { self.forward_high.as_sync_slice() };
-        let backward_high = unsafe { self.backward_high.as_sync_slice() };
+        let forward_high = self.forward_high.as_sync_slice();
+        let backward_high = self.backward_high.as_sync_slice();
 
         pl.info(format_args!("Refining upper bounds of nodes..."));
         thread_pool.install(|| {
@@ -884,12 +883,13 @@ impl<
                 // Safety for unsafe blocks: each node gets accessed exactly
                 // once, so no data races can happen
 
-                let mut node_forward_high = forward_high[node].get();
-                let pivot_value = dist_pivot_b[node] + ecc_pivot_f[components[node]];
-                if pivot_value < node_forward_high {
-                    forward_high[node].set(pivot_value);
-                    node_forward_high = pivot_value;
-                }
+                unsafe {
+                    forward_high[node].set(std::cmp::min(
+                        forward_high[node].get(),
+                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
+                    ))
+                };
+                let node_forward_high = unsafe { forward_high[node].get() };
 
                 if node_forward_high == self.forward_low[node] {
                     let new_ecc = node_forward_high;
@@ -913,10 +913,12 @@ impl<
                     }
                 }
 
-                backward_high[node].set(std::cmp::min(
-                    backward_high[node].get(),
-                    dist_pivot_f[node] + ecc_pivot_b[components[node]],
-                ));
+                unsafe {
+                    backward_high[node].set(std::cmp::min(
+                        backward_high[node].get(),
+                        dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                    ))
+                };
             });
         });
 

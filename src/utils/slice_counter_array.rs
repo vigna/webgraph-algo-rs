@@ -8,7 +8,7 @@ use webgraph::utils::SyncCell;
 /// A generic array for counters implementing a [CounterLogic].
 ///
 /// It uses [MmapSlice] as a backend.
-pub struct SliceCounterArray<L: CounterLogic, W> {
+pub struct SliceCounterArray<L, W> {
     pub(super) logic: L,
     pub(super) backend: MmapSlice<SyncCell<W>>,
     pub(super) len: usize,
@@ -47,7 +47,7 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
     pub fn new(logic: L, len: usize, mmap_options: TempMmapOptions) -> Result<Self> {
         let num_words_per_counter = logic.words_per_counter();
         let bits = MmapSlice::from_closure(
-            || unsafe { SyncCell::new(W::ZERO) },
+            || SyncCell::new(W::ZERO),
             len * num_words_per_counter,
             mmap_options,
         )
@@ -128,6 +128,8 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
 
     #[inline(always)]
     fn clear(&mut self) {
-        self.backend.iter_mut().for_each(|v| v.set(W::ZERO));
+        self.backend
+            .iter_mut()
+            .for_each(|v| unsafe { v.set(W::ZERO) });
     }
 }

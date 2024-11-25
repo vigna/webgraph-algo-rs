@@ -33,7 +33,7 @@ pub fn symm_par(
     let mut component = Box::new_uninit_slice(num_nodes);
 
     let number_of_components = AtomicUsize::new(0);
-    let slice = unsafe { component.as_sync_slice() };
+    let slice = component.as_sync_slice();
 
     visit
         .par_visit_all(
@@ -41,9 +41,11 @@ pub fn symm_par(
                 match event {
                     EventNoPred::Init { .. } => {}
                     EventNoPred::Unknown { curr, .. } => {
-                        slice[curr].set(MaybeUninit::new(
-                            number_of_components.load(Ordering::Relaxed),
-                        ));
+                        unsafe {
+                            slice[curr].set(MaybeUninit::new(
+                                number_of_components.load(Ordering::Relaxed),
+                            ))
+                        };
                     }
                     EventNoPred::Done { .. } => {
                         number_of_components.fetch_add(1, Ordering::Relaxed);
