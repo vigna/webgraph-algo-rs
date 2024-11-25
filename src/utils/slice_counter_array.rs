@@ -5,7 +5,10 @@ use std::cell::{Cell, UnsafeCell};
 use sux::traits::Word;
 use webgraph::utils::SyncCell;
 
-pub struct SliceCounterArray<L, W> {
+/// A generic array for counters implementing a [CounterLogic].
+///
+/// It uses [MmapSlice] as a backend.
+pub struct SliceCounterArray<L: CounterLogic, W> {
     pub(super) logic: L,
     pub(super) backend: MmapSlice<SyncCell<W>>,
     pub(super) len: usize,

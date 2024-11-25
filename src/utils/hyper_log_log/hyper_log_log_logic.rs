@@ -9,6 +9,7 @@ use sux::{
     traits::{BitFieldSliceMut, Word},
 };
 
+/// Counter logic implementing the HyperLogLog algorithm.
 #[derive(Debug)]
 pub struct HyperLogLog<T, H, W> {
     build_hasher: H,
@@ -100,6 +101,7 @@ impl<
     }
 }
 
+/// utility struct for merge operations with [HyperLogLog] logic.
 pub struct HyperLogLogHelper<W> {
     acc: Vec<W>,
     mask: Vec<W>,
@@ -197,6 +199,7 @@ impl<
     }
 }
 
+/// Builder for [HyperLogLog] counter logic.
 #[derive(Debug, Clone)]
 pub struct HyperLogLogBuilder<H, W = usize> {
     build_hasher: H,
@@ -270,7 +273,7 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
     /// Sets the counters desired relative standard deviation.
     ///
     /// ## Note
-    /// This is a high-level alternative to [`Self::log_2_num_registers`].
+    /// This is a high-level alternative to [`Self::log_2_num_reg`].
     /// Calling one after the other invalidates the work done by the first one.
     ///
     /// # Arguments

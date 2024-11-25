@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use std::borrow::Borrow;
 
+/// A default counter for generic [CounterLogic] and backends.
 pub struct DefaultCounter<L: CounterLogic, BL: Borrow<L>, B> {
     logic: BL,
     backend: B,
@@ -8,6 +9,11 @@ pub struct DefaultCounter<L: CounterLogic, BL: Borrow<L>, B> {
 }
 
 impl<L: CounterLogic, BL: Borrow<L>, B> DefaultCounter<L, BL, B> {
+    /// Creates a new default counter for the specified logic and backend.
+    ///
+    /// # Arguments
+    /// * `logic`: the counter logic.
+    /// * `backend`: the counter's backend.
     pub fn new(logic: BL, backend: B) -> Self {
         Self {
             logic,

@@ -151,7 +151,7 @@ impl<
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
 
-    /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
+    /// Creates a new builder with default parameters using also the transposed graph.
     ///
     /// # Arguments
     /// * `graph`: the direct graph to analyze.
@@ -657,7 +657,7 @@ where
         }
     }
 
-    /// Reads from the internal [`HyperLogLogCounterArray`] and estimates the number of nodes reachable
+    /// Reads from the internal counter array and estimates the number of nodes reachable
     /// from the specified node.
     ///
     /// # Arguments
@@ -670,7 +670,7 @@ where
             .count(self.prev_state.get_backend(node)))
     }
 
-    /// Reads from the internal [`HyperLogLogCounterArray`] and estimates the number of nodes reachable
+    /// Reads from the internal counter array and estimates the number of nodes reachable
     /// from every node of the graph.
     ///
     /// `hyperball.reachable_nodes().unwrap()[i]` is equal to `hyperball.reachable_nodes_from(i).unwrap()`.
