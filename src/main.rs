@@ -56,13 +56,16 @@ fn main() -> Result<()> {
             let hyper_log_log = HyperLogLogBuilder::new(graph.num_nodes())
                 .log_2_num_reg(log2m)
                 .build()?;
-            let bits = SliceCounterArray::new(
+            let bits = SliceCounterArray::with_mmap(
                 hyper_log_log.clone(),
                 graph.num_nodes(),
                 mem_options.clone(),
             )?;
-            let result_bits =
-                SliceCounterArray::new(hyper_log_log, graph.num_nodes(), mem_options.clone())?;
+            let result_bits = SliceCounterArray::with_mmap(
+                hyper_log_log,
+                graph.num_nodes(),
+                mem_options.clone(),
+            )?;
             let mut hyperball = HyperBallBuilder::with_transposed(
                 &graph,
                 &transpose,

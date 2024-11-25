@@ -38,13 +38,34 @@ impl<L: CounterLogic<Backend = [W]>, W> SliceCounterArray<L, W> {
 }
 
 impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
-    /// Creates a new counter slice with the provided logic.
+    /// Creates a new counter slice with the provided logic allocating in-memory.
+    ///
+    /// # Arguments
+    /// * `logic`: the counter logic to use.
+    /// * `len`: the number of the counters in the array.
+    pub fn new(logic: L, len: usize) -> Result<Self> {
+        let num_words_per_counter = logic.words_per_counter();
+        let bits = MmapSlice::from_closure(
+            || SyncCell::new(W::ZERO),
+            len * num_words_per_counter,
+            TempMmapOptions::Default,
+        )
+        .with_context(|| "Could not create MmapSlice for slice backend")?;
+        Ok(Self {
+            logic,
+            backend: bits,
+            len,
+        })
+    }
+
+    /// Creates a new counter slice with the provided logic allocating memory
+    /// with the provided options.
     ///
     /// # Arguments
     /// * `logic`: the counter logic to use.
     /// * `len`: the number of the counters in the array.
     /// * `mmap_options`: the options to use in [MmapSlice].
-    pub fn new(logic: L, len: usize, mmap_options: TempMmapOptions) -> Result<Self> {
+    pub fn with_mmap(logic: L, len: usize, mmap_options: TempMmapOptions) -> Result<Self> {
         let num_words_per_counter = logic.words_per_counter();
         let bits = MmapSlice::from_closure(
             || SyncCell::new(W::ZERO),

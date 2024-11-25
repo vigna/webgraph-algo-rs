@@ -87,9 +87,10 @@ impl<
             .build()
             .with_context(|| "Could not build hyperloglog logic")?;
 
-        let bits = SliceCounterArray::new(logic.clone(), graph.num_nodes(), mmap_options.clone())
-            .with_context(|| "Could not initialize bits")?;
-        let result_bits = SliceCounterArray::new(logic, graph.num_nodes(), mmap_options)
+        let bits =
+            SliceCounterArray::with_mmap(logic.clone(), graph.num_nodes(), mmap_options.clone())
+                .with_context(|| "Could not initialize bits")?;
+        let result_bits = SliceCounterArray::with_mmap(logic, graph.num_nodes(), mmap_options)
             .with_context(|| "Could not initialize result_bits")?;
 
         Ok(Self {
@@ -1201,14 +1202,10 @@ mod test {
             .log_2_num_reg(6)
             .build()?;
 
-        let seq_bits =
-            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
-        let seq_result_bits =
-            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
-        let par_bits =
-            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
-        let par_result_bits =
-            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
+        let seq_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;
+        let seq_result_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;
+        let par_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;
+        let par_result_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;
 
         let mut hyperball = HyperBallBuilder::with_transposed(
             &graph,

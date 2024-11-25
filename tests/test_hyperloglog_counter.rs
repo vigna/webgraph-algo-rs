@@ -194,7 +194,7 @@ fn test_merge_array() -> Result<()> {
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
                     .build()?;
-                let mut counters = SliceCounterArray::new(logic, 2, TempMmapOptions::Default)?;
+                let mut counters = SliceCounterArray::new(logic, 2)?;
                 let incr = (1 << 32) / (size * 2) as i64;
                 let mut x = i64::MIN;
                 for _ in 0..size {

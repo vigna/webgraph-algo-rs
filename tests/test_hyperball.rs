@@ -236,16 +236,8 @@ fn test_cnr_2000() -> Result<()> {
         .log_2_num_reg(8)
         .build_hasher(JenkinsHasherBuilder::new(42))
         .build()?;
-    let bits = SliceCounterArray::new(
-        hyper_log_log.clone(),
-        graph.num_nodes(),
-        webgraph_algo::utils::TempMmapOptions::Default,
-    )?;
-    let result_bits = SliceCounterArray::new(
-        hyper_log_log,
-        graph.num_nodes(),
-        webgraph_algo::utils::TempMmapOptions::Default,
-    )?;
+    let bits = SliceCounterArray::new(hyper_log_log.clone(), graph.num_nodes())?;
+    let result_bits = SliceCounterArray::new(hyper_log_log, graph.num_nodes())?;
     let mut hyperball = HyperBallBuilder::with_transposed(
         &graph,
         &transpose,
