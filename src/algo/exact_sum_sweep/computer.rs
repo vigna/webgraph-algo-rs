@@ -20,7 +20,7 @@ use std::sync::{
 };
 use sux::bits::AtomicBitVec;
 use unwrap_infallible::UnwrapInfallible;
-use webgraph::{traits::RandomAccessGraph, utils::SyncSliceExt};
+use webgraph::{traits::RandomAccessGraph, utils::SyncSlice};
 
 /// Experimentally obtained sane value for the granularity of the visits.
 const VISIT_GRANULARITY: usize = 64;
@@ -592,13 +592,13 @@ impl<
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
-                        let node_forward_low = forward_low.get(node);
+                        let node_forward_low = forward_low[node].get();
                         let node_forward_high = self.forward_high[node];
 
-                        forward_tot.set(node, forward_tot.get(node) + distance);
+                        forward_tot[node].set(forward_tot[node].get() + distance);
 
                         if node_forward_low != node_forward_high && node_forward_low < distance {
-                            forward_low.set(node, distance);
+                            forward_low[node].set(distance);
 
                             if distance == node_forward_high && self.radial_vertices[node] {
                                 let mut update_radius = false;
@@ -676,12 +676,12 @@ impl<
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
                         let node_backward_high = self.backward_high[node];
+                        let node_backward_low = backward_low[node].get();
 
-                        backward_tot.set(node, backward_tot.get(node) + distance);
-                        if backward_low.get(node) != node_backward_high
-                            && backward_low.get(node) < distance
-                        {
-                            backward_low.set(node, distance);
+                        backward_tot[node].set(backward_tot[node].get() + distance);
+
+                        if node_backward_low != node_backward_high && node_backward_low < distance {
+                            backward_low[node].set(distance);
                         }
                     }
                     Ok(())
@@ -778,7 +778,7 @@ impl<
                     |event| {
                         if let EventNoPred::Unknown { curr, distance, .. } = event {
                             // Safety: each node is accessed exactly once
-                            dist_pivot_mut.set(curr, distance);
+                            dist_pivot_mut[curr].set(distance);
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         };
                         Ok(())
@@ -884,16 +884,15 @@ impl<
                 // Safety for unsafe blocks: each node gets accessed exactly
                 // once, so no data races can happen
 
-                forward_high.set(
-                    node,
-                    std::cmp::min(
-                        forward_high.get(node),
-                        dist_pivot_b[node] + ecc_pivot_f[components[node]],
-                    ),
-                );
+                let mut node_forward_high = forward_high[node].get();
+                let pivot_value = dist_pivot_b[node] + ecc_pivot_f[components[node]];
+                if pivot_value < node_forward_high {
+                    forward_high[node].set(pivot_value);
+                    node_forward_high = pivot_value;
+                }
 
-                if forward_high.get(node) == self.forward_low[node] {
-                    let new_ecc = forward_high.get(node);
+                if node_forward_high == self.forward_low[node] {
+                    let new_ecc = node_forward_high;
 
                     if self.radial_vertices[node] {
                         let mut update_radius = false;
@@ -914,13 +913,10 @@ impl<
                     }
                 }
 
-                backward_high.set(
-                    node,
-                    std::cmp::min(
-                        backward_high.get(node),
-                        dist_pivot_f[node] + ecc_pivot_b[components[node]],
-                    ),
-                );
+                backward_high[node].set(std::cmp::min(
+                    backward_high[node].get(),
+                    dist_pivot_f[node] + ecc_pivot_b[components[node]],
+                ));
             });
         });
 

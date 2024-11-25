@@ -1,9 +1,6 @@
 use super::*;
-use crate::{
-    prelude::*,
-    utils::{DefaultCounter, JenkinsHasherBuilder, MmapSlice},
-};
-use anyhow::{ensure, Context, Result};
+use crate::{prelude::*, utils::DefaultCounter};
+use anyhow::{ensure, Result};
 use common_traits::{CastableFrom, CastableInto, Number, UpcastableInto};
 use std::hash::*;
 use std::{borrow::Borrow, f64::consts::LN_2};
@@ -90,21 +87,6 @@ impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
             unsafe { *counter.get_unchecked_mut(word_index + 1) = word };
         }
     }
-
-    // TODO not here
-    pub fn new_array(
-        &self,
-        len: usize,
-        mmap_options: TempMmapOptions,
-    ) -> Result<SliceCounterArray<Self, W>> {
-        let bits = MmapSlice::from_default(len * self.words_per_counter, mmap_options)
-            .with_context(|| "Could not create CounterArray with mmap")?;
-        Ok(SliceCounterArray {
-            backend: bits,
-            len,
-            logic: self.clone(),
-        })
-    }
 }
 
 impl<
@@ -185,10 +167,6 @@ impl<
         debug_assert_eq!(dst.as_mut().len(), src.as_ref().len());
         dst.as_mut().copy_from_slice(src.as_ref());
     }
-
-    /*    fn words_per_counter(&self) -> usize {
-        self.words_per_counter
-    }*/
 }
 
 impl<
@@ -224,18 +202,16 @@ pub struct HyperLogLogBuilder<H, W = usize> {
     build_hasher: H,
     log_2_num_registers: usize,
     n: usize,
-    seed: u64,
     _marker: std::marker::PhantomData<(H, W)>,
 }
 
 impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
-    /// Creates a new builder for an [`HyperLogLog`] with a word type of `W`.
+    /// Creates a new builder for an [`HyperLogLog`] with a default word type of [usize].
     pub fn new(n: usize) -> Self {
         Self {
             build_hasher: BuildHasherDefault::default(),
             log_2_num_registers: 4,
             n,
-            seed: 0,
             _marker: std::marker::PhantomData,
         }
     }
@@ -316,9 +292,30 @@ impl<H, W: Word> HyperLogLogBuilder<H, W> {
         self
     }
 
-    pub fn seed(mut self, seed: u64) -> Self {
-        self.seed = seed;
+    /// Sets the type `W` to use as backend.
+    pub fn word_type<W2>(self) -> HyperLogLogBuilder<H, W2> {
+        HyperLogLogBuilder {
+            n: self.n,
+            build_hasher: self.build_hasher,
+            log_2_num_registers: self.log_2_num_registers,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    /// Sets the upper bound on the number of elements.
+    pub fn num_elements(mut self, n: usize) -> Self {
+        self.n = n;
         self
+    }
+
+    /// Sets the hasher builder to use.
+    pub fn build_hasher<H2>(self, build_hasher: H2) -> HyperLogLogBuilder<H2, W> {
+        HyperLogLogBuilder {
+            n: self.n,
+            log_2_num_registers: self.log_2_num_registers,
+            build_hasher,
+            _marker: std::marker::PhantomData,
+        }
     }
 
     /// Builds the counter logic.

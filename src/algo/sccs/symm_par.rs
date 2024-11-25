@@ -13,7 +13,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 use unwrap_infallible::UnwrapInfallible;
-use webgraph::{traits::RandomAccessGraph, utils::SyncSliceExt};
+use webgraph::{traits::RandomAccessGraph, utils::SyncSlice};
 
 /// Connected components of symmetric graphs by parallel visits.
 pub fn symm_par(
@@ -41,10 +41,9 @@ pub fn symm_par(
                 match event {
                     EventNoPred::Init { .. } => {}
                     EventNoPred::Unknown { curr, .. } => {
-                        slice.set(
-                            curr,
-                            MaybeUninit::new(number_of_components.load(Ordering::Relaxed)),
-                        );
+                        slice[curr].set(MaybeUninit::new(
+                            number_of_components.load(Ordering::Relaxed),
+                        ));
                     }
                     EventNoPred::Done { .. } => {
                         number_of_components.fetch_add(1, Ordering::Relaxed);

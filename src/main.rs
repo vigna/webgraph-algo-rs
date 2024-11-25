@@ -8,6 +8,7 @@ use webgraph_algo::algo::{exact_sum_sweep::*, sccs};
 use webgraph_algo::prelude::*;
 use webgraph_algo::threads;
 use webgraph_algo::utils::hyper_log_log::HyperLogLogBuilder;
+use webgraph_algo::utils::SliceCounterArray;
 
 fn main() -> Result<()> {
     stderrlog::new()
@@ -55,8 +56,13 @@ fn main() -> Result<()> {
             let hyper_log_log = HyperLogLogBuilder::new(graph.num_nodes())
                 .log_2_num_reg(log2m)
                 .build()?;
-            let bits = hyper_log_log.new_array(graph.num_nodes(), mem_options.clone())?;
-            let result_bits = hyper_log_log.new_array(graph.num_nodes(), mem_options)?;
+            let bits = SliceCounterArray::new(
+                hyper_log_log.clone(),
+                graph.num_nodes(),
+                mem_options.clone(),
+            )?;
+            let result_bits =
+                SliceCounterArray::new(hyper_log_log, graph.num_nodes(), mem_options.clone())?;
             let mut hyperball = HyperBallBuilder::with_transposed(
                 &graph,
                 &transpose,

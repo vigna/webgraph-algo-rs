@@ -49,6 +49,8 @@ impl<
     /// # Arguments
     /// * `graph`: the direct graph to analyze.
     /// * `cumulative_outdegree`: the degree cumulative function of the graph.
+    /// * `bits`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
+    /// * `result_bits`: an array of the same type and `len` as `bits`.
     pub fn new(graph: &'a G, cumulative_outdegree: &'a D, bits: A, result_bits: A) -> Self {
         Self {
             graph,
@@ -80,8 +82,12 @@ impl<
     /// Sets the transposed graph to be used in systolic iterations in [`HyperBall`].
     ///
     /// # Arguments
+    /// * `graph`: the direct graph to analyze.
     /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
     ///   and no systolic iterations will be performed by the built [`HyperBall`].
+    /// * `cumulative_outdegree`: the degree cumulative function of the graph.
+    /// * `bits`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
+    /// * `result_bits`: an array of the same type and `len` as `bits`.
     pub fn with_transposed(
         graph: &'a G1,
         transposed: &'a G2,
@@ -1117,14 +1123,17 @@ mod test {
         let num_nodes = graph.num_nodes();
 
         let hyper_log_log = HyperLogLogBuilder::new(num_nodes)
-            .seed(42)
             .log_2_num_reg(6)
             .build()?;
 
-        let seq_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
-        let seq_result_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
-        let par_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
-        let par_result_bits = hyper_log_log.new_array(num_nodes, TempMmapOptions::Default)?;
+        let seq_bits =
+            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
+        let seq_result_bits =
+            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
+        let par_bits =
+            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
+        let par_result_bits =
+            SliceCounterArray::new(hyper_log_log.clone(), num_nodes, TempMmapOptions::Default)?;
 
         let mut hyperball = HyperBallBuilder::with_transposed(
             &graph,

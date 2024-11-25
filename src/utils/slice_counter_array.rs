@@ -1,49 +1,9 @@
-use super::*;
 use crate::utils::DefaultCounter;
 use crate::{prelude::*, utils::MmapSlice};
-use common_traits::{CastableFrom, UpcastableInto};
+use anyhow::{Context, Result};
 use std::cell::{Cell, UnsafeCell};
-use std::hash::*;
 use sux::traits::Word;
-
-#[repr(transparent)]
-pub struct SyncCell<T: ?Sized>(Cell<T>);
-
-impl<T> SyncCell<T> {
-    #[inline(always)]
-    fn new(value: T) -> Self {
-        Self(Cell::new(value))
-    }
-}
-
-impl<T> SyncCell<[T]> {
-    #[inline(always)]
-    pub fn as_slice_of_cells(&self) -> &[SyncCell<T>] {
-        // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
-        // has the same memory layout as `T`.
-        let slice_of_cells =
-            unsafe { &*(self as *const SyncCell<[T]> as *const Cell<[T]>) }.as_slice_of_cells();
-        unsafe { &*(slice_of_cells as *const [Cell<T>] as *const [SyncCell<T>]) }
-    }
-}
-
-impl<T: Default> Default for SyncCell<T> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::new(T::default())
-    }
-}
-
-unsafe impl<T: Sync> Sync for SyncCell<T> {}
-
-impl<T> std::ops::Deref for SyncCell<T> {
-    type Target = Cell<T>;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+use webgraph::utils::SyncCell;
 
 pub struct SliceCounterArray<L, W> {
     pub(super) logic: L,
@@ -51,8 +11,8 @@ pub struct SliceCounterArray<L, W> {
     pub(super) len: usize,
 }
 
-impl<L: CounterLogic<Backend = [W]>, W> SliceCounterArray<L, W> {
-    ///Returns the number of elements in the array, also referred to as its ‘length’.
+impl<L: CounterLogic, W> SliceCounterArray<L, W> {
+    /// Returns the number of elements in the array, also referred to as its ‘length’.
     #[inline(always)]
     pub fn len(&self) -> usize {
         self.len
@@ -63,7 +23,9 @@ impl<L: CounterLogic<Backend = [W]>, W> SliceCounterArray<L, W> {
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
+}
 
+impl<L: CounterLogic<Backend = [W]>, W> SliceCounterArray<L, W> {
     #[allow(dead_code)]
     pub(crate) fn as_slice(&self) -> &[W] {
         let len = self.backend.len();
@@ -72,10 +34,31 @@ impl<L: CounterLogic<Backend = [W]>, W> SliceCounterArray<L, W> {
     }
 }
 
-impl<
-        L: SliceCounterLogic<Backend = [W]> + Clone,
-        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
-    > CounterArray<L> for SliceCounterArray<L, W>
+impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
+    /// Creates a new counter slice with the provided logic.
+    ///
+    /// # Arguments
+    /// * `logic`: the counter logic to use.
+    /// * `len`: the number of the counters in the array.
+    /// * `mmap_options`: the options to use in [MmapSlice].
+    pub fn new(logic: L, len: usize, mmap_options: TempMmapOptions) -> Result<Self> {
+        let num_words_per_counter = logic.words_per_counter();
+        let bits = MmapSlice::from_closure(
+            || unsafe { SyncCell::new(W::ZERO) },
+            len * num_words_per_counter,
+            mmap_options,
+        )
+        .with_context(|| "Could not create MmapSlice for slice backend")?;
+        Ok(Self {
+            logic,
+            backend: bits,
+            len,
+        })
+    }
+}
+
+impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
+    for SliceCounterArray<L, W>
 {
     type Counter<'a> = DefaultCounter<L, &'a L, &'a [W]> where Self: 'a;
 
@@ -99,10 +82,8 @@ impl<
     }
 }
 
-impl<
-        L: SliceCounterLogic<Backend = [W]> + Clone,
-        W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
-    > CounterArrayMut<L> for SliceCounterArray<L, W>
+impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
+    for SliceCounterArray<L, W>
 {
     type CounterMut<'a> = DefaultCounter<L, &'a L, &'a mut [W]> where Self: 'a;
 
@@ -144,6 +125,6 @@ impl<
 
     #[inline(always)]
     fn clear(&mut self) {
-        self.backend.fill_with(|| SyncCell::new(W::ZERO));
+        self.backend.iter_mut().for_each(|v| v.set(W::ZERO));
     }
 }
