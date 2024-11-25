@@ -96,7 +96,7 @@ impl<
         W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
     > SliceCounterLogic for HyperLogLog<T, H, W>
 {
-    fn words_per_counter(&self) -> usize {
+    fn backend_len(&self) -> usize {
         self.words_per_counter
     }
 }

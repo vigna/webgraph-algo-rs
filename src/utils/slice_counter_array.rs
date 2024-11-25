@@ -44,10 +44,10 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
     /// * `logic`: the counter logic to use.
     /// * `len`: the number of the counters in the array.
     pub fn new(logic: L, len: usize) -> Result<Self> {
-        let num_words_per_counter = logic.words_per_counter();
+        let num_backend_len = logic.backend_len();
         let bits = MmapSlice::from_closure(
             || SyncCell::new(W::ZERO),
-            len * num_words_per_counter,
+            len * num_backend_len,
             TempMmapOptions::Default,
         )
         .with_context(|| "Could not create MmapSlice for slice backend")?;
@@ -66,10 +66,10 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
     /// * `len`: the number of the counters in the array.
     /// * `mmap_options`: the options to use in [MmapSlice].
     pub fn with_mmap(logic: L, len: usize, mmap_options: TempMmapOptions) -> Result<Self> {
-        let num_words_per_counter = logic.words_per_counter();
+        let num_backend_len = logic.backend_len();
         let bits = MmapSlice::from_closure(
             || SyncCell::new(W::ZERO),
-            len * num_words_per_counter,
+            len * num_backend_len,
             mmap_options,
         )
         .with_context(|| "Could not create MmapSlice for slice backend")?;
@@ -87,12 +87,12 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
     type Counter<'a> = DefaultCounter<L, &'a L, &'a [W]> where Self: 'a;
 
     fn get_backend(&self, index: usize) -> &L::Backend {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.backend_len();
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
         // has the same memory layout as `T`.
         unsafe {
-            &*(self.backend[offset..][..self.logic.words_per_counter()].as_ref()
-                as *const [SyncCell<W>] as *const [Cell<W>] as *const [W])
+            &*(self.backend[offset..][..self.logic.backend_len()].as_ref() as *const [SyncCell<W>]
+                as *const [Cell<W>] as *const [W])
         }
     }
 
@@ -112,12 +112,12 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     type CounterMut<'a> = DefaultCounter<L, &'a L, &'a mut [W]> where Self: 'a;
 
     fn get_backend_mut(&mut self, index: usize) -> &mut L::Backend {
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.backend_len();
 
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
         // has the same memory layout as `T`.
         unsafe {
-            &mut *(self.backend[offset..][..self.logic.words_per_counter()].as_mut()
+            &mut *(self.backend[offset..][..self.logic.backend_len()].as_mut()
                 as *mut [SyncCell<W>] as *mut [Cell<W>] as *mut [W])
         }
     }
@@ -127,12 +127,12 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
 
         // We have to extract manually the backend because get_backend_mut
         // borrows self mutably, but we need to borrow just self.backend.
-        let offset = index * self.logic.words_per_counter();
+        let offset = index * self.logic.backend_len();
 
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
         // has the same memory layout as `T`.
         let backend = unsafe {
-            &mut *(self.backend[offset..][..self.logic.words_per_counter()].as_mut()
+            &mut *(self.backend[offset..][..self.logic.backend_len()].as_mut()
                 as *mut [SyncCell<W>] as *mut [Cell<W>] as *mut [W])
         };
 
@@ -140,8 +140,8 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     }
 
     unsafe fn set(&self, index: usize, content: &L::Backend) {
-        debug_assert!(content.as_ref().len() == self.logic.words_per_counter());
-        let offset = index * self.logic.words_per_counter();
+        debug_assert!(content.as_ref().len() == self.logic.backend_len());
+        let offset = index * self.logic.backend_len();
         for (c, &b) in self.backend[offset..].iter().zip(content.as_ref()) {
             c.set(b)
         }

@@ -28,7 +28,7 @@ impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsRef<L::Backend>> Counter<L>
 {
     type OwnedCounter = DefaultCounter<L, L, Box<L::Backend>>;
 
-    fn get_logic(&self) -> &L {
+    fn logic(&self) -> &L {
         self.logic.borrow()
     }
 
@@ -66,8 +66,8 @@ impl<L: CounterLogic + Clone, BL: Borrow<L>, B: AsRef<L::Backend> + AsMut<L::Bac
     }
 
     #[inline(always)]
-    fn set(&mut self, other: &L::Backend) {
-        self.logic.borrow().set(self.backend.as_mut(), other)
+    fn set(&mut self, backend: &L::Backend) {
+        self.logic.borrow().set(self.backend.as_mut(), backend);
     }
 }
 

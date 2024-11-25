@@ -900,8 +900,8 @@ where
         // neighbourhood function for the nodes scanned by this thread.
         let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
         let mut helper = self.prev_state.logic().new_helper();
-        let counter_logic = self.prev_state.logic();
-        let mut next_counter = counter_logic.new_counter();
+        let logic = self.prev_state.logic();
+        let mut next_counter = logic.new_counter();
 
         loop {
             // Get work
@@ -961,7 +961,7 @@ where
                             if !modified {
                                 modified = true;
                             }
-                            counter_logic.merge_with_helper(
+                            logic.merge_with_helper(
                                 next_counter.as_backend_mut(),
                                 self.prev_state.get_backend(succ),
                                 &mut helper,
@@ -981,14 +981,14 @@ where
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
                     if !self.systolic || modified_counter {
-                        post = counter_logic.count(next_counter.as_backend())
+                        post = logic.count(next_counter.as_backend())
                     }
                     if !self.systolic {
                         neighbourhood_function_delta += post;
                     }
 
                     if modified_counter && (self.systolic || do_centrality) {
-                        let pre = counter_logic.count(prev_counter);
+                        let pre = logic.count(prev_counter);
                         if self.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
