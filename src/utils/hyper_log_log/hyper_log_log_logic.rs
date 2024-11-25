@@ -384,7 +384,8 @@ impl<T, H, W> std::fmt::Display for HyperLogLog<T, H, W> {
         write!(
             f,
 
-            "Relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
+            "HyperLogLog with relative standard deviation: {}% ({} registers/counter, {} bits/register, {} bytes/counter)",
+
             100.0 * HyperLogLog::relative_standard_deviation(self.log_2_num_registers),
             self.num_registers,
             self.register_size,

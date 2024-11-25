@@ -264,7 +264,7 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        L: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync,
+        L: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync + std::fmt::Display,
         A: CounterArrayMut<L>,
     > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
@@ -314,6 +314,8 @@ impl<
 
         pl.info(format_args!("Initializing next_must_be_checked bitvec"));
         let next_must_be_checked = AtomicBitVec::new(num_nodes);
+
+        pl.info(format_args!("Using counter logic: {}", self.bits.logic()));
 
         HyperBall {
             graph: self.graph,
