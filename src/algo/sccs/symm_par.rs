@@ -12,8 +12,9 @@ use std::{
     mem::MaybeUninit,
     sync::atomic::{AtomicUsize, Ordering},
 };
+use sync_cell_slice::SyncSlice;
 use unwrap_infallible::UnwrapInfallible;
-use webgraph::{traits::RandomAccessGraph, utils::SyncSlice};
+use webgraph::traits::RandomAccessGraph;
 
 /// Connected components of symmetric graphs by parallel visits.
 pub fn symm_par(

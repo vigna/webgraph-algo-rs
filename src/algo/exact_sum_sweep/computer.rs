@@ -19,8 +19,9 @@ use std::sync::{
     RwLock,
 };
 use sux::bits::AtomicBitVec;
+use sync_cell_slice::SyncSlice;
 use unwrap_infallible::UnwrapInfallible;
-use webgraph::{traits::RandomAccessGraph, utils::SyncSlice};
+use webgraph::traits::RandomAccessGraph;
 
 /// Experimentally obtained sane value for the granularity of the visits.
 const VISIT_GRANULARITY: usize = 64;

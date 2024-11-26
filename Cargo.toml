@@ -25,6 +25,7 @@ thiserror = "2.0.0"
 sealed = "0.6.0"
 lender = "0.2.9"
 impl-tools = "0.10.1"
+sync-cell-slice = "0.9.9"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

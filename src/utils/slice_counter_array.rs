@@ -3,7 +3,7 @@ use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{Context, Result};
 use std::cell::{Cell, UnsafeCell};
 use sux::traits::Word;
-use webgraph::utils::SyncCell;
+use sync_cell_slice::SyncCell;
 
 /// An array for counters implementing a shared [`CounterLogic`] whose backend
 /// is a slice.
