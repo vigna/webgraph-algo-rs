@@ -577,10 +577,10 @@ impl<T> MmapSlice<T> {
         let dst = mmap.as_mut_ptr();
 
         unsafe {
-            // Safety: regions are non-overlapping, both are aligned,
+            // SAFETY: regions are non-overlapping, both are aligned,
             // src is valid for v.len() reads and dst is valid for v.len() writes.
             std::ptr::copy_nonoverlapping(src, dst, v.len());
-            // Safety: all elements between 0..0 are initialized and 0 <= capacity
+            // SAFETY: all elements between 0..0 are initialized and 0 <= capacity
             v.set_len(0);
         }
 

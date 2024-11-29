@@ -8,11 +8,11 @@
 //! [`Interrupted`] when interrupted or [`Infallible`](std::convert::Infallible)
 //! if the visit cannot be interrupted.
 //!
-//! If a callback returns [`Break`](ControlFlow::Break),
-//! the visit will be interrupted; and the interrupt
-//! propagated to the caller of the visit method; for uninterruptible visits we
-//! suggest to use the [`Done`] trait and its [`done`](Done::done)
-//! method on the result to let type inference run smoothly.
+//! If a callback returns [`Break`](ControlFlow::Break), the visit will be
+//! interrupted, and the interrupt propagated to the caller of the visit method;
+//! for uninterruptible visits we suggest to use the [`Unbreakable`] trait and
+//! its [`unbreakable`](Unbreakable::unbreakable) method on the result to let
+//! type inference run smoothly.
 //!
 //! Note that an interruption does not necessarily denote an error condition
 //! (see, e.g., [`StoppedWhenDone`]).
@@ -20,8 +20,8 @@
 //! [Sequential visits](Sequential) are visits that are executed in a single
 //! thread, whereas [parallel visits](Parallel) use multiple threads. The
 //! signature of callbacks reflects this difference: the callbacks of sequential
-//! visits are `FnMut(A) -> ControlFlow<E, ()>`, whereas the callbacks of parallel
-//! visits are `Fn(A) -> ControlFlow<E, ()> + Sync`.
+//! visits are `FnMut(A) -> ControlFlow<E, ()>`, whereas the callbacks of
+//! parallel visits are `Fn(A) -> ControlFlow<E, ()> + Sync`.
 //!
 //! In case of interruption sequential visits usually return immediately to the
 //! caller, whereas in general parallel visits might need to complete part of
@@ -268,20 +268,26 @@ impl<A: Event, S: Sequential<A>> Parallel<A> for S {
     }
 }
 
-/// Unwrapping an infallible result into its success value.
-pub trait Done {
-    /// Type of the `Ok` variant of the result.
-    type Ok;
-    fn done(self) -> Self::Ok;
+/// A trait for control flows that cannot be interrupted.
+///
+/// This trait is useful to avoid the need to specify the error type when
+/// calling a visit method that cannot be interrupted. It forces a
+/// [`ControlFlow`] to have `Break` variant
+/// [`Infallible`](std::convert::Infallible).
+pub trait Unbreakable {
+    /// Type of the `Continue` variant of the control flow.
+    type Continue;
+    // Returns the success value of the control flow.
+    fn unbreakable(self) -> Self::Continue;
 }
 
-impl<C> Done for ControlFlow<std::convert::Infallible, C> {
-    type Ok = C;
+impl<C> Unbreakable for ControlFlow<std::convert::Infallible, C> {
+    type Continue = C;
 
     #[inline(always)]
-    fn done(self) -> C {
+    fn unbreakable(self) -> C {
         unsafe {
-            // Safety: If E is Infallible, continue_value MUST be Some
+            // SAFETY: If E is Infallible, continue_value must be Some
             self.continue_value().unwrap_unchecked()
         }
     }

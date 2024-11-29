@@ -107,7 +107,7 @@ macro_rules! test_bfv_algo_seq {
                             },
                             no_logging![],
                         )
-                        .done();
+                        .unbreakable();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -142,7 +142,7 @@ macro_rules! test_bfv_algo_seq {
                             },
                             no_logging![],
                         )
-                        .done();
+                        .unbreakable();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -211,7 +211,7 @@ macro_rules! test_bfv_algo_par {
                             &t,
                             no_logging![],
                         )
-                        .done();
+                        .unbreakable();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -248,7 +248,7 @@ macro_rules! test_bfv_algo_par {
                             &t,
                             no_logging![],
                         )
-                        .done();
+                        .unbreakable();
                 }
 
                 let actual_dists = into_non_atomic(dists);

@@ -26,7 +26,6 @@ use webgraph::traits::RandomAccessGraph;
 /// Let's compute the distances from 0:
 ///
 /// ```
-/// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
@@ -47,7 +46,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             Continue(())
 ///         },
 ///     no_logging![]
-/// ).done();
+/// ).unbreakable();
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
 ///
@@ -81,7 +80,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///         },
 ///     no_logging![]
-/// ).done();
+/// ).unbreakable();
 /// assert_eq!(count, 3);
 /// ```
 pub struct Seq<G: RandomAccessGraph> {

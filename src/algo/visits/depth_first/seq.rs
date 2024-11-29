@@ -115,7 +115,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///            Continue(())
 ///         },
 ///     no_logging![]
-/// ).done();
+/// ).unbreakable();
 /// ```
 pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
     graph: &'a G,

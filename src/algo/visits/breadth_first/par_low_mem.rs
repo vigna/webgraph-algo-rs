@@ -32,7 +32,7 @@ use webgraph::traits::RandomAccessGraph;
 /// Let's compute the breadth-first tree starting from 0:
 ///
 /// ```
-/// use webgraph_algo::algo::visits::{Parallel, Done};
+/// use webgraph_algo::algo::visits::{Parallel, Unbreakable};
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
 /// use webgraph_algo::threads;
 /// use dsi_progress_logger::no_logging;
@@ -57,7 +57,7 @@ use webgraph::traits::RandomAccessGraph;
 ///         },
 ///    &threads![],
 ///    no_logging![]
-/// ).done();
+/// ).unbreakable();
 ///
 /// assert_eq!(tree[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(tree[1].load(Ordering::Relaxed), 0);

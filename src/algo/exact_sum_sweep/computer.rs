@@ -4,7 +4,7 @@ use crate::{
         sccs::{self, BasicSccs},
         visits::{
             breadth_first::{EventNoPred, ParFairNoPred},
-            Done, FilterArgs, Parallel,
+            FilterArgs, Parallel, Unbreakable,
         },
     },
     traits::StronglyConnectedComponents,
@@ -526,7 +526,7 @@ impl<
                 thread_pool,
                 pl,
             )
-            .done();
+            .unbreakable();
         self.transposed_visit.reset();
 
         pl.done();
@@ -626,7 +626,7 @@ impl<
                 thread_pool,
                 pl,
             )
-            .done();
+            .unbreakable();
 
         self.transposed_visit.reset();
 
@@ -692,7 +692,7 @@ impl<
                 thread_pool,
                 pl,
             )
-            .done();
+            .unbreakable();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -789,7 +789,7 @@ impl<
                     thread_pool,
                     no_logging![],
                 )
-                .done();
+                .unbreakable();
 
                 current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
             }

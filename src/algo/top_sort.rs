@@ -1,6 +1,6 @@
 use crate::{
     algo::visits::Sequential,
-    algo::visits::{depth_first::*, Done},
+    algo::visits::{depth_first::*, Unbreakable},
 };
 use dsi_progress_logger::ProgressLog;
 use std::ops::ControlFlow::Continue;
@@ -31,7 +31,7 @@ pub fn top_sort(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box
             },
             pl,
         )
-        .done();
+        .unbreakable();
 
     pl.done();
     // SAFETY: we write in each element of top_sort

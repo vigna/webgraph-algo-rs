@@ -6,7 +6,7 @@ use webgraph::traits::SequentialLabeling;
 use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
-use webgraph_algo::algo::visits::Done;
+use webgraph_algo::algo::visits::Unbreakable;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
 use webgraph_algo::threads;
 use webgraph_algo::traits::Sequential;
@@ -248,7 +248,7 @@ fn test_er() -> Result<()> {
                 },
                 no_logging![],
             )
-            .done();
+            .unbreakable();
             pll.reset();
         }
 
