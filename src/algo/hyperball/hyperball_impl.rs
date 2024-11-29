@@ -451,13 +451,12 @@ pub struct HyperBall<
 }
 
 impl<
-        'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         L: MergeCounterLogic<Item = usize> + Sync,
         A: CounterArrayMut<L> + Sync,
-    > HyperBall<'a, G1, G2, D, L, A>
+    > HyperBall<'_, G1, G2, D, L, A>
 where
     L::Backend: PartialEq,
 {
@@ -685,13 +684,12 @@ where
 }
 
 impl<
-        'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         L: MergeCounterLogic<Item = G1::Label> + Sync,
         A: CounterArrayMut<L> + Sync,
-    > HyperBall<'a, G1, G2, D, L, A>
+    > HyperBall<'_, G1, G2, D, L, A>
 {
     #[inline(always)]
     fn swap_arrays(&mut self) {
@@ -701,13 +699,12 @@ impl<
 }
 
 impl<
-        'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         L: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
         A: CounterArrayMut<L> + Sync,
-    > HyperBall<'a, G1, G2, D, L, A>
+    > HyperBall<'_, G1, G2, D, L, A>
 where
     L::Backend: PartialEq,
 {
@@ -1168,7 +1165,7 @@ mod test {
         >,
     }
 
-    impl<'a, G: RandomAccessGraph> SeqHyperBall<'a, G> {
+    impl<G: RandomAccessGraph> SeqHyperBall<'_, G> {
         fn init(&mut self) {
             for i in 0..self.graph.num_nodes() {
                 self.bits.get_counter_mut(i).add(i);

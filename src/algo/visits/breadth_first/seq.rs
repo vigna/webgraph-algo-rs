@@ -84,7 +84,6 @@ use webgraph::traits::RandomAccessGraph;
 /// ).done();
 /// assert_eq!(count, 3);
 /// ```
-
 pub struct Seq<G: RandomAccessGraph> {
     graph: G,
     visited: BitVec,

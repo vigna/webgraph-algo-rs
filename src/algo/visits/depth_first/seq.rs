@@ -117,12 +117,6 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///     no_logging![]
 /// ).done();
 /// ```
-
-// General depth-first visit implementation. The user shouldn't see this.
-// Allowed combinations for `PRED`, `S` and `P` are:
-// * `false`, `TwoStates` and `()` (no predecessors, no stack tracking)
-// * `true`, `TwoStates` and `usize` (predecessors, no stack tracking)
-// * `true`, `ThreeStates` and `usize` (predecessors, stack tracking)
 pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
     graph: &'a G,
     /// Entries on this stack represent the iterator on the successors of a node
@@ -133,6 +127,11 @@ pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
         P,
     )>,
     state: S,
+    // General depth-first visit implementation. The user shouldn't see this.
+    // Allowed combinations for `PRED`, `S` and `P` are:
+    // * `false`, `TwoStates` and `()` (no predecessors, no stack tracking)
+    // * `true`, `TwoStates` and `usize` (predecessors, no stack tracking)
+    // * `true`, `ThreeStates` and `usize` (predecessors, stack tracking)
 }
 
 /// The iterator returned by [`stack`](SeqPred::stack).
@@ -140,7 +139,7 @@ pub struct StackIterator<'a, 'b, S, G: RandomAccessGraph> {
     visit: &'b mut SeqIter<'a, S, G, usize, true>,
 }
 
-impl<'a, 'b, S, G: RandomAccessGraph> Iterator for StackIterator<'a, 'b, S, G> {
+impl<S, G: RandomAccessGraph> Iterator for StackIterator<'_, '_, S, G> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
@@ -270,9 +269,7 @@ impl NodeStates for TwoStates {
     }
 }
 
-impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
-    for SeqIter<'a, S, G, usize, true>
-{
+impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, S, G, usize, true> {
     fn visit_filtered<
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
@@ -407,7 +404,7 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
     }
 }
 
-impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates, G, (), false> {
+impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G, (), false> {
     fn visit_filtered<
         E,
         C: FnMut(EventNoPred) -> ControlFlow<E, ()>,

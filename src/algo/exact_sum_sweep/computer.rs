@@ -234,12 +234,11 @@ impl<
 }
 
 impl<
-        'a,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         V1: Parallel<EventNoPred> + Sync,
         V2: Parallel<EventNoPred> + Sync,
-    > DirExactSumSweepComputer<'a, G1, G2, V1, V2>
+    > DirExactSumSweepComputer<'_, G1, G2, V1, V2>
 {
     #[inline(always)]
     fn incomplete_forward(&self, index: usize) -> bool {
