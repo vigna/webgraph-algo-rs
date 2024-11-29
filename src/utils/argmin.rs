@@ -63,7 +63,6 @@ pub fn argmin<T: std::cmp::PartialOrd + Copy>(slice: &[T]) -> Option<usize> {
 /// // Enumeration order wins
 /// let index = argmin_filtered(&v, &tie, |_, element| element > 1);
 /// assert_eq!(index, Some(3));
-
 /// ```
 pub fn argmin_filtered<
     T: std::cmp::PartialOrd + Copy,

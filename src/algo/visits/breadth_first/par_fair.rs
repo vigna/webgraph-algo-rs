@@ -52,15 +52,15 @@ use webgraph::traits::RandomAccessGraph;
 /// Let's compute the distances from 0:
 ///
 /// ```
-/// use webgraph_algo::algo::visits::Parallel;
+/// use webgraph_algo::algo::visits::{Parallel, Done};
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
-/// use webgraph_algo::algo::visits::Done;
 /// use webgraph_algo::threads;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
+/// use std::ops::ControlFlow::Continue;
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParFairNoPred::new(&graph, 1);

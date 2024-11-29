@@ -19,5 +19,5 @@ pub mod traits {
 
     pub use acyclicity::Acyclicity;
     pub use sccs::StronglyConnectedComponents;
-    pub use visits::{Parallel, Sequential};
+    pub use visits::{Done, Parallel, Sequential};
 }

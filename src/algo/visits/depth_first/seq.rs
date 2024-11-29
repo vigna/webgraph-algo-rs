@@ -72,6 +72,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
+/// use std::ops::ControlFlow::*;
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = depth_first::SeqPath::new(&graph);
@@ -81,12 +82,12 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///         {
 ///             // Stop the visit as soon as a back edge is found
 ///            match event {
-///                EventPred::Revisit { on_stack: true, .. } => Err(StoppedWhenDone {}),
+///                EventPred::Revisit { on_stack: true, .. } => Break(StoppedWhenDone),
 ///                _ => Continue(()),
 ///            }
 ///         },
 ///     no_logging![]
-/// ).is_err()); // As the graph is not acyclic
+/// ).is_break()); // As the graph is not acyclic
 /// ```
 ///
 /// Or, assuming the input is acyclic, let us compute the reverse of a
@@ -99,6 +100,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use webgraph::traits::labels::SequentialLabeling;
+/// use std::ops::ControlFlow::Continue;
 /// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (1, 3), (0, 3)]));
 /// let mut visit = depth_first::SeqPred::new(&graph);

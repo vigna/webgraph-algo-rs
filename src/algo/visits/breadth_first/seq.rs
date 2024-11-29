@@ -31,6 +31,7 @@ use webgraph::traits::RandomAccessGraph;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
+/// use std::ops::ControlFlow::Continue;
 /// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::Seq::new(&graph);
@@ -62,6 +63,7 @@ use webgraph::traits::RandomAccessGraph;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
+/// use std::ops::ControlFlow::Continue;
 /// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
 /// let mut visit = breadth_first::Seq::new(&graph);

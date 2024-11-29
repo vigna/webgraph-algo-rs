@@ -8,10 +8,10 @@
 //! [`Interrupted`] when interrupted or [`Infallible`](std::convert::Infallible)
 //! if the visit cannot be interrupted.
 //!
-//! If a callback returns an error, the visit will be interrupted; and the error
+//! If a callback returns [`Break`](ControlFlow::Break),
+//! the visit will be interrupted; and the interrupt
 //! propagated to the caller of the visit method; for uninterruptible visits we
-//! suggest to use something like the
-//! [`unwrap_infallible`](https://docs.rs/unwrap-infallible/latest/unwrap_infallible/trait.UnwrapInfallible.html#tymethod.done)
+//! suggest to use the [`Done`] trait and its [`done`](Done::done)
 //! method on the result to let type inference run smoothly.
 //!
 //! Note that an interruption does not necessarily denote an error condition
@@ -277,7 +277,12 @@ pub trait Done {
 
 impl<C> Done for ControlFlow<std::convert::Infallible, C> {
     type Ok = C;
+
+    #[inline(always)]
     fn done(self) -> C {
-        self.continue_value().unwrap()
+        unsafe {
+            // Safety: If E is Infallible, continue_value MUST be Some
+            self.continue_value().unwrap_unchecked()
+        }
     }
 }
