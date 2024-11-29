@@ -2,7 +2,10 @@ use crate::algo::visits::{breadth_first::*, Parallel};
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::{prelude::*, ThreadPool};
-use std::sync::atomic::Ordering;
+use std::{
+    ops::ControlFlow::{self, Continue},
+    sync::atomic::Ordering,
+};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -51,13 +54,13 @@ use webgraph::traits::RandomAccessGraph;
 /// ```
 /// use webgraph_algo::algo::visits::Parallel;
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
+/// use webgraph_algo::algo::visits::Done;
 /// use webgraph_algo::threads;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
-/// use unwrap_infallible::UnwrapInfallible;
 ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParFairNoPred::new(&graph, 1);
@@ -70,11 +73,11 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let EventNoPred::Unknown {curr, distance, ..} = event {
 ///                 d[curr].store(distance, Ordering::Relaxed);
 ///             }
-///             Ok(())
+///             Continue(())
 ///         },
 ///    &threads![],
 ///    no_logging![]
-/// ).unwrap_infallible();
+/// ).done();
 /// assert_eq!(d[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(d[1].load(Ordering::Relaxed), 1);
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
@@ -114,7 +117,7 @@ impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
 impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false> {
     fn par_visit_filtered<
         E: Send,
-        C: Fn(EventNoPred) -> Result<(), E> + Sync,
+        C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsNoPred) -> bool + Sync,
     >(
         &mut self,
@@ -123,7 +126,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgsNoPred {
                 curr: root,
@@ -131,7 +134,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
                 distance: 0,
             })
         {
-            return Ok(());
+            return Continue(());
         }
 
         // We do not provide a capacity in the hope of allocating dynamically
@@ -177,10 +180,10 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
                                         }
                                     }
 
-                                    Result::<(), E>::Ok(())
+                                    Continue(())
                                 })?;
 
-                            Result::<(), E>::Ok(())
+                            Continue(())
                         })
                     })
             })?;
@@ -194,12 +197,12 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
 
         callback(EventNoPred::Done { root })?;
 
-        Ok(())
+        Continue(())
     }
 
     fn par_visit_all_filtered<
         E: Send,
-        C: Fn(EventNoPred) -> Result<(), E> + Sync,
+        C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsNoPred) -> bool + Sync,
     >(
         &mut self,
@@ -207,12 +210,12 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
-        Ok(())
+        Continue(())
     }
 
     fn reset(&mut self) {
@@ -223,7 +226,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
 impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
     fn par_visit_filtered<
         E: Send,
-        C: Fn(EventPred) -> Result<(), E> + Sync,
+        C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(<EventPred as super::super::Event>::FilterArgs) -> bool + Sync,
     >(
         &mut self,
@@ -232,7 +235,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgsPred {
                 curr: root,
@@ -241,7 +244,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
                 distance: 0,
             })
         {
-            return Ok(());
+            return Continue(());
         }
 
         // We do not provide a capacity in the hope of allocating dynamically
@@ -289,10 +292,10 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
                                         }
                                     }
 
-                                    Result::<(), E>::Ok(())
+                                    Continue(())
                                 })?;
 
-                            Result::<(), E>::Ok(())
+                            Continue(())
                         })
                     })
             })?;
@@ -306,12 +309,12 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
 
         callback(EventPred::Done { root })?;
 
-        Ok(())
+        Continue(())
     }
 
     fn par_visit_all_filtered<
         E: Send,
-        C: Fn(EventPred) -> Result<(), E> + Sync,
+        C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
@@ -319,12 +322,12 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
-        Ok(())
+        Continue(())
     }
 
     fn reset(&mut self) {

@@ -1,3 +1,5 @@
+use std::ops::ControlFlow::{Break, Continue};
+
 use crate::{
     algo::visits::depth_first::*, algo::visits::Sequential, algo::visits::StoppedWhenDone,
 };
@@ -17,15 +19,15 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
         |event| {
             // Stop the visit as soon as a back edge is found.
             match event {
-                EventPred::Revisit { on_stack: true, .. } => Err(StoppedWhenDone {}),
-                _ => Ok(()),
+                EventPred::Revisit { on_stack: true, .. } => Break(StoppedWhenDone {}),
+                _ => Continue(()),
             }
         },
         pl,
     );
 
     pl.done();
-    acyclic.is_ok()
+    acyclic.is_continue()
 }
 
 /// Trait providing an easy way to test a [`RandomAccessGraph`] for

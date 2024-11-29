@@ -1,4 +1,5 @@
 use crate::{
+    algo::visits::Done,
     prelude::{
         breadth_first::{EventNoPred, ParFairNoPred},
         sccs::BasicSccs,
@@ -10,10 +11,10 @@ use dsi_progress_logger::ProgressLog;
 use rayon::ThreadPool;
 use std::{
     mem::MaybeUninit,
+    ops::ControlFlow::Continue,
     sync::atomic::{AtomicUsize, Ordering},
 };
 use sync_cell_slice::SyncSlice;
-use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Connected components of symmetric graphs by parallel visits.
@@ -53,12 +54,12 @@ pub fn symm_par(
                     }
                     _ => (),
                 }
-                Ok(())
+                Continue(())
             },
             thread_pool,
             pl,
         )
-        .unwrap_infallible();
+        .done();
 
     let component = unsafe { component.assume_init() };
 

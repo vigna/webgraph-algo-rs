@@ -1,7 +1,7 @@
 use super::BasicSccs;
-use crate::{prelude::depth_first, traits::Sequential};
+use crate::{algo::visits::Done, prelude::depth_first, traits::Sequential};
 use dsi_progress_logger::ProgressLog;
-use unwrap_infallible::UnwrapInfallible;
+use std::ops::ControlFlow::Continue;
 use webgraph::traits::RandomAccessGraph;
 
 /// Connected components of symmetric graphs by sequential visits.
@@ -29,11 +29,11 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
                     }
                     _ => (),
                 }
-                Ok(())
+                Continue(())
             },
             pl,
         )
-        .unwrap_infallible();
+        .done();
 
     let component = unsafe { component.assume_init() };
 

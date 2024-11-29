@@ -1,10 +1,11 @@
+use std::ops::ControlFlow::Continue;
+
 use super::params::*;
 use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::prelude::*;
-use unwrap_infallible::UnwrapInfallible;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::visits::breadth_first::*;
+use webgraph_algo::algo::visits::{breadth_first::*, Done};
 use webgraph_algo::algo::visits::{Parallel, Sequential};
 use webgraph_algo::threads;
 
@@ -31,9 +32,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     let mut visit = Seq::new(g);
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
-                        visit
-                            .visit(node, |_| Ok(()), no_logging![])
-                            .unwrap_infallible();
+                        visit.visit(node, |_| Continue(()), no_logging![]).done();
                     }
                 });
             },
@@ -48,8 +47,8 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Ok(()), &threads![], no_logging![])
-                            .unwrap_infallible();
+                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .done();
                     }
                 });
             },
@@ -64,8 +63,8 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Ok(()), &threads![], no_logging![])
-                            .unwrap_infallible();
+                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .done();
                     }
                 });
             },
@@ -83,8 +82,8 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Ok(()), &threads![], no_logging![])
-                            .unwrap_infallible();
+                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .done();
                     }
                 });
             },
@@ -102,8 +101,8 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Ok(()), &threads![], no_logging![])
-                            .unwrap_infallible();
+                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .done();
                     }
                 });
             },
@@ -118,8 +117,8 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Ok(()), &threads![], no_logging![])
-                            .unwrap_infallible();
+                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .done();
                     }
                 });
             },
@@ -134,8 +133,8 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Ok(()), &threads![], no_logging![])
-                            .unwrap_infallible();
+                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .done();
                     }
                 });
             },

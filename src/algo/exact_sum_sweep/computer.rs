@@ -4,7 +4,7 @@ use crate::{
         sccs::{self, BasicSccs},
         visits::{
             breadth_first::{EventNoPred, ParFairNoPred},
-            FilterArgs, Parallel,
+            Done, FilterArgs, Parallel,
         },
     },
     traits::StronglyConnectedComponents,
@@ -14,13 +14,15 @@ use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use nonmax::NonMaxUsize;
 use rayon::{prelude::*, ThreadPool};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    RwLock,
+use std::{
+    ops::ControlFlow::Continue,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    },
 };
 use sux::bits::AtomicBitVec;
 use sync_cell_slice::SyncSlice;
-use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Experimentally obtained sane value for the granularity of the visits.
@@ -520,12 +522,12 @@ impl<
                     if let EventNoPred::Unknown { curr, .. } = event {
                         radial_vertices.set(curr, true, Ordering::Relaxed)
                     }
-                    Ok(())
+                    Continue(())
                 },
                 thread_pool,
                 pl,
             )
-            .unwrap_infallible();
+            .done();
         self.transposed_visit.reset();
 
         pl.done();
@@ -620,12 +622,12 @@ impl<
                             }
                         }
                     };
-                    Ok(())
+                    Continue(())
                 },
                 thread_pool,
                 pl,
             )
-            .unwrap_infallible();
+            .done();
 
         self.transposed_visit.reset();
 
@@ -686,12 +688,12 @@ impl<
                             unsafe { backward_low[node].set(distance) };
                         }
                     }
-                    Ok(())
+                    Continue(())
                 },
                 thread_pool,
                 pl,
             )
-            .unwrap_infallible();
+            .done();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -782,13 +784,13 @@ impl<
                             unsafe { dist_pivot_mut[curr].set(distance) };
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         };
-                        Ok(())
+                        Continue(())
                     },
                     |FilterArgs::<EventNoPred> { curr, .. }| components[curr] == pivot_component,
                     thread_pool,
                     no_logging![],
                 )
-                .unwrap_infallible();
+                .done();
 
                 current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
             }

@@ -1,3 +1,5 @@
+use std::ops::ControlFlow::{Break, Continue};
+
 use super::BasicSccs;
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
@@ -64,7 +66,7 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                                 }
                                 // Nodes on the visit path will be assigned
                                 // to the same component later
-                                return Err(StoppedWhenDone {});
+                                return Break(StoppedWhenDone {});
                             }
                         }
                     }
@@ -98,11 +100,11 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                     }
                     _ => {}
                 }
-                Ok(())
+                Continue(())
             },
             pl,
         )
-        .is_err()
+        .is_break()
     {
         // In case we exited early, complete the assignment
         for node in visit.stack() {

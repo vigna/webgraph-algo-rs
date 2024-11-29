@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
+use std::ops::ControlFlow::Continue;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use unwrap_infallible::UnwrapInfallible;
 use webgraph::{
     labels::Left,
     prelude::{BvGraph, VecGraph},
@@ -103,11 +103,11 @@ macro_rules! test_bfv_algo_seq {
                                 {
                                     dists[curr].store(distance, Ordering::Relaxed);
                                 }
-                                Ok(())
+                                Continue(())
                             },
                             no_logging![],
                         )
-                        .unwrap_infallible();
+                        .done();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -138,11 +138,11 @@ macro_rules! test_bfv_algo_seq {
                                 {
                                     dists[curr].store(distance, Ordering::Relaxed);
                                 }
-                                Ok(())
+                                Continue(())
                             },
                             no_logging![],
                         )
-                        .unwrap_infallible();
+                        .done();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -206,12 +206,12 @@ macro_rules! test_bfv_algo_par {
                                 {
                                     dists[curr].store(distance, Ordering::Relaxed);
                                 }
-                                Ok(())
+                                Continue(())
                             },
                             &t,
                             no_logging![],
                         )
-                        .unwrap_infallible();
+                        .done();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -243,12 +243,12 @@ macro_rules! test_bfv_algo_par {
                                 {
                                     dists[curr].store(distance, Ordering::Relaxed);
                                 }
-                                Ok(())
+                                Continue(())
                             },
                             &t,
                             no_logging![],
                         )
-                        .unwrap_infallible();
+                        .done();
                 }
 
                 let actual_dists = into_non_atomic(dists);

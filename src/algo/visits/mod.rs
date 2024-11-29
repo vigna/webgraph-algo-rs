@@ -3,7 +3,7 @@
 //! Implementation of [sequential](Sequential) and [parallel][Parallel] visits
 //! depend on a type parameter `A` implementing the trait [`Event`]; they
 //! provide visit methods accepting a callback function with argument `A` and
-//! returning a `Result<(), E>`, where `E` is a type parameter of the visit
+//! returning a `ControlFlow<E, ()>`, where `E` is a type parameter of the visit
 //! method: for example, `E` might be [`StoppedWhenDone`] when completing early,
 //! [`Interrupted`] when interrupted or [`Infallible`](std::convert::Infallible)
 //! if the visit cannot be interrupted.
@@ -11,7 +11,7 @@
 //! If a callback returns an error, the visit will be interrupted; and the error
 //! propagated to the caller of the visit method; for uninterruptible visits we
 //! suggest to use something like the
-//! [`unwrap_infallible`](https://docs.rs/unwrap-infallible/latest/unwrap_infallible/trait.UnwrapInfallible.html#tymethod.unwrap_infallible)
+//! [`unwrap_infallible`](https://docs.rs/unwrap-infallible/latest/unwrap_infallible/trait.UnwrapInfallible.html#tymethod.done)
 //! method on the result to let type inference run smoothly.
 //!
 //! Note that an interruption does not necessarily denote an error condition
@@ -20,8 +20,8 @@
 //! [Sequential visits](Sequential) are visits that are executed in a single
 //! thread, whereas [parallel visits](Parallel) use multiple threads. The
 //! signature of callbacks reflects this difference: the callbacks of sequential
-//! visits are `FnMut(A) -> Result<(), E>`, whereas the callbacks of parallel
-//! visits are `Fn(A) -> Result<(), E> + Sync`.
+//! visits are `FnMut(A) -> ControlFlow<E, ()>`, whereas the callbacks of parallel
+//! visits are `Fn(A) -> ControlFlow<E, ()> + Sync`.
 //!
 //! In case of interruption sequential visits usually return immediately to the
 //! caller, whereas in general parallel visits might need to complete part of
@@ -50,6 +50,8 @@
 
 pub mod breadth_first;
 pub mod depth_first;
+
+use std::ops::ControlFlow;
 
 use dsi_progress_logger::ProgressLog;
 use rayon::ThreadPool;
@@ -101,13 +103,13 @@ pub trait Sequential<A: Event> {
     /// * `callback`: The callback function.
     /// * `filter`: The filter function.
     /// * `pl`: A progress logger.
-    fn visit_filtered<E, C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
+    fn visit_filtered<E, C: FnMut(A) -> ControlFlow<E, ()>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E>;
+    ) -> ControlFlow<E, ()>;
 
     /// Visits the graph from the specified node without a filter.
     ///
@@ -115,24 +117,24 @@ pub trait Sequential<A: Event> {
     /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
     /// returns true.
     #[inline(always)]
-    fn visit<E, C: FnMut(A) -> Result<(), E>>(
+    fn visit<E, C: FnMut(A) -> ControlFlow<E, ()>>(
         &mut self,
         root: usize,
         callback: C,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         self.visit_filtered(root, callback, |_| true, pl)
     }
 
     /// Visits the whole graph.
     ///
     /// See [`visit_filtered`](Sequential::visit) for more details.
-    fn visit_all_filtered<E, C: FnMut(A) -> Result<(), E>, F: FnMut(A::FilterArgs) -> bool>(
+    fn visit_all_filtered<E, C: FnMut(A) -> ControlFlow<E, ()>, F: FnMut(A::FilterArgs) -> bool>(
         &mut self,
         callback: C,
         filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E>;
+    ) -> ControlFlow<E, ()>;
 
     /// Visits the whole graph without a filter.
     ///
@@ -140,11 +142,11 @@ pub trait Sequential<A: Event> {
     /// [`visit_all_filtered`](Sequential::visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn visit_all<E, C: FnMut(A) -> Result<(), E>>(
+    fn visit_all<E, C: FnMut(A) -> ControlFlow<E, ()>>(
         &mut self,
         callback: C,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         self.visit_all_filtered(callback, |_| true, pl)
     }
 
@@ -171,7 +173,7 @@ pub trait Parallel<A: Event> {
     /// * `pl`: A progress logger.
     fn par_visit_filtered<
         E: Send,
-        C: Fn(A) -> Result<(), E> + Sync,
+        C: Fn(A) -> ControlFlow<E, ()> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
     >(
         &mut self,
@@ -180,7 +182,7 @@ pub trait Parallel<A: Event> {
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E>;
+    ) -> ControlFlow<E, ()>;
 
     /// Visits the graph from the specified node without a filter.
     ///
@@ -188,13 +190,13 @@ pub trait Parallel<A: Event> {
     /// [`visit_filtered`](Parallel::par_visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
-    fn par_visit<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
+    fn par_visit<E: Send, C: Fn(A) -> ControlFlow<E, ()> + Sync>(
         &mut self,
         root: usize,
         callback: C,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         self.par_visit_filtered(root, callback, |_| true, thread_pool, pl)
     }
 
@@ -203,7 +205,7 @@ pub trait Parallel<A: Event> {
     /// See [`visit`](Parallel::par_visit_filtered) for more details.
     fn par_visit_all_filtered<
         E: Send,
-        C: Fn(A) -> Result<(), E> + Sync,
+        C: Fn(A) -> ControlFlow<E, ()> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
     >(
         &mut self,
@@ -211,7 +213,7 @@ pub trait Parallel<A: Event> {
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E>;
+    ) -> ControlFlow<E, ()>;
 
     /// Visits the whole graph without a filter.
     ///
@@ -219,12 +221,12 @@ pub trait Parallel<A: Event> {
     /// [`visit_all_filtered`](Parallel::par_visit_all_filtered) with a filter that
     /// always returns true.
     #[inline(always)]
-    fn par_visit_all<E: Send, C: Fn(A) -> Result<(), E> + Sync>(
+    fn par_visit_all<E: Send, C: Fn(A) -> ControlFlow<E, ()> + Sync>(
         &mut self,
         callback: C,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         self.par_visit_all_filtered(callback, |_| true, thread_pool, pl)
     }
 
@@ -235,7 +237,7 @@ pub trait Parallel<A: Event> {
 impl<A: Event, S: Sequential<A>> Parallel<A> for S {
     fn par_visit_filtered<
         E: Send,
-        C: Fn(A) -> Result<(), E> + Sync,
+        C: Fn(A) -> ControlFlow<E, ()> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
     >(
         &mut self,
@@ -244,13 +246,13 @@ impl<A: Event, S: Sequential<A>> Parallel<A> for S {
         filter: F,
         _thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         self.visit_filtered(root, callback, filter, pl)
     }
 
     fn par_visit_all_filtered<
         E: Send,
-        C: Fn(A) -> Result<(), E> + Sync,
+        C: Fn(A) -> ControlFlow<E, ()> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
     >(
         &mut self,
@@ -258,11 +260,25 @@ impl<A: Event, S: Sequential<A>> Parallel<A> for S {
         filter: F,
         _thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         self.visit_all_filtered(callback, filter, pl)
     }
 
     fn reset(&mut self) {
         self.reset()
+    }
+}
+
+/// Unwrapping an infallible result into its success value.
+pub trait Done {
+    /// Type of the `Ok` variant of the result.
+    type Ok;
+    fn done(self) -> Self::Ok;
+}
+
+impl<C> Done for ControlFlow<std::convert::Infallible, C> {
+    type Ok = C;
+    fn done(self) -> C {
+        self.continue_value().unwrap()
     }
 }

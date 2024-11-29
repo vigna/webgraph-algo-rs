@@ -5,7 +5,10 @@ use crate::algo::visits::{
 use dsi_progress_logger::ProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::{prelude::*, ThreadPool};
-use std::sync::atomic::Ordering;
+use std::{
+    ops::ControlFlow::{self, Continue},
+    sync::atomic::Ordering,
+};
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -37,8 +40,7 @@ use webgraph::traits::RandomAccessGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
-/// use unwrap_infallible::UnwrapInfallible;
-///
+/// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParLowMem::new(&graph, 1);
 /// let mut tree = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
@@ -50,11 +52,11 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let EventPred::Unknown {curr, pred, ..} = event {
 ///                 tree[curr].store(pred, Ordering::Relaxed);
 ///             }
-///             Ok(())
+///             Continue(())
 ///         },
 ///    &threads![],
 ///    no_logging![]
-/// ).unwrap_infallible();
+/// ).done();
 ///
 /// assert_eq!(tree[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(tree[1].load(Ordering::Relaxed), 0);
@@ -88,7 +90,7 @@ impl<G: RandomAccessGraph> ParLowMem<G> {
 impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
     fn par_visit_filtered<
         E: Send,
-        C: Fn(EventPred) -> Result<(), E> + Sync,
+        C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
@@ -97,7 +99,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgsPred {
                 curr: root,
@@ -106,7 +108,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                 distance: 0,
             })
         {
-            return Ok(());
+            return Continue(());
         }
 
         // We do not provide a capacity in the hope of allocating dyinamically
@@ -159,7 +161,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                                         }
                                     }
 
-                                    Result::<(), E>::Ok(())
+                                    Continue(())
                                 })
                         })
                     })
@@ -174,12 +176,12 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
 
         callback(EventPred::Done { root })?;
 
-        Ok(())
+        Continue(())
     }
 
     fn par_visit_all_filtered<
         E: Send,
-        C: Fn(EventPred) -> Result<(), E> + Sync,
+        C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
@@ -187,12 +189,12 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
         }
 
-        Ok(())
+        Continue(())
     }
 
     fn reset(&mut self) {

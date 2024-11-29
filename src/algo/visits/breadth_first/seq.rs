@@ -4,7 +4,7 @@ use crate::algo::visits::{
 };
 use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::ControlFlow, ops::ControlFlow::Continue};
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 
@@ -31,8 +31,7 @@ use webgraph::traits::RandomAccessGraph;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
-/// use unwrap_infallible::UnwrapInfallible;
-///
+/// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut d = [0; 4];
@@ -44,10 +43,10 @@ use webgraph::traits::RandomAccessGraph;
 ///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = event {
 ///                 d[curr] = distance;
 ///             }
-///             Ok(())
+///             Continue(())
 ///         },
 ///     no_logging![]
-/// ).unwrap_infallible();
+/// ).done();
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
 ///
@@ -63,14 +62,13 @@ use webgraph::traits::RandomAccessGraph;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
-/// use unwrap_infallible::UnwrapInfallible;
-///
+/// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
 /// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut count = 0;
 /// visit.visit_filtered(
 ///     0,
-///     |event| { Ok(()) },
+///     |event| { Continue(()) },
 ///     |breadth_first::FilterArgsPred { curr, distance, .. }|
 ///         {
 ///             if distance > 2 {
@@ -81,7 +79,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///         },
 ///     no_logging![]
-/// ).unwrap_infallible();
+/// ).done();
 /// assert_eq!(count, 3);
 /// ```
 
@@ -110,13 +108,17 @@ impl<G: RandomAccessGraph> Seq<G> {
 }
 
 impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
-    fn visit_filtered<E, C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
+    fn visit_filtered<
+        E,
+        C: FnMut(EventPred) -> ControlFlow<E, ()>,
+        F: FnMut(FilterArgsPred) -> bool,
+    >(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         if self.visited[root]
             || !filter(FilterArgsPred {
                 curr: root,
@@ -125,7 +127,7 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                 distance: 0,
             })
         {
-            return Ok(());
+            return Continue(());
         }
 
         callback(EventPred::Unknown {
@@ -187,24 +189,24 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
 
         callback(EventPred::Done { root })?;
 
-        Ok(())
+        Continue(())
     }
 
     fn visit_all_filtered<
         E,
-        C: FnMut(EventPred) -> Result<(), E>,
+        C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
     >(
         &mut self,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
-        Ok(())
+        Continue(())
     }
 
     fn reset(&mut self) {

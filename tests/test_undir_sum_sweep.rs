@@ -1,11 +1,13 @@
+use std::ops::ControlFlow::Continue;
+
 use anyhow::Result;
 use dsi_progress_logger::no_logging;
-use unwrap_infallible::UnwrapInfallible;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::traits::SequentialLabeling;
 use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
+use webgraph_algo::algo::visits::Done;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
 use webgraph_algo::threads;
 use webgraph_algo::traits::Sequential;
@@ -243,11 +245,11 @@ fn test_er() -> Result<()> {
                     if let EventPred::Unknown { root, distance, .. } = event {
                         ecc[root] = ecc[root].max(distance);
                     }
-                    Ok(())
+                    Continue(())
                 },
                 no_logging![],
             )
-            .unwrap_infallible();
+            .done();
             pll.reset();
         }
 

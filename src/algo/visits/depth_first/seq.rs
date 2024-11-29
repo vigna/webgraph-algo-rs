@@ -1,3 +1,5 @@
+use std::ops::ControlFlow::{self, Continue};
+
 use crate::algo::visits::{
     depth_first::{EventNoPred, EventPred, FilterArgsNoPred, FilterArgsPred},
     Sequential,
@@ -81,7 +83,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///             // Stop the visit as soon as a back edge is found
 ///            match event {
 ///                EventPred::Revisit { on_stack: true, .. } => Err(StoppedWhenDone {}),
-///                _ => Ok(()),
+///                _ => Continue(()),
 ///            }
 ///         },
 ///     no_logging![]
@@ -98,8 +100,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use webgraph::traits::labels::SequentialLabeling;
-/// use unwrap_infallible::UnwrapInfallible;
-///
+/// ///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (1, 3), (0, 3)]));
 /// let mut visit = depth_first::SeqPred::new(&graph);
 /// let mut top_sort = Vec::with_capacity(graph.num_nodes());
@@ -110,10 +111,10 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///            if let EventPred::Postvisit { curr, .. } = event {
 ///                 top_sort.push(curr);
 ///            }
-///            Ok(())
+///            Continue(())
 ///         },
 ///     no_logging![]
-/// ).unwrap_infallible();
+/// ).done();
 /// ```
 
 // General depth-first visit implementation. The user shouldn't see this.
@@ -271,13 +272,17 @@ impl NodeStates for TwoStates {
 impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
     for SeqIter<'a, S, G, usize, true>
 {
-    fn visit_filtered<E, C: FnMut(EventPred) -> Result<(), E>, F: FnMut(FilterArgsPred) -> bool>(
+    fn visit_filtered<
+        E,
+        C: FnMut(EventPred) -> ControlFlow<E, ()>,
+        F: FnMut(FilterArgsPred) -> bool,
+    >(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
         if state.known(root)
@@ -289,7 +294,7 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
             })
         {
             // We ignore the node: it might be visited later
-            return Ok(());
+            return Continue(());
         }
 
         callback(EventPred::Init { root })?;
@@ -316,7 +321,7 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
             let depth = self.stack.len();
             let Some((iter, parent)) = self.stack.last_mut() else {
                 callback(EventPred::Done { root })?;
-                return Ok(());
+                return Continue(());
             };
 
             for succ in iter {
@@ -380,19 +385,19 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
 
     fn visit_all_filtered<
         E,
-        C: FnMut(EventPred) -> Result<(), E>,
+        C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
     >(
         &mut self,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
-        Ok(())
+        Continue(())
     }
 
     fn reset(&mut self) {
@@ -404,7 +409,7 @@ impl<'a, S: NodeStates, G: RandomAccessGraph> Sequential<EventPred>
 impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates, G, (), false> {
     fn visit_filtered<
         E,
-        C: FnMut(EventNoPred) -> Result<(), E>,
+        C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsNoPred) -> bool,
     >(
         &mut self,
@@ -412,7 +417,7 @@ impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
         if state.known(root)
@@ -423,7 +428,7 @@ impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates
             })
         {
             // We ignore the node: it might be visited later
-            return Ok(());
+            return Continue(());
         }
 
         callback(EventNoPred::Init { root })?;
@@ -443,7 +448,7 @@ impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates
             let depth = self.stack.len();
             let Some((iter, _)) = self.stack.last_mut() else {
                 callback(EventNoPred::Done { root })?;
-                return Ok(());
+                return Continue(());
             };
 
             for succ in iter {
@@ -488,19 +493,19 @@ impl<'a, G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'a, TwoStates
 
     fn visit_all_filtered<
         E,
-        C: FnMut(EventNoPred) -> Result<(), E>,
+        C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsNoPred) -> bool,
     >(
         &mut self,
         mut callback: C,
         mut filter: F,
         pl: &mut impl ProgressLog,
-    ) -> Result<(), E> {
+    ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
-        Ok(())
+        Continue(())
     }
 
     fn reset(&mut self) {

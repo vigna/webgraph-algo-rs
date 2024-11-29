@@ -1,7 +1,14 @@
+use std::ops::ControlFlow::Continue;
+
 use super::BasicSccs;
-use crate::{algo::top_sort, algo::visits::Sequential, prelude::depth_first::*};
+use crate::{
+    algo::{
+        top_sort,
+        visits::{Done, Sequential},
+    },
+    prelude::depth_first::*,
+};
 use dsi_progress_logger::ProgressLog;
-use unwrap_infallible::UnwrapInfallible;
 use webgraph::traits::RandomAccessGraph;
 
 /// Computes the strongly connected components of a graph using Kosaraju's algorithm.
@@ -39,11 +46,11 @@ pub fn kosaraju(
                         }
                         _ => (),
                     }
-                    Ok(())
+                    Continue(())
                 },
                 pl,
             )
-            .unwrap_infallible();
+            .done();
     }
 
     pl.done();
