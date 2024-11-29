@@ -125,7 +125,12 @@ impl<
 {
     type Item = T;
     type Backend = [W];
-    type Counter<'a> = DefaultCounter<Self, &'a Self, Box<[W]>> where T: 'a, W: 'a, H: 'a;
+    type Counter<'a>
+        = DefaultCounter<Self, &'a Self, Box<[W]>>
+    where
+        T: 'a,
+        W: 'a,
+        H: 'a;
 
     fn new_counter(&self) -> Self::Counter<'_> {
         Self::Counter::new(

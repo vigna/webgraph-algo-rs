@@ -86,7 +86,10 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
 impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
     for SliceCounterArray<L, W>
 {
-    type Counter<'a> = DefaultCounter<L, &'a L, &'a [W]> where Self: 'a;
+    type Counter<'a>
+        = DefaultCounter<L, &'a L, &'a [W]>
+    where
+        Self: 'a;
 
     fn get_backend(&self, index: usize) -> &L::Backend {
         let offset = index * self.logic.backend_len();
@@ -111,7 +114,10 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
 impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     for SliceCounterArray<L, W>
 {
-    type CounterMut<'a> = DefaultCounter<L, &'a L, &'a mut [W]> where Self: 'a;
+    type CounterMut<'a>
+        = DefaultCounter<L, &'a L, &'a mut [W]>
+    where
+        Self: 'a;
 
     fn get_backend_mut(&mut self, index: usize) -> &mut L::Backend {
         let offset = index * self.logic.backend_len();
