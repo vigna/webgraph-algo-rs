@@ -1,9 +1,10 @@
-use crate::{algo::visits::depth_first::*, algo::visits::Sequential};
+use crate::{
+    algo::visits::Sequential,
+    algo::visits::{depth_first::*, Done},
+};
 use dsi_progress_logger::ProgressLog;
 use std::ops::ControlFlow::Continue;
 use webgraph::traits::RandomAccessGraph;
-
-use super::visits::Done;
 
 /// Returns the node of the graph in topological-sort order, if the graph is acyclic.
 ///

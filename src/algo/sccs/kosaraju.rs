@@ -1,5 +1,3 @@
-use std::ops::ControlFlow::Continue;
-
 use super::BasicSccs;
 use crate::{
     algo::{
@@ -9,6 +7,7 @@ use crate::{
     prelude::depth_first::*,
 };
 use dsi_progress_logger::ProgressLog;
+use std::ops::ControlFlow::Continue;
 use webgraph::traits::RandomAccessGraph;
 
 /// Computes the strongly connected components of a graph using Kosaraju's algorithm.

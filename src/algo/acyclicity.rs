@@ -1,9 +1,8 @@
-use std::ops::ControlFlow::{Break, Continue};
-
 use crate::{
     algo::visits::depth_first::*, algo::visits::Sequential, algo::visits::StoppedWhenDone,
 };
 use dsi_progress_logger::prelude::*;
+use std::ops::ControlFlow::{Break, Continue};
 use webgraph::traits::RandomAccessGraph;
 
 /// Runs an acyclicity test.

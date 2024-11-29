@@ -51,23 +51,22 @@
 pub mod breadth_first;
 pub mod depth_first;
 
-use std::ops::ControlFlow;
-
 use dsi_progress_logger::ProgressLog;
 use rayon::ThreadPool;
+use std::ops::ControlFlow;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 /// The visit was interrupted.
 #[error("The visit was interrupted")]
-pub struct Interrupted {}
+pub struct Interrupted;
 
 #[derive(Error, Debug)]
 /// The result of the visit was computed without completing the visit; for
 /// example, during an acyclicity test a single arc pointing at the visit path
 /// is sufficient to compute the result.
 #[error("Stopped when done")]
-pub struct StoppedWhenDone {}
+pub struct StoppedWhenDone;
 
 /// Types usable as arguments for the callbacks in visits.
 ///

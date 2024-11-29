@@ -1,7 +1,6 @@
-use std::ops::ControlFlow::Continue;
-
 use anyhow::Result;
 use dsi_progress_logger::no_logging;
+use std::ops::ControlFlow::Continue;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::traits::SequentialLabeling;
 use webgraph::transform;

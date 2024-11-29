@@ -1,11 +1,10 @@
-use std::ops::ControlFlow::{self, Continue};
-
 use crate::algo::visits::{
     depth_first::{EventNoPred, EventPred, FilterArgsNoPred, FilterArgsPred},
     Sequential,
 };
 use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
+use std::ops::ControlFlow::{self, Continue};
 use sux::bits::BitVec;
 use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};

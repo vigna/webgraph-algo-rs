@@ -1,8 +1,7 @@
-use std::ops::ControlFlow::{Break, Continue};
-
 use super::BasicSccs;
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
+use std::ops::ControlFlow::{Break, Continue};
 use sux::bits::BitVec;
 use webgraph::traits::RandomAccessGraph;
 

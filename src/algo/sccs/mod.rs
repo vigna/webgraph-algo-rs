@@ -22,7 +22,6 @@
 //! ```
 
 mod tarjan;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 pub use tarjan::*;
 
 mod kosaraju;
@@ -32,6 +31,8 @@ pub use symm_seq::*;
 
 mod symm_par;
 pub use symm_par::*;
+
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use webgraph::algo::llp;
 
 /// The strongly connected components on a graph.
