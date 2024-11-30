@@ -1,5 +1,5 @@
 use super::BasicSccs;
-use crate::{algo::visits::Unbreakable, prelude::depth_first, traits::Sequential};
+use crate::{algo::visits::NoBreak, prelude::depth_first, traits::Sequential};
 use dsi_progress_logger::ProgressLog;
 use std::ops::ControlFlow::Continue;
 use webgraph::traits::RandomAccessGraph;
@@ -33,7 +33,7 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
             },
             pl,
         )
-        .unbreakable();
+        .no_break();
 
     let component = unsafe { component.assume_init() };
 

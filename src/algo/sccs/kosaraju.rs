@@ -2,7 +2,7 @@ use super::BasicSccs;
 use crate::{
     algo::{
         top_sort,
-        visits::{Sequential, Unbreakable},
+        visits::{Sequential, NoBreak},
     },
     prelude::depth_first::*,
 };
@@ -49,7 +49,7 @@ pub fn kosaraju(
                 },
                 pl,
             )
-            .unbreakable();
+            .no_break();
     }
 
     pl.done();

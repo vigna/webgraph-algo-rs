@@ -1,5 +1,5 @@
 use crate::{
-    algo::visits::Unbreakable,
+    algo::visits::NoBreak,
     prelude::{
         breadth_first::{EventNoPred, ParFairNoPred},
         sccs::BasicSccs,
@@ -59,7 +59,7 @@ pub fn symm_par(
             thread_pool,
             pl,
         )
-        .unbreakable();
+        .no_break();
 
     let component = unsafe { component.assume_init() };
 
