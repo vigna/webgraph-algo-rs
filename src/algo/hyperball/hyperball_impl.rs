@@ -125,6 +125,20 @@ impl<
     /// * `bits`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
     /// * `result_bits`: an array of the same type and `len` as `bits`.
     pub fn new(graph: &'a G, cumulative_outdegree: &'a D, bits: A, result_bits: A) -> Self {
+        assert_eq!(
+            graph.num_nodes(),
+            bits.len(),
+            "bits should have have len {}. Got {}",
+            graph.num_nodes(),
+            bits.len()
+        );
+        assert_eq!(
+            graph.num_nodes(),
+            result_bits.len(),
+            "result_bits should have have len {}. Got {}",
+            graph.num_nodes(),
+            result_bits.len()
+        );
         Self {
             graph,
             rev_graph: None,
@@ -168,6 +182,20 @@ impl<
         bits: A,
         result_bits: A,
     ) -> Self {
+        assert_eq!(
+            graph.num_nodes(),
+            bits.len(),
+            "bits should have have len {}. Got {}",
+            graph.num_nodes(),
+            bits.len()
+        );
+        assert_eq!(
+            graph.num_nodes(),
+            result_bits.len(),
+            "result_bits should have have len {}. Got {}",
+            graph.num_nodes(),
+            result_bits.len()
+        );
         assert_eq!(
             transposed.num_nodes(),
             graph.num_nodes(),

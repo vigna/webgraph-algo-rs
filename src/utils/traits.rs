@@ -181,6 +181,15 @@ pub trait CounterArray<L: CounterLogic + ?Sized> {
     ///
     /// This method will usually require no allocation.
     fn get_backend(&self, index: usize) -> &L::Backend;
+
+    /// Returns the number of elements in the array, also referred to as its ‘length’.
+    fn len(&self) -> usize;
+
+    /// Returns `true` if the array contains no elements.
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// An array of mutable counters sharing a [`CounterLogic`].

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use webgraph_algo::{
     prelude::*,
-    utils::{HyperLogLogBuilder, HyperLogLog, SliceCounterArray},
+    utils::{HyperLogLog, HyperLogLogBuilder, SliceCounterArray},
 };
 use xxhash_rust::xxh3::Xxh3Builder;
 

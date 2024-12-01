@@ -91,6 +91,7 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
     where
         Self: 'a;
 
+    #[inline(always)]
     fn get_backend(&self, index: usize) -> &L::Backend {
         let offset = index * self.logic.backend_len();
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
@@ -106,8 +107,14 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
         &self.logic
     }
 
+    #[inline(always)]
     fn get_counter(&self, index: usize) -> Self::Counter<'_> {
         DefaultCounter::new(&self.logic, self.get_backend(index))
+    }
+
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -119,6 +126,7 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     where
         Self: 'a;
 
+    #[inline(always)]
     fn get_backend_mut(&mut self, index: usize) -> &mut L::Backend {
         let offset = index * self.logic.backend_len();
 
@@ -130,6 +138,7 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
         }
     }
 
+    #[inline(always)]
     fn get_counter_mut(&mut self, index: usize) -> Self::CounterMut<'_> {
         let logic = &self.logic;
 
@@ -147,6 +156,7 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
         DefaultCounter::new(logic, backend)
     }
 
+    #[inline(always)]
     unsafe fn set(&self, index: usize, content: &L::Backend) {
         debug_assert!(content.as_ref().len() == self.logic.backend_len());
         let offset = index * self.logic.backend_len();
