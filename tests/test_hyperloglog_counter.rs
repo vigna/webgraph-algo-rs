@@ -1,7 +1,7 @@
 use anyhow::Result;
 use webgraph_algo::{
     prelude::*,
-    utils::{BuildHyperLogLog, HyperLogLog, SliceCounterArray},
+    utils::{HyperLogLogBuilder, HyperLogLog, SliceCounterArray},
 };
 use xxhash_rust::xxh3::Xxh3Builder;
 
@@ -22,7 +22,7 @@ fn test_single() -> Result<()> {
             let mut correct = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = BuildHyperLogLog::new(size)
+                let logic = HyperLogLogBuilder::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
@@ -68,7 +68,7 @@ fn test_double() -> Result<()> {
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = BuildHyperLogLog::new(size)
+                let logic = HyperLogLogBuilder::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
@@ -127,7 +127,7 @@ fn test_merge() -> Result<()> {
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = BuildHyperLogLog::new(size)
+                let logic = HyperLogLogBuilder::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))
@@ -189,7 +189,7 @@ fn test_merge_array() -> Result<()> {
             let mut correct_1 = 0;
 
             for trial in 0..NUM_TRIALS {
-                let logic = BuildHyperLogLog::new(size)
+                let logic = HyperLogLogBuilder::new(size)
                     .word_type::<u16>()
                     .log_2_num_reg(log2m)
                     .build_hasher(Xxh3Builder::new().with_seed(trial))

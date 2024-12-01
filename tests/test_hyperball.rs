@@ -10,7 +10,7 @@ use webgraph::{
 };
 use webgraph_algo::utils::SliceCounterArray;
 use webgraph_algo::{
-    algo::hyperball::HyperBallBuilder, threads, utils::hyper_log_log::BuildHyperLogLog,
+    algo::hyperball::HyperBallBuilder, threads, utils::hyper_log_log::HyperLogLogBuilder,
 };
 
 /// Jenkins Hasher as implemented in the
@@ -232,7 +232,7 @@ fn test_cnr_2000() -> Result<()> {
     let expected_nieminen_centralities =
         read_float_array("./tests/hyperball_results/cnr-2000_nieminen_centrality")?;
 
-    let hyper_log_log = BuildHyperLogLog::new(graph.num_nodes())
+    let hyper_log_log = HyperLogLogBuilder::new(graph.num_nodes())
         .log_2_num_reg(8)
         .build_hasher(JenkinsHasherBuilder::new(42))
         .build()?;
@@ -254,7 +254,7 @@ fn test_cnr_2000() -> Result<()> {
     let actual_sum_of_distances = hyperball.sum_of_distances()?;
     let actual_harmonic_cetralities = hyperball.harmonic_centralities()?;
     let actual_lin_centralities = hyperball.lin_centrality()?;
-    let actual_closeness_centralities = hyperball.closeness_cetrality()?;
+    let actual_closeness_centralities = hyperball.closeness_centrality()?;
     let actual_nieminen_centralities = hyperball.nieminen_centrality()?;
 
     let threshold = 1e-6;

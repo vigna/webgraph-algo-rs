@@ -82,7 +82,7 @@ impl<
             graph.num_nodes()
         };
 
-        let logic = BuildHyperLogLog::new(num_elements)
+        let logic = HyperLogLogBuilder::new(num_elements)
             .log_2_num_reg(log2m)
             .build()
             .with_context(|| "Could not build hyperloglog logic")?;
@@ -597,7 +597,7 @@ where
     }
 
     /// Computes and returns the closeness centralities from the sum of distances computed by this instance.
-    pub fn closeness_cetrality(&self) -> Result<Vec<f64>> {
+    pub fn closeness_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.sum_of_distances {
             Ok(distances
@@ -1195,7 +1195,9 @@ mod test {
 
         let num_nodes = graph.num_nodes();
 
-        let hyper_log_log = BuildHyperLogLog::new(num_nodes).log_2_num_reg(6).build()?;
+        let hyper_log_log = HyperLogLogBuilder::new(num_nodes)
+            .log_2_num_reg(6)
+            .build()?;
 
         let seq_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;
         let seq_result_bits = SliceCounterArray::new(hyper_log_log.clone(), num_nodes)?;

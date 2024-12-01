@@ -221,14 +221,14 @@ impl<
 
 /// Builds a [`HyperLogLog`] counter logic.
 #[derive(Debug, Clone)]
-pub struct BuildHyperLogLog<H, W = usize> {
+pub struct HyperLogLogBuilder<H, W = usize> {
     build_hasher: H,
     log_2_num_registers: usize,
     n: usize,
     _marker: std::marker::PhantomData<(H, W)>,
 }
 
-impl BuildHyperLogLog<BuildHasherDefault<DefaultHasher>, usize> {
+impl HyperLogLogBuilder<BuildHasherDefault<DefaultHasher>, usize> {
     /// Creates a new builder for a [`HyperLogLog`] logic with a default word
     /// type of `usize`.
     pub fn new(n: usize) -> Self {
@@ -293,7 +293,7 @@ impl HyperLogLog<(), (), ()> {
     }
 }
 
-impl<H, W: Word> BuildHyperLogLog<H, W> {
+impl<H, W: Word> HyperLogLogBuilder<H, W> {
     /// Sets the desired relative standard deviation.
     ///
     /// ## Note
@@ -324,8 +324,8 @@ impl<H, W: Word> BuildHyperLogLog<H, W> {
     ///
     /// See the [`struct documentation`] for the limitations
     /// on the choice of `W2`.
-    pub fn word_type<W2>(self) -> BuildHyperLogLog<H, W2> {
-        BuildHyperLogLog {
+    pub fn word_type<W2>(self) -> HyperLogLogBuilder<H, W2> {
+        HyperLogLogBuilder {
             n: self.n,
             build_hasher: self.build_hasher,
             log_2_num_registers: self.log_2_num_registers,
@@ -343,8 +343,8 @@ impl<H, W: Word> BuildHyperLogLog<H, W> {
     ///
     /// Note that using this method you can select a specific
     /// hashed based on one or more seeds.
-    pub fn build_hasher<H2>(self, build_hasher: H2) -> BuildHyperLogLog<H2, W> {
-        BuildHyperLogLog {
+    pub fn build_hasher<H2>(self, build_hasher: H2) -> HyperLogLogBuilder<H2, W> {
+        HyperLogLogBuilder {
             n: self.n,
             log_2_num_registers: self.log_2_num_registers,
             build_hasher,
