@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
 use epserde::deser::{Deserialize, Flags};
-use webgraph::prelude::{BvGraph, DCF};
+use webgraph::prelude::{BvGraph, LoadMem, DCF};
 use webgraph::traits::SequentialLabeling;
 use webgraph_algo::algo::hyperball::*;
 use webgraph_algo::algo::{exact_sum_sweep::*, sccs};
@@ -16,7 +16,6 @@ fn main() -> Result<()> {
         .timestamp(stderrlog::Timestamp::Second)
         .init()?;
     let basename = std::env::args().nth(2).expect("No graph basename provided");
-    let graph = BvGraph::with_basename(&basename).load()?;
     let mut main_pl = progress_logger![display_memory = true];
     main_pl.info(format_args!("Starting test..."));
 
@@ -32,9 +31,11 @@ fn main() -> Result<()> {
         .as_str()
     {
         "tarjan" => {
+            let graph = BvGraph::with_basename(&basename).mode::<LoadMem>().load()?;
             sccs::tarjan(&graph, &mut main_pl);
         }
         "diameter" => {
+            let graph = BvGraph::with_basename(&basename).load()?;
             let reversed_graph = BvGraph::with_basename(basename.clone() + "-t").load()?;
             RadiusDiameter::compute_directed(
                 &graph,
@@ -45,6 +46,7 @@ fn main() -> Result<()> {
             );
         }
         "hyperball" => {
+            let graph = BvGraph::with_basename(&basename).load()?;
             let cumulative = DCF::load_mmap(basename.clone() + ".dcf", Flags::empty())?;
             let transpose = BvGraph::with_basename(basename.clone() + "-t").load()?;
             let log2m = std::env::args()
