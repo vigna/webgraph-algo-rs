@@ -715,21 +715,6 @@ impl<
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
-        L: MergeCounterLogic<Item = G1::Label> + Sync,
-        A: CounterArrayMut<L> + Sync,
-    > HyperBall<'_, G1, G2, D, L, A>
-{
-    #[inline(always)]
-    fn swap_arrays(&mut self) {
-        std::mem::swap(&mut self.prev_state, &mut self.next_state);
-        std::mem::swap(&mut self.prev_modified, &mut self.next_modified);
-    }
-}
-
-impl<
-        G1: RandomAccessGraph + Sync,
-        G2: RandomAccessGraph + Sync,
-        D: Succ<Input = usize, Output = usize> + Sync,
         L: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
         A: CounterArrayMut<L> + Sync,
     > HyperBall<'_, G1, G2, D, L, A>
@@ -859,7 +844,9 @@ where
             (self.modified_counters() as f64 / self.graph.num_nodes() as f64) * 100.0
         ));
 
-        self.swap_arrays();
+        std::mem::swap(&mut self.prev_state, &mut self.next_state);
+        std::mem::swap(&mut self.prev_modified, &mut self.next_modified);
+
         if self.systolic {
             std::mem::swap(&mut self.must_be_checked, &mut self.next_must_be_checked);
         }
