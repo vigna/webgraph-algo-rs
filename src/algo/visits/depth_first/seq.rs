@@ -101,7 +101,8 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// use webgraph::labels::proj::Left;
 /// use webgraph::traits::labels::SequentialLabeling;
 /// use std::ops::ControlFlow::Continue;
-/// ///
+/// use no_break::NoBreak;
+///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (1, 3), (0, 3)]));
 /// let mut visit = depth_first::SeqPred::new(&graph);
 /// let mut top_sort = Vec::with_capacity(graph.num_nodes());
@@ -115,7 +116,7 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///            Continue(())
 ///         },
 ///     no_logging![]
-/// ).no_break();
+/// ).continue_value_no_break();
 /// ```
 pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
     graph: &'a G,

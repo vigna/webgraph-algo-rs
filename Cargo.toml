@@ -26,6 +26,7 @@ sealed = "0.6.0"
 lender = "0.2.9"
 impl-tools = "0.10.1"
 sync-cell-slice = "0.9.9"
+no-break = "0.1.1"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

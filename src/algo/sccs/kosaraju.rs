@@ -1,12 +1,10 @@
 use super::BasicSccs;
 use crate::{
-    algo::{
-        top_sort,
-        visits::{Sequential, NoBreak},
-    },
+    algo::{top_sort, visits::Sequential},
     prelude::depth_first::*,
 };
 use dsi_progress_logger::ProgressLog;
+use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use webgraph::traits::RandomAccessGraph;
 
@@ -49,7 +47,7 @@ pub fn kosaraju(
                 },
                 pl,
             )
-            .no_break();
+            .continue_value_no_break();
     }
 
     pl.done();

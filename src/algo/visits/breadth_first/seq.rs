@@ -31,7 +31,8 @@ use webgraph::traits::RandomAccessGraph;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::ops::ControlFlow::Continue;
-/// ///
+/// use no_break::NoBreak;
+///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut d = [0; 4];
@@ -46,7 +47,8 @@ use webgraph::traits::RandomAccessGraph;
 ///             Continue(())
 ///         },
 ///     no_logging![]
-/// ).no_break();
+/// ).continue_value_no_break();
+///
 /// assert_eq!(d, [0, 1, 2, 2]);
 /// ```
 ///
@@ -63,7 +65,8 @@ use webgraph::traits::RandomAccessGraph;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::ops::ControlFlow::Continue;
-/// ///
+/// use no_break::NoBreak;
+///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
 /// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut count = 0;
@@ -80,7 +83,7 @@ use webgraph::traits::RandomAccessGraph;
 ///             }
 ///         },
 ///     no_logging![]
-/// ).no_break();
+/// ).continue_value_no_break();
 /// assert_eq!(count, 3);
 /// ```
 pub struct Seq<G: RandomAccessGraph> {

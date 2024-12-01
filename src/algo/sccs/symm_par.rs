@@ -1,5 +1,4 @@
 use crate::{
-    algo::visits::NoBreak,
     prelude::{
         breadth_first::{EventNoPred, ParFairNoPred},
         sccs::BasicSccs,
@@ -8,6 +7,7 @@ use crate::{
     utils::*,
 };
 use dsi_progress_logger::ProgressLog;
+use no_break::NoBreak;
 use rayon::ThreadPool;
 use std::{
     mem::MaybeUninit,
@@ -59,7 +59,7 @@ pub fn symm_par(
             thread_pool,
             pl,
         )
-        .no_break();
+        .continue_value_no_break();
 
     let component = unsafe { component.assume_init() };
 

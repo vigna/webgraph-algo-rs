@@ -32,7 +32,7 @@ use webgraph::traits::RandomAccessGraph;
 /// Let's compute the breadth-first tree starting from 0:
 ///
 /// ```
-/// use webgraph_algo::algo::visits::{Parallel, NoBreak};
+/// use webgraph_algo::algo::visits::Parallel;
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
 /// use webgraph_algo::threads;
 /// use dsi_progress_logger::no_logging;
@@ -41,7 +41,8 @@ use webgraph::traits::RandomAccessGraph;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
 /// use std::ops::ControlFlow::Continue;
-/// ///
+/// use no_break::NoBreak;
+///
 /// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
 /// let mut visit = breadth_first::ParLowMem::new(&graph, 1);
 /// let mut tree = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
@@ -57,7 +58,7 @@ use webgraph::traits::RandomAccessGraph;
 ///         },
 ///    &threads![],
 ///    no_logging![]
-/// ).no_break();
+/// ).continue_value_no_break();
 ///
 /// assert_eq!(tree[0].load(Ordering::Relaxed), 0);
 /// assert_eq!(tree[1].load(Ordering::Relaxed), 0);

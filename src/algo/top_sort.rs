@@ -1,8 +1,6 @@
-use crate::{
-    algo::visits::Sequential,
-    algo::visits::{depth_first::*, NoBreak},
-};
+use crate::{algo::visits::depth_first::*, algo::visits::Sequential};
 use dsi_progress_logger::ProgressLog;
+use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use webgraph::traits::RandomAccessGraph;
 
@@ -31,7 +29,7 @@ pub fn top_sort(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box
             },
             pl,
         )
-        .no_break();
+        .continue_value_no_break();
 
     pl.done();
     // SAFETY: we write in each element of top_sort

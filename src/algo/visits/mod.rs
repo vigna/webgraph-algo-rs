@@ -10,9 +10,10 @@
 //!
 //! If a callback returns [`Break`](ControlFlow::Break), the visit will be
 //! interrupted, and the interrupt propagated to the caller of the visit method;
-//! for uninterruptible visits we suggest to use the [`NoBreak`] trait and
-//! its [`no_break`](NoBreak::no_break) method on the result to let
-//! type inference run smoothly.
+//! for uninterruptible visits we suggest to use the
+//! [`no-break`](https://crates.io/crates/no-break) crate and its
+//! [`continue_value_no_break`](no_break::NoBreak::continue_value_no_break)
+//! method on the result to let type inference run smoothly.
 //!
 //! Note that an interruption does not necessarily denote an error condition
 //! (see, e.g., [`StoppedWhenDone`]).
@@ -265,30 +266,5 @@ impl<A: Event, S: Sequential<A>> Parallel<A> for S {
 
     fn reset(&mut self) {
         self.reset()
-    }
-}
-
-/// A trait for control flows that cannot be interrupted.
-///
-/// This trait is useful to avoid the need to specify the error type when
-/// calling a visit method that cannot be interrupted. It forces a
-/// [`ControlFlow`] to have `Break` variant
-/// [`Infallible`](std::convert::Infallible).
-pub trait NoBreak {
-    /// Type of the `Continue` variant of the control flow.
-    type Continue;
-    // Returns the success value of the control flow.
-    fn no_break(self) -> Self::Continue;
-}
-
-impl<C> NoBreak for ControlFlow<std::convert::Infallible, C> {
-    type Continue = C;
-
-    #[inline(always)]
-    fn no_break(self) -> C {
-        unsafe {
-            // SAFETY: If E is Infallible, continue_value must be Some
-            self.continue_value().unwrap_unchecked()
-        }
     }
 }

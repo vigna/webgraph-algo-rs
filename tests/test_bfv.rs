@@ -1,5 +1,6 @@
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
+use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
@@ -107,7 +108,7 @@ macro_rules! test_bfv_algo_seq {
                             },
                             no_logging![],
                         )
-                        .no_break();
+                        .continue_value_no_break();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -142,7 +143,7 @@ macro_rules! test_bfv_algo_seq {
                             },
                             no_logging![],
                         )
-                        .no_break();
+                        .continue_value_no_break();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -211,7 +212,7 @@ macro_rules! test_bfv_algo_par {
                             &t,
                             no_logging![],
                         )
-                        .no_break();
+                        .continue_value_no_break();
                 }
 
                 let actual_dists = into_non_atomic(dists);
@@ -248,7 +249,7 @@ macro_rules! test_bfv_algo_par {
                             &t,
                             no_logging![],
                         )
-                        .no_break();
+                        .continue_value_no_break();
                 }
 
                 let actual_dists = into_non_atomic(dists);

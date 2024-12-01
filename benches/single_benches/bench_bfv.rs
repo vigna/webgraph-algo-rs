@@ -3,9 +3,10 @@ use std::ops::ControlFlow::Continue;
 use super::params::*;
 use criterion::{BenchmarkId, Criterion, Throughput};
 use dsi_progress_logger::prelude::*;
+use no_break::NoBreak;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::SequentialLabeling;
-use webgraph_algo::algo::visits::{breadth_first::*, NoBreak};
+use webgraph_algo::algo::visits::breadth_first::*;
 use webgraph_algo::algo::visits::{Parallel, Sequential};
 use webgraph_algo::threads;
 
@@ -34,7 +35,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .visit(node, |_| Continue(()), no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },
@@ -50,7 +51,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .par_visit(node, |_| Continue(()), &threads![], no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },
@@ -66,7 +67,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .par_visit(node, |_| Continue(()), &threads![], no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },
@@ -85,7 +86,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .par_visit(node, |_| Continue(()), &threads![], no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },
@@ -104,7 +105,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .par_visit(node, |_| Continue(()), &threads![], no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },
@@ -120,7 +121,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .par_visit(node, |_| Continue(()), &threads![], no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },
@@ -136,7 +137,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                         let node = (i + start) % g.num_nodes();
                         visit
                             .par_visit(node, |_| Continue(()), &threads![], no_logging![])
-                            .no_break();
+                            .continue_value_no_break();
                     }
                 });
             },

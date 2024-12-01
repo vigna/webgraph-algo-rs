@@ -4,7 +4,7 @@ use crate::{
         sccs::{self, BasicSccs},
         visits::{
             breadth_first::{EventNoPred, ParFairNoPred},
-            FilterArgs, Parallel, NoBreak,
+            FilterArgs, Parallel,
         },
     },
     traits::StronglyConnectedComponents,
@@ -12,6 +12,7 @@ use crate::{
 };
 use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
+use no_break::NoBreak;
 use nonmax::NonMaxUsize;
 use rayon::{prelude::*, ThreadPool};
 use std::{
@@ -526,7 +527,7 @@ impl<
                 thread_pool,
                 pl,
             )
-            .no_break();
+            .continue_value_no_break();
         self.transposed_visit.reset();
 
         pl.done();
@@ -626,7 +627,7 @@ impl<
                 thread_pool,
                 pl,
             )
-            .no_break();
+            .continue_value_no_break();
 
         self.transposed_visit.reset();
 
@@ -692,7 +693,7 @@ impl<
                 thread_pool,
                 pl,
             )
-            .no_break();
+            .continue_value_no_break();
 
         let ecc_start = max_dist.load(Ordering::Relaxed);
 
@@ -789,7 +790,7 @@ impl<
                     thread_pool,
                     no_logging![],
                 )
-                .no_break();
+                .continue_value_no_break();
 
                 current_pivot_index = current_index.fetch_add(1, Ordering::Relaxed);
             }
