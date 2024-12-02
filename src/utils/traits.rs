@@ -182,10 +182,10 @@ pub trait CounterArray<L: CounterLogic + ?Sized> {
     /// This method will usually require no allocation.
     fn get_backend(&self, index: usize) -> &L::Backend;
 
-    /// Returns the number of elements in the array, also referred to as its ‘length’.
+    /// Returns the number of counters in the array.
     fn len(&self) -> usize;
 
-    /// Returns `true` if the array contains no elements.
+    /// Returns `true` if the array contains no counters.
     #[inline(always)]
     fn is_empty(&self) -> bool {
         self.len() == 0
@@ -212,14 +212,28 @@ pub trait CounterArrayMut<L: CounterLogic + ?Sized>: CounterArray<L> {
     /// This method will usually require no allocation.
     fn get_backend_mut(&mut self, index: usize) -> &mut L::Backend;
 
+    /// Resets all counters in the array.
+    fn clear(&mut self);
+}
+
+pub trait AsSyncArray<L: CounterLogic + ?Sized> {
+    type SyncCounterArray<'a>: SyncCounterArray<L>
+    where
+        Self: 'a;
+
+    fn as_sync_array(&mut self) -> Self::SyncCounterArray<'_>;
+}
+
+pub trait SyncCounterArray<L: CounterLogic + ?Sized>: Sync {
+    /// Returns the logic used by the counters in the array.
+    fn logic(&self) -> &L;
+
     /// Sets the backend of the counter at `index` to the given backend, using a
     /// shared reference to the counter array.
     ///
     /// This method is useful in parallel and concurrent context where data
     /// races are guaranteed not to happen (e.g., because each threads sets a
-    /// different subset of counters). The sequential way to set the content of
-    /// a backend of the counter array is via
-    /// [`get_backend_mut`](CounterArrayMut::get_backend_mut`).
+    /// different subset of counters).
     ///
     /// # Safety
     ///
@@ -227,6 +241,28 @@ pub trait CounterArrayMut<L: CounterLogic + ?Sized>: CounterArray<L> {
     /// counter array, and that there are no data races.
     unsafe fn set(&self, index: usize, content: &L::Backend);
 
+    /// Copies the backend of the counter at `index` to the given backend, using a
+    /// shared reference to the counter array.
+    ///
+    /// This method is useful in parallel and concurrent context where data
+    /// races are guaranteed not to happen (e.g., because each threads sets a
+    /// different subset of counters).
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the backend is correct for the logic of the
+    /// counter array, and that there are no data races.
+    unsafe fn get(&self, index: usize, content: &mut L::Backend);
+
     /// Resets all counters in the array.
-    fn clear(&mut self);
+    unsafe fn clear(&self);
+
+    /// Returns the number of counters in the array.
+    fn len(&self) -> usize;
+
+    /// Returns `true` if the array contains no counters.
+    #[inline(always)]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }

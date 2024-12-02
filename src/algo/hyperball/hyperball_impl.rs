@@ -51,7 +51,7 @@ impl<
         SliceCounterArray<
             HyperLogLog<G1::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
-            MmapSlice<SyncCell<usize>>,
+            MmapSlice<usize>,
         >,
         G1,
         G2,
@@ -488,7 +488,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         L: MergeCounterLogic<Item = usize> + Sync,
-        A: CounterArrayMut<L> + Sync,
+        A: CounterArrayMut<L> + Sync + AsSyncArray<L> + Default,
     > HyperBall<'_, G1, G2, D, L, A>
 where
     L::Backend: PartialEq,
@@ -721,7 +721,7 @@ impl<
         G2: RandomAccessGraph + Sync,
         D: Succ<Input = usize, Output = usize> + Sync,
         L: CounterLogic<Item = usize> + MergeCounterLogic + Sync,
-        A: CounterArrayMut<L> + Sync,
+        A: CounterArrayMut<L> + Sync + AsSyncArray<L> + Default,
     > HyperBall<'_, G1, G2, D, L, A>
 where
     L::Backend: PartialEq,
@@ -838,7 +838,12 @@ where
         });
         pl.start("Starting parallel execution");
 
-        thread_pool.broadcast(|c| self.parallel_task(c));
+        let mut next_state = std::mem::take(&mut self.next_state);
+        {
+            let next_state_sync = next_state.as_sync_array();
+            thread_pool.broadcast(|c| self.parallel_task(&next_state_sync, c));
+        }
+        self.next_state = next_state;
 
         pl.done_with_count(self.iteration_context.visited_arcs.load(Ordering::Relaxed) as usize);
 
@@ -895,7 +900,11 @@ where
     ///
     /// # Arguments:
     /// * `broadcast_context`: the context of the for the parallel task
-    fn parallel_task(&self, _broadcast_context: rayon::BroadcastContext) {
+    fn parallel_task(
+        &self,
+        next_state: &impl SyncCounterArray<L>,
+        _broadcast_context: rayon::BroadcastContext,
+    ) {
         let node_granularity = self.iteration_context.granularity;
         let arc_granularity = ((self.graph.num_arcs() as f64 * node_granularity as f64)
             / self.graph.num_nodes() as f64)
@@ -1070,7 +1079,7 @@ where
                     }
 
                     unsafe {
-                        self.next_state.set(node, next_counter.as_ref());
+                        next_state.set(node, next_counter.as_ref());
                     }
                 } else {
                     // Even if we cannot possibly have changed our value, still our copy
@@ -1078,7 +1087,7 @@ where
                     // reflect our current value.
                     if self.prev_modified[node] {
                         unsafe {
-                            self.next_state.set(node, prev_counter);
+                            next_state.set(node, prev_counter);
                         }
                     }
                 }
@@ -1179,12 +1188,12 @@ mod test {
         bits: SliceCounterArray<
             HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
-            MmapHelper<SyncCell<usize>, MmapMut>,
+            MmapHelper<usize, MmapMut>,
         >,
         result_bits: SliceCounterArray<
             HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
-            MmapHelper<SyncCell<usize>, MmapMut>,
+            MmapHelper<usize, MmapMut>,
         >,
     }
 
