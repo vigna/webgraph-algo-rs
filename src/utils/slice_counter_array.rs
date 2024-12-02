@@ -1,7 +1,6 @@
 use crate::utils::DefaultCounter;
 use crate::{prelude::*, utils::MmapSlice};
 use anyhow::{Context, Result};
-use std::cell::{Cell, UnsafeCell};
 use sux::traits::Word;
 use sync_cell_slice::SyncCell;
 
@@ -10,17 +9,19 @@ use sync_cell_slice::SyncCell;
 ///
 /// Note that we need a specific type for arrays slice backends as one
 /// cannot create a slice of slices.
-pub struct SliceCounterArray<L, W> {
+pub struct SliceCounterArray<L, W, S> {
     pub(super) logic: L,
-    pub(super) backend: MmapSlice<SyncCell<W>>,
+    pub(super) backend: S,
     pub(super) len: usize,
+    _marker: std::marker::PhantomData<W>,
 }
 
-impl<L: CounterLogic, W> SliceCounterArray<L, W> {
-    /// Returns the number of elements in the array, also referred to as its ‘length’.
+impl<L: SliceCounterLogic, W, S> SliceCounterArray<L, W, S> {
+    /// Returns the number of counters in the array.
     #[inline(always)]
     pub fn len(&self) -> usize {
-        self.len
+        debug_assert!(self.len % self.logic.backend_len() == 0);
+        self.len / self.logic.backend_len()
     }
 
     /// Returns `true` if the array contains no elements.
@@ -30,16 +31,17 @@ impl<L: CounterLogic, W> SliceCounterArray<L, W> {
     }
 }
 
-impl<L: CounterLogic<Backend = [W]>, W> SliceCounterArray<L, W> {
+impl<L: CounterLogic<Backend = [W]>, W, S: AsRef<[SyncCell<W>]>> AsRef<[W]>
+    for SliceCounterArray<L, W, S>
+{
     #[allow(dead_code)]
-    pub(crate) fn as_slice(&self) -> &[W] {
-        let len = self.backend.len();
-        let ptr = UnsafeCell::raw_get(self.backend.as_slice() as *const [_] as *const _);
-        unsafe { std::slice::from_raw_parts(ptr, len) }
+    fn as_ref(&self) -> &[W] {
+        // SAFETY: SyncCell<W> has the same memory layout as W
+        unsafe { &*(self.backend.as_ref() as *const [SyncCell<W>] as *const [W]) }
     }
 }
 
-impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
+impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W, MmapSlice<SyncCell<W>>> {
     /// Creates a new counter slice with the provided logic allocating in-memory.
     ///
     /// # Arguments
@@ -57,6 +59,7 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
             logic,
             backend: bits,
             len,
+            _marker: std::marker::PhantomData,
         })
     }
 
@@ -79,12 +82,13 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W> {
             logic,
             backend: bits,
             len,
+            _marker: std::marker::PhantomData,
         })
     }
 }
 
-impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
-    for SliceCounterArray<L, W>
+impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word, S: AsRef<[SyncCell<W>]>> CounterArray<L>
+    for SliceCounterArray<L, W, S>
 {
     type Counter<'a>
         = DefaultCounter<L, &'a L, &'a [W]>
@@ -94,11 +98,10 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
     #[inline(always)]
     fn get_backend(&self, index: usize) -> &L::Backend {
         let offset = index * self.logic.backend_len();
-        // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
-        // has the same memory layout as `T`.
+        // SAFETY: `SyncCell<W>` has the same memory layout as `W`.
         unsafe {
-            &*(self.backend[offset..][..self.logic.backend_len()].as_ref() as *const [SyncCell<W>]
-                as *const [Cell<W>] as *const [W])
+            &*(&self.backend.as_ref()[offset..][..self.logic.backend_len()]
+                as *const [SyncCell<W>] as *const [W])
         }
     }
 
@@ -118,8 +121,11 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArray<L>
     }
 }
 
-impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
-    for SliceCounterArray<L, W>
+impl<
+        L: SliceCounterLogic<Backend = [W]> + Clone,
+        W: Word,
+        S: AsRef<[SyncCell<W>]> + AsMut<[SyncCell<W>]>,
+    > CounterArrayMut<L> for SliceCounterArray<L, W, S>
 {
     type CounterMut<'a>
         = DefaultCounter<L, &'a L, &'a mut [W]>
@@ -129,12 +135,10 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     #[inline(always)]
     fn get_backend_mut(&mut self, index: usize) -> &mut L::Backend {
         let offset = index * self.logic.backend_len();
-
-        // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
-        // has the same memory layout as `T`.
+        // SAFETY: `SyncCell<W>` has the same memory layout as `W`.
         unsafe {
-            &mut *(self.backend[offset..][..self.logic.backend_len()].as_mut()
-                as *mut [SyncCell<W>] as *mut [Cell<W>] as *mut [W])
+            &mut *(&mut self.backend.as_mut()[offset..][..self.logic.backend_len()]
+                as *mut [SyncCell<W>] as *mut [W])
         }
     }
 
@@ -149,8 +153,8 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
         // SAFETY: `SyncCell<T>` has the same memory layout os `Cell<T>`, which
         // has the same memory layout as `T`.
         let backend = unsafe {
-            &mut *(self.backend[offset..][..self.logic.backend_len()].as_mut()
-                as *mut [SyncCell<W>] as *mut [Cell<W>] as *mut [W])
+            &mut *(&mut self.backend.as_mut()[offset..][..self.logic.backend_len()]
+                as *mut [SyncCell<W>] as *mut [W])
         };
 
         DefaultCounter::new(logic, backend)
@@ -160,7 +164,7 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     unsafe fn set(&self, index: usize, content: &L::Backend) {
         debug_assert!(content.as_ref().len() == self.logic.backend_len());
         let offset = index * self.logic.backend_len();
-        for (c, &b) in self.backend[offset..].iter().zip(content.as_ref()) {
+        for (c, &b) in self.backend.as_ref()[offset..].iter().zip(content.as_ref()) {
             c.set(b)
         }
     }
@@ -168,6 +172,7 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word> CounterArrayMut<L>
     #[inline(always)]
     fn clear(&mut self) {
         self.backend
+            .as_mut()
             .iter_mut()
             .for_each(|v| unsafe { v.set(W::ZERO) });
     }

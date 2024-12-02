@@ -9,6 +9,7 @@ use rayon::{prelude::*, ThreadPool};
 use std::hash::{BuildHasherDefault, DefaultHasher};
 use std::sync::{atomic::*, Mutex};
 use sux::{bits::AtomicBitVec, traits::Succ};
+use sync_cell_slice::SyncCell;
 use webgraph::traits::RandomAccessGraph;
 
 /// Builder for [`HyperBall`].
@@ -47,7 +48,11 @@ impl<
         'a,
         D,
         HyperLogLog<G1::Label, BuildHasherDefault<DefaultHasher>, usize>,
-        SliceCounterArray<HyperLogLog<G1::Label, BuildHasherDefault<DefaultHasher>, usize>, usize>,
+        SliceCounterArray<
+            HyperLogLog<G1::Label, BuildHasherDefault<DefaultHasher>, usize>,
+            usize,
+            MmapSlice<SyncCell<usize>>,
+        >,
         G1,
         G2,
     >
@@ -1163,6 +1168,7 @@ mod test {
     use crate::threads;
     use dsi_progress_logger::no_logging;
     use epserde::deser::{Deserialize, Flags};
+    use mmap_rs::MmapMut;
     use webgraph::{
         prelude::{BvGraph, DCF},
         traits::SequentialLabeling,
@@ -1173,10 +1179,12 @@ mod test {
         bits: SliceCounterArray<
             HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
+            MmapHelper<SyncCell<usize>, MmapMut>,
         >,
         result_bits: SliceCounterArray<
             HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
+            MmapHelper<SyncCell<usize>, MmapMut>,
         >,
     }
 
@@ -1245,13 +1253,10 @@ mod test {
             modified_counters = hyperball.modified_counters();
 
             assert_eq!(
-                hyperball.next_state.as_slice(),
-                seq_hyperball.result_bits.as_slice()
+                hyperball.next_state.as_ref(),
+                seq_hyperball.result_bits.as_ref()
             );
-            assert_eq!(
-                hyperball.prev_state.as_slice(),
-                seq_hyperball.bits.as_slice()
-            );
+            assert_eq!(hyperball.prev_state.as_ref(), seq_hyperball.bits.as_ref());
         }
 
         Ok(())
