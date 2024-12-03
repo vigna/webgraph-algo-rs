@@ -371,7 +371,7 @@ impl<
             iteration_context: IterationContext {
                 current: Mutex::new(0.0),
                 iteration: 0,
-                prev_modified: counter_modified,
+                curr_modified: counter_modified,
                 next_modified: modified_result_counter,
                 local_next_must_be_checked: Mutex::new(Vec::new()),
                 must_be_checked,
@@ -432,7 +432,7 @@ struct IterationContext<'a, G1: SequentialLabeling, D> {
     /// The cumulative list of outdegrees.
     cumul_outdeg: &'a D,
     /// Whether each counter has been modified during the previous iteration.
-    prev_modified: AtomicBitVec,
+    curr_modified: AtomicBitVec,
     /// Whether each counter has been modified during the current iteration.
     next_modified: AtomicBitVec,
     /// If [`Self::pre_local`] is `true`, the set of nodes that should be scanned on the next iteration.
@@ -743,12 +743,9 @@ where
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn iterate(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
-        pl.info(format_args!(
-            "Performing iteration {}",
-            self.iteration_context.iteration + 1
-        ));
-
         let ic = &mut self.iteration_context;
+
+        pl.info(format_args!("Performing iteration {}", ic.iteration + 1));
 
         // Alias the number of modified counters, nodes and arcs as u64
         let num_nodes = self.graph.num_nodes() as u64;
@@ -831,10 +828,9 @@ where
         if num_threads > 1 && !ic.local {
             if ic.iteration > 0 {
                 granularity = f64::min(
-                    std::cmp::max(1, self.graph.num_nodes() / num_threads) as f64,
+                    std::cmp::max(1, num_nodes as usize / num_threads) as _,
                     granularity as f64
-                        * (self.graph.num_nodes() as f64
-                            / std::cmp::max(1, modified_counters) as f64),
+                        * (num_nodes as f64 / std::cmp::max(1, modified_counters) as f64),
                 ) as usize;
             }
             pl.info(format_args!(
@@ -846,11 +842,7 @@ where
         ic.reset(granularity);
 
         pl.item_name("arc");
-        pl.expected_updates(if ic.local {
-            None
-        } else {
-            Some(self.graph.num_arcs() as usize)
-        });
+        pl.expected_updates(if ic.local { None } else { Some(num_arcs as _) });
         pl.start("Starting parallel execution");
         {
             let next_state_sync = self.next_state.as_sync_array();
@@ -877,7 +869,7 @@ where
         ));
 
         std::mem::swap(&mut self.curr_state, &mut self.next_state);
-        std::mem::swap(&mut ic.prev_modified, &mut ic.next_modified);
+        std::mem::swap(&mut ic.curr_modified, &mut ic.next_modified);
 
         if ic.systolic {
             std::mem::swap(&mut ic.must_be_checked, &mut ic.next_must_be_checked);
@@ -998,7 +990,7 @@ where
                     next_counter.set(prev_counter);
                     let mut modified = false;
                     for succ in graph.successors(node) {
-                        if succ != node && ic.prev_modified[succ] {
+                        if succ != node && ic.curr_modified[succ] {
                             visited_arcs += 1;
                             if !modified {
                                 modified = true;
@@ -1012,11 +1004,7 @@ where
                     }
 
                     let mut post = f64::NAN;
-                    let counter_modified = if modified {
-                        next_counter.as_ref() != prev_counter
-                    } else {
-                        false
-                    };
+                    let counter_modified = modified && next_counter.as_ref() != prev_counter;
 
                     // We need the counter value only if the iteration is standard (as we're going to
                     // compute the neighbourhood function cumulating actual values, and not deltas) or
@@ -1101,7 +1089,7 @@ where
                     // Even if we cannot possibly have changed our value, still our copy
                     // in the result vector might need to be updated because it does not
                     // reflect our current value.
-                    if ic.prev_modified[node] {
+                    if ic.curr_modified[node] {
                         unsafe {
                             next_state.set(node, prev_counter);
                         }
@@ -1116,14 +1104,11 @@ where
             .fetch_add(modified_counters, Ordering::Relaxed);
     }
 
-    /// Initializes the approximator.
-    ///
-    /// # Arguments
-    /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: A progress logger.
+    /// Initializes HyperBall.
     fn init(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
+
         self.curr_state.clear();
         self.next_state.clear();
 
@@ -1142,22 +1127,24 @@ where
             });
         }
 
-        self.iteration_context.iteration = 0;
         self.completed = false;
-        self.iteration_context.systolic = false;
-        self.iteration_context.local = false;
-        self.iteration_context.pre_local = false;
-        self.iteration_context.reset(self.granularity);
+
+        let ic = &mut self.iteration_context;
+        ic.iteration = 0;
+        ic.systolic = false;
+        ic.local = false;
+        ic.pre_local = false;
+        ic.reset(self.granularity);
 
         pl.info(format_args!("Initializing distances"));
-        if let Some(distances) = &self.iteration_context.sum_of_distances {
+        if let Some(distances) = &ic.sum_of_distances {
             distances.lock().unwrap().fill(f64::ZERO);
         }
-        if let Some(distances) = &self.iteration_context.sum_of_inverse_distances {
+        if let Some(distances) = &ic.sum_of_inverse_distances {
             distances.lock().unwrap().fill(f64::ZERO);
         }
         pl.info(format_args!("Initializing centralities"));
-        for centralities in self.iteration_context.discounted_centralities.iter() {
+        for centralities in ic.discounted_centralities.iter() {
             centralities.lock().unwrap().fill(0.0);
         }
 
@@ -1167,11 +1154,7 @@ where
         self.neighbourhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
-        thread_pool.install(|| {
-            self.iteration_context
-                .prev_modified
-                .fill(true, Ordering::Relaxed)
-        });
+        thread_pool.install(|| ic.curr_modified.fill(true, Ordering::Relaxed));
 
         pl.done();
 
