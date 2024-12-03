@@ -22,18 +22,18 @@ pub struct HyperBallBuilder<
     L: CounterLogic<Item = G1::Label> + MergeCounterLogic,
     A: CounterArrayMut<L>,
     G1: RandomAccessGraph + Sync,
-    G2: RandomAccessGraph + Sync = G1,
+    G2: RandomAccessGraph + Sync,
 > {
     graph: &'a G1,
-    rev_graph: Option<&'a G2>,
-    cumulative_outdegree: &'a D,
+    transpose: Option<&'a G2>,
+    cumul_outdegree: &'a D,
     sum_of_distances: bool,
     sum_of_inverse_distances: bool,
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
     granularity: usize,
     weights: Option<&'a [usize]>,
-    bits: A,
-    result_bits: A,
+    array_0: A,
+    array_1: A,
     _marker: std::marker::PhantomData<L>,
 }
 
@@ -56,22 +56,23 @@ impl<
         G2,
     >
 {
-    /// Utility method to create a builder using an [HyperLogLog counter logic](HyperLogLog).
+    /// Utility method to create a builder using n [HyperLogLog counter logic](HyperLogLog).
     ///
     /// # Arguments
-    /// * `graph`: the direct graph to analyze.
-    /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
-    ///   and no systolic iterations will be performed by the built [`HyperBall`].
-    /// * `cumulative_outdegree`: the degree cumulative function of the graph.
-    /// * `log2m`: the log₂*m* number of registers for the array of counters.
-    /// * `weights`: the new weights to use. If [`None`] every node is assumed to be
+    /// * `graph`: the graph to analyze.
+    /// * `transpose`: optionally, the transpose of `graph`. If [`None`],
+    ///   no systolic iterations will be performed by the resulting [`HyperBall`].
+    /// * `cumul_outdeg`: the outdegree cumulative function of the graph.
+    /// * `log2m`: the base-2 logarithm of the number *m* of register per
+    ///   HyperLogLog counter.
+    /// * `weights`: the weights to use. If [`None`] every node is assumed to be
     ///   of weight equal to 1.
     /// * `mmap_options`: the options to use for the backend of the counter arrays as a
-    ///   [TempMmapOptions].
+    ///   [`TempMmapOptions`].
     pub fn with_hyper_log_log(
         graph: &'a G1,
         transposed: Option<&'a G2>,
-        cumulative_outdegree: &'a D,
+        cumul_outdeg: &'a D,
         log2m: usize,
         weights: Option<&'a [usize]>,
         mmap_options: TempMmapOptions,
@@ -91,23 +92,23 @@ impl<
             .build()
             .with_context(|| "Could not build hyperloglog logic")?;
 
-        let bits =
+        let array_0 =
             SliceCounterArray::with_mmap(logic.clone(), graph.num_nodes(), mmap_options.clone())
-                .with_context(|| "Could not initialize bits")?;
-        let result_bits = SliceCounterArray::with_mmap(logic, graph.num_nodes(), mmap_options)
-            .with_context(|| "Could not initialize result_bits")?;
+                .with_context(|| "Could not initialize array 0")?;
+        let array_1 = SliceCounterArray::with_mmap(logic, graph.num_nodes(), mmap_options)
+            .with_context(|| "Could not initialize array 1")?;
 
         Ok(Self {
             graph,
-            rev_graph: transposed,
-            cumulative_outdegree,
+            transpose: transposed,
+            cumul_outdegree: cumul_outdeg,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
             granularity: Self::DEFAULT_GRANULARITY,
             weights,
-            bits,
-            result_bits,
+            array_0,
+            array_1,
             _marker: std::marker::PhantomData,
         })
     }
@@ -124,36 +125,36 @@ impl<
     /// Creates a new builder with default parameters.
     ///
     /// # Arguments
-    /// * `graph`: the direct graph to analyze.
-    /// * `cumulative_outdegree`: the degree cumulative function of the graph.
-    /// * `bits`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
-    /// * `result_bits`: an array of the same type and `len` as `bits`.
-    pub fn new(graph: &'a G, cumulative_outdegree: &'a D, bits: A, result_bits: A) -> Self {
+    /// * `graph`: the graph to analyze.
+    /// * `cumul_outdeg`: the outdegree cumulative function of the graph.
+    /// * `array_0`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
+    /// * `array_1`: an array of the same type and `len` as `array_0`.
+    pub fn new(graph: &'a G, cumul_outdeg: &'a D, array_0: A, array_1: A) -> Self {
         assert_eq!(
             graph.num_nodes(),
-            bits.len(),
-            "bits should have have len {}. Got {}",
+            array_0.len(),
+            "array_0 should have have len {}. Got {}",
             graph.num_nodes(),
-            bits.len()
+            array_0.len()
         );
         assert_eq!(
             graph.num_nodes(),
-            result_bits.len(),
-            "result_bits should have have len {}. Got {}",
+            array_1.len(),
+            "array_1 should have have len {}. Got {}",
             graph.num_nodes(),
-            result_bits.len()
+            array_1.len()
         );
         Self {
             graph,
-            rev_graph: None,
-            cumulative_outdegree,
+            transpose: None,
+            cumul_outdegree: cumul_outdeg,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
-            bits,
-            result_bits,
+            array_0,
+            array_1,
             _marker: std::marker::PhantomData,
         }
     }
@@ -176,59 +177,59 @@ impl<
     /// * `graph`: the direct graph to analyze.
     /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
     ///   and no systolic iterations will be performed by the built [`HyperBall`].
-    /// * `cumulative_outdegree`: the degree cumulative function of the graph.
-    /// * `bits`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
-    /// * `result_bits`: an array of the same type and `len` as `bits`.
+    /// * `cumul_outdeg`: the outdegree cumulative function of the graph.
+    /// * `array_0`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
+    /// * `array_1`: an array of the same type and `len` as `array_0`.
     pub fn with_transposed(
         graph: &'a G1,
         transposed: &'a G2,
-        cumulative_outdegree: &'a D,
-        bits: A,
-        result_bits: A,
+        cumul_outdeg: &'a D,
+        array_0: A,
+        array_1: A,
     ) -> Self {
         assert_eq!(
             graph.num_nodes(),
-            bits.len(),
+            array_0.len(),
             "bits should have have len {}. Got {}",
             graph.num_nodes(),
-            bits.len()
+            array_0.len()
         );
         assert_eq!(
             graph.num_nodes(),
-            result_bits.len(),
-            "result_bits should have have len {}. Got {}",
+            array_1.len(),
+            "array_1 should have have len {}. Got {}",
             graph.num_nodes(),
-            result_bits.len()
+            array_1.len()
         );
         assert_eq!(
             transposed.num_nodes(),
             graph.num_nodes(),
-            "transposed should have same number of nodes ({}). Got {}.",
+            "the transpose should have same number of nodes of the graph ({}). Got {}.",
             graph.num_nodes(),
             transposed.num_nodes()
         );
         assert_eq!(
             transposed.num_arcs(),
             graph.num_arcs(),
-            "transposed should have the same number of arcs ({}). Got {}.",
+            "the transpose should have same number of nodes of the graph ({}). Got {}.",
             graph.num_arcs(),
             transposed.num_arcs()
         );
         debug_assert!(
             check_transposed(graph, transposed),
-            "transposed should be the transposed of the direct graph"
+            "the transpose should be the transpose of the graph"
         );
         Self {
             graph,
-            rev_graph: Some(transposed),
-            cumulative_outdegree,
+            transpose: Some(transposed),
+            cumul_outdegree: cumul_outdeg,
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
             granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
-            bits,
-            result_bits,
+            array_0,
+            array_1,
             _marker: std::marker::PhantomData,
         }
     }
@@ -348,14 +349,17 @@ impl<
         pl.info(format_args!("Initializing next_must_be_checked bitvec"));
         let next_must_be_checked = AtomicBitVec::new(num_nodes);
 
-        pl.info(format_args!("Using counter logic: {}", self.bits.logic()));
+        pl.info(format_args!(
+            "Using counter logic: {}",
+            self.array_0.logic()
+        ));
 
         HyperBall {
             graph: self.graph,
-            transposed: self.rev_graph,
+            transposed: self.transpose,
             weight: self.weights,
-            prev_state: self.bits,
-            next_state: self.result_bits,
+            curr_state: self.array_0,
+            next_state: self.array_1,
             completed: false,
             neighbourhood_function: Vec::new(),
             last: 0.0,
@@ -370,7 +374,7 @@ impl<
                 must_be_checked,
                 next_must_be_checked,
                 granularity: 0,
-                cumulative_outdegree: self.cumulative_outdegree,
+                cumul_outdeg: self.cumul_outdegree,
                 cursor: AtomicUsize::new(0),
                 arc_balanced_cursor: Mutex::new((0, 0)),
                 visited_arcs: AtomicU64::new(0),
@@ -417,7 +421,7 @@ struct IterationContext<'a, G1: SequentialLabeling, D> {
     /// If [`Self::local`] is `true`, the sorted list of nodes that should be scanned.
     local_checklist: Vec<G1::Label>,
     /// The cumulative list of outdegrees.
-    cumulative_outdegree: &'a D,
+    cumul_outdeg: &'a D,
     /// Whether each counter has been modified during the previous iteration.
     prev_modified: AtomicBitVec,
     /// Whether each counter has been modified during the current iteration.
@@ -460,7 +464,7 @@ pub struct HyperBall<
     /// The base number of nodes per task. TODO.
     granularity: usize,
     /// The previous state.
-    prev_state: A,
+    curr_state: A,
     /// The next state.
     next_state: A,
     /// `true` if the computation is over.
@@ -643,7 +647,7 @@ where
     pub fn lin_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.iteration_context.sum_of_distances {
-            let logic = self.prev_state.logic();
+            let logic = self.curr_state.logic();
             Ok(distances
                 .lock()
                 .unwrap()
@@ -653,7 +657,7 @@ where
                     if d == 0.0 {
                         1.0
                     } else {
-                        let count = logic.count(self.prev_state.get_backend(node));
+                        let count = logic.count(self.curr_state.get_backend(node));
                         count * count / d
                     }
                 })
@@ -667,14 +671,14 @@ where
     pub fn nieminen_centrality(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
         if let Some(distances) = &self.iteration_context.sum_of_distances {
-            let logic = self.prev_state.logic();
+            let logic = self.curr_state.logic();
             Ok(distances
                 .lock()
                 .unwrap()
                 .iter()
                 .enumerate()
                 .map(|(node, &d)| {
-                    let count = logic.count(self.prev_state.get_backend(node));
+                    let count = logic.count(self.curr_state.get_backend(node));
                     (count * count) - d
                 })
                 .collect())
@@ -691,9 +695,9 @@ where
     pub fn reachable_nodes_from(&self, node: usize) -> Result<f64> {
         self.ensure_iteration()?;
         Ok(self
-            .prev_state
+            .curr_state
             .logic()
-            .count(self.prev_state.get_backend(node)))
+            .count(self.curr_state.get_backend(node)))
     }
 
     /// Reads from the internal counter array and estimates the number of nodes reachable
@@ -702,9 +706,9 @@ where
     /// `hyperball.reachable_nodes().unwrap()[i]` is equal to `hyperball.reachable_nodes_from(i).unwrap()`.
     pub fn reachable_nodes(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
-        let logic = self.prev_state.logic();
+        let logic = self.curr_state.logic();
         Ok((0..self.graph.num_nodes())
-            .map(|n| logic.count(self.prev_state.get_backend(n)))
+            .map(|n| logic.count(self.curr_state.get_backend(n)))
             .collect())
     }
 }
@@ -861,7 +865,7 @@ where
                 Self::parallel_task(
                     self.graph,
                     self.transposed,
-                    &self.prev_state,
+                    &self.curr_state,
                     &next_state_sync,
                     &self.iteration_context,
                     c,
@@ -878,7 +882,7 @@ where
             (self.modified_counters() as f64 / self.graph.num_nodes() as f64) * 100.0
         ));
 
-        std::mem::swap(&mut self.prev_state, &mut self.next_state);
+        std::mem::swap(&mut self.curr_state, &mut self.next_state);
         std::mem::swap(
             &mut self.iteration_context.prev_modified,
             &mut self.iteration_context.next_modified,
@@ -933,7 +937,7 @@ where
     fn parallel_task(
         graph: &(impl RandomAccessGraph + Sync),
         transpose: Option<&(impl RandomAccessGraph + Sync)>,
-        prev_state: &impl CounterArray<L>,
+        curr_state: &impl CounterArray<L>,
         next_state: &impl SyncCounterArray<L>,
         iteration_context: &IterationContext<'_, G1, D>,
         _broadcast_context: rayon::BroadcastContext,
@@ -958,8 +962,8 @@ where
         // by this thread. During systolic iterations, cumulates the *increase* of the
         // neighbourhood function for the nodes scanned by this thread.
         let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
-        let mut helper = prev_state.logic().new_helper();
-        let logic = prev_state.logic();
+        let mut helper = curr_state.logic().new_helper();
+        let logic = curr_state.logic();
         let mut next_counter = logic.new_counter();
 
         loop {
@@ -983,7 +987,7 @@ where
                         next_node = node_upper_limit;
                     } else {
                         (next_node, next_arc) =
-                            iteration_context.cumulative_outdegree.succ(target).unwrap();
+                            iteration_context.cumul_outdeg.succ(target).unwrap();
                     }
                     let end = next_node;
                     *arc_balanced_cursor = (next_node, next_arc);
@@ -1003,7 +1007,7 @@ where
                     i
                 };
 
-                let prev_counter = prev_state.get_backend(node);
+                let prev_counter = curr_state.get_backend(node);
 
                 // The three cases in which we enumerate successors:
                 // 1) A non-systolic computation (we don't know anything, so we enumerate).
@@ -1023,7 +1027,7 @@ where
                             }
                             logic.merge_with_helper(
                                 next_counter.as_mut(),
-                                prev_state.get_backend(succ),
+                                curr_state.get_backend(succ),
                                 &mut helper,
                             );
                         }
@@ -1165,21 +1169,21 @@ where
     fn init(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
-        self.prev_state.clear();
+        self.curr_state.clear();
         self.next_state.clear();
 
         pl.info(format_args!("Initializing registers"));
         if let Some(w) = &self.weight {
             pl.info(format_args!("Loading weights"));
             for (i, &node_weight) in w.iter().enumerate() {
-                let mut counter = self.prev_state.get_counter_mut(i);
+                let mut counter = self.curr_state.get_counter_mut(i);
                 for _ in 0..node_weight {
                     counter.add(&random());
                 }
             }
         } else {
             (0..self.graph.num_nodes()).for_each(|i| {
-                self.prev_state.get_counter_mut(i).add(i);
+                self.curr_state.get_counter_mut(i).add(i);
             });
         }
 
@@ -1236,12 +1240,12 @@ mod test {
 
     struct SeqHyperBall<'a, G: RandomAccessGraph> {
         graph: &'a G,
-        bits: SliceCounterArray<
+        curr_state: SliceCounterArray<
             HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
             MmapHelper<usize, MmapMut>,
         >,
-        result_bits: SliceCounterArray<
+        next_state: SliceCounterArray<
             HyperLogLog<G::Label, BuildHasherDefault<DefaultHasher>, usize>,
             usize,
             MmapHelper<usize, MmapMut>,
@@ -1251,19 +1255,19 @@ mod test {
     impl<G: RandomAccessGraph> SeqHyperBall<'_, G> {
         fn init(&mut self) {
             for i in 0..self.graph.num_nodes() {
-                self.bits.get_counter_mut(i).add(i);
+                self.curr_state.get_counter_mut(i).add(i);
             }
         }
 
         fn iterate(&mut self) {
             for i in 0..self.graph.num_nodes() {
-                let mut counter = self.result_bits.get_counter_mut(i);
-                counter.set(self.bits.get_backend(i));
+                let mut counter = self.next_state.get_counter_mut(i);
+                counter.set(self.curr_state.get_backend(i));
                 for succ in self.graph.successors(i) {
-                    counter.merge(self.bits.get_backend(succ));
+                    counter.merge(self.curr_state.get_backend(succ));
                 }
             }
-            std::mem::swap(&mut self.bits, &mut self.result_bits);
+            std::mem::swap(&mut self.curr_state, &mut self.next_state);
         }
     }
 
@@ -1296,8 +1300,8 @@ mod test {
         )
         .build(no_logging![]);
         let mut seq_hyperball = SeqHyperBall {
-            bits: seq_bits,
-            result_bits: seq_result_bits,
+            curr_state: seq_bits,
+            next_state: seq_result_bits,
             graph: &graph,
         };
 
@@ -1314,9 +1318,12 @@ mod test {
 
             assert_eq!(
                 hyperball.next_state.as_ref(),
-                seq_hyperball.result_bits.as_ref()
+                seq_hyperball.next_state.as_ref()
             );
-            assert_eq!(hyperball.prev_state.as_ref(), seq_hyperball.bits.as_ref());
+            assert_eq!(
+                hyperball.curr_state.as_ref(),
+                seq_hyperball.curr_state.as_ref()
+            );
         }
 
         Ok(())
