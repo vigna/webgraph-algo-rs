@@ -4,17 +4,18 @@ use anyhow::{Context, Result};
 use sux::traits::Word;
 use sync_cell_slice::{SyncCell, SyncSlice};
 
-/// An array for counters implementing a shared [`CounterLogic`] whose backend
-/// is a slice.
+/// An array for counters implementing a shared [`CounterLogic`], and whose
+/// backend is a slice.
 ///
-/// Note that we need a specific type for arrays slice backends as one
-/// cannot create a slice of slices.
+/// Note that we need a specific type for arrays of slice backends as one cannot
+/// create a slice of slices.
 pub struct SliceCounterArray<L, W, S> {
     pub(super) logic: L,
     pub(super) backend: S,
     _marker: std::marker::PhantomData<W>,
 }
 
+/// A view of a [`SliceCounterArray`] as a [`SyncCounterArray`].
 pub struct SyncSliceCounterArray<L, W, S> {
     pub(super) logic: L,
     pub(super) backend: S,
@@ -29,11 +30,8 @@ where
 {
 }
 
-impl<
-        L: CounterLogic<Backend = [W]> + SliceCounterLogic + Sync,
-        W: Word,
-        S: AsRef<[SyncCell<W>]> + Sync,
-    > SyncCounterArray<L> for SyncSliceCounterArray<L, W, S>
+impl<L: SliceCounterLogic<W> + Sync, W: Word, S: AsRef<[SyncCell<W>]> + Sync> SyncCounterArray<L>
+    for SyncSliceCounterArray<L, W, S>
 {
     unsafe fn set(&self, index: usize, content: &L::Backend) {
         debug_assert!(content.as_ref().len() == self.logic.backend_len());
@@ -67,7 +65,7 @@ impl<
     }
 }
 
-impl<L: SliceCounterLogic, W, S: AsRef<[W]>> SliceCounterArray<L, W, S> {
+impl<L: SliceCounterLogic<W>, W, S: AsRef<[W]>> SliceCounterArray<L, W, S> {
     /// Returns the number of counters in the array.
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -83,8 +81,8 @@ impl<L: SliceCounterLogic, W, S: AsRef<[W]>> SliceCounterArray<L, W, S> {
     }
 }
 
-impl<L: CounterLogic<Backend = [W]> + SliceCounterLogic + Clone + Sync, W: Word, S: AsMut<[W]>>
-    AsSyncArray<L> for SliceCounterArray<L, W, S>
+impl<L: SliceCounterLogic<W> + Clone + Sync, W: Word, S: AsMut<[W]>> AsSyncArray<L>
+    for SliceCounterArray<L, W, S>
 {
     type SyncCounterArray<'a>
         = SyncSliceCounterArray<L, W, &'a [SyncCell<W>]>
@@ -112,7 +110,7 @@ impl<L, W, S: AsMut<[W]>> AsMut<[W]> for SliceCounterArray<L, W, S> {
     }
 }
 
-impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W, MmapSlice<W>> {
+impl<L: SliceCounterLogic<W>, W: Word> SliceCounterArray<L, W, MmapSlice<W>> {
     /// Creates a new counter slice with the provided logic allocating in-memory.
     ///
     /// # Arguments
@@ -149,7 +147,7 @@ impl<L: SliceCounterLogic<Backend = [W]>, W: Word> SliceCounterArray<L, W, MmapS
     }
 }
 
-impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word, S: AsRef<[W]>> CounterArray<L>
+impl<L: SliceCounterLogic<W> + Clone, W: Word, S: AsRef<[W]>> CounterArray<L>
     for SliceCounterArray<L, W, S>
 {
     type Counter<'a>
@@ -179,8 +177,8 @@ impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word, S: AsRef<[W]>> Counte
     }
 }
 
-impl<L: SliceCounterLogic<Backend = [W]> + Clone, W: Word, S: AsRef<[W]> + AsMut<[W]>>
-    CounterArrayMut<L> for SliceCounterArray<L, W, S>
+impl<L: SliceCounterLogic<W> + Clone, W: Word, S: AsRef<[W]> + AsMut<[W]>> CounterArrayMut<L>
+    for SliceCounterArray<L, W, S>
 {
     type CounterMut<'a>
         = DefaultCounter<L, &'a L, &'a mut [W]>

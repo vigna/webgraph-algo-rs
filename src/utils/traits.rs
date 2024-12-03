@@ -93,7 +93,7 @@ pub trait MergeCounterLogic: CounterLogic {
 
 /// Trait implemented by [counter logics](CounterLogic) whose backend is a slice
 /// of elements of some type.
-pub trait SliceCounterLogic: CounterLogic {
+pub trait SliceCounterLogic<W>: CounterLogic<Backend = [W]> {
     /// The number of elements in a backend.
     fn backend_len(&self) -> usize;
 }
@@ -160,6 +160,11 @@ pub trait MergeCounter<L: MergeCounterLogic + ?Sized>: CounterMut<L> {
 }
 
 /// An array of immutable counters sharing a [`CounterLogic`].
+///
+/// Arrays of counters are useful because they share the same logic, saving
+/// space with respect to a slice of counters. Morover, by hiding the
+/// implementation, it is possible to create counter arrays for counters whose
+/// [backends are slices](super::SliceCounterArray).
 pub trait CounterArray<L: CounterLogic + ?Sized> {
     /// The type of immutable counter returned by
     /// [`get_counter`](CounterArray::get_counter).
@@ -216,24 +221,37 @@ pub trait CounterArrayMut<L: CounterLogic + ?Sized>: CounterArray<L> {
     fn clear(&mut self);
 }
 
+/// A trait for counter arrays that can be viewed as a [`SyncCounterArray`].
 pub trait AsSyncArray<L: CounterLogic + ?Sized> {
     type SyncCounterArray<'a>: SyncCounterArray<L>
     where
         Self: 'a;
 
+    /// Converts a mutable reference to this type into a shared reference
+    /// to a [`SyncCounterArray`].
     fn as_sync_array(&mut self) -> Self::SyncCounterArray<'_>;
 }
 
+/// An array of mutable counters sharing a [`CounterLogic`] that can be shared
+/// between threads.
+///
+/// This trait has the same purpose of [`CounterArrayMut`], but can be shared
+/// between threads as it implements interior mutability. It follows a logic
+/// similar to a slice of [`SyncCell`](sync_cell_slice::SyncCell): it is
+/// possible to get or set the backend of a counter, but not to obtain a
+/// reference to a backend.
+///
+/// # Safety
+///
+/// The methods of this trait are unsafe because multiple thread can
+/// concurrently access the same counter array. The caller must ensure that
+/// there are no data races.
 pub trait SyncCounterArray<L: CounterLogic + ?Sized>: Sync {
     /// Returns the logic used by the counters in the array.
     fn logic(&self) -> &L;
 
     /// Sets the backend of the counter at `index` to the given backend, using a
     /// shared reference to the counter array.
-    ///
-    /// This method is useful in parallel and concurrent context where data
-    /// races are guaranteed not to happen (e.g., because each threads sets a
-    /// different subset of counters).
     ///
     /// # Safety
     ///
@@ -243,10 +261,6 @@ pub trait SyncCounterArray<L: CounterLogic + ?Sized>: Sync {
 
     /// Copies the backend of the counter at `index` to the given backend, using a
     /// shared reference to the counter array.
-    ///
-    /// This method is useful in parallel and concurrent context where data
-    /// races are guaranteed not to happen (e.g., because each threads sets a
-    /// different subset of counters).
     ///
     /// # Safety
     ///

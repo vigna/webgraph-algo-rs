@@ -110,7 +110,7 @@ impl<
         T: Hash,
         H: BuildHasher + Clone,
         W: Word + UpcastableInto<HashResult> + CastableFrom<HashResult>,
-    > SliceCounterLogic for HyperLogLog<T, H, W>
+    > SliceCounterLogic<W> for HyperLogLog<T, H, W>
 {
     fn backend_len(&self) -> usize {
         self.words_per_counter
