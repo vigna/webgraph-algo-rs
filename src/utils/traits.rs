@@ -94,7 +94,7 @@ pub trait MergeCounterLogic: CounterLogic {
 /// Trait implemented by [counter logics](CounterLogic) whose backend is a slice
 /// of elements of some type.
 pub trait SliceCounterLogic<W>: CounterLogic<Backend = [W]> {
-    /// The number of elements in a backend.
+    /// The number of elements of type `W` in a backend.
     fn backend_len(&self) -> usize;
 }
 

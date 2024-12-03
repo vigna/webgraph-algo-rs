@@ -19,7 +19,7 @@ use webgraph::traits::{RandomAccessGraph, SequentialLabeling};
 pub struct HyperBallBuilder<
     'a,
     D: Succ<Input = usize, Output = usize>,
-    L: CounterLogic<Item = G1::Label> + MergeCounterLogic,
+    L: MergeCounterLogic<Item = G1::Label>,
     A: CounterArrayMut<L>,
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
@@ -131,7 +131,7 @@ impl<
         'a,
         D: Succ<Input = usize, Output = usize>,
         G: RandomAccessGraph + Sync,
-        L: CounterLogic<Item = G::Label> + MergeCounterLogic,
+        L: MergeCounterLogic<Item = G::Label>,
         A: CounterArrayMut<L>,
     > HyperBallBuilder<'a, D, L, A, G, G>
 {
@@ -179,7 +179,7 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        L: CounterLogic<Item = G1::Label> + MergeCounterLogic,
+        L: MergeCounterLogic<Item = G1::Label>,
         A: CounterArrayMut<L>,
     > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
@@ -301,7 +301,7 @@ impl<
         D: Succ<Input = usize, Output = usize>,
         G1: RandomAccessGraph + Sync,
         G2: RandomAccessGraph + Sync,
-        L: CounterLogic<Item = G1::Label> + MergeCounterLogic + Sync + std::fmt::Display,
+        L: MergeCounterLogic<Item = G1::Label> + Sync + std::fmt::Display,
         A: CounterArrayMut<L>,
     > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
@@ -852,7 +852,7 @@ where
                     self.transposed,
                     &self.curr_state,
                     &next_state_sync,
-                    &ic,
+                    ic,
                     c,
                 )
             });
