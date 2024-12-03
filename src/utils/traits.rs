@@ -254,7 +254,11 @@ pub trait SyncCounterArray<L: CounterLogic + ?Sized>: Sync {
     /// counter array, and that there are no data races.
     unsafe fn get(&self, index: usize, content: &mut L::Backend);
 
-    /// Resets all counters in the array.
+    /// Clears all counters in the array.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that there are no data races.
     unsafe fn clear(&self);
 
     /// Returns the number of counters in the array.

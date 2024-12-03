@@ -24,15 +24,27 @@ pub struct HyperBallBuilder<
     G1: RandomAccessGraph + Sync,
     G2: RandomAccessGraph + Sync,
 > {
+    /// A graph.
     graph: &'a G1,
+    /// The transpose of `graph`, if any.
     transpose: Option<&'a G2>,
+    /// The outdegree cumulative function of the graph.
     cumul_outdegree: &'a D,
+    /// Whether to compute the sum of distances (e.g., for closeness centrality).
     sum_of_distances: bool,
+    /// Whether to compute the sum of inverse distances (e.g., for harmonic centrality).
     sum_of_inverse_distances: bool,
+    /// Custom discount functions whose sum should be computed.
     discount_functions: Vec<Box<dyn Fn(usize) -> f64 + Sync + 'a>>,
-    granularity: usize,
+    /// The arc granularity.
+    arc_granularity: usize,
+    /// Integer weights for the nodes, if any.
     weights: Option<&'a [usize]>,
+    /// A first array of counters.
     array_0: A,
+    // TODO: check logic compatibility
+    /// A second array of counters of the same length and with the same logic of
+    /// `array_0`.
     array_1: A,
     _marker: std::marker::PhantomData<L>,
 }
@@ -56,19 +68,20 @@ impl<
         G2,
     >
 {
-    /// Utility method to create a builder using n [HyperLogLog counter logic](HyperLogLog).
+    /// Utility method to create a builder using a [HyperLogLog counter
+    /// logic](HyperLogLog).
     ///
     /// # Arguments
     /// * `graph`: the graph to analyze.
-    /// * `transpose`: optionally, the transpose of `graph`. If [`None`],
-    ///   no systolic iterations will be performed by the resulting [`HyperBall`].
+    /// * `transpose`: optionally, the transpose of `graph`. If [`None`], no
+    ///   systolic iterations will be performed by the resulting [`HyperBall`].
     /// * `cumul_outdeg`: the outdegree cumulative function of the graph.
     /// * `log2m`: the base-2 logarithm of the number *m* of register per
     ///   HyperLogLog counter.
     /// * `weights`: the weights to use. If [`None`] every node is assumed to be
     ///   of weight equal to 1.
-    /// * `mmap_options`: the options to use for the backend of the counter arrays as a
-    ///   [`TempMmapOptions`].
+    /// * `mmap_options`: the options to use for the backend of the counter
+    ///   arrays as a [`TempMmapOptions`].
     pub fn with_hyper_log_log(
         graph: &'a G1,
         transposed: Option<&'a G2>,
@@ -105,7 +118,7 @@ impl<
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
-            granularity: Self::DEFAULT_GRANULARITY,
+            arc_granularity: Self::DEFAULT_GRANULARITY,
             weights,
             array_0,
             array_1,
@@ -127,8 +140,9 @@ impl<
     /// # Arguments
     /// * `graph`: the graph to analyze.
     /// * `cumul_outdeg`: the outdegree cumulative function of the graph.
-    /// * `array_0`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
-    /// * `array_1`: an array of the same type and `len` as `array_0`.
+    /// * `array_0`: a first array of counters.
+    /// * `array_1`: A second array of counters of the same length and with the same logic of
+    ///   `array_0`.
     pub fn new(graph: &'a G, cumul_outdeg: &'a D, array_0: A, array_1: A) -> Self {
         assert_eq!(
             graph.num_nodes(),
@@ -151,7 +165,7 @@ impl<
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
-            granularity: Self::DEFAULT_GRANULARITY,
+            arc_granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
             array_0,
             array_1,
@@ -171,15 +185,15 @@ impl<
 {
     const DEFAULT_GRANULARITY: usize = 16 * 1024;
 
-    /// Creates a new builder with default parameters using also the transposed graph.
+    /// Creates a new builder with default parameters using also the transpose.
     ///
-    /// # Arguments
-    /// * `graph`: the direct graph to analyze.
-    /// * `transposed`: the new transposed graph. If [`None`] no transposed graph is used
-    ///   and no systolic iterations will be performed by the built [`HyperBall`].
+    /// * `graph`: the graph to analyze.
+    /// * `transpose`: optionally, the transpose of `graph`. If [`None`], no
+    ///   systolic iterations will be performed by the resulting [`HyperBall`].
     /// * `cumul_outdeg`: the outdegree cumulative function of the graph.
-    /// * `array_0`: an array implementing [CounterArrayMut] for a logic [MergeCounterLogic].
-    /// * `array_1`: an array of the same type and `len` as `array_0`.
+    /// * `array_0`: a first array of counters.
+    /// * `array_1`: A second array of counters of the same length and with the same logic of
+    ///   `array_0`.
     pub fn with_transposed(
         graph: &'a G1,
         transposed: &'a G2,
@@ -226,7 +240,7 @@ impl<
             sum_of_distances: false,
             sum_of_inverse_distances: false,
             discount_functions: Vec::new(),
-            granularity: Self::DEFAULT_GRANULARITY,
+            arc_granularity: Self::DEFAULT_GRANULARITY,
             weights: None,
             array_0,
             array_1,
@@ -235,37 +249,28 @@ impl<
     }
 
     /// Sets whether to compute the sum of distances.
-    ///
-    /// # Arguments
-    /// * `do_sum_of_distances`: if `true` the sum of distances are computed.
     pub fn sum_of_distances(mut self, do_sum_of_distances: bool) -> Self {
         self.sum_of_distances = do_sum_of_distances;
         self
     }
 
     /// Sets whether to compute the sum of inverse distances.
-    ///
-    /// # Arguments
-    /// * `do_sum_of_inverse_distances`: if `true` the sum of inverse distances are computed.
     pub fn sum_of_inverse_distances(mut self, do_sum_of_inverse_distances: bool) -> Self {
         self.sum_of_inverse_distances = do_sum_of_inverse_distances;
         self
     }
 
     /// Sets the base granularity used in the parallel phases of the iterations.
-    ///
-    /// # Arguments
-    /// * `granularity`: the new granularity value.
-    pub fn granularity(mut self, granularity: usize) -> Self {
-        self.granularity = granularity;
+    pub fn arc_granulatity(mut self, arc_granularity: usize) -> Self {
+        self.arc_granularity = arc_granularity;
         self
     }
 
-    /// Sets the weights for the nodes of the graph.
+    /// Sets optional weights for the nodes of the graph.
     ///
     /// # Arguments
-    /// * `weights`: the new weights to use. If [`None`] every node is assumed to be
-    ///   of weight equal to 1.
+    /// * `weights`: weights to use for the nodes. If [`None`], every node is
+    ///   assumed to be of weight equal to 1.
     pub fn weights(mut self, weights: Option<&'a [usize]>) -> Self {
         if let Some(w) = weights {
             assert_eq!(w.len(), self.graph.num_nodes());
@@ -274,10 +279,8 @@ impl<
         self
     }
 
-    /// Adds a new discount function to compute during the iterations.
-    ///
-    /// # Arguments
-    /// * `discount_function`: the discount function to add.
+    /// Adds a new discount function whose sum over all spheres should be
+    /// computed.
     pub fn discount_function(
         mut self,
         discount_function: impl Fn(usize) -> f64 + Sync + 'a,
@@ -302,7 +305,7 @@ impl<
         A: CounterArrayMut<L>,
     > HyperBallBuilder<'a, D, L, A, G1, G2>
 {
-    /// Builds the [`HyperBall`] instance with the specified [`BuildHyperLogLog`] and
+    /// Builds the [`HyperBall`] instance with the specified [`HyperLogLogBuilder`] and
     /// logs progress with the provided logger.
     ///
     /// # Arguments
@@ -337,8 +340,8 @@ impl<
 
         pl.info(format_args!("Initializing bit vectors"));
 
-        pl.info(format_args!("Initializing modified_counter bitvec"));
-        let modified_counter = AtomicBitVec::new(num_nodes);
+        pl.info(format_args!("Initializing counter_modified bitvec"));
+        let counter_modified = AtomicBitVec::new(num_nodes);
 
         pl.info(format_args!("Initializing modified_result_counter bitvec"));
         let modified_result_counter = AtomicBitVec::new(num_nodes);
@@ -364,16 +367,16 @@ impl<
             neighbourhood_function: Vec::new(),
             last: 0.0,
             relative_increment: 0.0,
-            granularity: self.granularity,
+            granularity: self.arc_granularity,
             iteration_context: IterationContext {
                 current: Mutex::new(0.0),
                 iteration: 0,
-                prev_modified: modified_counter,
+                prev_modified: counter_modified,
                 next_modified: modified_result_counter,
                 local_next_must_be_checked: Mutex::new(Vec::new()),
                 must_be_checked,
                 next_must_be_checked,
-                granularity: 0,
+                arc_granularity: 0,
                 cumul_outdeg: self.cumul_outdegree,
                 cursor: AtomicUsize::new(0),
                 arc_balanced_cursor: Mutex::new((0, 0)),
@@ -393,13 +396,19 @@ impl<
     }
 }
 
-/// Utility used as container for iteration context
+/// Data used by [`parallel_task`](Self::parallel_task).
+///
+/// These field are used by thread running
+/// [`parallel_task`](Self::parallel_task). They must be isolated in a field
+/// because we need to be able to borrow exclusively the `next_state` field of
+/// the [`HyperBall`] instance, while sharing references to the data contained
+/// here and to the `curr_state` field.`
 struct IterationContext<'a, G1: SequentialLabeling, D> {
-    /// The value computed by the current iteration.
-    current: Mutex<f64>,
     /// The current iteration.
     iteration: usize,
-    granularity: usize,
+    /// The value computed by the current iteration.
+    current: Mutex<f64>,
+    arc_granularity: usize,
     cursor: AtomicUsize,
     arc_balanced_cursor: Mutex<(usize, usize)>,
     visited_arcs: AtomicU64,
@@ -434,10 +443,10 @@ struct IterationContext<'a, G1: SequentialLabeling, D> {
     next_must_be_checked: AtomicBitVec,
 }
 
-impl<'a, G1: SequentialLabeling, D> IterationContext<'a, G1, D> {
+impl<G1: SequentialLabeling, D> IterationContext<'_, G1, D> {
     /// Resets the iteration context
     fn reset(&mut self, granularity: usize) {
-        self.granularity = granularity;
+        self.arc_granularity = granularity;
         self.cursor.store(0, Ordering::Relaxed);
         *self.arc_balanced_cursor.lock().unwrap() = (0, 0);
         self.visited_arcs.store(0, Ordering::Relaxed);
@@ -523,7 +532,12 @@ where
 
             pl.update();
 
-            if self.modified_counters() == 0 {
+            if self
+                .iteration_context
+                .modified_counters
+                .load(Ordering::Relaxed)
+                == 0
+            {
                 pl.info(format_args!(
                     "Terminating appoximation after {} iteration(s) by stabilisation",
                     i + 1
@@ -734,109 +748,88 @@ where
             self.iteration_context.iteration + 1
         ));
 
-        // Let us record whether the previous computation was systolic or local.
-        let previous_was_systolic = self.iteration_context.systolic;
-        let previous_was_local = self.iteration_context.local;
+        let ic = &mut self.iteration_context;
 
-        // Record the number of modified counters and the number of nodes and arcs as u64
-        let modified_counters = self.modified_counters();
+        // Alias the number of modified counters, nodes and arcs as u64
         let num_nodes = self.graph.num_nodes() as u64;
         let num_arcs = self.graph.num_arcs();
+        let modified_counters = ic.modified_counters.load(Ordering::Relaxed);
+
+        // Let us record whether the previous computation was systolic or local.
+        let prev_was_systolic = ic.systolic;
+        let prev_was_local = ic.local;
 
         // If less than one fourth of the nodes have been modified, and we have the transpose,
         // it is time to pass to a systolic computation.
-        self.iteration_context.systolic = self.transposed.is_some()
-            && self.iteration_context.iteration > 0
-            && modified_counters < num_nodes / 4;
+        ic.systolic =
+            self.transposed.is_some() && ic.iteration > 0 && modified_counters < num_nodes / 4;
 
-        // Non-systolic computations add up the value of all counter.
+        // Non-systolic computations add up the values of all counter.
         // Systolic computations modify the last value by compensating for each modified counter.
-        *self.iteration_context.current.lock().unwrap() = if self.iteration_context.systolic {
-            self.last
-        } else {
-            0.0
-        };
+        *ic.current.lock().unwrap() = if ic.systolic { self.last } else { 0.0 };
 
         // If we completed the last iteration in pre-local mode, we MUST run in local mode.
-        self.iteration_context.local = self.iteration_context.pre_local;
+        ic.local = ic.pre_local;
 
         // We run in pre-local mode if we are systolic and few nodes where modified.
-        self.iteration_context.pre_local = self.iteration_context.systolic
-            && modified_counters < (num_nodes * num_nodes) / (num_arcs * 10);
+        ic.pre_local = ic.systolic && modified_counters < (num_nodes * num_nodes) / (num_arcs * 10);
 
-        if self.iteration_context.systolic {
+        if ic.systolic {
             pl.info(format_args!(
                 "Starting systolic iteration (local: {}, pre_local: {})",
-                self.iteration_context.local, self.iteration_context.pre_local
+                ic.local, ic.pre_local
             ));
         } else {
             pl.info(format_args!("Starting standard iteration"));
         }
 
         pl.info(format_args!("Preparing modified_result_counter"));
-        if previous_was_local {
-            for &node in self.iteration_context.local_checklist.iter() {
-                self.iteration_context
-                    .next_modified
-                    .set(node, false, Ordering::Relaxed);
+        if prev_was_local {
+            for &node in ic.local_checklist.iter() {
+                ic.next_modified.set(node, false, Ordering::Relaxed);
             }
         } else {
-            thread_pool.install(|| {
-                self.iteration_context
-                    .next_modified
-                    .fill(false, Ordering::Relaxed)
-            });
+            thread_pool.install(|| ic.next_modified.fill(false, Ordering::Relaxed));
         }
 
-        if self.iteration_context.local {
+        if ic.local {
             pl.info(format_args!("Preparing local checklist"));
             // In case of a local computation, we convert the set of must-be-checked for the
             // next iteration into a check list.
             thread_pool.join(
-                || self.iteration_context.local_checklist.clear(),
+                || ic.local_checklist.clear(),
                 || {
-                    let mut local_next_must_be_checked = self
-                        .iteration_context
-                        .local_next_must_be_checked
-                        .lock()
-                        .unwrap();
+                    let mut local_next_must_be_checked =
+                        ic.local_next_must_be_checked.lock().unwrap();
                     local_next_must_be_checked.par_sort_unstable();
                     local_next_must_be_checked.dedup();
                 },
             );
             std::mem::swap(
-                &mut self.iteration_context.local_checklist,
-                &mut self
-                    .iteration_context
-                    .local_next_must_be_checked
-                    .lock()
-                    .unwrap(),
+                &mut ic.local_checklist,
+                &mut ic.local_next_must_be_checked.lock().unwrap(),
             );
-        } else if self.iteration_context.systolic {
+        } else if ic.systolic {
             pl.info(format_args!("Preparing systolic flags"));
             thread_pool.join(
                 || {
                     // Systolic, non-local computations store the could-be-modified set implicitly into Self::next_must_be_checked.
-                    self.iteration_context
-                        .next_must_be_checked
-                        .fill(false, Ordering::Relaxed);
+                    ic.next_must_be_checked.fill(false, Ordering::Relaxed);
                 },
                 || {
                     // If the previous computation wasn't systolic, we must assume that all registers could have changed.
-                    if !previous_was_systolic {
-                        self.iteration_context
-                            .must_be_checked
-                            .fill(true, Ordering::Relaxed);
+                    if !prev_was_systolic {
+                        ic.must_be_checked.fill(true, Ordering::Relaxed);
                     }
                 },
             );
         }
 
-        let mut granularity = self.iteration_context.granularity;
+        let mut granularity = ic.arc_granularity;
         let num_threads = thread_pool.current_num_threads();
 
-        if num_threads > 1 && !self.iteration_context.local {
-            if self.iteration_context.iteration > 0 {
+        if num_threads > 1 && !ic.local {
+            if ic.iteration > 0 {
                 granularity = f64::min(
                     std::cmp::max(1, self.graph.num_nodes() / num_threads) as f64,
                     granularity as f64
@@ -850,10 +843,10 @@ where
             ));
         }
 
-        self.iteration_context.reset(granularity);
+        ic.reset(granularity);
 
         pl.item_name("arc");
-        pl.expected_updates(if self.iteration_context.local {
+        pl.expected_updates(if ic.local {
             None
         } else {
             Some(self.graph.num_arcs() as usize)
@@ -867,35 +860,30 @@ where
                     self.transposed,
                     &self.curr_state,
                     &next_state_sync,
-                    &self.iteration_context,
+                    &ic,
                     c,
                 )
             });
         }
 
-        pl.done_with_count(self.iteration_context.visited_arcs.load(Ordering::Relaxed) as usize);
+        pl.done_with_count(ic.visited_arcs.load(Ordering::Relaxed) as usize);
+        let modified_counters = ic.modified_counters.load(Ordering::Relaxed);
 
         pl.info(format_args!(
             "Modified counters: {}/{} ({:.3}%)",
-            self.modified_counters(),
+            modified_counters,
             self.graph.num_nodes(),
-            (self.modified_counters() as f64 / self.graph.num_nodes() as f64) * 100.0
+            (modified_counters as f64 / self.graph.num_nodes() as f64) * 100.0
         ));
 
         std::mem::swap(&mut self.curr_state, &mut self.next_state);
-        std::mem::swap(
-            &mut self.iteration_context.prev_modified,
-            &mut self.iteration_context.next_modified,
-        );
+        std::mem::swap(&mut ic.prev_modified, &mut ic.next_modified);
 
-        if self.iteration_context.systolic {
-            std::mem::swap(
-                &mut self.iteration_context.must_be_checked,
-                &mut self.iteration_context.next_must_be_checked,
-            );
+        if ic.systolic {
+            std::mem::swap(&mut ic.must_be_checked, &mut ic.next_must_be_checked);
         }
 
-        let mut current_mut = self.iteration_context.current.lock().unwrap();
+        let mut current_mut = ic.current.lock().unwrap();
         self.last = *current_mut;
         // We enforce monotonicity. Non-monotonicity can only be caused
         // by approximation errors.
@@ -925,7 +913,7 @@ where
 
         self.neighbourhood_function.push(*current_mut);
 
-        self.iteration_context.iteration += 1;
+        ic.iteration += 1;
 
         Ok(())
     }
@@ -939,24 +927,24 @@ where
         transpose: Option<&(impl RandomAccessGraph + Sync)>,
         curr_state: &impl CounterArray<L>,
         next_state: &impl SyncCounterArray<L>,
-        iteration_context: &IterationContext<'_, G1, D>,
+        ic: &IterationContext<'_, G1, D>,
         _broadcast_context: rayon::BroadcastContext,
     ) {
-        let node_granularity = iteration_context.granularity;
+        let node_granularity = ic.arc_granularity;
         let arc_granularity = ((graph.num_arcs() as f64 * node_granularity as f64)
             / graph.num_nodes() as f64)
             .ceil() as usize;
-        let do_centrality = iteration_context.sum_of_distances.is_some()
-            || iteration_context.sum_of_inverse_distances.is_some()
-            || !iteration_context.discount_functions.is_empty();
-        let node_upper_limit = if iteration_context.local {
-            iteration_context.local_checklist.len()
+        let do_centrality = ic.sum_of_distances.is_some()
+            || ic.sum_of_inverse_distances.is_some()
+            || !ic.discount_functions.is_empty();
+        let node_upper_limit = if ic.local {
+            ic.local_checklist.len()
         } else {
             graph.num_nodes()
         };
         let mut visited_arcs = 0;
         let mut modified_counters = 0;
-        let arc_upper_limit = graph.num_arcs() as usize;
+        let arc_upper_limit = graph.num_arcs();
 
         // During standard iterations, cumulates the neighbourhood function for the nodes scanned
         // by this thread. During systolic iterations, cumulates the *increase* of the
@@ -968,26 +956,23 @@ where
 
         loop {
             // Get work
-            let (start, end) = if iteration_context.local {
-                let start = std::cmp::min(
-                    iteration_context.cursor.fetch_add(1, Ordering::Relaxed),
-                    node_upper_limit,
-                );
+            let (start, end) = if ic.local {
+                let start =
+                    std::cmp::min(ic.cursor.fetch_add(1, Ordering::Relaxed), node_upper_limit);
                 let end = std::cmp::min(start + 1, node_upper_limit);
                 (start, end)
             } else {
-                let mut arc_balanced_cursor = iteration_context.arc_balanced_cursor.lock().unwrap();
+                let mut arc_balanced_cursor = ic.arc_balanced_cursor.lock().unwrap();
                 let (mut next_node, mut next_arc) = *arc_balanced_cursor;
                 if next_node >= node_upper_limit {
                     (node_upper_limit, node_upper_limit)
                 } else {
                     let start = next_node;
                     let target = next_arc + arc_granularity;
-                    if target >= arc_upper_limit {
+                    if target as u64 >= arc_upper_limit {
                         next_node = node_upper_limit;
                     } else {
-                        (next_node, next_arc) =
-                            iteration_context.cumul_outdeg.succ(target).unwrap();
+                        (next_node, next_arc) = ic.cumul_outdeg.succ(target).unwrap();
                     }
                     let end = next_node;
                     *arc_balanced_cursor = (next_node, next_arc);
@@ -1001,11 +986,7 @@ where
 
             // Do work
             for i in start..end {
-                let node = if iteration_context.local {
-                    iteration_context.local_checklist[i]
-                } else {
-                    i
-                };
+                let node = if ic.local { ic.local_checklist[i] } else { i };
 
                 let prev_counter = curr_state.get_backend(node);
 
@@ -1013,14 +994,11 @@ where
                 // 1) A non-systolic computation (we don't know anything, so we enumerate).
                 // 2) A systolic, local computation (the node is by definition to be checked, as it comes from the local check list).
                 // 3) A systolic, non-local computation in which the node should be checked.
-                if !iteration_context.systolic
-                    || iteration_context.local
-                    || iteration_context.must_be_checked[node]
-                {
+                if !ic.systolic || ic.local || ic.must_be_checked[node] {
                     next_counter.set(prev_counter);
                     let mut modified = false;
                     for succ in graph.successors(node) {
-                        if succ != node && iteration_context.prev_modified[succ] {
+                        if succ != node && ic.prev_modified[succ] {
                             visited_arcs += 1;
                             if !modified {
                                 modified = true;
@@ -1034,7 +1012,7 @@ where
                     }
 
                     let mut post = f64::NAN;
-                    let modified_counter = if modified {
+                    let counter_modified = if modified {
                         next_counter.as_ref() != prev_counter
                     } else {
                         false
@@ -1044,16 +1022,16 @@ where
                     // compute the neighbourhood function cumulating actual values, and not deltas) or
                     // if the counter was actually modified (as we're going to cumulate the neighbourhood
                     // function delta, or at least some centrality).
-                    if !iteration_context.systolic || modified_counter {
+                    if !ic.systolic || counter_modified {
                         post = logic.count(next_counter.as_ref())
                     }
-                    if !iteration_context.systolic {
+                    if !ic.systolic {
                         neighbourhood_function_delta += post;
                     }
 
-                    if modified_counter && (iteration_context.systolic || do_centrality) {
+                    if counter_modified && (ic.systolic || do_centrality) {
                         let pre = logic.count(prev_counter);
-                        if iteration_context.systolic {
+                        if ic.systolic {
                             neighbourhood_function_delta += -pre;
                             neighbourhood_function_delta += post;
                         }
@@ -1062,46 +1040,37 @@ where
                             let delta = post - pre;
                             // Note that this code is executed only for distances > 0
                             if delta > 0.0 {
-                                if let Some(distances) = &iteration_context.sum_of_distances {
-                                    let new_value =
-                                        delta * (iteration_context.iteration + 1) as f64;
+                                if let Some(distances) = &ic.sum_of_distances {
+                                    let new_value = delta * (ic.iteration + 1) as f64;
                                     distances.lock().unwrap()[node] += new_value;
                                 }
-                                if let Some(distances) = &iteration_context.sum_of_inverse_distances
-                                {
-                                    let new_value =
-                                        delta / (iteration_context.iteration + 1) as f64;
+                                if let Some(distances) = &ic.sum_of_inverse_distances {
+                                    let new_value = delta / (ic.iteration + 1) as f64;
                                     distances.lock().unwrap()[node] += new_value;
                                 }
-                                for (func, distances) in iteration_context
+                                for (func, distances) in ic
                                     .discount_functions
                                     .iter()
-                                    .zip(iteration_context.discounted_centralities.iter())
+                                    .zip(ic.discounted_centralities.iter())
                                 {
-                                    let new_value = delta * func(iteration_context.iteration + 1);
+                                    let new_value = delta * func(ic.iteration + 1);
                                     distances.lock().unwrap()[node] += new_value;
                                 }
                             }
                         }
                     }
 
-                    if modified_counter {
+                    if counter_modified {
                         // We keep track of modified counters in the result. Note that we must
                         // add the current node to the must-be-checked set for the next
                         // local iteration if it is modified, as it might need a copy to
                         // the result array at the next iteration.
-                        if iteration_context.pre_local {
-                            iteration_context
-                                .local_next_must_be_checked
-                                .lock()
-                                .unwrap()
-                                .push(node);
+                        if ic.pre_local {
+                            ic.local_next_must_be_checked.lock().unwrap().push(node);
                         }
-                        iteration_context
-                            .next_modified
-                            .set(node, true, Ordering::Relaxed);
+                        ic.next_modified.set(node, true, Ordering::Relaxed);
 
-                        if iteration_context.systolic {
+                        if ic.systolic {
                             debug_assert!(transpose.is_some());
                             // In systolic computations we must keep track of which counters must
                             // be checked on the next iteration. If we are preparing a local computation,
@@ -1109,19 +1078,15 @@ where
                             // node to a set. Otherwise, we do this implicitly, by setting the
                             // corresponding entry in an array.
                             let rev_graph = transpose.expect("Should have transpose");
-                            if iteration_context.pre_local {
+                            if ic.pre_local {
                                 let mut local_next_must_be_checked =
-                                    iteration_context.local_next_must_be_checked.lock().unwrap();
+                                    ic.local_next_must_be_checked.lock().unwrap();
                                 for succ in rev_graph.successors(node) {
                                     local_next_must_be_checked.push(succ);
                                 }
                             } else {
                                 for succ in rev_graph.successors(node) {
-                                    iteration_context.next_must_be_checked.set(
-                                        succ,
-                                        true,
-                                        Ordering::Relaxed,
-                                    );
+                                    ic.next_must_be_checked.set(succ, true, Ordering::Relaxed);
                                 }
                             }
                         }
@@ -1136,7 +1101,7 @@ where
                     // Even if we cannot possibly have changed our value, still our copy
                     // in the result vector might need to be updated because it does not
                     // reflect our current value.
-                    if iteration_context.prev_modified[node] {
+                    if ic.prev_modified[node] {
                         unsafe {
                             next_state.set(node, prev_counter);
                         }
@@ -1145,20 +1110,10 @@ where
             }
         }
 
-        *iteration_context.current.lock().unwrap() += neighbourhood_function_delta.sum();
-        iteration_context
-            .visited_arcs
-            .fetch_add(visited_arcs, Ordering::Relaxed);
-        iteration_context
-            .modified_counters
+        *ic.current.lock().unwrap() += neighbourhood_function_delta.sum();
+        ic.visited_arcs.fetch_add(visited_arcs, Ordering::Relaxed);
+        ic.modified_counters
             .fetch_add(modified_counters, Ordering::Relaxed);
-    }
-
-    /// Returns the number of HyperLogLog counters that were modified by the last iteration.
-    fn modified_counters(&self) -> u64 {
-        self.iteration_context
-            .modified_counters
-            .load(Ordering::Relaxed)
     }
 
     /// Initializes the approximator.
@@ -1314,7 +1269,10 @@ mod test {
             hyperball.iterate(&threads, no_logging![])?;
             seq_hyperball.iterate();
 
-            modified_counters = hyperball.modified_counters();
+            modified_counters = hyperball
+                .iteration_context
+                .modified_counters
+                .load(Ordering::Relaxed);
 
             assert_eq!(
                 hyperball.next_state.as_ref(),

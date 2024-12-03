@@ -11,7 +11,7 @@ use sux::{
 
 /// Counter logic implementing the HyperLogLog algorithm.
 ///
-/// Instances are built using [`BuildHyperLogLog`], which provides convenient
+/// Instances are built using [`HyperLogLogBuilder`], which provides convenient
 /// ways to set the internal parameters.
 ///
 /// Note that `T` can be any type satisfying the [`Hash`] trait. The parameter
@@ -20,7 +20,7 @@ use sux::{
 ///
 /// An important constraint is that `W` must be able to represent exactly the
 /// backend of a counter. While usually `usize` will work (and it is the default
-/// type chosen by [`new`](BuildHyperLogLog::new)), with odd register sizes and small
+/// type chosen by [`new`](HyperLogLogBuilder::new)), with odd register sizes and small
 /// number of registers it might be necessary to select a smaller type,
 /// resulting in slower merges. For example, using 16 5-bit registers one needs
 /// to use `u16`, whereas for 16 6-bit registers `u32` will be sufficient.
