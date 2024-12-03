@@ -238,7 +238,7 @@ fn test_cnr_2000() -> Result<()> {
         .build()?;
     let bits = SliceCounterArray::new(hyper_log_log.clone(), graph.num_nodes())?;
     let result_bits = SliceCounterArray::new(hyper_log_log, graph.num_nodes())?;
-    let mut hyperball = HyperBallBuilder::with_transposed(
+    let mut hyperball = HyperBallBuilder::with_transpose(
         &graph,
         &transpose,
         cumulative.as_ref(),

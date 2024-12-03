@@ -24,7 +24,7 @@ use sux::{
 /// number of registers it might be necessary to select a smaller type,
 /// resulting in slower merges. For example, using 16 5-bit registers one needs
 /// to use `u16`, whereas for 16 6-bit registers `u32` will be sufficient.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct HyperLogLog<T, H, W> {
     build_hasher: H,
     register_size: usize,
@@ -39,6 +39,8 @@ pub struct HyperLogLog<T, H, W> {
     _marker: std::marker::PhantomData<T>,
 }
 
+// We implement Clone manually because we do not want to require that T is
+// Clone.
 impl<T, H: Clone, W: Clone> Clone for HyperLogLog<T, H, W> {
     fn clone(&self) -> Self {
         Self {

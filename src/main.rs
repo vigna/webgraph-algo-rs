@@ -68,7 +68,7 @@ fn main() -> Result<()> {
                 graph.num_nodes(),
                 mem_options.clone(),
             )?;
-            let mut hyperball = HyperBallBuilder::with_transposed(
+            let mut hyperball = HyperBallBuilder::with_transpose(
                 &graph,
                 &transpose,
                 cumulative.as_ref(),
