@@ -913,7 +913,12 @@ where
     /// The parallel operations to be performed each iteration.
     ///
     /// # Arguments:
-    /// * `broadcast_context`: the context of the for the parallel task
+    /// * `graph`: the graph to analyze.
+    /// * `transpose`: optionally, the transpose of `graph`. If [`None`], no
+    ///   systolic iterations will be performed.
+    /// * `curr_state`: the current state of the counters.
+    /// * `next_state`: the next state of the counters (to be computed).
+    /// * `ic`: the iteration context.
     fn parallel_task(
         graph: &(impl RandomAccessGraph + Sync),
         transpose: Option<&(impl RandomAccessGraph + Sync)>,
@@ -1065,15 +1070,17 @@ where
                             // we do this explicitly, by adding the predecessors of the current
                             // node to a set. Otherwise, we do this implicitly, by setting the
                             // corresponding entry in an array.
-                            let rev_graph = transpose.expect("Should have transpose");
+
+                            // SAFETY: ic.systolic is true, so transpose is Some
+                            let transpose = unsafe { transpose.unwrap_unchecked() };
                             if ic.pre_local {
                                 let mut local_next_must_be_checked =
                                     ic.local_next_must_be_checked.lock().unwrap();
-                                for succ in rev_graph.successors(node) {
+                                for succ in transpose.successors(node) {
                                     local_next_must_be_checked.push(succ);
                                 }
                             } else {
-                                for succ in rev_graph.successors(node) {
+                                for succ in transpose.successors(node) {
                                     ic.next_must_be_checked.set(succ, true, Ordering::Relaxed);
                                 }
                             }
