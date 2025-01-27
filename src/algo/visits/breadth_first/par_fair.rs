@@ -85,19 +85,21 @@ use webgraph::traits::RandomAccessGraph;
 /// assert_eq!(d[2].load(Ordering::Relaxed), 2);
 /// assert_eq!(d[3].load(Ordering::Relaxed), 2);
 /// ```
-pub struct ParFairBase<G: RandomAccessGraph, const PRED: bool = false> {
+pub struct ParFair<G: RandomAccessGraph, const PRED: bool = false> {
     graph: G,
     granularity: usize,
     visited: AtomicBitVec,
 }
 
-/// A fair parallel breadth-first visit that keeps track of its predecessors.
-pub type ParFairPred<G> = ParFairBase<G, true>;
+/// A [fair parallel breadth-first visit](ParFair) that keeps track of
+/// predecessors.
+pub type ParFairPred<G> = ParFair<G, true>;
 
-/// A fair parallel breadth-first visit.
-pub type ParFairNoPred<G> = ParFairBase<G, false>;
+/// A [fair parallel breadth-first visit](ParFair) that does not keep track of
+/// predecessors.
+pub type ParFairNoPred<G> = ParFair<G, false>;
 
-impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
+impl<G: RandomAccessGraph, const P: bool> ParFair<G, P> {
     /// Creates a fair parallel breadth-first visit.
     ///
     /// # Arguments
@@ -116,7 +118,7 @@ impl<G: RandomAccessGraph, const P: bool> ParFairBase<G, P> {
     }
 }
 
-impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false> {
+impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
     fn par_visit_filtered<
         E: Send,
         C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
@@ -225,7 +227,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFairBase<G, false
     }
 }
 
-impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFairBase<G, true> {
+impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
     fn par_visit_filtered<
         E: Send,
         C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
