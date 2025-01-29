@@ -16,7 +16,7 @@ fn main() -> Result<()> {
         .timestamp(stderrlog::Timestamp::Second)
         .init()?;
     let basename = std::env::args().nth(2).expect("No graph basename provided");
-    let mut main_pl = progress_logger![display_memory = true];
+    let mut main_pl = concurrent_progress_logger![display_memory = true];
     main_pl.info(format_args!("Starting test..."));
 
     let mut flags = MmapFlags::empty();

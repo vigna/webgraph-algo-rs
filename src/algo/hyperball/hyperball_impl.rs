@@ -2,7 +2,7 @@ use crate::utils::traits::CounterMut;
 use crate::{prelude::*, utils::*};
 use anyhow::{bail, ensure, Context, Result};
 use common_traits::Number;
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::ConcurrentProgressLog;
 use kahan::KahanSum;
 use rand::random;
 use rayon::{prelude::*, ThreadPool};
@@ -311,7 +311,7 @@ impl<
     /// # Arguments
     /// * `pl`: A progress logger.
     #[allow(clippy::type_complexity)]
-    pub fn build(self, pl: &mut impl ProgressLog) -> HyperBall<'a, G1, G2, D, L, A> {
+    pub fn build(self, pl: &mut impl ConcurrentProgressLog) -> HyperBall<'a, G1, G2, D, L, A> {
         let num_nodes = self.graph.num_nodes();
 
         let sum_of_distances = if self.sum_of_distances {
@@ -529,7 +529,7 @@ where
         upper_bound: usize,
         threshold: Option<f64>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Result<()> {
         let upper_bound = std::cmp::min(upper_bound, self.graph.num_nodes());
 
@@ -544,7 +544,7 @@ where
         ));
 
         for i in 0..upper_bound {
-            self.iterate(thread_pool, &mut pl.clone())
+            self.iterate(thread_pool, pl)
                 .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
             pl.update();
@@ -589,7 +589,7 @@ where
         &mut self,
         upper_bound: usize,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Result<()> {
         self.run(upper_bound, None, thread_pool, pl)
             .with_context(|| "Could not complete run_until_stable")
@@ -607,7 +607,7 @@ where
     pub fn run_until_done(
         &mut self,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Result<()> {
         self.run_until_stable(usize::MAX, thread_pool, pl)
             .with_context(|| "Could not complete run_until_done")
@@ -765,7 +765,11 @@ where
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn iterate(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
+    fn iterate(
+        &mut self,
+        thread_pool: &ThreadPool,
+        pl: &mut impl ConcurrentProgressLog,
+    ) -> Result<()> {
         let ic = &mut self.iteration_context;
 
         pl.info(format_args!("Performing iteration {}", ic.iteration + 1));
@@ -1141,7 +1145,11 @@ where
     }
 
     /// Initializes HyperBall.
-    fn init(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> Result<()> {
+    fn init(
+        &mut self,
+        thread_pool: &ThreadPool,
+        pl: &mut impl ConcurrentProgressLog,
+    ) -> Result<()> {
         pl.start("Initializing approximator");
         pl.info(format_args!("Clearing all registers"));
 

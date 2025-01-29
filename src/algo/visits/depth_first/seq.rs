@@ -204,6 +204,33 @@ pub trait NodeStates {
 /// Boolean equal to false.
 pub struct TwoStates(BitVec);
 
+#[sealed]
+impl NodeStates for TwoStates {
+    fn new(n: usize) -> TwoStates {
+        TwoStates(BitVec::new(n))
+    }
+    #[inline(always)]
+    fn set_on_stack(&mut self, _node: usize) {}
+    #[inline(always)]
+    fn set_off_stack(&mut self, _node: usize) {}
+    #[inline(always)]
+    fn on_stack(&self, _node: usize) -> bool {
+        false
+    }
+    #[inline(always)]
+    fn set_known(&mut self, node: usize) {
+        self.0.set(node, true);
+    }
+    #[inline(always)]
+    fn known(&self, node: usize) -> bool {
+        self.0.get(node)
+    }
+    #[inline(always)]
+    fn reset(&mut self) {
+        self.0.reset();
+    }
+}
+
 #[doc(hidden)]
 /// A three-state selector type for [sequential depth-first visits](Seq).
 ///
@@ -243,44 +270,18 @@ impl NodeStates for ThreeStates {
     }
 }
 
-#[sealed]
-impl NodeStates for TwoStates {
-    fn new(n: usize) -> TwoStates {
-        TwoStates(BitVec::new(n))
-    }
-    #[inline(always)]
-    fn set_on_stack(&mut self, _node: usize) {}
-    #[inline(always)]
-    fn set_off_stack(&mut self, _node: usize) {}
-    #[inline(always)]
-    fn on_stack(&self, _node: usize) -> bool {
-        false
-    }
-    #[inline(always)]
-    fn set_known(&mut self, node: usize) {
-        self.0.set(node, true);
-    }
-    #[inline(always)]
-    fn known(&self, node: usize) -> bool {
-        self.0.get(node)
-    }
-    #[inline(always)]
-    fn reset(&mut self) {
-        self.0.reset();
-    }
-}
-
 impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, S, G, usize, true> {
     fn visit_filtered<
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
+        P: ProgressLog,
     >(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
@@ -299,7 +300,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
         callback(EventPred::Init { root })?;
 
         state.set_known(root);
-
+        pl.light_update();
         callback(EventPred::Previsit {
             curr: root,
             pred: root,
@@ -343,7 +344,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                         depth: depth + 1,
                     }) {
                         state.set_known(succ);
-
+                        pl.light_update();
                         callback(EventPred::Previsit {
                             curr: succ,
                             pred: current_node,
@@ -371,8 +372,6 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                 depth,
             })?;
 
-            pl.light_update();
-
             state.set_off_stack(current_node);
 
             // We're going up one stack level, so the next current_node
@@ -386,11 +385,12 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
+        P: ProgressLog,
     >(
         &mut self,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;
@@ -410,12 +410,13 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
         E,
         C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsNoPred) -> bool,
+        P: ProgressLog,
     >(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
@@ -433,7 +434,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
         callback(EventNoPred::Init { root })?;
 
         state.set_known(root);
-
+        pl.light_update();
         callback(EventNoPred::Previsit {
             curr: root,
             root,
@@ -467,7 +468,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                         depth: depth + 1,
                     }) {
                         state.set_known(succ);
-
+                        pl.light_update();
                         callback(EventNoPred::Previsit {
                             curr: succ,
                             root,
@@ -482,8 +483,6 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                 }
             }
 
-            pl.light_update();
-
             // We're going up one stack level, so the next current_node
             // is the current parent.
             self.stack.pop();
@@ -494,11 +493,12 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
         E,
         C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsNoPred) -> bool,
+        P: ProgressLog,
     >(
         &mut self,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;

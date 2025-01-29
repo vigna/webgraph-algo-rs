@@ -2,7 +2,7 @@ use crate::algo::visits::{
     breadth_first::{EventPred, FilterArgsPred},
     Parallel,
 };
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::ConcurrentProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::{prelude::*, ThreadPool};
 use std::{
@@ -94,17 +94,18 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         E: Send,
         C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
+        P: ConcurrentProgressLog,
     >(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgsPred {
-                curr: root,
+                node: root,
                 pred: root,
                 root,
                 distance: 0,
@@ -123,7 +124,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         self.visited.set(root, true, Ordering::Relaxed);
 
         callback(EventPred::Unknown {
-            curr: root,
+            node: root,
             pred: root,
             root,
             distance: 0,
@@ -137,29 +138,30 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each(|chunk| {
+                    .try_for_each_with(pl.clone(), |pl, chunk| {
                         chunk.into_iter().try_for_each(|&node| {
+                            pl.light_update();
                             self.graph
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let (curr, pred) = (succ, node);
+                                    let (node, pred) = (succ, node);
                                     if filter(FilterArgsPred {
-                                        curr,
+                                        node,
                                         pred,
                                         root,
                                         distance,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             callback(EventPred::Unknown {
-                                                curr,
+                                                node,
                                                 pred,
                                                 root,
                                                 distance,
                                             })?;
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(EventPred::Known { curr, pred, root })?;
+                                            callback(EventPred::Known { node, pred, root })?;
                                         }
                                     }
 
@@ -168,7 +170,6 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                         })
                     })
             })?;
-            pl.update_with_count(curr_frontier.len());
             distance += 1;
             // Swap the frontiers
             std::mem::swap(&mut curr_frontier, &mut next_frontier);
@@ -185,12 +186,13 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         E: Send,
         C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
+        P: ConcurrentProgressLog,
     >(
         &mut self,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;

@@ -41,9 +41,7 @@ impl<G: RandomAccessGraph, C: StronglyConnectedComponents> SccGraph<G, G, C> {
     /// # Arguments
     /// * `graph`: An immutable reference to the graph.
     /// * `scc`: An immutable reference to a [`StronglyConnectedComponents`] instance.
-    /// * `pl`: A progress logger.
-    #[allow(unused_variables)]
-    pub fn new_undirected(graph: &G, scc: &C, pl: &mut impl ProgressLog) -> Self {
+    pub fn new_undirected(scc: &C) -> Self {
         Self {
             segments_offset: vec![0; scc.num_components()].into_boxed_slice(),
             data: Vec::new().into_boxed_slice(),
@@ -74,7 +72,7 @@ impl<G1: RandomAccessGraph, G2: RandomAccessGraph, C: StronglyConnectedComponent
         pl.start("Computing strongly connected components graph...");
 
         let (vec_lengths, vec_connections) =
-            Self::find_edges_through_scc(graph, reversed_graph, scc, &mut pl.clone());
+            Self::find_edges_through_scc(graph, reversed_graph, scc, pl);
 
         pl.done();
 

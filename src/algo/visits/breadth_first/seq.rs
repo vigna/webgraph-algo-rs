@@ -115,16 +115,17 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
+        P: ProgressLog,
     >(
         &mut self,
         root: usize,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         if self.visited[root]
             || !filter(FilterArgsPred {
-                curr: root,
+                node: root,
                 pred: root,
                 root,
                 distance: 0,
@@ -134,7 +135,7 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
         }
 
         callback(EventPred::Unknown {
-            curr: root,
+            node: root,
             pred: root,
             root,
             distance: 0,
@@ -153,16 +154,16 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                 Some(node) => {
                     let node = node.into();
                     for succ in self.graph.successors(node) {
-                        let (curr, pred) = (succ, node);
+                        let (node, pred) = (succ, node);
                         if !self.visited[succ] {
                             if filter(FilterArgsPred {
-                                curr,
+                                node,
                                 pred,
                                 root,
                                 distance,
                             }) {
                                 callback(EventPred::Unknown {
-                                    curr,
+                                    node,
                                     pred,
                                     root,
                                     distance,
@@ -174,7 +175,7 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                                 ))
                             }
                         } else {
-                            callback(EventPred::Known { curr, pred, root })?;
+                            callback(EventPred::Known { node, pred, root })?;
                         }
                     }
                     pl.light_update();
@@ -199,11 +200,12 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
+        P: ProgressLog,
     >(
         &mut self,
         mut callback: C,
         mut filter: F,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.visit_filtered(node, &mut callback, &mut filter, pl)?;

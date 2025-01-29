@@ -6,7 +6,7 @@ use crate::{
     },
     utils::*,
 };
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::ConcurrentProgressLog;
 use no_break::NoBreak;
 use rayon::ThreadPool;
 use std::{
@@ -21,7 +21,7 @@ use webgraph::traits::RandomAccessGraph;
 pub fn symm_par(
     graph: impl RandomAccessGraph + Sync,
     thread_pool: &ThreadPool,
-    pl: &mut impl ProgressLog,
+    pl: &mut impl ConcurrentProgressLog,
 ) -> BasicSccs {
     debug_assert!(check_symmetric(&graph));
 
@@ -42,9 +42,9 @@ pub fn symm_par(
             |event| {
                 match event {
                     EventNoPred::Init { .. } => {}
-                    EventNoPred::Unknown { curr, .. } => {
+                    EventNoPred::Unknown { node, .. } => {
                         unsafe {
-                            slice[curr].set(MaybeUninit::new(
+                            slice[node].set(MaybeUninit::new(
                                 number_of_components.load(Ordering::Relaxed),
                             ))
                         };

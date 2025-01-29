@@ -34,7 +34,7 @@ pub enum EventPred {
     /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
-        curr: usize,
+        node: usize,
         /// The predecessor of [curr](`EventPred::Unknown::curr`).
         pred: usize,
         /// The root of the current visit tree.
@@ -50,7 +50,7 @@ pub enum EventPred {
     /// the thread who discovered the node.
     Known {
         /// The current node.
-        curr: usize,
+        node: usize,
         /// The predecessor of [curr](`EventPred::Known::curr`).
         pred: usize,
         /// The root of the current visit tree.
@@ -71,7 +71,7 @@ pub enum EventPred {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FilterArgsPred {
     /// The current node.
-    pub curr: usize,
+    pub node: usize,
     /// The predecessor of [curr](`Self::curr`).
     pub pred: usize,
     /// The root of the current visit tree.
@@ -101,7 +101,7 @@ pub enum EventNoPred {
     /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
-        curr: usize,
+        node: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The distance of the current node from the
@@ -116,7 +116,7 @@ pub enum EventNoPred {
     /// by the thread who discovered the node.
     Known {
         /// The current node.
-        curr: usize,
+        node: usize,
         /// The root of the current visit tree.
         root: usize,
     },
@@ -135,7 +135,7 @@ pub enum EventNoPred {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FilterArgsNoPred {
     /// The current node.
-    pub curr: usize,
+    pub node: usize,
     /// The root of the current visit tree.
     pub root: usize,
     /// The distance of the current node from the [root](`Self::root`).

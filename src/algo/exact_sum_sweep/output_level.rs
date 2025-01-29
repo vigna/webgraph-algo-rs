@@ -1,5 +1,5 @@
 use super::{computer::DirExactSumSweepComputer, dir_outputs, undir_outputs};
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::ConcurrentProgressLog;
 use rayon::ThreadPool;
 use sux::bits::AtomicBitVec;
 use webgraph::traits::RandomAccessGraph;
@@ -42,7 +42,7 @@ pub trait OutputLevel {
         transpose: impl RandomAccessGraph + Sync,
         radial_vertices: Option<AtomicBitVec>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::DirectedOutput;
 
     /// Build a new instance to compute the *ExactSumSweep* algorithm on the specified
@@ -56,7 +56,7 @@ pub trait OutputLevel {
     fn compute_undirected(
         graph: impl RandomAccessGraph + Sync,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::UndirectedOutput;
 }
 
@@ -74,7 +74,7 @@ impl OutputLevel for All {
         transpose: impl RandomAccessGraph + Sync,
         radial_vertices: Option<AtomicBitVec>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::DirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
@@ -130,7 +130,7 @@ impl OutputLevel for All {
     fn compute_undirected(
         graph: impl RandomAccessGraph + Sync,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::UndirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::All, pl);
         computer.compute(thread_pool, pl);
@@ -182,7 +182,7 @@ impl OutputLevel for AllForward {
         transpose: impl RandomAccessGraph + Sync,
         radial_vertices: Option<AtomicBitVec>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::DirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
@@ -231,7 +231,7 @@ impl OutputLevel for AllForward {
     fn compute_undirected(
         graph: impl RandomAccessGraph + Sync,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::UndirectedOutput {
         All::compute_undirected(graph, thread_pool, pl)
     }
@@ -249,7 +249,7 @@ impl OutputLevel for RadiusDiameter {
         transpose: impl RandomAccessGraph + Sync,
         radial_vertices: Option<AtomicBitVec>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::DirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
@@ -289,7 +289,7 @@ impl OutputLevel for RadiusDiameter {
     fn compute_undirected(
         graph: impl RandomAccessGraph + Sync,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::UndirectedOutput {
         let mut computer =
             DirExactSumSweepComputer::new_undirected(&graph, Output::RadiusDiameter, pl);
@@ -334,7 +334,7 @@ impl OutputLevel for Diameter {
         transpose: impl RandomAccessGraph + Sync,
         radial_vertices: Option<AtomicBitVec>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::DirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
@@ -364,7 +364,7 @@ impl OutputLevel for Diameter {
     fn compute_undirected(
         graph: impl RandomAccessGraph + Sync,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::UndirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::Diameter, pl);
         computer.compute(thread_pool, pl);
@@ -398,7 +398,7 @@ impl OutputLevel for Radius {
         transpose: impl RandomAccessGraph + Sync,
         radial_vertices: Option<AtomicBitVec>,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::DirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_directed(
             &graph,
@@ -428,7 +428,7 @@ impl OutputLevel for Radius {
     fn compute_undirected(
         graph: impl RandomAccessGraph + Sync,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self::UndirectedOutput {
         let mut computer = DirExactSumSweepComputer::new_undirected(&graph, Output::Radius, pl);
         computer.compute(thread_pool, pl);

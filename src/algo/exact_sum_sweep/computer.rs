@@ -92,7 +92,11 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// * `graph`: the graph.
     /// * `output`: the desired output of the algorithm.
     /// * `pl`: a progress logger.
-    pub fn new_undirected(graph: &'a G, output: Output, pl: &mut impl ProgressLog) -> Self {
+    pub fn new_undirected(
+        graph: &'a G,
+        output: Output,
+        pl: &mut impl ConcurrentProgressLog,
+    ) -> Self {
         debug_assert!(check_symmetric(graph), "graph should be symmetric");
 
         let output = match output {
@@ -103,7 +107,7 @@ impl<'a, G: RandomAccessGraph + Sync>
         };
 
         let scc = sccs::symm_seq(graph, pl);
-        let scc_graph = SccGraph::new_undirected(graph, &scc, pl);
+        let scc_graph = SccGraph::new_undirected(&scc);
         let visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
         let transposed_visit = ParFairNoPred::new(graph, VISIT_GRANULARITY);
 
@@ -140,7 +144,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         transpose: &'a G2,
         output: Output,
         radial_vertices: Option<AtomicBitVec>,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self {
         assert_eq!(graph.num_nodes(), transpose.num_nodes());
         assert_eq!(graph.num_arcs(), transpose.num_arcs());
@@ -186,7 +190,7 @@ impl<
         scc_graph: SccGraph<G1, G2, BasicSccs>,
         visit: V1,
         transposed_visit: V2,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> Self {
         let num_nodes = graph.num_nodes();
         assert!(
@@ -265,7 +269,7 @@ impl<
         start: usize,
         iterations: usize,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) {
         self.step_sum_sweep(Some(start), true, thread_pool, pl, |node| {
             format!(
@@ -304,15 +308,20 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    pub fn compute(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
+    pub fn compute(
+        &mut self,
+        thread_pool: &ThreadPool,
+        pl: &mut (impl ProgressLog + Clone + Send + Sync),
+    ) {
         if self.num_nodes == 0 {
             return;
         }
 
         pl.start("Computing ExactSumSweep...");
+        let mut cpl = ConcurrentWrapper::wrap(pl.clone());
 
         if self.compute_radial_vertices {
-            self.compute_radial_vertices(thread_pool, &mut pl.clone());
+            self.compute_radial_vertices(thread_pool, &mut cpl);
         }
 
         let max_outdegree_vertex = thread_pool
@@ -325,10 +334,10 @@ impl<
             .unwrap()
             .1; // The iterator is not empty
 
-        self.sum_sweep_heuristic(max_outdegree_vertex, 6, thread_pool, &mut pl.clone());
+        self.sum_sweep_heuristic(max_outdegree_vertex, 6, thread_pool, &mut cpl);
 
         let mut points = [self.graph.num_nodes() as f64; 5];
-        let mut missing_nodes = self.find_missing_nodes(thread_pool, &mut pl.clone());
+        let mut missing_nodes = self.find_missing_nodes(thread_pool, &mut cpl);
         let mut old_missing_nodes;
 
         pl.info(format_args!(
@@ -341,12 +350,12 @@ impl<
             let step_to_perform = math::argmax(&points).expect("Could not find step to perform");
 
             match step_to_perform {
-                0 => self.all_cc_upper_bound(thread_pool, &mut pl.clone()),
+                0 => self.all_cc_upper_bound(thread_pool, &mut cpl),
                 1 => {
                     let v = math::argmax_filtered(&self.forward_high, &self.forward_tot, |i, _| {
                         self.incomplete_forward(i)
                     });
-                    self.step_sum_sweep(v, true, thread_pool, &mut pl.clone(), |node| {
+                    self.step_sum_sweep(v, true, thread_pool, &mut cpl, |node| {
                         format!(
                             "Performing a forward BFV from a node maximizing the upper bound ({})...",
                             node
@@ -357,7 +366,7 @@ impl<
                     let v = math::argmin_filtered(&self.forward_low, &self.forward_tot, |i, _| {
                         self.radial_vertices[i]
                     });
-                    self.step_sum_sweep(v, true, thread_pool, &mut pl.clone(), |node| {
+                    self.step_sum_sweep(v, true, thread_pool, &mut cpl, |node| {
                         format!(
                             "Performing a forward BFV from a node minimizing the lower bound ({})...",
                             node
@@ -369,7 +378,7 @@ impl<
                         math::argmax_filtered(&self.backward_high, &self.backward_tot, |i, _| {
                             self.incomplete_backward(i)
                         });
-                    self.step_sum_sweep(v, false, thread_pool, &mut pl.clone(), |node| {
+                    self.step_sum_sweep(v, false, thread_pool, &mut cpl, |node| {
                         format!(
                             "Performing a backward BFV from a node maximizing the upper bound ({})...",
                             node
@@ -381,7 +390,7 @@ impl<
                         math::argmax_filtered(&self.backward_tot, &self.backward_high, |i, _| {
                             self.incomplete_backward(i)
                         });
-                    self.step_sum_sweep(v, false, thread_pool, &mut pl.clone(), |node| {
+                    self.step_sum_sweep(v, false, thread_pool, &mut cpl, |node| {
                         format!(
                             "Performing a backward BFV from a node maximizing the distance sum ({})",
                             node
@@ -395,7 +404,7 @@ impl<
             // For more information see Section 4.6 of the paper.
 
             old_missing_nodes = missing_nodes;
-            missing_nodes = self.find_missing_nodes(thread_pool, &mut pl.clone());
+            missing_nodes = self.find_missing_nodes(thread_pool, &mut cpl);
             points[step_to_perform] = (old_missing_nodes - missing_nodes) as f64;
 
             // This is to make rust-analyzer happy as it cannot recognize mut reference
@@ -421,7 +430,7 @@ impl<
     ///
     /// # Arguments
     /// * `pl`: A progress logger..
-    fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Vec<usize> {
+    fn find_best_pivot(&self, pl: &mut impl ConcurrentProgressLog) -> Vec<usize> {
         debug_assert!(self.num_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.num_components()];
@@ -485,7 +494,11 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn compute_radial_vertices(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
+    fn compute_radial_vertices(
+        &mut self,
+        thread_pool: &ThreadPool,
+        pl: &mut impl ConcurrentProgressLog,
+    ) {
         if self.num_nodes == 0 {
             return;
         }
@@ -519,8 +532,8 @@ impl<
             .par_visit(
                 v,
                 |event| {
-                    if let EventNoPred::Unknown { curr, .. } = event {
-                        radial_vertices.set(curr, true, Ordering::Relaxed)
+                    if let EventNoPred::Unknown { node, .. } = event {
+                        radial_vertices.set(node, true, Ordering::Relaxed)
                     }
                     Continue(())
                 },
@@ -550,7 +563,7 @@ impl<
         start: Option<usize>,
         forward: bool,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
         message: impl FnOnce(usize) -> String,
     ) {
         if let Some(start) = start {
@@ -568,7 +581,7 @@ impl<
         &mut self,
         start: usize,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
         message: impl FnOnce(usize) -> String,
     ) {
         pl.item_name("node");
@@ -586,12 +599,7 @@ impl<
             .par_visit(
                 start,
                 |event| {
-                    if let EventNoPred::Unknown {
-                        curr: node,
-                        distance,
-                        ..
-                    } = event
-                    {
+                    if let EventNoPred::Unknown { node, distance, .. } = event {
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -651,7 +659,7 @@ impl<
         &mut self,
         start: usize,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
         message: impl FnOnce(usize) -> String,
     ) {
         pl.item_name("node");
@@ -669,12 +677,7 @@ impl<
             .par_visit(
                 start,
                 |event| {
-                    if let EventNoPred::Unknown {
-                        curr: node,
-                        distance,
-                        ..
-                    } = event
-                    {
+                    if let EventNoPred::Unknown { node, distance, .. } = event {
                         // SAFETY: each node gets accessed exactly once, so no data races can happen
 
                         max_dist.fetch_max(distance, Ordering::Relaxed);
@@ -736,7 +739,7 @@ impl<
         pivot: &[usize],
         forward: bool,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut impl ConcurrentProgressLog,
     ) -> (Vec<usize>, Vec<usize>) {
         pl.expected_updates(None);
         pl.display_memory(false);
@@ -779,14 +782,14 @@ impl<
                 bfs.par_visit_filtered(
                     p,
                     |event| {
-                        if let EventNoPred::Unknown { curr, distance, .. } = event {
+                        if let EventNoPred::Unknown { node, distance, .. } = event {
                             // Safety: each node is accessed exactly once
-                            unsafe { dist_pivot_mut[curr].set(distance) };
+                            unsafe { dist_pivot_mut[node].set(distance) };
                             component_ecc_pivot.store(distance, Ordering::Relaxed);
                         };
                         Continue(())
                     },
-                    |FilterArgs::<EventNoPred> { curr, .. }| components[curr] == pivot_component,
+                    |FilterArgs::<EventNoPred> { node, .. }| components[node] == pivot_component,
                     thread_pool,
                     no_logging![],
                 )
@@ -815,18 +818,22 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn all_cc_upper_bound(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
+    fn all_cc_upper_bound(
+        &mut self,
+        thread_pool: &ThreadPool,
+        pl: &mut impl ConcurrentProgressLog,
+    ) {
         pl.item_name("element");
         pl.display_memory(false);
         pl.expected_updates(Some(2 * self.scc.num_components() + self.num_nodes));
         pl.start("Performing the AllCCUpperBound step of the ExactSumSweep algorithm...");
 
-        let pivot = self.find_best_pivot(&mut pl.clone());
+        let pivot = self.find_best_pivot(pl);
 
         let (dist_pivot_f, mut ecc_pivot_f) =
-            self.compute_dist_pivot(&pivot, true, thread_pool, &mut pl.clone());
+            self.compute_dist_pivot(&pivot, true, thread_pool, pl);
         let (dist_pivot_b, mut ecc_pivot_b) =
-            self.compute_dist_pivot(&pivot, false, thread_pool, &mut pl.clone());
+            self.compute_dist_pivot(&pivot, false, thread_pool, pl);
         let components = self.scc.components();
 
         // Tarjan's algorithm emits components in reverse topological order.
@@ -940,7 +947,11 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn find_missing_nodes(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> usize {
+    fn find_missing_nodes(
+        &mut self,
+        thread_pool: &ThreadPool,
+        pl: &mut impl ConcurrentProgressLog,
+    ) -> usize {
         pl.item_name("node");
         pl.display_memory(false);
         pl.expected_updates(Some(self.num_nodes));

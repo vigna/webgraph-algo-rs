@@ -1,5 +1,5 @@
 use crate::algo::visits::{breadth_first::*, Parallel};
-use dsi_progress_logger::ProgressLog;
+use dsi_progress_logger::ConcurrentProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::{prelude::*, ThreadPool};
 use std::{
@@ -123,17 +123,18 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
         E: Send,
         C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsNoPred) -> bool + Sync,
+        P: ConcurrentProgressLog,
     >(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgsNoPred {
-                curr: root,
+                node: root,
                 root,
                 distance: 0,
             })
@@ -160,27 +161,28 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each(|chunk| {
-                        chunk.into_iter().try_for_each(|&curr| {
+                    .try_for_each_with(pl.clone(), |pl, chunk| {
+                        chunk.into_iter().try_for_each(|&node| {
+                            pl.update();
                             callback(EventNoPred::Unknown {
-                                curr,
+                                node,
                                 root,
                                 distance,
                             })?;
                             self.graph
-                                .successors(curr)
+                                .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let curr = succ;
+                                    let node = succ;
                                     if filter(FilterArgsNoPred {
-                                        curr,
+                                        node,
                                         root,
                                         distance: distance_plus_one,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(EventNoPred::Known { curr, root })?;
+                                            callback(EventNoPred::Known { node, root })?;
                                         }
                                     }
 
@@ -191,7 +193,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
                         })
                     })
             })?;
-            pl.update_with_count(curr_frontier.len());
+
             distance += 1;
             // Swap the frontiers
             std::mem::swap(&mut curr_frontier, &mut next_frontier);
@@ -208,12 +210,13 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
         E: Send,
         C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsNoPred) -> bool + Sync,
+        P: ConcurrentProgressLog,
     >(
         &mut self,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
@@ -232,17 +235,18 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
         E: Send,
         C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(<EventPred as super::super::Event>::FilterArgs) -> bool + Sync,
+        P: ConcurrentProgressLog,
     >(
         &mut self,
         root: usize,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         if self.visited.get(root, Ordering::Relaxed)
             || !filter(FilterArgsPred {
-                curr: root,
+                node: root,
                 pred: root,
                 root,
                 distance: 0,
@@ -270,29 +274,30 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each(|chunk| {
-                        chunk.into_iter().try_for_each(|&(curr, pred)| {
+                    .try_for_each_with(pl.clone(), |pl, chunk| {
+                        chunk.into_iter().try_for_each(|&(node, pred)| {
+                            pl.light_update();
                             callback(EventPred::Unknown {
-                                curr,
+                                node,
                                 pred,
                                 root,
                                 distance,
                             })?;
                             self.graph
-                                .successors(curr)
+                                .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
-                                    let (curr, pred) = (succ, curr);
+                                    let (node, pred) = (succ, node);
                                     if filter(FilterArgsPred {
-                                        curr,
+                                        node,
                                         pred,
                                         root,
                                         distance: distance_plus_one,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            next_frontier.push((curr, pred));
+                                            next_frontier.push((node, pred));
                                         } else {
-                                            callback(EventPred::Known { curr, pred, root })?;
+                                            callback(EventPred::Known { node, pred, root })?;
                                         }
                                     }
 
@@ -320,12 +325,13 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
         E: Send,
         C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsPred) -> bool + Sync,
+        P: ConcurrentProgressLog,
     >(
         &mut self,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut impl ProgressLog,
+        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         for node in 0..self.graph.num_nodes() {
             self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
