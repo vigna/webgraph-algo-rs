@@ -22,7 +22,7 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
         .visit_all(
             |event| {
                 match event {
-                    depth_first::EventNoPred::Previsit { curr, .. } => {
+                    depth_first::EventNoPred::Previsit { node: curr, .. } => {
                         component[curr].write(number_of_components);
                     }
                     depth_first::EventNoPred::Done { .. } => {

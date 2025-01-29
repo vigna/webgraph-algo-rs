@@ -73,8 +73,8 @@ impl<T, H: Clone, W: Word> HyperLogLog<T, H, W> {
         if bit_index + bit_width <= W::BITS {
             (unsafe { *backend.get_unchecked(word_index) } >> bit_index) & mask
         } else {
-            (unsafe { *backend.get_unchecked(word_index) } >> bit_index
-                | unsafe { *backend.get_unchecked(word_index + 1) } << (W::BITS - bit_index))
+            ((unsafe { *backend.get_unchecked(word_index) } >> bit_index)
+                | (unsafe { *backend.get_unchecked(word_index + 1) } << (W::BITS - bit_index)))
                 & mask
         }
     }
@@ -144,7 +144,8 @@ impl<
     fn add(&self, mut backend: &mut Self::Backend, element: impl Borrow<T>) {
         let x = self.build_hasher.hash_one(element.borrow());
         let j = x & self.num_registers_minus_1;
-        let r = (x >> self.log_2_num_registers | self.sentinel_mask).trailing_zeros() as HashResult;
+        let r =
+            ((x >> self.log_2_num_registers) | self.sentinel_mask).trailing_zeros() as HashResult;
         let register = j as usize;
 
         debug_assert!(r < (1 << self.register_size) - 1);

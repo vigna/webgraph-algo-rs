@@ -35,7 +35,7 @@ pub fn kosaraju(
                 node,
                 |event| {
                     match event {
-                        EventNoPred::Previsit { curr, .. } => {
+                        EventNoPred::Previsit { node: curr, .. } => {
                             components[curr] = number_of_components;
                         }
                         EventNoPred::Done { .. } => {

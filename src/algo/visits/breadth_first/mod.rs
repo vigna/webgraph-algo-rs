@@ -35,7 +35,7 @@ pub enum EventPred {
     Unknown {
         /// The current node.
         node: usize,
-        /// The predecessor of [curr](`EventPred::Unknown::curr`).
+        /// The predecessor of [curr](`EventPred::Unknown::node`).
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
@@ -51,7 +51,7 @@ pub enum EventPred {
     Known {
         /// The current node.
         node: usize,
-        /// The predecessor of [curr](`EventPred::Known::curr`).
+        /// The predecessor of [curr](`EventPred::Known::node`).
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
@@ -72,7 +72,7 @@ pub enum EventPred {
 pub struct FilterArgsPred {
     /// The current node.
     pub node: usize,
-    /// The predecessor of [curr](`Self::curr`).
+    /// The predecessor of [curr](`Self::node`).
     pub pred: usize,
     /// The root of the current visit tree.
     pub root: usize,

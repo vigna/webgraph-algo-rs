@@ -39,12 +39,14 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                     EventPred::Init { .. } => {
                         root_low_link = index;
                     }
-                    EventPred::Previsit { curr, .. } => {
+                    EventPred::Previsit { node: curr, .. } => {
                         high_link[curr] = index; // >= num_nodes, <= umax::SIZE
                         index -= 1;
                         lead.push(true);
                     }
-                    EventPred::Revisit { curr, pred, .. } => {
+                    EventPred::Revisit {
+                        node: curr, pred, ..
+                    } => {
                         // curr has not been emitted yet but it has a higher link
                         if high_link[pred] < high_link[curr] {
                             // Safe as the stack is never empty
@@ -69,7 +71,9 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                             }
                         }
                     }
-                    EventPred::Postvisit { curr, pred, .. } => {
+                    EventPred::Postvisit {
+                        node: curr, pred, ..
+                    } => {
                         // Safe as the stack is never empty
                         if lead.pop().unwrap() {
                             // Set the component index of nodes in the component

@@ -287,7 +287,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
 
         if state.known(root)
             || !filter(FilterArgsPred {
-                curr: root,
+                node: root,
                 pred: root,
                 root,
                 depth: 0,
@@ -302,7 +302,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
         state.set_known(root);
         pl.light_update();
         callback(EventPred::Previsit {
-            curr: root,
+            node: root,
             pred: root,
             root,
             depth: 0,
@@ -329,7 +329,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                 if state.known(succ) {
                     // Node has already been discovered
                     callback(EventPred::Revisit {
-                        curr: succ,
+                        node: succ,
                         pred: current_node,
                         root,
                         depth: depth + 1,
@@ -338,7 +338,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                 } else {
                     // First time seeing node
                     if filter(FilterArgsPred {
-                        curr: succ,
+                        node: succ,
                         pred: current_node,
                         root,
                         depth: depth + 1,
@@ -346,7 +346,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                         state.set_known(succ);
                         pl.light_update();
                         callback(EventPred::Previsit {
-                            curr: succ,
+                            node: succ,
                             pred: current_node,
                             root,
                             depth: depth + 1,
@@ -366,7 +366,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
             }
 
             callback(EventPred::Postvisit {
-                curr: current_node,
+                node: current_node,
                 pred: *parent,
                 root,
                 depth,
@@ -422,7 +422,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
 
         if state.known(root)
             || !filter(FilterArgsNoPred {
-                curr: root,
+                node: root,
                 root,
                 depth: 0,
             })
@@ -436,7 +436,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
         state.set_known(root);
         pl.light_update();
         callback(EventNoPred::Previsit {
-            curr: root,
+            node: root,
             root,
             depth: 0,
         })?;
@@ -456,21 +456,21 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                 if state.known(succ) {
                     // Node has already been discovered
                     callback(EventNoPred::Revisit {
-                        curr: succ,
+                        node: succ,
                         root,
                         depth: depth + 1,
                     })?;
                 } else {
                     // First time seeing node
                     if filter(FilterArgsNoPred {
-                        curr: succ,
+                        node: succ,
                         root,
                         depth: depth + 1,
                     }) {
                         state.set_known(succ);
                         pl.light_update();
                         callback(EventNoPred::Previsit {
-                            curr: succ,
+                            node: succ,
                             root,
                             depth: depth + 1,
                         })?;

@@ -29,24 +29,24 @@ pub enum EventNoPred {
     /// new tree arc, unless all fields are equal to the root.
     Previsit {
         /// The current node.
-        curr: usize,
+        node: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from
         /// the [root](`EventNoPred::Previsit::root`) to
-        /// [curr](`EventNoPred::Previsit::curr`).
+        /// [curr](`EventNoPred::Previsit::node`).
         depth: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
     Revisit {
         /// The current node.
-        curr: usize,
+        node: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from
         /// the [root](`EventNoPred::Revisit::root`) to
-        /// [curr](`EventNoPred::Revisit::curr`).
+        /// [curr](`EventNoPred::Revisit::node`).
         depth: usize,
     },
     /// The visit has been completed.
@@ -64,11 +64,11 @@ pub enum EventNoPred {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FilterArgsNoPred {
     /// The current node.
-    pub curr: usize,
+    pub node: usize,
     /// The root of the current visit tree.
     pub root: usize,
     /// The depth of the visit, that is, the length of the visit path from the
-    /// [root](`Self::root`) to [curr](`Self::curr`).
+    /// [root](`Self::root`) to [curr](`Self::node`).
     pub depth: usize,
 }
 
@@ -93,26 +93,26 @@ pub enum EventPred {
     /// new tree arc, unless all node fields are equal to the root.
     Previsit {
         /// The current node.
-        curr: usize,
-        /// The parent of [curr](`EventPred::Previsit::curr`) in the visit tree.
+        node: usize,
+        /// The parent of [curr](`EventPred::Previsit::node`) in the visit tree.
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
-        /// [root](`EventPred::Previsit::root`) to [curr](`EventPred::Previsit::curr`).
+        /// [root](`EventPred::Previsit::root`) to [curr](`EventPred::Previsit::node`).
         depth: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
     /// forward arc, or a cross arc.
     Revisit {
         /// The current node.
-        curr: usize,
-        /// The parent of [curr](`EventPred::Revisit::curr`) in the visit tree.
+        node: usize,
+        /// The parent of [curr](`EventPred::Revisit::node`) in the visit tree.
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
-        /// [root](`EventPred::Revisit::root`) to [curr](`EventPred::Revisit::curr`).
+        /// [root](`EventPred::Revisit::root`) to [curr](`EventPred::Revisit::node`).
         depth: usize,
         /// Whether the node is currently on the visit path, that is, if we are
         /// traversing a back arc, and retreating from it. This might be always
@@ -124,14 +124,14 @@ pub enum EventPred {
     /// the root.
     Postvisit {
         /// The current node.
-        curr: usize,
-        /// The parent of [curr](`EventPred::Postvisit::curr`) in the visit tree.
+        node: usize,
+        /// The parent of [curr](`EventPred::Postvisit::node`) in the visit tree.
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from
         /// the [root](`EventPred::Postvisit::root`) to
-        /// [curr](`EventPred::Postvisit::curr`).
+        /// [curr](`EventPred::Postvisit::node`).
         depth: usize,
     },
     /// The visit has been completed.
@@ -149,13 +149,13 @@ pub enum EventPred {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct FilterArgsPred {
     /// The current node.
-    pub curr: usize,
-    /// The parent of [curr](`Self::curr`) in the visit tree.
+    pub node: usize,
+    /// The parent of [curr](`Self::node`) in the visit tree.
     pub pred: usize,
     /// The root of the current visit tree.
     pub root: usize,
     /// The depth of the visit, that is, the length of the visit path from the
-    /// [root](`Self::root`) to [curr](`Self::curr`).
+    /// [root](`Self::root`) to [curr](`Self::node`).
     pub depth: usize,
 }
 
