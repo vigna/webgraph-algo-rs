@@ -43,10 +43,6 @@ use webgraph::traits::RandomAccessGraph;
 /// With respect to [`EventNoPred`], [`EventPred`] provides the predecessor of
 /// the current node.
 ///
-/// The progress logger will be updated each time all nodes at a given distance
-/// have been processed. This granularity is very low, but it provides more
-/// realiable results.
-///
 /// # Examples
 ///
 /// Let's compute the distances from 0:
@@ -308,7 +304,6 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
                         })
                     })
             })?;
-            pl.update_with_count(curr_frontier.len());
             distance += 1;
             // Swap the frontiers
             std::mem::swap(&mut curr_frontier, &mut next_frontier);

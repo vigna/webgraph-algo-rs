@@ -36,11 +36,13 @@
 //! available) due to race conditions.
 //!
 //! All visits accept also a mutable reference to an implementation of
-//! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) to log the progress of
-//! the visit: [`ProgressLog::light_update`] will be called when completing the
-//! visit of a node. As usual, when passing
-//! [`no_logging![]`](dsi_progress_logger::no_logging) the logging code should
-//! be optimized away by the compiler.
+//! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) or
+//! [`ConcurrentProgressLog`](`dsi_progress_logger::ConcurrentProgressLog`) to
+//! log the progress of the visit: [`ProgressLog::light_update`] will be called
+//! just before invoking the callback on a node-discovery event (`Previsit` for
+//! depth-first visits, `Unknown` for breadth-first visits). As usual, when
+//! passing [`no_logging![]`](dsi_progress_logger::no_logging) the logging code
+//! should be optimized away by the compiler.
 //!
 //! There is a blanket implementation of the [`Parallel`] trait for all types
 //! implementing the [`Sequential`] trait. This approach makes it possible to

@@ -122,7 +122,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         thread_pool.install(|| curr_frontier.push(root));
 
         self.visited.set(root, true, Ordering::Relaxed);
-
+        pl.light_update();
         callback(EventPred::Unknown {
             node: root,
             pred: root,
@@ -140,7 +140,6 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                     .chunks(self.granularity)
                     .try_for_each_with(pl.clone(), |pl, chunk| {
                         chunk.into_iter().try_for_each(|&node| {
-                            pl.light_update();
                             self.graph
                                 .successors(node)
                                 .into_iter()
@@ -153,6 +152,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                                         distance,
                                     }) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                            pl.light_update();
                                             callback(EventPred::Unknown {
                                                 node,
                                                 pred,

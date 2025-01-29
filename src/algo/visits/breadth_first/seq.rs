@@ -134,6 +134,8 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
             return Continue(());
         }
 
+        self.visited.set(root, true);
+        pl.light_update();
         callback(EventPred::Unknown {
             node: root,
             pred: root,
@@ -141,7 +143,6 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
             distance: 0,
         })?;
 
-        self.visited.set(root, true);
         self.queue.push_back(Some(
             NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
         ));
@@ -162,13 +163,14 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                                 root,
                                 distance,
                             }) {
+                                self.visited.set(succ, true);
+                                pl.light_update();
                                 callback(EventPred::Unknown {
                                     node,
                                     pred,
                                     root,
                                     distance,
                                 })?;
-                                self.visited.set(succ, true);
                                 self.queue.push_back(Some(
                                     NonMaxUsize::new(succ)
                                         .expect("node index should never be usize::MAX"),
@@ -178,7 +180,6 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                             callback(EventPred::Known { node, pred, root })?;
                         }
                     }
-                    pl.light_update();
                 }
                 None => {
                     // We are at the end of the current level, so
