@@ -1,11 +1,18 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use anyhow::Result;
 use dsi_progress_logger::no_logging;
 use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use webgraph::graphs::random::ErdosRenyi;
+use webgraph::graphs::vec_graph::VecGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph::transform;
-use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
 use webgraph_algo::threads;
@@ -23,7 +30,7 @@ fn test_path() -> Result<()> {
         vec_graph.add_arc(arc.0, arc.1);
     }
 
-    let graph = Left(vec_graph);
+    let graph = vec_graph;
 
     let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
@@ -67,7 +74,7 @@ fn test_star() -> Result<()> {
         vec_graph.add_arc(arc.0, arc.1);
     }
 
-    let graph = Left(vec_graph);
+    let graph = vec_graph;
 
     let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
@@ -109,7 +116,7 @@ fn test_lozenge() -> Result<()> {
         vec_graph.add_arc(arc.0, arc.1);
     }
 
-    let graph = Left(vec_graph);
+    let graph = vec_graph;
 
     let sum_sweep = Radius::compute_undirected(&graph, &threads![], no_logging![]);
 
@@ -135,7 +142,7 @@ fn test_cycle() -> Result<()> {
             }
         }
 
-        let graph = Left(vec_graph);
+        let graph = vec_graph;
 
         let sum_sweep = RadiusDiameter::compute_undirected(&graph, &threads![], no_logging![]);
 
@@ -160,7 +167,7 @@ fn test_clique() -> Result<()> {
             }
         }
 
-        let graph = Left(vec_graph);
+        let graph = vec_graph;
 
         let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
@@ -175,12 +182,12 @@ fn test_clique() -> Result<()> {
 
 #[test]
 fn test_no_edges() -> Result<()> {
-    let mut vec_graph: VecGraph<()> = VecGraph::new();
+    let mut vec_graph = VecGraph::new();
     for i in 0..100 {
         vec_graph.add_node(i);
     }
 
-    let graph = Left(vec_graph);
+    let graph = vec_graph;
 
     let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
@@ -194,30 +201,18 @@ fn test_no_edges() -> Result<()> {
 #[test]
 fn test_sparse() -> Result<()> {
     let arcs = vec![(10, 32), (32, 10), (10, 65), (65, 10), (21, 44), (44, 21)];
-
-    let mut vec_graph = VecGraph::new();
-    for i in 0..100 {
-        vec_graph.add_node(i);
-    }
-    for arc in arcs {
-        vec_graph.add_arc(arc.0, arc.1);
-    }
-
-    let graph = Left(vec_graph);
-
+    let graph = VecGraph::from_arcs(arcs);
     let sum_sweep = Radius::compute_undirected(&graph, &threads![], no_logging![]);
-
     assert_eq!(sum_sweep.radius, 1);
-
     Ok(())
 }
 
 #[test]
 #[should_panic(expected = "Trying to build Radius without the radius computed")]
 fn test_empty() {
-    let vec_graph: VecGraph<()> = VecGraph::new();
+    let vec_graph = VecGraph::new();
 
-    let graph = Left(vec_graph);
+    let graph = vec_graph;
 
     Radius::compute_undirected(&graph, &threads![], no_logging![]);
 }
@@ -227,9 +222,7 @@ fn test_empty() {
 fn test_er() -> Result<()> {
     for d in 2..=4 {
         let er = ErdosRenyi::new(100, (d as f64) / 100.0, 0);
-        let graph = Left(VecGraph::from_lender(
-            transform::simplify_sorted(er, 10000)?.iter(),
-        ));
+        let graph = VecGraph::from_lender(transform::simplify_sorted(er, 10000)?.iter());
 
         let threads = threads![];
 
@@ -237,11 +230,11 @@ fn test_er() -> Result<()> {
 
         let mut pll = Seq::new(&graph);
         let mut ecc = [0; 100];
-        for node in 0..100 {
+        for root in 0..100 {
             pll.visit(
-                node,
+                [root],
                 |event| {
-                    if let EventPred::Unknown { root, distance, .. } = event {
+                    if let EventPred::Unknown { distance, .. } = event {
                         ecc[root] = ecc[root].max(distance);
                     }
                     Continue(())

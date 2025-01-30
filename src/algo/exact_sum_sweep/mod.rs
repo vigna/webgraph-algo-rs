@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 //! An implementation of the *ExactSumSweep* algorithm.
 //!
 //! The algorithm has been described by Michele Borassi, Pierluigi Crescenzi,
@@ -16,8 +23,8 @@
 //! use webgraph::graphs::vec_graph::VecGraph;
 //! use webgraph::labels::proj::Left;
 //!
-//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
-//! let transpose = Left(VecGraph::from_arc_list([(1, 0), (2, 1), (3, 2), (0, 3), (4, 2)]));
+//! let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]);
+//! let transpose = VecGraph::from_arcs([(1, 0), (2, 1), (3, 2), (0, 3), (4, 2)]);
 //!
 //! // Let's compute all eccentricities
 //! let result = exact_sum_sweep::All::compute_directed(
@@ -54,8 +61,8 @@
 //! use webgraph::graphs::vec_graph::VecGraph;
 //! use webgraph::labels::proj::Left;
 //!
-//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
-//! let transpose = Left(VecGraph::from_arc_list([(1, 0), (2, 1), (3, 2), (0, 3), (4, 2)]));
+//! let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]);
+//! let transpose = VecGraph::from_arcs([(1, 0), (2, 1), (3, 2), (0, 3), (4, 2)]);
 //!
 //! let result = exact_sum_sweep::RadiusDiameter::compute_directed(
 //!     &graph,
@@ -80,9 +87,9 @@
 //! use webgraph::graphs::vec_graph::VecGraph;
 //! use webgraph::labels::proj::Left;
 //!
-//! let graph = Left(VecGraph::from_arc_list(
+//! let graph = VecGraph::from_arcs(
 //!     [(0, 1), (1, 0), (1, 2), (2, 1), (2, 0), (0, 2), (3, 4), (4, 3)]
-//! ));
+//! );
 //!
 //! let result = exact_sum_sweep::RadiusDiameter::compute_undirected(
 //!     &graph,

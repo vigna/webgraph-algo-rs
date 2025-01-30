@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::algo::visits::{breadth_first::*, Parallel};
 use dsi_progress_logger::ConcurrentProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
@@ -59,16 +66,16 @@ use webgraph::traits::RandomAccessGraph;
 /// use std::ops::ControlFlow::Continue;
 /// use no_break::NoBreak;
 ///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
+/// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0), (1, 3)]);
 /// let mut visit = breadth_first::ParFairNoPred::new(&graph, 1);
 /// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
 /// visit.par_visit(
-///     0,
+///     [0],
 ///     |event|
 ///         {
 ///             // Set distance from 0
-///             if let EventNoPred::Unknown {curr, distance, ..} = event {
-///                 d[curr].store(distance, Ordering::Relaxed);
+///             if let EventNoPred::Unknown { node, distance, ..} = event {
+///                 d[node].store(distance, Ordering::Relaxed);
 ///             }
 ///             Continue(())
 ///         },
@@ -116,106 +123,84 @@ impl<G: RandomAccessGraph, const P: bool> ParFair<G, P> {
 
 impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
     fn par_visit_filtered<
+        R: IntoIterator<Item = usize>,
         E: Send,
         C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(FilterArgsNoPred) -> bool + Sync,
         P: ConcurrentProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
-        if self.visited.get(root, Ordering::Relaxed)
-            || !filter(FilterArgsNoPred {
-                node: root,
-                root,
-                distance: 0,
-            })
-        {
-            return Continue(());
-        }
+        for root in roots {
+            if self.visited.get(root, Ordering::Relaxed)
+                || !filter(FilterArgsNoPred {
+                    node: root,
+                    distance: 0,
+                })
+            {
+                return Continue(());
+            }
 
-        // We do not provide a capacity in the hope of allocating dynamically
-        // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
-        let mut next_frontier = Frontier::with_threads(thread_pool, None);
+            // We do not provide a capacity in the hope of allocating dynamically
+            // space as the frontiers grow.
+            let mut curr_frontier = Frontier::with_threads(thread_pool, None);
+            let mut next_frontier = Frontier::with_threads(thread_pool, None);
 
-        thread_pool.install(|| {
-            curr_frontier.push(root);
-        });
-
-        callback(EventNoPred::Init { root })?;
-        self.visited.set(root, true, Ordering::Relaxed);
-        let mut distance = 0;
-
-        while !curr_frontier.is_empty() {
-            let distance_plus_one = distance + 1;
             thread_pool.install(|| {
-                curr_frontier
-                    .par_iter()
-                    .chunks(self.granularity)
-                    .try_for_each_with(pl.clone(), |pl, chunk| {
-                        chunk.into_iter().try_for_each(|&node| {
-                            pl.update();
-                            callback(EventNoPred::Unknown {
-                                node,
-                                root,
-                                distance,
-                            })?;
-                            self.graph
-                                .successors(node)
-                                .into_iter()
-                                .try_for_each(|succ| {
-                                    let node = succ;
-                                    if filter(FilterArgsNoPred {
-                                        node,
-                                        root,
-                                        distance: distance_plus_one,
-                                    }) {
-                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            next_frontier.push(succ);
-                                        } else {
-                                            callback(EventNoPred::Known { node, root })?;
+                curr_frontier.push(root);
+            });
+
+            callback(EventNoPred::Init {})?;
+            self.visited.set(root, true, Ordering::Relaxed);
+            let mut distance = 0;
+
+            while !curr_frontier.is_empty() {
+                let distance_plus_one = distance + 1;
+                thread_pool.install(|| {
+                    curr_frontier
+                        .par_iter()
+                        .chunks(self.granularity)
+                        .try_for_each_with(pl.clone(), |pl, chunk| {
+                            chunk.into_iter().try_for_each(|&node| {
+                                pl.light_update();
+                                callback(EventNoPred::Unknown { node, distance })?;
+                                self.graph
+                                    .successors(node)
+                                    .into_iter()
+                                    .try_for_each(|succ| {
+                                        let node = succ;
+                                        if filter(FilterArgsNoPred {
+                                            node,
+                                            distance: distance_plus_one,
+                                        }) {
+                                            if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                                next_frontier.push(succ);
+                                            } else {
+                                                callback(EventNoPred::Known { node })?;
+                                            }
                                         }
-                                    }
 
-                                    Continue(())
-                                })?;
+                                        Continue(())
+                                    })?;
 
-                            Continue(())
+                                Continue(())
+                            })
                         })
-                    })
-            })?;
+                })?;
 
-            distance += 1;
-            // Swap the frontiers
-            std::mem::swap(&mut curr_frontier, &mut next_frontier);
-            // Clear the frontier we will fill in the next iteration
-            next_frontier.clear();
-        }
+                distance += 1;
+                // Swap the frontiers
+                std::mem::swap(&mut curr_frontier, &mut next_frontier);
+                // Clear the frontier we will fill in the next iteration
+                next_frontier.clear();
+            }
 
-        callback(EventNoPred::Done { root })?;
-
-        Continue(())
-    }
-
-    fn par_visit_all_filtered<
-        E: Send,
-        C: Fn(EventNoPred) -> ControlFlow<E, ()> + Sync,
-        F: Fn(FilterArgsNoPred) -> bool + Sync,
-        P: ConcurrentProgressLog,
-    >(
-        &mut self,
-        callback: C,
-        filter: F,
-        thread_pool: &ThreadPool,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        for node in 0..self.graph.num_nodes() {
-            self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
+            callback(EventNoPred::Done {})?;
         }
 
         Continue(())
@@ -228,108 +213,89 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
 
 impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
     fn par_visit_filtered<
+        R: IntoIterator<Item = usize>,
         E: Send,
         C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
         F: Fn(<EventPred as super::super::Event>::FilterArgs) -> bool + Sync,
         P: ConcurrentProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
-        if self.visited.get(root, Ordering::Relaxed)
-            || !filter(FilterArgsPred {
-                node: root,
-                pred: root,
-                root,
-                distance: 0,
-            })
-        {
-            return Continue(());
-        }
+        for root in roots {
+            if self.visited.get(root, Ordering::Relaxed)
+                || !filter(FilterArgsPred {
+                    node: root,
+                    pred: root,
+                    distance: 0,
+                })
+            {
+                return Continue(());
+            }
 
-        // We do not provide a capacity in the hope of allocating dynamically
-        // space as the frontiers grow.
-        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
-        let mut next_frontier = Frontier::with_threads(thread_pool, None);
+            // We do not provide a capacity in the hope of allocating dynamically
+            // space as the frontiers grow.
+            let mut curr_frontier = Frontier::with_threads(thread_pool, None);
+            let mut next_frontier = Frontier::with_threads(thread_pool, None);
 
-        thread_pool.install(|| {
-            curr_frontier.push((root, root));
-        });
-
-        callback(EventPred::Init { root })?;
-        self.visited.set(root, true, Ordering::Relaxed);
-        let mut distance = 0;
-
-        while !curr_frontier.is_empty() {
-            let distance_plus_one = distance + 1;
             thread_pool.install(|| {
-                curr_frontier
-                    .par_iter()
-                    .chunks(self.granularity)
-                    .try_for_each_with(pl.clone(), |pl, chunk| {
-                        chunk.into_iter().try_for_each(|&(node, pred)| {
-                            pl.light_update();
-                            callback(EventPred::Unknown {
-                                node,
-                                pred,
-                                root,
-                                distance,
-                            })?;
-                            self.graph
-                                .successors(node)
-                                .into_iter()
-                                .try_for_each(|succ| {
-                                    let (node, pred) = (succ, node);
-                                    if filter(FilterArgsPred {
-                                        node,
-                                        pred,
-                                        root,
-                                        distance: distance_plus_one,
-                                    }) {
-                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            next_frontier.push((node, pred));
-                                        } else {
-                                            callback(EventPred::Known { node, pred, root })?;
-                                        }
-                                    }
+                curr_frontier.push((root, root));
+            });
 
-                                    Continue(())
+            callback(EventPred::Init {})?;
+            self.visited.set(root, true, Ordering::Relaxed);
+            let mut distance = 0;
+
+            while !curr_frontier.is_empty() {
+                let distance_plus_one = distance + 1;
+                thread_pool.install(|| {
+                    curr_frontier
+                        .par_iter()
+                        .chunks(self.granularity)
+                        .try_for_each_with(pl.clone(), |pl, chunk| {
+                            chunk.into_iter().try_for_each(|&(node, pred)| {
+                                pl.light_update();
+                                callback(EventPred::Unknown {
+                                    node,
+                                    pred,
+                                    distance,
                                 })?;
+                                self.graph
+                                    .successors(node)
+                                    .into_iter()
+                                    .try_for_each(|succ| {
+                                        let (node, pred) = (succ, node);
+                                        if filter(FilterArgsPred {
+                                            node,
+                                            pred,
+                                            distance: distance_plus_one,
+                                        }) {
+                                            if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                                next_frontier.push((node, pred));
+                                            } else {
+                                                callback(EventPred::Known { node, pred })?;
+                                            }
+                                        }
 
-                            Continue(())
+                                        Continue(())
+                                    })?;
+
+                                Continue(())
+                            })
                         })
-                    })
-            })?;
-            distance += 1;
-            // Swap the frontiers
-            std::mem::swap(&mut curr_frontier, &mut next_frontier);
-            // Clear the frontier we will fill in the next iteration
-            next_frontier.clear();
-        }
+                })?;
+                distance += 1;
+                // Swap the frontiers
+                std::mem::swap(&mut curr_frontier, &mut next_frontier);
+                // Clear the frontier we will fill in the next iteration
+                next_frontier.clear();
+            }
 
-        callback(EventPred::Done { root })?;
-
-        Continue(())
-    }
-
-    fn par_visit_all_filtered<
-        E: Send,
-        C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
-        F: Fn(FilterArgsPred) -> bool + Sync,
-        P: ConcurrentProgressLog,
-    >(
-        &mut self,
-        callback: C,
-        filter: F,
-        thread_pool: &ThreadPool,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        for node in 0..self.graph.num_nodes() {
-            self.par_visit_filtered(node, &callback, &filter, thread_pool, pl)?;
+            callback(EventPred::Done {})?;
         }
 
         Continue(())

@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
 use lender::for_;
@@ -6,7 +13,7 @@ use webgraph::graphs::random::ErdosRenyi;
 use webgraph::prelude::BvGraph;
 use webgraph::traits::RandomAccessGraph;
 use webgraph::transform;
-use webgraph::{graphs::vec_graph::VecGraph, labels::Left, traits::SequentialLabeling};
+use webgraph::{graphs::vec_graph::VecGraph, traits::SequentialLabeling};
 use webgraph_algo::traits::StronglyConnectedComponents;
 use webgraph_algo::{algo::sccs, threads};
 
@@ -100,8 +107,8 @@ macro_rules! test_scc_algo {
                 ];
                 let transposed_arcs = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
-                let graph = Left(VecGraph::from_arc_list(arcs));
-                let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
+                let graph = VecGraph::from_arcs(arcs);
+                let transposed_graph = VecGraph::from_arcs(transposed_arcs);
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
@@ -123,8 +130,8 @@ macro_rules! test_scc_algo {
                 let arcs = [(0, 1), (1, 2), (2, 0), (1, 3)];
                 let transposed_arcs = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
-                let graph = Left(VecGraph::from_arc_list(arcs));
-                let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
+                let graph = VecGraph::from_arcs(arcs);
+                let transposed_graph = VecGraph::from_arcs(transposed_arcs);
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
                 let sizes = components.sort_by_size();
@@ -139,8 +146,8 @@ macro_rules! test_scc_algo {
                 let arcs = [(0, 1), (1, 2), (2, 3), (3, 0)];
                 let transposed_arcs = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
-                let graph = Left(VecGraph::from_arc_list(arcs));
-                let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
+                let graph = VecGraph::from_arcs(arcs);
+                let transposed_graph = VecGraph::from_arcs(transposed_arcs);
 
                 let components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
                 let sizes = components.compute_sizes();
@@ -166,8 +173,8 @@ macro_rules! test_scc_algo {
                     }
                 }
 
-                let graph = Left(g);
-                let transposed_graph = Left(t);
+                let graph = g;
+                let transposed_graph = t;
 
                 let mut components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
@@ -186,8 +193,8 @@ macro_rules! test_scc_algo {
                 let arcs = [(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6)];
                 let transposed_arcs = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
-                let graph = Left(VecGraph::from_arc_list(arcs));
-                let transposed_graph = Left(VecGraph::from_arc_list(transposed_arcs));
+                let graph = VecGraph::from_arcs(arcs);
+                let transposed_graph = VecGraph::from_arcs(transposed_arcs);
 
                 let components = $scc(&graph, &transposed_graph, &threads![], no_logging![]);
 
@@ -222,13 +229,9 @@ fn test_large() -> Result<()> {
 fn test_er() -> Result<()> {
     for n in (10..=100).step_by(10) {
         for d in 1..10 {
-            let graph = Left(VecGraph::from_lender(
-                ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter(),
-            ));
+            let graph = VecGraph::from_lender(ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter());
 
-            let transpose = Left(VecGraph::from_lender(
-                transform::transpose(&graph, 10000)?.iter(),
-            ));
+            let transpose = VecGraph::from_lender(transform::transpose(&graph, 10000)?.iter());
             let kosaraju = sccs::kosaraju(&graph, &transpose, no_logging![]);
             let tarjan = sccs::tarjan(&graph, no_logging![]);
 
@@ -242,9 +245,7 @@ fn test_er() -> Result<()> {
 fn test_er_symm() -> Result<()> {
     for n in (10..=100).step_by(10) {
         for d in 1..10 {
-            let er = Left(VecGraph::from_lender(
-                ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter(),
-            ));
+            let er = VecGraph::from_lender(ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter());
 
             let mut graph = VecGraph::new();
             graph.add_node(er.num_nodes() - 1);
@@ -254,7 +255,7 @@ fn test_er_symm() -> Result<()> {
                     graph.add_arc(dst, src);
                 }
             });
-            let graph = Left(graph);
+            let graph = graph;
             let symm_par = sccs::symm_par(&graph, &threads![], no_logging![]);
             let symm_seq = sccs::symm_seq(&graph, no_logging![]);
             let tarjan = sccs::tarjan(graph, no_logging![]);

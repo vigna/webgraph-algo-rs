@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use super::BasicSccs;
 use crate::{prelude::depth_first, traits::Sequential};
 use dsi_progress_logger::ProgressLog;
@@ -19,7 +26,8 @@ pub fn symm_seq(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Bas
     let mut number_of_components = 0;
 
     visit
-        .visit_all(
+        .visit(
+            0..num_nodes,
             |event| {
                 match event {
                     depth_first::EventNoPred::Previsit { node: curr, .. } => {

@@ -34,7 +34,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .visit(node, |_| Continue(()), no_logging![])
+                            .visit([node], |_| Continue(()), no_logging![])
                             .continue_value_no_break();
                     }
                 });
@@ -50,7 +50,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .par_visit([node], |_| Continue(()), &threads![], no_logging![])
                             .continue_value_no_break();
                     }
                 });
@@ -66,7 +66,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .par_visit([node], |_| Continue(()), &threads![], no_logging![])
                             .continue_value_no_break();
                     }
                 });
@@ -85,7 +85,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .par_visit([node], |_| Continue(()), &threads![], no_logging![])
                             .continue_value_no_break();
                     }
                 });
@@ -104,7 +104,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .par_visit([node], |_| Continue(()), &threads![], no_logging![])
                             .continue_value_no_break();
                     }
                 });
@@ -120,7 +120,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .par_visit([node], |_| Continue(()), &threads![], no_logging![])
                             .continue_value_no_break();
                     }
                 });
@@ -136,7 +136,7 @@ pub fn bench_bfv(c: &mut Criterion) {
                     for i in 0..g.num_nodes() {
                         let node = (i + start) % g.num_nodes();
                         visit
-                            .par_visit(node, |_| Continue(()), &threads![], no_logging![])
+                            .par_visit([node], |_| Continue(()), &threads![], no_logging![])
                             .continue_value_no_break();
                     }
                 });

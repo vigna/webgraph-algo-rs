@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 //! Algorithms used to compute and work with a graph's Strongly Connected Components.
 //!
 //! All algorithms' results implement [StronglyConnectedComponents], even though
@@ -6,10 +13,10 @@
 //! # Examples
 //! ```
 //! use dsi_progress_logger::no_logging;
-//! use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
+//! use webgraph::{graphs::vec_graph::VecGraph};
 //! use webgraph_algo::prelude::sccs::*;
 //!
-//! let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
+//! let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0), (1, 3)]);
 //!
 //! // Let's build the graph's SCC with Tarjan's algorithm
 //! let mut scc = tarjan(graph, no_logging![]);

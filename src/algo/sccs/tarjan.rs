@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use super::BasicSccs;
 use crate::algo::visits::{depth_first::*, Sequential, StoppedWhenDone};
 use dsi_progress_logger::ProgressLog;
@@ -33,7 +40,8 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
     let mut number_of_components = 0;
 
     if visit
-        .visit_all(
+        .visit(
+            0..num_nodes,
             |event| {
                 match event {
                     EventPred::Init { .. } => {

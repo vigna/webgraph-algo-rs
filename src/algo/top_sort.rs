@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::{algo::visits::depth_first::*, algo::visits::Sequential};
 use dsi_progress_logger::ProgressLog;
 use no_break::NoBreak;
@@ -18,7 +25,8 @@ pub fn top_sort(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box
     let mut pos = num_nodes;
 
     visit
-        .visit_all(
+        .visit(
+            0..num_nodes,
             |event| {
                 if let EventPred::Postvisit { node: curr, .. } = event {
                     pos -= 1;

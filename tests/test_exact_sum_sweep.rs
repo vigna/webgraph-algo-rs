@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use std::ops::ControlFlow::Continue;
 
 use anyhow::Result;
@@ -5,9 +12,10 @@ use dsi_progress_logger::no_logging;
 use no_break::NoBreak;
 use sux::bits::AtomicBitVec;
 use webgraph::graphs::random::ErdosRenyi;
+use webgraph::graphs::vec_graph::VecGraph;
+use webgraph::prelude::BTreeGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph::transform::transpose;
-use webgraph::{graphs::vec_graph::VecGraph, labels::Left};
 use webgraph_algo::algo::exact_sum_sweep::*;
 use webgraph_algo::prelude::breadth_first::{EventPred, Seq};
 use webgraph_algo::threads;
@@ -15,20 +23,17 @@ use webgraph_algo::traits::Sequential;
 
 #[test]
 fn test_path() -> Result<()> {
-    let arcs = vec![(0, 1), (1, 2), (2, 1), (1, 0)];
+    let arcs = vec![(0_usize, 1_usize), (1, 2), (2, 1), (1, 0)];
 
-    let mut vec_graph = VecGraph::new();
-    for i in 0..3 {
-        vec_graph.add_node(i);
-    }
+    let mut vec_graph = BTreeGraph::from_arcs(arcs.iter().copied());
     let mut transposed_vec_graph = vec_graph.clone();
     for arc in arcs {
         vec_graph.add_arc(arc.0, arc.1);
         transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
-    let graph = Left(vec_graph);
-    let transposed = Left(transposed_vec_graph);
+    let graph = vec_graph;
+    let transposed = transposed_vec_graph;
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -65,8 +70,8 @@ fn test_many_scc() -> Result<()> {
     ];
     let transposed_arcs = arcs.iter().map(|(a, b)| (*b, *a)).collect::<Vec<_>>();
 
-    let graph = Left(VecGraph::from_arc_list(arcs));
-    let transposed = Left(VecGraph::from_arc_list(transposed_arcs));
+    let graph = VecGraph::from_arcs(arcs);
+    let transposed = VecGraph::from_arcs(transposed_arcs);
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -90,8 +95,8 @@ fn test_lozenge() -> Result<()> {
         transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
-    let graph = Left(vec_graph);
-    let transposed = Left(transposed_vec_graph);
+    let graph = vec_graph;
+    let transposed = transposed_vec_graph;
 
     let sum_sweep = Radius::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -121,25 +126,15 @@ fn test_many_dir_path() -> Result<()> {
         (16, 17),
     ];
 
-    let mut vec_graph = VecGraph::new();
-    for i in 0..19 {
-        vec_graph.add_node(i);
-    }
-    let mut transposed_vec_graph = vec_graph.clone();
-    for arc in arcs {
-        vec_graph.add_arc(arc.0, arc.1);
-        transposed_vec_graph.add_arc(arc.1, arc.0);
-    }
-
-    let graph = Left(vec_graph);
-    let transposed = Left(transposed_vec_graph);
+    let graph = BTreeGraph::from_arcs(arcs.iter().copied());
+    let transpose = BTreeGraph::from_arcs(arcs.iter().map(|(x, y)| (*y, *x)));
     let radial_vertices = AtomicBitVec::new(19);
     radial_vertices.set(16, true, std::sync::atomic::Ordering::Relaxed);
     radial_vertices.set(8, true, std::sync::atomic::Ordering::Relaxed);
 
     let sum_sweep = All::compute_directed(
-        &graph,
-        &transposed,
+        graph,
+        transpose,
         Some(radial_vertices),
         &threads![],
         no_logging![],
@@ -171,8 +166,8 @@ fn test_cycle() -> Result<()> {
             }
         }
 
-        let graph = Left(vec_graph);
-        let transposed = Left(transposed_vec_graph);
+        let graph = vec_graph;
+        let transposed = transposed_vec_graph;
 
         let sum_sweep =
             RadiusDiameter::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
@@ -199,8 +194,8 @@ fn test_clique() -> Result<()> {
             }
         }
 
-        let graph = Left(vec_graph.clone());
-        let transposed = Left(vec_graph);
+        let graph = vec_graph.clone();
+        let transposed = vec_graph;
         let radial_vertices = AtomicBitVec::new(size);
         let rngs = [
             rand::random::<usize>() % size,
@@ -230,13 +225,13 @@ fn test_clique() -> Result<()> {
 
 #[test]
 fn test_empty() -> Result<()> {
-    let mut vec_graph: VecGraph<()> = VecGraph::new();
+    let mut vec_graph = VecGraph::new();
     for i in 0..100 {
         vec_graph.add_node(i);
     }
 
-    let graph = Left(vec_graph.clone());
-    let transposed = Left(vec_graph);
+    let graph = vec_graph.clone();
+    let transposed = vec_graph;
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -249,25 +244,11 @@ fn test_empty() -> Result<()> {
 #[test]
 fn test_sparse() -> Result<()> {
     let arcs = vec![(10, 32), (10, 65), (65, 10), (21, 44)];
-
-    let mut vec_graph = VecGraph::new();
-    for i in 0..100 {
-        vec_graph.add_node(i);
-    }
-    let mut transposed_vec_graph = vec_graph.clone();
-    for arc in arcs {
-        vec_graph.add_arc(arc.0, arc.1);
-        transposed_vec_graph.add_arc(arc.1, arc.0);
-    }
-
-    let graph = Left(vec_graph);
-    let transposed = Left(transposed_vec_graph);
-
-    let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
-
+    let graph = BTreeGraph::from_arcs(arcs.iter().copied());
+    let transpose = BTreeGraph::from_arcs(arcs.iter().map(|(x, y)| (*y, *x)));
+    let sum_sweep = All::compute_directed(graph, transpose, None, &threads![], no_logging![]);
     assert_eq!(sum_sweep.radius, 1);
     assert_eq!(sum_sweep.radial_vertex, 10);
-
     Ok(())
 }
 
@@ -285,8 +266,8 @@ fn test_no_radial_vertices() -> Result<()> {
         transposed_vec_graph.add_arc(arc.1, arc.0);
     }
 
-    let graph = Left(vec_graph);
-    let transposed = Left(transposed_vec_graph);
+    let graph = vec_graph;
+    let transposed = transposed_vec_graph;
     let radial_vertices = AtomicBitVec::new(2);
 
     let sum_sweep = All::compute_directed(
@@ -305,23 +286,23 @@ fn test_no_radial_vertices() -> Result<()> {
 #[test]
 #[should_panic(expected = "Trying to build All without all eccentricities computed")]
 fn test_empty_graph() {
-    let vec_graph: VecGraph<()> = VecGraph::new();
+    let vec_graph = VecGraph::new();
 
-    let graph = Left(vec_graph.clone());
-    let transposed = Left(vec_graph);
+    let graph = vec_graph.clone();
+    let transposed = vec_graph;
 
     All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 }
 
 #[test]
 fn test_graph_no_edges() -> Result<()> {
-    let mut vec_graph: VecGraph<()> = VecGraph::new();
+    let mut vec_graph = VecGraph::new();
     for i in 0..2 {
         vec_graph.add_node(i);
     }
 
-    let graph = Left(vec_graph.clone());
-    let transposed = Left(vec_graph);
+    let graph = vec_graph.clone();
+    let transposed = vec_graph;
 
     let sum_sweep = All::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
 
@@ -335,11 +316,9 @@ fn test_graph_no_edges() -> Result<()> {
 #[test]
 fn test_er() -> Result<()> {
     for d in 2..=4 {
-        let graph = Left(VecGraph::from_lender(
-            ErdosRenyi::new(100, (d as f64) / 100.0, 0).iter(),
-        ));
+        let graph = VecGraph::from_lender(ErdosRenyi::new(100, (d as f64) / 100.0, 0).iter());
 
-        let transpose = Left(VecGraph::from_lender(transpose(&graph, 10000)?.iter()));
+        let transpose = VecGraph::from_lender(transpose(&graph, 10000)?.iter());
 
         let threads = threads![];
 
@@ -347,11 +326,11 @@ fn test_er() -> Result<()> {
 
         let mut pll = Seq::new(&graph);
         let mut ecc = [0; 100];
-        for node in 0..100 {
+        for root in 0..100 {
             pll.visit(
-                node,
+                [root],
                 |event| {
-                    if let EventPred::Unknown { root, distance, .. } = event {
+                    if let EventPred::Unknown { distance, .. } = event {
                         ecc[root] = ecc[root].max(distance);
                     }
                     Continue(())

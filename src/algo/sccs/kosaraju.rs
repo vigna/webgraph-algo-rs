@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use super::BasicSccs;
 use crate::{
     algo::{top_sort, visits::Sequential},
@@ -29,26 +36,24 @@ pub fn kosaraju(
     let mut visit = SeqNoPred::new(&transpose);
     let mut components = vec![0; num_nodes].into_boxed_slice();
 
-    for &node in &top_sort {
-        visit
-            .visit(
-                node,
-                |event| {
-                    match event {
-                        EventNoPred::Previsit { node: curr, .. } => {
-                            components[curr] = number_of_components;
-                        }
-                        EventNoPred::Done { .. } => {
-                            number_of_components += 1;
-                        }
-                        _ => (),
+    visit
+        .visit(
+            top_sort,
+            |event| {
+                match event {
+                    EventNoPred::Previsit { node: curr, .. } => {
+                        components[curr] = number_of_components;
                     }
-                    Continue(())
-                },
-                pl,
-            )
-            .continue_value_no_break();
-    }
+                    EventNoPred::Done { .. } => {
+                        number_of_components += 1;
+                    }
+                    _ => (),
+                }
+                Continue(())
+            },
+            pl,
+        )
+        .continue_value_no_break();
 
     pl.done();
 

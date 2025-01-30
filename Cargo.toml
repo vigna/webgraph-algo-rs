@@ -8,7 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.79", features = ["backtrace"] }
 common_traits = "0.11.0"
-dsi-progress-logger = "0.4.0"
+# dsi-progress-logger = "0.4.0"
+dsi-progress-logger = { path = "../dsi-progress-logger-rs" }
 epserde = "0.6.1"
 mmap-rs = "0.6.1"
 nonmax = "0.5.5"

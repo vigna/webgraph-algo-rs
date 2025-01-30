@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::{
     algo::{
         exact_sum_sweep::{output_level::Output, scc_graph::SccGraph},
@@ -92,11 +99,7 @@ impl<'a, G: RandomAccessGraph + Sync>
     /// * `graph`: the graph.
     /// * `output`: the desired output of the algorithm.
     /// * `pl`: a progress logger.
-    pub fn new_undirected(
-        graph: &'a G,
-        output: Output,
-        pl: &mut impl ConcurrentProgressLog,
-    ) -> Self {
+    pub fn new_undirected(graph: &'a G, output: Output, pl: &mut impl ProgressLog) -> Self {
         debug_assert!(check_symmetric(graph), "graph should be symmetric");
 
         let output = match output {
@@ -144,7 +147,7 @@ impl<'a, G1: RandomAccessGraph + Sync, G2: RandomAccessGraph + Sync>
         transpose: &'a G2,
         output: Output,
         radial_vertices: Option<AtomicBitVec>,
-        pl: &mut impl ConcurrentProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Self {
         assert_eq!(graph.num_nodes(), transpose.num_nodes());
         assert_eq!(graph.num_arcs(), transpose.num_arcs());
@@ -190,7 +193,7 @@ impl<
         scc_graph: SccGraph<G1, G2, BasicSccs>,
         visit: V1,
         transposed_visit: V2,
-        pl: &mut impl ConcurrentProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> Self {
         let num_nodes = graph.num_nodes();
         assert!(
@@ -263,7 +266,7 @@ impl<
     /// * `start`: The starting vertex.
     /// * `iterations`: The number of iterations.
     /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: A progress logger.
+    /// * `pl`: A concurrent progress logger.
     fn sum_sweep_heuristic(
         &mut self,
         start: usize,
@@ -308,17 +311,13 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    pub fn compute(
-        &mut self,
-        thread_pool: &ThreadPool,
-        pl: &mut (impl ProgressLog + Clone + Send + Sync),
-    ) {
+    pub fn compute(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         if self.num_nodes == 0 {
             return;
         }
 
         pl.start("Computing ExactSumSweep...");
-        let mut cpl = ConcurrentWrapper::wrap(pl.clone());
+        let mut cpl = pl.concurrent();
 
         if self.compute_radial_vertices {
             self.compute_radial_vertices(thread_pool, &mut cpl);
@@ -430,7 +429,7 @@ impl<
     ///
     /// # Arguments
     /// * `pl`: A progress logger..
-    fn find_best_pivot(&self, pl: &mut impl ConcurrentProgressLog) -> Vec<usize> {
+    fn find_best_pivot(&self, pl: &mut impl ProgressLog) -> Vec<usize> {
         debug_assert!(self.num_nodes < usize::MAX);
 
         let mut pivot: Vec<Option<NonMaxUsize>> = vec![None; self.scc.num_components()];
@@ -503,15 +502,11 @@ impl<
             return;
         }
 
-        pl.expected_updates(None);
-        pl.item_name("node");
-        pl.display_memory(false);
-        pl.start("Computing radial vertices...");
-
         let component = self.scc.components();
         let scc_sizes = self.scc.compute_sizes();
         let max_size_scc = math::argmax(&scc_sizes).expect("Could not find max size scc.");
 
+        // TODO: eliminate double scan
         pl.info(format_args!(
             "Searching for biggest strongly connected component"
         ));
@@ -524,13 +519,15 @@ impl<
                 break;
             }
         }
-
-        pl.info(format_args!("Computing radial vertices set"));
+        pl.expected_updates(None);
+        pl.item_name("node");
+        pl.display_memory(false);
+        pl.start("Computing radial vertices...");
 
         let radial_vertices = &self.radial_vertices;
         self.transposed_visit
             .par_visit(
-                v,
+                [v],
                 |event| {
                     if let EventNoPred::Unknown { node, .. } = event {
                         radial_vertices.set(node, true, Ordering::Relaxed)
@@ -597,7 +594,7 @@ impl<
 
         self.transposed_visit
             .par_visit(
-                start,
+                [start],
                 |event| {
                     if let EventNoPred::Unknown { node, distance, .. } = event {
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
@@ -675,7 +672,7 @@ impl<
         self.visit.reset();
         self.visit
             .par_visit(
-                start,
+                [start],
                 |event| {
                     if let EventNoPred::Unknown { node, distance, .. } = event {
                         // SAFETY: each node gets accessed exactly once, so no data races can happen
@@ -739,7 +736,7 @@ impl<
         pivot: &[usize],
         forward: bool,
         thread_pool: &ThreadPool,
-        pl: &mut impl ConcurrentProgressLog,
+        pl: &mut impl ProgressLog,
     ) -> (Vec<usize>, Vec<usize>) {
         pl.expected_updates(None);
         pl.display_memory(false);
@@ -780,7 +777,7 @@ impl<
                 let component_ecc_pivot = &ecc_pivot[pivot_component];
 
                 bfs.par_visit_filtered(
-                    p,
+                    [p],
                     |event| {
                         if let EventNoPred::Unknown { node, distance, .. } = event {
                             // Safety: each node is accessed exactly once
@@ -818,11 +815,7 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn all_cc_upper_bound(
-        &mut self,
-        thread_pool: &ThreadPool,
-        pl: &mut impl ConcurrentProgressLog,
-    ) {
+    fn all_cc_upper_bound(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) {
         pl.item_name("element");
         pl.display_memory(false);
         pl.expected_updates(Some(2 * self.scc.num_components() + self.num_nodes));
@@ -947,11 +940,7 @@ impl<
     /// # Arguments
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
-    fn find_missing_nodes(
-        &mut self,
-        thread_pool: &ThreadPool,
-        pl: &mut impl ConcurrentProgressLog,
-    ) -> usize {
+    fn find_missing_nodes(&mut self, thread_pool: &ThreadPool, pl: &mut impl ProgressLog) -> usize {
         pl.item_name("node");
         pl.display_memory(false);
         pl.expected_updates(Some(self.num_nodes));

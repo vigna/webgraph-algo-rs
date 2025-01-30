@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::algo::visits::{
     depth_first::{EventNoPred, EventPred, FilterArgsNoPred, FilterArgsPred},
     Sequential,
@@ -71,13 +78,15 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// use webgraph_algo::algo::visits::depth_first::*;
 /// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
+/// use webgraph::traits::SequentialLabeling;
 /// use webgraph::labels::proj::Left;
 /// use std::ops::ControlFlow::*;
 ///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
+/// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0), (1, 3)]);
 /// let mut visit = depth_first::SeqPath::new(&graph);
 ///
-/// assert!(visit.visit_all(
+/// assert!(visit.visit(
+///     0..graph.num_nodes(),
 ///     |event|
 ///         {
 ///             // Stop the visit as soon as a back edge is found
@@ -103,15 +112,16 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// use std::ops::ControlFlow::Continue;
 /// use no_break::NoBreak;
 ///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (1, 3), (0, 3)]));
+/// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (1, 3), (0, 3)]);
 /// let mut visit = depth_first::SeqPred::new(&graph);
 /// let mut top_sort = Vec::with_capacity(graph.num_nodes());
 ///
-/// visit.visit_all(
+/// visit.visit(
+///     0..graph.num_nodes(),
 ///     |event|
 ///         {
-///            if let EventPred::Postvisit { curr, .. } = event {
-///                 top_sort.push(curr);
+///            if let EventPred::Postvisit { node, .. } = event {
+///                 top_sort.push(node);
 ///            }
 ///            Continue(())
 ///         },
@@ -272,128 +282,115 @@ impl NodeStates for ThreeStates {
 
 impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, S, G, usize, true> {
     fn visit_filtered<
+        R: IntoIterator<Item = usize>,
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
         P: ProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         mut callback: C,
         mut filter: F,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
-        if state.known(root)
-            || !filter(FilterArgsPred {
+        for root in roots {
+            if state.known(root)
+                || !filter(FilterArgsPred {
+                    node: root,
+                    pred: root,
+                    root,
+                    depth: 0,
+                })
+            {
+                // We ignore the node: it might be visited later
+                return Continue(());
+            }
+
+            callback(EventPred::Init { root })?;
+
+            state.set_known(root);
+            pl.light_update();
+            callback(EventPred::Previsit {
                 node: root,
                 pred: root,
                 root,
                 depth: 0,
-            })
-        {
-            // We ignore the node: it might be visited later
-            return Continue(());
-        }
+            })?;
 
-        callback(EventPred::Init { root })?;
+            self.stack
+                .push((self.graph.successors(root).into_iter(), root));
 
-        state.set_known(root);
-        pl.light_update();
-        callback(EventPred::Previsit {
-            node: root,
-            pred: root,
-            root,
-            depth: 0,
-        })?;
+            state.set_on_stack(root);
 
-        self.stack
-            .push((self.graph.successors(root).into_iter(), root));
+            // This variable keeps track of the current node being visited; the
+            // parent node is derived at each iteration of the 'recurse loop.
+            let mut current_node = root;
 
-        state.set_on_stack(root);
+            'recurse: loop {
+                let depth = self.stack.len();
+                let Some((iter, parent)) = self.stack.last_mut() else {
+                    callback(EventPred::Done { root })?;
+                    return Continue(());
+                };
 
-        // This variable keeps track of the current node being visited; the
-        // parent node is derived at each iteration of the 'recurse loop.
-        let mut current_node = root;
-
-        'recurse: loop {
-            let depth = self.stack.len();
-            let Some((iter, parent)) = self.stack.last_mut() else {
-                callback(EventPred::Done { root })?;
-                return Continue(());
-            };
-
-            for succ in iter {
-                // Check if node should be visited
-                if state.known(succ) {
-                    // Node has already been discovered
-                    callback(EventPred::Revisit {
-                        node: succ,
-                        pred: current_node,
-                        root,
-                        depth: depth + 1,
-                        on_stack: state.on_stack(succ),
-                    })?;
-                } else {
-                    // First time seeing node
-                    if filter(FilterArgsPred {
-                        node: succ,
-                        pred: current_node,
-                        root,
-                        depth: depth + 1,
-                    }) {
-                        state.set_known(succ);
-                        pl.light_update();
-                        callback(EventPred::Previsit {
+                for succ in iter {
+                    // Check if node should be visited
+                    if state.known(succ) {
+                        // Node has already been discovered
+                        callback(EventPred::Revisit {
                             node: succ,
                             pred: current_node,
                             root,
                             depth: depth + 1,
+                            on_stack: state.on_stack(succ),
                         })?;
-                        // current_node is the parent of succ
-                        self.stack
-                            .push((self.graph.successors(succ).into_iter(), current_node));
+                    } else {
+                        // First time seeing node
+                        if filter(FilterArgsPred {
+                            node: succ,
+                            pred: current_node,
+                            root,
+                            depth: depth + 1,
+                        }) {
+                            state.set_known(succ);
+                            pl.light_update();
+                            callback(EventPred::Previsit {
+                                node: succ,
+                                pred: current_node,
+                                root,
+                                depth: depth + 1,
+                            })?;
+                            // current_node is the parent of succ
+                            self.stack
+                                .push((self.graph.successors(succ).into_iter(), current_node));
 
-                        state.set_on_stack(succ);
+                            state.set_on_stack(succ);
 
-                        // At the next iteration, succ will be the current node
-                        current_node = succ;
+                            // At the next iteration, succ will be the current node
+                            current_node = succ;
 
-                        continue 'recurse;
-                    } // Else we ignore the node: it might be visited later
+                            continue 'recurse;
+                        } // Else we ignore the node: it might be visited later
+                    }
                 }
+
+                callback(EventPred::Postvisit {
+                    node: current_node,
+                    pred: *parent,
+                    root,
+                    depth,
+                })?;
+
+                state.set_off_stack(current_node);
+
+                // We're going up one stack level, so the next current_node
+                // is the current parent.
+                current_node = *parent;
+                self.stack.pop();
             }
-
-            callback(EventPred::Postvisit {
-                node: current_node,
-                pred: *parent,
-                root,
-                depth,
-            })?;
-
-            state.set_off_stack(current_node);
-
-            // We're going up one stack level, so the next current_node
-            // is the current parent.
-            current_node = *parent;
-            self.stack.pop();
-        }
-    }
-
-    fn visit_all_filtered<
-        E,
-        C: FnMut(EventPred) -> ControlFlow<E, ()>,
-        F: FnMut(FilterArgsPred) -> bool,
-        P: ProgressLog,
-    >(
-        &mut self,
-        mut callback: C,
-        mut filter: F,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
         Continue(())
@@ -407,101 +404,88 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
 
 impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G, (), false> {
     fn visit_filtered<
+        R: IntoIterator<Item = usize>,
         E,
         C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsNoPred) -> bool,
         P: ProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         mut callback: C,
         mut filter: F,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
-        if state.known(root)
-            || !filter(FilterArgsNoPred {
+        for root in roots {
+            if state.known(root)
+                || !filter(FilterArgsNoPred {
+                    node: root,
+                    root,
+                    depth: 0,
+                })
+            {
+                // We ignore the node: it might be visited later
+                return Continue(());
+            }
+
+            callback(EventNoPred::Init { root })?;
+
+            state.set_known(root);
+            pl.light_update();
+            callback(EventNoPred::Previsit {
                 node: root,
                 root,
                 depth: 0,
-            })
-        {
-            // We ignore the node: it might be visited later
-            return Continue(());
-        }
+            })?;
 
-        callback(EventNoPred::Init { root })?;
+            self.stack
+                .push((self.graph.successors(root).into_iter(), ()));
 
-        state.set_known(root);
-        pl.light_update();
-        callback(EventNoPred::Previsit {
-            node: root,
-            root,
-            depth: 0,
-        })?;
+            'recurse: loop {
+                let depth = self.stack.len();
+                let Some((iter, _)) = self.stack.last_mut() else {
+                    callback(EventNoPred::Done { root })?;
+                    return Continue(());
+                };
 
-        self.stack
-            .push((self.graph.successors(root).into_iter(), ()));
-
-        'recurse: loop {
-            let depth = self.stack.len();
-            let Some((iter, _)) = self.stack.last_mut() else {
-                callback(EventNoPred::Done { root })?;
-                return Continue(());
-            };
-
-            for succ in iter {
-                // Check if node should be visited
-                if state.known(succ) {
-                    // Node has already been discovered
-                    callback(EventNoPred::Revisit {
-                        node: succ,
-                        root,
-                        depth: depth + 1,
-                    })?;
-                } else {
-                    // First time seeing node
-                    if filter(FilterArgsNoPred {
-                        node: succ,
-                        root,
-                        depth: depth + 1,
-                    }) {
-                        state.set_known(succ);
-                        pl.light_update();
-                        callback(EventNoPred::Previsit {
+                for succ in iter {
+                    // Check if node should be visited
+                    if state.known(succ) {
+                        // Node has already been discovered
+                        callback(EventNoPred::Revisit {
                             node: succ,
                             root,
                             depth: depth + 1,
                         })?;
-                        // current_node is the parent of succ
-                        self.stack
-                            .push((self.graph.successors(succ).into_iter(), ()));
+                    } else {
+                        // First time seeing node
+                        if filter(FilterArgsNoPred {
+                            node: succ,
+                            root,
+                            depth: depth + 1,
+                        }) {
+                            state.set_known(succ);
+                            pl.light_update();
+                            callback(EventNoPred::Previsit {
+                                node: succ,
+                                root,
+                                depth: depth + 1,
+                            })?;
+                            // current_node is the parent of succ
+                            self.stack
+                                .push((self.graph.successors(succ).into_iter(), ()));
 
-                        continue 'recurse;
-                    } // Else we ignore the node: it might be visited later
+                            continue 'recurse;
+                        } // Else we ignore the node: it might be visited later
+                    }
                 }
+
+                // We're going up one stack level, so the next current_node
+                // is the current parent.
+                self.stack.pop();
             }
-
-            // We're going up one stack level, so the next current_node
-            // is the current parent.
-            self.stack.pop();
-        }
-    }
-
-    fn visit_all_filtered<
-        E,
-        C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
-        F: FnMut(FilterArgsNoPred) -> bool,
-        P: ProgressLog,
-    >(
-        &mut self,
-        mut callback: C,
-        mut filter: F,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &mut callback, &mut filter, pl)?;
         }
 
         Continue(())

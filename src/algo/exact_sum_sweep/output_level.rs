@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use super::{computer::DirExactSumSweepComputer, dir_outputs, undir_outputs};
 use dsi_progress_logger::ConcurrentProgressLog;
 use rayon::ThreadPool;

@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::{
     algo::visits::depth_first::*, algo::visits::Sequential, algo::visits::StoppedWhenDone,
 };
@@ -14,7 +21,8 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
 
     let mut visit = SeqPath::new(&graph);
 
-    let acyclic = visit.visit_all(
+    let acyclic = visit.visit(
+        0..num_nodes,
         |event| {
             // Stop the visit as soon as a back edge is found.
             match event {
@@ -34,15 +42,15 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
 ///
 /// # Examples
 /// ```
-/// use webgraph::{labels::Left, prelude::VecGraph};
+/// use webgraph::prelude::VecGraph;
 /// use webgraph_algo::traits::Acyclicity;
 ///
 /// // This is an acyclic graph
-/// let graph = Left(VecGraph::from_arc_list([(1, 2), (0, 1)]));
+/// let graph = VecGraph::from_arcs([(1, 2), (0, 1)]);
 /// assert!(graph.is_acyclic());
 ///
 /// // This graph contains a cycle
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0)]));
+/// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0)]);
 /// assert!(!graph.is_acyclic());
 /// ```
 pub trait Acyclicity {

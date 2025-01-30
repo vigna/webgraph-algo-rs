@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::utils::traits::CounterMut;
 use crate::{prelude::*, utils::*};
 use anyhow::{bail, ensure, Context, Result};
@@ -547,7 +554,7 @@ where
             self.iterate(thread_pool, pl)
                 .with_context(|| format!("Could not perform iteration {}", i + 1))?;
 
-            pl.update();
+            pl.update_and_display();
 
             if self
                 .iteration_context

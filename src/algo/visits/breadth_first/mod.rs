@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 //! Breadth-first visits.
 //!
 //! Implementations must accept a callback function with argument [`EventNoPred`], or
@@ -25,11 +32,7 @@ pub enum EventPred {
     ///
     /// Note that this event will not happen if the visit is empty, that
     /// is, if the root has been already visited.
-    Init {
-        /// The root of the current visit tree, that is, the first node that
-        /// will be visited.
-        root: usize,
-    },
+    Init {},
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all node fields are equal to the root.
     Unknown {
@@ -37,8 +40,6 @@ pub enum EventPred {
         node: usize,
         /// The predecessor of [curr](`EventPred::Unknown::node`).
         pred: usize,
-        /// The root of the current visit tree.
-        root: usize,
         /// The distance of the current node from the [root](`EventPred::Unknown::root`).
         distance: usize,
     },
@@ -53,18 +54,13 @@ pub enum EventPred {
         node: usize,
         /// The predecessor of [curr](`EventPred::Known::node`).
         pred: usize,
-        /// The root of the current visit tree.
-        root: usize,
     },
     /// The visit has been completed.
     ///
     /// Note that this event will not happen if the visit is empty (that is, if
     /// the root has already been visited) or if the visit is stopped by a
     /// callback returning an error.
-    Done {
-        /// The root of the current visit tree.
-        root: usize,
-    },
+    Done {},
 }
 
 /// Filter arguments for visits that keep track of predecessors.
@@ -74,8 +70,6 @@ pub struct FilterArgsPred {
     pub node: usize,
     /// The predecessor of [curr](`Self::node`).
     pub pred: usize,
-    /// The root of the current visit tree.
-    pub root: usize,
     /// The distance of the current node from the [root](`Self::root`).
     pub distance: usize,
 }
@@ -92,18 +86,12 @@ pub enum EventNoPred {
     ///
     /// Note that this event will not happen if the visit is empty, that
     /// is, if the root has been already visited.
-    Init {
-        /// The root of the current visit tree, that is, the first node that
-        /// will be visited.
-        root: usize,
-    },
+    Init {},
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
         node: usize,
-        /// The root of the current visit tree.
-        root: usize,
         /// The distance of the current node from the
         /// [root](`EventNoPred::Unknown::root`).
         distance: usize,
@@ -117,18 +105,13 @@ pub enum EventNoPred {
     Known {
         /// The current node.
         node: usize,
-        /// The root of the current visit tree.
-        root: usize,
     },
     /// The visit has been completed.
     ///
     /// Note that this event will not happen if the visit is empty (that is, if
     /// the root has already been visited) or if the visit is stopped by a
     /// callback returning an error.
-    Done {
-        /// The root of the current visit tree.
-        root: usize,
-    },
+    Done {},
 }
 
 /// Filter arguments for visits that do not keep track of predecessors.
@@ -136,8 +119,6 @@ pub enum EventNoPred {
 pub struct FilterArgsNoPred {
     /// The current node.
     pub node: usize,
-    /// The root of the current visit tree.
-    pub root: usize,
     /// The distance of the current node from the [root](`Self::root`).
     pub distance: usize,
 }

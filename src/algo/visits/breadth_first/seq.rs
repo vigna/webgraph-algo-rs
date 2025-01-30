@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::algo::visits::{
     breadth_first::{EventPred, FilterArgsPred},
     Sequential,
@@ -33,16 +40,16 @@ use webgraph::traits::RandomAccessGraph;
 /// use std::ops::ControlFlow::Continue;
 /// use no_break::NoBreak;
 ///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 0), (1, 3)]));
+/// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0), (1, 3)]);
 /// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut d = [0; 4];
 /// visit.visit(
-///     0,
+///     [0],
 ///     |event|
 ///         {
 ///             // Set distance from 0
-///             if let breadth_first::EventPred::Unknown {curr, distance, ..} = event {
-///                 d[curr] = distance;
+///             if let breadth_first::EventPred::Unknown { node, distance, .. } = event {
+///                 d[node] = distance;
 ///             }
 ///             Continue(())
 ///         },
@@ -67,13 +74,13 @@ use webgraph::traits::RandomAccessGraph;
 /// use std::ops::ControlFlow::Continue;
 /// use no_break::NoBreak;
 ///
-/// let graph = Left(VecGraph::from_arc_list([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]));
+/// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 3), (3, 0), (2, 4)]);
 /// let mut visit = breadth_first::Seq::new(&graph);
 /// let mut count = 0;
 /// visit.visit_filtered(
-///     0,
+///     [0],
 ///     |event| { Continue(()) },
-///     |breadth_first::FilterArgsPred { curr, distance, .. }|
+///     |breadth_first::FilterArgsPred { distance, .. }|
 ///         {
 ///             if distance > 2 {
 ///                 false
@@ -112,105 +119,87 @@ impl<G: RandomAccessGraph> Seq<G> {
 
 impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
     fn visit_filtered<
+        R: IntoIterator<Item = usize>,
         E,
         C: FnMut(EventPred) -> ControlFlow<E, ()>,
         F: FnMut(FilterArgsPred) -> bool,
         P: ProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         mut callback: C,
         mut filter: F,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
-        if self.visited[root]
-            || !filter(FilterArgsPred {
+        for root in roots {
+            if self.visited[root]
+                || !filter(FilterArgsPred {
+                    node: root,
+                    pred: root,
+                    distance: 0,
+                })
+            {
+                return Continue(());
+            }
+
+            self.visited.set(root, true);
+            pl.light_update();
+            callback(EventPred::Unknown {
                 node: root,
                 pred: root,
-                root,
                 distance: 0,
-            })
-        {
-            return Continue(());
-        }
+            })?;
 
-        self.visited.set(root, true);
-        pl.light_update();
-        callback(EventPred::Unknown {
-            node: root,
-            pred: root,
-            root,
-            distance: 0,
-        })?;
+            self.queue.push_back(Some(
+                NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
+            ));
+            self.queue.push_back(None);
 
-        self.queue.push_back(Some(
-            NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
-        ));
-        self.queue.push_back(None);
+            let mut distance = 1;
 
-        let mut distance = 1;
-
-        while let Some(current_node) = self.queue.pop_front() {
-            match current_node {
-                Some(node) => {
-                    let node = node.into();
-                    for succ in self.graph.successors(node) {
-                        let (node, pred) = (succ, node);
-                        if !self.visited[succ] {
-                            if filter(FilterArgsPred {
-                                node,
-                                pred,
-                                root,
-                                distance,
-                            }) {
-                                self.visited.set(succ, true);
-                                pl.light_update();
-                                callback(EventPred::Unknown {
+            while let Some(current_node) = self.queue.pop_front() {
+                match current_node {
+                    Some(node) => {
+                        let node = node.into();
+                        for succ in self.graph.successors(node) {
+                            let (node, pred) = (succ, node);
+                            if !self.visited[succ] {
+                                if filter(FilterArgsPred {
                                     node,
                                     pred,
-                                    root,
+
                                     distance,
-                                })?;
-                                self.queue.push_back(Some(
-                                    NonMaxUsize::new(succ)
-                                        .expect("node index should never be usize::MAX"),
-                                ))
+                                }) {
+                                    self.visited.set(succ, true);
+                                    pl.light_update();
+                                    callback(EventPred::Unknown {
+                                        node,
+                                        pred,
+
+                                        distance,
+                                    })?;
+                                    self.queue.push_back(Some(
+                                        NonMaxUsize::new(succ)
+                                            .expect("node index should never be usize::MAX"),
+                                    ))
+                                }
+                            } else {
+                                callback(EventPred::Known { node, pred })?;
                             }
-                        } else {
-                            callback(EventPred::Known { node, pred, root })?;
                         }
                     }
-                }
-                None => {
-                    // We are at the end of the current level, so
-                    // we increment the distance and add a separator.
-                    if !self.queue.is_empty() {
-                        distance += 1;
-                        self.queue.push_back(None);
+                    None => {
+                        // We are at the end of the current level, so
+                        // we increment the distance and add a separator.
+                        if !self.queue.is_empty() {
+                            distance += 1;
+                            self.queue.push_back(None);
+                        }
                     }
                 }
             }
         }
-
-        callback(EventPred::Done { root })?;
-
-        Continue(())
-    }
-
-    fn visit_all_filtered<
-        E,
-        C: FnMut(EventPred) -> ControlFlow<E, ()>,
-        F: FnMut(FilterArgsPred) -> bool,
-        P: ProgressLog,
-    >(
-        &mut self,
-        mut callback: C,
-        mut filter: F,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        for node in 0..self.graph.num_nodes() {
-            self.visit_filtered(node, &mut callback, &mut filter, pl)?;
-        }
+        callback(EventPred::Done {})?;
 
         Continue(())
     }

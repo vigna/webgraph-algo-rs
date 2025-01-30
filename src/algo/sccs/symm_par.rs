@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use crate::{
     prelude::{
         breadth_first::{EventNoPred, ParFairNoPred},
@@ -37,29 +44,32 @@ pub fn symm_par(
     let number_of_components = AtomicUsize::new(0);
     let slice = component.as_sync_slice();
 
-    visit
-        .par_visit_all(
-            |event| {
-                match event {
-                    EventNoPred::Init { .. } => {}
-                    EventNoPred::Unknown { node, .. } => {
-                        unsafe {
-                            slice[node].set(MaybeUninit::new(
-                                number_of_components.load(Ordering::Relaxed),
-                            ))
-                        };
+    for node in 0..num_nodes {
+        visit
+            .par_visit(
+                [node],
+                |event| {
+                    match event {
+                        EventNoPred::Init { .. } => {}
+                        EventNoPred::Unknown { node, .. } => {
+                            unsafe {
+                                slice[node].set(MaybeUninit::new(
+                                    number_of_components.load(Ordering::Relaxed),
+                                ))
+                            };
+                        }
+                        EventNoPred::Done { .. } => {
+                            number_of_components.fetch_add(1, Ordering::Relaxed);
+                        }
+                        _ => (),
                     }
-                    EventNoPred::Done { .. } => {
-                        number_of_components.fetch_add(1, Ordering::Relaxed);
-                    }
-                    _ => (),
-                }
-                Continue(())
-            },
-            thread_pool,
-            pl,
-        )
-        .continue_value_no_break();
+                    Continue(())
+                },
+                thread_pool,
+                pl,
+            )
+            .continue_value_no_break();
+    }
 
     let component = unsafe { component.assume_init() };
 

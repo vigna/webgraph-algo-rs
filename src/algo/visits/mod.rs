@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 //! Visits on graphs.
 //!
 //! Implementation of [sequential](Sequential) and [parallel][Parallel] visits
@@ -106,13 +113,14 @@ pub trait Sequential<A: Event> {
     /// * `filter`: The filter function.
     /// * `pl`: A progress logger.
     fn visit_filtered<
+        R: IntoIterator<Item = usize>,
         E,
         C: FnMut(A) -> ControlFlow<E, ()>,
         F: FnMut(A::FilterArgs) -> bool,
         P: ProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         callback: C,
         filter: F,
         pl: &mut P,
@@ -124,42 +132,18 @@ pub trait Sequential<A: Event> {
     /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
     /// returns true.
     #[inline(always)]
-    fn visit<E, C: FnMut(A) -> ControlFlow<E, ()>, P: ProgressLog>(
+    fn visit<
+        R: IntoIterator<Item = usize>,
+        E,
+        C: FnMut(A) -> ControlFlow<E, ()>,
+        P: ProgressLog,
+    >(
         &mut self,
-        root: usize,
+        root: R,
         callback: C,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
         self.visit_filtered(root, callback, |_| true, pl)
-    }
-
-    /// Visits the whole graph.
-    ///
-    /// See [`visit_filtered`](Sequential::visit) for more details.
-    fn visit_all_filtered<
-        E,
-        C: FnMut(A) -> ControlFlow<E, ()>,
-        F: FnMut(A::FilterArgs) -> bool,
-        P: ProgressLog,
-    >(
-        &mut self,
-        callback: C,
-        filter: F,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()>;
-
-    /// Visits the whole graph without a filter.
-    ///
-    /// The default implementation calls
-    /// [`visit_all_filtered`](Sequential::visit_all_filtered) with a filter that
-    /// always returns true.
-    #[inline(always)]
-    fn visit_all<E, C: FnMut(A) -> ControlFlow<E, ()>, P: ProgressLog>(
-        &mut self,
-        callback: C,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        self.visit_all_filtered(callback, |_| true, pl)
     }
 
     /// Resets the visit status, making it possible to reuse it.
@@ -184,13 +168,14 @@ pub trait Parallel<A: Event> {
     /// * `thread_pool`: The thread pool to use for parallel computation.
     /// * `pl`: A progress logger.
     fn par_visit_filtered<
+        R: IntoIterator<Item = usize>,
         E: Send,
         C: Fn(A) -> ControlFlow<E, ()> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
         P: ConcurrentProgressLog,
     >(
         &mut self,
-        root: usize,
+        roots: R,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
@@ -203,84 +188,21 @@ pub trait Parallel<A: Event> {
     /// [`visit_filtered`](Parallel::par_visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
-    fn par_visit<E: Send, C: Fn(A) -> ControlFlow<E, ()> + Sync, P: ConcurrentProgressLog>(
-        &mut self,
-        root: usize,
-        callback: C,
-        thread_pool: &ThreadPool,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        self.par_visit_filtered(root, callback, |_| true, thread_pool, pl)
-    }
-
-    /// Visits the whole graph.
-    ///
-    /// See [`visit`](Parallel::par_visit_filtered) for more details.
-    fn par_visit_all_filtered<
+    fn par_visit<
+        R: IntoIterator<Item = usize>,
         E: Send,
         C: Fn(A) -> ControlFlow<E, ()> + Sync,
-        F: Fn(A::FilterArgs) -> bool + Sync,
         P: ConcurrentProgressLog,
     >(
         &mut self,
-        callback: C,
-        filter: F,
-        thread_pool: &ThreadPool,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()>;
-
-    /// Visits the whole graph without a filter.
-    ///
-    /// The default implementation calls
-    /// [`visit_all_filtered`](Parallel::par_visit_all_filtered) with a filter that
-    /// always returns true.
-    #[inline(always)]
-    fn par_visit_all<E: Send, C: Fn(A) -> ControlFlow<E, ()> + Sync, P: ConcurrentProgressLog>(
-        &mut self,
+        roots: R,
         callback: C,
         thread_pool: &ThreadPool,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
-        self.par_visit_all_filtered(callback, |_| true, thread_pool, pl)
+        self.par_visit_filtered(roots, callback, |_| true, thread_pool, pl)
     }
 
     /// Resets the visit status, making it possible to reuse it.
     fn reset(&mut self);
-}
-
-impl<A: Event, S: Sequential<A>> Parallel<A> for S {
-    fn par_visit_filtered<
-        E: Send,
-        C: Fn(A) -> ControlFlow<E, ()> + Sync,
-        F: Fn(A::FilterArgs) -> bool + Sync,
-        P: ConcurrentProgressLog,
-    >(
-        &mut self,
-        root: usize,
-        callback: C,
-        filter: F,
-        _thread_pool: &ThreadPool,
-        mut pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        self.visit_filtered(root, callback, filter, &mut pl)
-    }
-
-    fn par_visit_all_filtered<
-        E: Send,
-        C: Fn(A) -> ControlFlow<E, ()> + Sync,
-        F: Fn(A::FilterArgs) -> bool + Sync,
-        P: ConcurrentProgressLog,
-    >(
-        &mut self,
-        callback: C,
-        filter: F,
-        _thread_pool: &ThreadPool,
-        mut pl: &mut P,
-    ) -> ControlFlow<E, ()> {
-        self.visit_all_filtered(callback, filter, &mut pl)
-    }
-
-    fn reset(&mut self) {
-        self.reset()
-    }
 }

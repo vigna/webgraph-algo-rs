@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 /// The results produced by calling [`compute_undirected`](super::OutputLevel::compute_undirected)
 /// on [`All`](super::All) or [`AllForward`](super::AllForward).
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]

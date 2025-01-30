@@ -1,10 +1,16 @@
+/*
+ * SPDX-FileCopyrightText: 2024 Matteo Dell'Acqua
+ * SPDX-FileCopyrightText: 2025 Sebastiano Vigna
+ *
+ * SPDX-License-Identifier: Apache-2.0 OR LGPL-2.1-or-later
+ */
+
 use anyhow::Result;
 use dsi_progress_logger::prelude::*;
 use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use webgraph::{
-    labels::Left,
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
 };
@@ -79,37 +85,26 @@ macro_rules! test_bfv_algo_seq {
                     (6, 7),
                     (8, 7),
                 ];
-                let mut g = VecGraph::new();
-                for i in 0..9 {
-                    g.add_node(i);
-                }
-                for arc in arcs {
-                    g.add_arc(arc.0, arc.1);
-                }
-                let graph = Left(g);
+                let graph = VecGraph::from_arcs(arcs);
                 let mut visit = $bfv(&graph);
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
                     .collect();
                 let expected_dists = correct_dists(&graph, 0);
 
-                for node in 0..graph.num_nodes() {
-                    visit
-                        .visit(
-                            node,
-                            |event| {
-                                if let breadth_first::EventPred::Unknown {
-                                    curr, distance, ..
-                                } = event
-                                {
-                                    dists[curr].store(distance, Ordering::Relaxed);
-                                }
-                                Continue(())
-                            },
-                            no_logging![],
-                        )
-                        .continue_value_no_break();
-                }
+                visit
+                    .visit(
+                        0..graph.num_nodes(),
+                        |event| {
+                            if let breadth_first::EventPred::Unknown { node, distance, .. } = event
+                            {
+                                dists[node].store(distance, Ordering::Relaxed);
+                            }
+                            Continue(())
+                        },
+                        no_logging![],
+                    )
+                    .continue_value_no_break();
 
                 let actual_dists = into_non_atomic(dists);
 
@@ -128,16 +123,16 @@ macro_rules! test_bfv_algo_seq {
                 let expected_dists = correct_dists(&graph, 10000);
 
                 for i in 0..graph.num_nodes() {
-                    let node = (i + 10000) % graph.num_nodes();
+                    let root = (i + 10000) % graph.num_nodes();
                     visit
                         .visit(
-                            node,
+                            [root],
                             |event| {
                                 if let breadth_first::EventPred::Unknown {
-                                    curr, distance, ..
+                                    node, distance, ..
                                 } = event
                                 {
-                                    dists[curr].store(distance, Ordering::Relaxed);
+                                    dists[node].store(distance, Ordering::Relaxed);
                                 }
                                 Continue(())
                             },
@@ -180,14 +175,7 @@ macro_rules! test_bfv_algo_par {
                     (6, 7),
                     (8, 7),
                 ];
-                let mut g = VecGraph::new();
-                for i in 0..9 {
-                    g.add_node(i);
-                }
-                for arc in arcs {
-                    g.add_arc(arc.0, arc.1);
-                }
-                let graph = Left(g);
+                let graph = VecGraph::from_arcs(arcs);
                 let mut visit = $bfv(&graph);
                 let dists: Vec<AtomicUsize> = (0..graph.num_nodes())
                     .map(|_| AtomicUsize::new(0))
@@ -196,24 +184,20 @@ macro_rules! test_bfv_algo_par {
 
                 let t = threads![];
 
-                for node in 0..graph.num_nodes() {
-                    visit
-                        .par_visit(
-                            node,
-                            |event| {
-                                if let breadth_first::EventPred::Unknown {
-                                    curr, distance, ..
-                                } = event
-                                {
-                                    dists[curr].store(distance, Ordering::Relaxed);
-                                }
-                                Continue(())
-                            },
-                            &t,
-                            no_logging![],
-                        )
-                        .continue_value_no_break();
-                }
+                visit
+                    .par_visit(
+                        0..graph.num_nodes(),
+                        |event| {
+                            if let breadth_first::EventPred::Unknown { node, distance, .. } = event
+                            {
+                                dists[node].store(distance, Ordering::Relaxed);
+                            }
+                            Continue(())
+                        },
+                        &t,
+                        no_logging![],
+                    )
+                    .continue_value_no_break();
 
                 let actual_dists = into_non_atomic(dists);
 
@@ -233,16 +217,16 @@ macro_rules! test_bfv_algo_par {
                 let t = threads![];
 
                 for i in 0..graph.num_nodes() {
-                    let node = (i + 10000) % graph.num_nodes();
+                    let root = (i + 10000) % graph.num_nodes();
                     visit
                         .par_visit(
-                            node,
+                            [root],
                             |event| {
                                 if let breadth_first::EventPred::Unknown {
-                                    curr, distance, ..
+                                    node, distance, ..
                                 } = event
                                 {
-                                    dists[curr].store(distance, Ordering::Relaxed);
+                                    dists[node].store(distance, Ordering::Relaxed);
                                 }
                                 Continue(())
                             },
