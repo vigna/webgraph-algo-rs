@@ -131,6 +131,8 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
         mut filter: F,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
+        self.queue.clear();
+
         for root in roots {
             if self.visited[root]
                 || !filter(FilterArgsPred {
@@ -139,66 +141,76 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                     distance: 0,
                 })
             {
-                return Continue(());
+                continue;
+            }
+
+            // We call the init event only if there are some non-filtered roots
+            if self.queue.is_empty() {
+                callback(EventPred::Init {})?;
             }
 
             self.visited.set(root, true);
+            self.queue.push_back(Some(
+                NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
+            ));
+
             pl.light_update();
             callback(EventPred::Unknown {
                 node: root,
                 pred: root,
                 distance: 0,
             })?;
+        }
 
-            self.queue.push_back(Some(
-                NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
-            ));
-            self.queue.push_back(None);
+        if self.queue.is_empty() {
+            return Continue(());
+        }
 
-            let mut distance = 1;
+        self.queue.push_back(None);
+        let mut distance = 1;
 
-            while let Some(current_node) = self.queue.pop_front() {
-                match current_node {
-                    Some(node) => {
-                        let node = node.into();
-                        for succ in self.graph.successors(node) {
-                            let (node, pred) = (succ, node);
-                            if !self.visited[succ] {
-                                if filter(FilterArgsPred {
+        while let Some(current_node) = self.queue.pop_front() {
+            match current_node {
+                Some(node) => {
+                    let node = node.into();
+                    for succ in self.graph.successors(node) {
+                        let (node, pred) = (succ, node);
+                        if !self.visited[succ] {
+                            if filter(FilterArgsPred {
+                                node,
+                                pred,
+
+                                distance,
+                            }) {
+                                self.visited.set(succ, true);
+                                pl.light_update();
+                                callback(EventPred::Unknown {
                                     node,
                                     pred,
 
                                     distance,
-                                }) {
-                                    self.visited.set(succ, true);
-                                    pl.light_update();
-                                    callback(EventPred::Unknown {
-                                        node,
-                                        pred,
-
-                                        distance,
-                                    })?;
-                                    self.queue.push_back(Some(
-                                        NonMaxUsize::new(succ)
-                                            .expect("node index should never be usize::MAX"),
-                                    ))
-                                }
-                            } else {
-                                callback(EventPred::Known { node, pred })?;
+                                })?;
+                                self.queue.push_back(Some(
+                                    NonMaxUsize::new(succ)
+                                        .expect("node index should never be usize::MAX"),
+                                ))
                             }
+                        } else {
+                            callback(EventPred::Known { node, pred })?;
                         }
                     }
-                    None => {
-                        // We are at the end of the current level, so
-                        // we increment the distance and add a separator.
-                        if !self.queue.is_empty() {
-                            distance += 1;
-                            self.queue.push_back(None);
-                        }
+                }
+                None => {
+                    // We are at the end of the current level, so
+                    // we increment the distance and add a separator.
+                    if !self.queue.is_empty() {
+                        distance += 1;
+                        self.queue.push_back(None);
                     }
                 }
             }
         }
+
         callback(EventPred::Done {})?;
 
         Continue(())

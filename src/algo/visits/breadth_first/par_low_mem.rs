@@ -111,6 +111,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
         thread_pool: &ThreadPool,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
+        let mut filtered_roots = vec![];
         for root in roots {
             if self.visited.get(root, Ordering::Relaxed)
                 || !filter(FilterArgsPred {
@@ -119,71 +120,81 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                     distance: 0,
                 })
             {
-                return Continue(());
+                continue;
             }
 
-            // We do not provide a capacity in the hope of allocating dyinamically
-            // space as the frontiers grow.
-            let mut curr_frontier = Frontier::with_threads(thread_pool, None);
-            let mut next_frontier = Frontier::with_threads(thread_pool, None);
+            // We call the init event only if there are some non-filtered roots
+            if filtered_roots.is_empty() {
+                callback(EventPred::Init {})?;
+            }
 
-            thread_pool.install(|| curr_frontier.push(root));
-
+            filtered_roots.push(root);
             self.visited.set(root, true, Ordering::Relaxed);
+
             pl.light_update();
             callback(EventPred::Unknown {
                 node: root,
                 pred: root,
                 distance: 0,
             })?;
-
-            let mut distance = 1;
-
-            // Visit the connected component
-            while !curr_frontier.is_empty() {
-                thread_pool.install(|| {
-                    curr_frontier
-                        .par_iter()
-                        .chunks(self.granularity)
-                        .try_for_each_with(pl.clone(), |pl, chunk| {
-                            chunk.into_iter().try_for_each(|&node| {
-                                self.graph
-                                    .successors(node)
-                                    .into_iter()
-                                    .try_for_each(|succ| {
-                                        let (node, pred) = (succ, node);
-                                        if filter(FilterArgsPred {
-                                            node,
-                                            pred,
-                                            distance,
-                                        }) {
-                                            if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                                pl.light_update();
-                                                callback(EventPred::Unknown {
-                                                    node,
-                                                    pred,
-                                                    distance,
-                                                })?;
-                                                next_frontier.push(succ);
-                                            } else {
-                                                callback(EventPred::Known { node, pred })?;
-                                            }
-                                        }
-
-                                        Continue(())
-                                    })
-                            })
-                        })
-                })?;
-                distance += 1;
-                // Swap the frontiers
-                std::mem::swap(&mut curr_frontier, &mut next_frontier);
-                // Clear the frontier we will fill in the next iteration
-                next_frontier.clear();
-            }
-
-            callback(EventPred::Done {})?;
         }
+
+        if filtered_roots.is_empty() {
+            return Continue(());
+        }
+
+        // We do not provide a capacity in the hope of allocating dyinamically
+        // space as the frontiers grow.
+        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
+        // Inject the filterd roots in the frontier.
+        curr_frontier.as_mut()[0] = filtered_roots;
+        let mut next_frontier = Frontier::with_threads(thread_pool, None);
+        let mut distance = 1;
+
+        // Visit the connected component
+        while !curr_frontier.is_empty() {
+            thread_pool.install(|| {
+                curr_frontier
+                    .par_iter()
+                    .chunks(self.granularity)
+                    .try_for_each_with(pl.clone(), |pl, chunk| {
+                        chunk.into_iter().try_for_each(|&node| {
+                            self.graph
+                                .successors(node)
+                                .into_iter()
+                                .try_for_each(|succ| {
+                                    let (node, pred) = (succ, node);
+                                    if filter(FilterArgsPred {
+                                        node,
+                                        pred,
+                                        distance,
+                                    }) {
+                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                            pl.light_update();
+                                            callback(EventPred::Unknown {
+                                                node,
+                                                pred,
+                                                distance,
+                                            })?;
+                                            next_frontier.push(succ);
+                                        } else {
+                                            callback(EventPred::Known { node, pred })?;
+                                        }
+                                    }
+
+                                    Continue(())
+                                })
+                        })
+                    })
+            })?;
+            distance += 1;
+            // Swap the frontiers
+            std::mem::swap(&mut curr_frontier, &mut next_frontier);
+            // Clear the frontier we will fill in the next iteration
+            next_frontier.clear();
+        }
+
+        callback(EventPred::Done {})?;
 
         Continue(())
     }

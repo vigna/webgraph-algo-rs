@@ -10,6 +10,7 @@ use dsi_progress_logger::prelude::*;
 use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use sync_cell_slice::SyncSlice;
 use webgraph::{
     prelude::{BvGraph, VecGraph},
     traits::{RandomAccessGraph, SequentialLabeling},
@@ -92,13 +93,44 @@ macro_rules! test_bfv_algo_seq {
                     .collect();
                 let expected_dists = correct_dists(&graph, 0);
 
+                for root in 0..graph.num_nodes() {
+                    visit
+                        .visit(
+                            [root],
+                            |event| {
+                                if let breadth_first::EventPred::Unknown {
+                                    node, distance, ..
+                                } = event
+                                {
+                                    dists[node].store(distance, Ordering::Relaxed);
+                                }
+                                Continue(())
+                            },
+                            no_logging![],
+                        )
+                        .continue_value_no_break();
+                }
+                let actual_dists = into_non_atomic(dists);
+
+                assert_eq!(actual_dists, expected_dists);
+
+                Ok(())
+            }
+
+            #[test]
+            fn test_nontrivial_seed() -> Result<()> {
+                let arcs = vec![(0, 1), (1, 2), (3, 2)];
+                let graph = VecGraph::from_arcs(arcs);
+                let mut visit = $bfv(&graph);
+                let mut dists = vec![0; graph.num_nodes()];
+
                 visit
                     .visit(
-                        0..graph.num_nodes(),
+                        [0, 3],
                         |event| {
                             if let breadth_first::EventPred::Unknown { node, distance, .. } = event
                             {
-                                dists[node].store(distance, Ordering::Relaxed);
+                                dists[node] = distance;
                             }
                             Continue(())
                         },
@@ -106,9 +138,7 @@ macro_rules! test_bfv_algo_seq {
                     )
                     .continue_value_no_break();
 
-                let actual_dists = into_non_atomic(dists);
-
-                assert_eq!(actual_dists, expected_dists);
+                assert_eq!(dists, [0, 1, 1, 0]);
 
                 Ok(())
             }
@@ -184,24 +214,55 @@ macro_rules! test_bfv_algo_par {
 
                 let t = threads![];
 
+                for root in 0..graph.num_nodes() {
+                    visit
+                        .par_visit(
+                            [root],
+                            |event| {
+                                if let breadth_first::EventPred::Unknown {
+                                    node, distance, ..
+                                } = event
+                                {
+                                    dists[node].store(distance, Ordering::Relaxed);
+                                }
+                                Continue(())
+                            },
+                            &t,
+                            no_logging![],
+                        )
+                        .continue_value_no_break();
+                }
+                let actual_dists = into_non_atomic(dists);
+
+                assert_eq!(actual_dists, expected_dists);
+
+                Ok(())
+            }
+
+            #[test]
+            fn test_nontrivial_seed() -> Result<()> {
+                let arcs = vec![(0, 1), (1, 2), (3, 2)];
+                let graph = VecGraph::from_arcs(arcs);
+                let mut visit = $bfv(&graph);
+                let mut dists = vec![0; graph.num_nodes()];
+                let sync_dists = dists.as_sync_slice();
+
                 visit
                     .par_visit(
-                        0..graph.num_nodes(),
+                        [0, 3],
                         |event| {
                             if let breadth_first::EventPred::Unknown { node, distance, .. } = event
                             {
-                                dists[node].store(distance, Ordering::Relaxed);
+                                unsafe { sync_dists[node].set(distance) };
                             }
                             Continue(())
                         },
-                        &t,
+                        &threads![],
                         no_logging![],
                     )
                     .continue_value_no_break();
 
-                let actual_dists = into_non_atomic(dists);
-
-                assert_eq!(actual_dists, expected_dists);
+                assert_eq!(dists, [0, 1, 1, 0]);
 
                 Ok(())
             }

@@ -333,7 +333,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                 let depth = self.stack.len();
                 let Some((iter, parent)) = self.stack.last_mut() else {
                     callback(EventPred::Done { root })?;
-                    return Continue(());
+                    break;
                 };
 
                 for succ in iter {
@@ -447,7 +447,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                 let depth = self.stack.len();
                 let Some((iter, _)) = self.stack.last_mut() else {
                     callback(EventNoPred::Done { root })?;
-                    return Continue(());
+                    break;
                 };
 
                 for succ in iter {

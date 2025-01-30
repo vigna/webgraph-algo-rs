@@ -226,6 +226,8 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
         thread_pool: &ThreadPool,
         pl: &mut P,
     ) -> ControlFlow<E, ()> {
+        let mut filtered_roots = vec![];
+
         for root in roots {
             if self.visited.get(root, Ordering::Relaxed)
                 || !filter(FilterArgsPred {
@@ -237,66 +239,69 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
                 return Continue(());
             }
 
-            // We do not provide a capacity in the hope of allocating dynamically
-            // space as the frontiers grow.
-            let mut curr_frontier = Frontier::with_threads(thread_pool, None);
-            let mut next_frontier = Frontier::with_threads(thread_pool, None);
-
-            thread_pool.install(|| {
-                curr_frontier.push((root, root));
-            });
-
-            callback(EventPred::Init {})?;
+            filtered_roots.push((root, root));
             self.visited.set(root, true, Ordering::Relaxed);
-            let mut distance = 0;
-
-            while !curr_frontier.is_empty() {
-                let distance_plus_one = distance + 1;
-                thread_pool.install(|| {
-                    curr_frontier
-                        .par_iter()
-                        .chunks(self.granularity)
-                        .try_for_each_with(pl.clone(), |pl, chunk| {
-                            chunk.into_iter().try_for_each(|&(node, pred)| {
-                                pl.light_update();
-                                callback(EventPred::Unknown {
-                                    node,
-                                    pred,
-                                    distance,
-                                })?;
-                                self.graph
-                                    .successors(node)
-                                    .into_iter()
-                                    .try_for_each(|succ| {
-                                        let (node, pred) = (succ, node);
-                                        if filter(FilterArgsPred {
-                                            node,
-                                            pred,
-                                            distance: distance_plus_one,
-                                        }) {
-                                            if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                                next_frontier.push((node, pred));
-                                            } else {
-                                                callback(EventPred::Known { node, pred })?;
-                                            }
-                                        }
-
-                                        Continue(())
-                                    })?;
-
-                                Continue(())
-                            })
-                        })
-                })?;
-                distance += 1;
-                // Swap the frontiers
-                std::mem::swap(&mut curr_frontier, &mut next_frontier);
-                // Clear the frontier we will fill in the next iteration
-                next_frontier.clear();
-            }
-
-            callback(EventPred::Done {})?;
         }
+
+        if filtered_roots.is_empty() {
+            return Continue(());
+        }
+
+        callback(EventPred::Init {})?;
+        // We do not provide a capacity in the hope of allocating dynamically
+        // space as the frontiers grow.
+        let mut curr_frontier = Frontier::with_threads(thread_pool, None);
+        // Inject the filterd roots in the frontier.
+        curr_frontier.as_mut()[0] = filtered_roots;
+        let mut next_frontier = Frontier::with_threads(thread_pool, None);
+        let mut distance = 0;
+
+        while !curr_frontier.is_empty() {
+            let distance_plus_one = distance + 1;
+            thread_pool.install(|| {
+                curr_frontier
+                    .par_iter()
+                    .chunks(self.granularity)
+                    .try_for_each_with(pl.clone(), |pl, chunk| {
+                        chunk.into_iter().try_for_each(|&(node, pred)| {
+                            pl.light_update();
+                            callback(EventPred::Unknown {
+                                node,
+                                pred,
+                                distance,
+                            })?;
+                            self.graph
+                                .successors(node)
+                                .into_iter()
+                                .try_for_each(|succ| {
+                                    let (node, pred) = (succ, node);
+                                    if filter(FilterArgsPred {
+                                        node,
+                                        pred,
+                                        distance: distance_plus_one,
+                                    }) {
+                                        if !self.visited.swap(succ, true, Ordering::Relaxed) {
+                                            next_frontier.push((node, pred));
+                                        } else {
+                                            callback(EventPred::Known { node, pred })?;
+                                        }
+                                    }
+
+                                    Continue(())
+                                })?;
+
+                            Continue(())
+                        })
+                    })
+            })?;
+            distance += 1;
+            // Swap the frontiers
+            std::mem::swap(&mut curr_frontier, &mut next_frontier);
+            // Clear the frontier we will fill in the next iteration
+            next_frontier.clear();
+        }
+
+        callback(EventPred::Done {})?;
 
         Continue(())
     }
