@@ -344,7 +344,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                                 node: succ,
                                 pred: curr,
                                 root,
-                                depth: depth + 1,
+                                depth,
                                 on_stack: state.on_stack(succ),
                             },
                         )?;
@@ -356,7 +356,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                                 node: succ,
                                 pred: curr,
                                 root,
-                                depth: depth + 1,
+                                depth,
                             },
                         ) {
                             state.set_known(succ);
@@ -366,7 +366,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                                     node: succ,
                                     pred: curr,
                                     root,
-                                    depth: depth + 1,
+                                    depth,
                                 },
                             )?;
                             // current_node is the parent of succ
@@ -389,7 +389,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                         node: curr,
                         pred: *parent,
                         root,
-                        depth,
+                        depth: depth - 1,
                     },
                 )?;
 
@@ -474,7 +474,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                             EventNoPred::Revisit {
                                 node: succ,
                                 root,
-                                depth: depth + 1,
+                                depth,
                             },
                         )?;
                     } else {
@@ -484,7 +484,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                             FilterArgsNoPred {
                                 node: succ,
                                 root,
-                                depth: depth + 1,
+                                depth,
                             },
                         ) {
                             state.set_known(succ);
@@ -493,7 +493,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                                 EventNoPred::Previsit {
                                     node: succ,
                                     root,
-                                    depth: depth + 1,
+                                    depth,
                                 },
                             )?;
                             // current_node is the parent of succ
