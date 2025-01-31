@@ -170,9 +170,9 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each_with(init.clone(), |mut init, chunk| {
+                    .try_for_each_with(init.clone(), |init, chunk| {
                         chunk.into_iter().try_for_each(|&node| {
-                            callback(&mut init, EventNoPred::Unknown { node, distance })?;
+                            callback(init, EventNoPred::Unknown { node, distance })?;
                             self.graph
                                 .successors(node)
                                 .into_iter()
@@ -180,7 +180,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
                                     // TODO: confusing
                                     let node = succ;
                                     if filter(
-                                        &mut init,
+                                        init,
                                         FilterArgsNoPred {
                                             node,
                                             distance: distance_plus_one,
@@ -189,7 +189,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(&mut init, EventNoPred::Known { node })?;
+                                            callback(init, EventNoPred::Known { node })?;
                                         }
                                     }
 
@@ -272,10 +272,10 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each_with(init.clone(), |mut init, chunk| {
+                    .try_for_each_with(init.clone(), |init, chunk| {
                         chunk.into_iter().try_for_each(|&(node, pred)| {
                             callback(
-                                &mut init,
+                                init,
                                 EventPred::Unknown {
                                     node,
                                     pred,
@@ -288,7 +288,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
                                 .try_for_each(|succ| {
                                     let (node, pred) = (succ, node);
                                     if filter(
-                                        &mut init,
+                                        init,
                                         FilterArgsPred {
                                             node,
                                             pred,
@@ -298,7 +298,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParFair<G, true> {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             next_frontier.push((node, pred));
                                         } else {
-                                            callback(&mut init, EventPred::Known { node, pred })?;
+                                            callback(init, EventPred::Known { node, pred })?;
                                         }
                                     }
 

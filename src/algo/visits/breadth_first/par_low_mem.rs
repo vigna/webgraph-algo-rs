@@ -159,7 +159,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each_with(init.clone(), |mut init, chunk| {
+                    .try_for_each_with(init.clone(), |init, chunk| {
                         chunk.into_iter().try_for_each(|&node| {
                             self.graph
                                 .successors(node)
@@ -167,7 +167,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                                 .try_for_each(|succ| {
                                     let (node, pred) = (succ, node);
                                     if filter(
-                                        &mut init,
+                                        init,
                                         FilterArgsPred {
                                             node,
                                             pred,
@@ -176,7 +176,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                                     ) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
                                             callback(
-                                                &mut init,
+                                                init,
                                                 EventPred::Unknown {
                                                     node,
                                                     pred,
@@ -185,7 +185,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                                             )?;
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(&mut init, EventPred::Known { node, pred })?;
+                                            callback(init, EventPred::Known { node, pred })?;
                                         }
                                     }
 
