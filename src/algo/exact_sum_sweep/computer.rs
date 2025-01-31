@@ -17,7 +17,6 @@ use crate::{
     traits::StronglyConnectedComponents,
     utils::*,
 };
-use dsi_progress_logger::no_logging;
 use dsi_progress_logger::*;
 use no_break::NoBreak;
 use nonmax::NonMaxUsize;
@@ -526,16 +525,17 @@ impl<
 
         let radial_vertices = &self.radial_vertices;
         self.transposed_visit
-            .par_visit(
+            .par_visit_with(
                 [v],
-                |event| {
+                pl.clone(),
+                |pl, event| {
                     if let EventNoPred::Unknown { node, .. } = event {
+                        pl.light_update();
                         radial_vertices.set(node, true, Ordering::Relaxed)
                     }
                     Continue(())
                 },
                 thread_pool,
-                pl,
             )
             .continue_value_no_break();
         self.transposed_visit.reset();
@@ -593,10 +593,12 @@ impl<
         let forward_tot = self.forward_tot.as_sync_slice();
 
         self.transposed_visit
-            .par_visit(
+            .par_visit_with(
                 [start],
-                |event| {
+                pl.clone(),
+                |pl, event| {
                     if let EventNoPred::Unknown { node, distance, .. } = event {
+                        pl.light_update();
                         // Safety for unsafe blocks: each node gets accessed exactly once, so no data races can happen
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
@@ -630,7 +632,6 @@ impl<
                     Continue(())
                 },
                 thread_pool,
-                pl,
             )
             .continue_value_no_break();
 
@@ -671,12 +672,13 @@ impl<
 
         self.visit.reset();
         self.visit
-            .par_visit(
+            .par_visit_with(
                 [start],
-                |event| {
+                pl.clone(),
+                |pl, event| {
                     if let EventNoPred::Unknown { node, distance, .. } = event {
                         // SAFETY: each node gets accessed exactly once, so no data races can happen
-
+                        pl.light_update();
                         max_dist.fetch_max(distance, Ordering::Relaxed);
 
                         let node_backward_high = self.backward_high[node];
@@ -691,7 +693,6 @@ impl<
                     Continue(())
                 },
                 thread_pool,
-                pl,
             )
             .continue_value_no_break();
 
@@ -788,7 +789,6 @@ impl<
                     },
                     |FilterArgs::<EventNoPred> { node, .. }| components[node] == pivot_component,
                     thread_pool,
-                    no_logging![],
                 )
                 .continue_value_no_break();
 

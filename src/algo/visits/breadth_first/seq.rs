@@ -9,7 +9,6 @@ use crate::algo::visits::{
     breadth_first::{EventPred, FilterArgsPred},
     Sequential,
 };
-use dsi_progress_logger::ProgressLog;
 use nonmax::NonMaxUsize;
 use std::{collections::VecDeque, ops::ControlFlow, ops::ControlFlow::Continue};
 use sux::bits::BitVec;
@@ -34,7 +33,6 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// ```
 /// use webgraph_algo::algo::visits::*;
-/// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::ops::ControlFlow::Continue;
@@ -45,15 +43,13 @@ use webgraph::traits::RandomAccessGraph;
 /// let mut d = [0; 4];
 /// visit.visit(
 ///     [0],
-///     |event|
-///         {
-///             // Set distance from 0
-///             if let breadth_first::EventPred::Unknown { node, distance, .. } = event {
-///                 d[node] = distance;
-///             }
-///             Continue(())
-///         },
-///     no_logging![]
+///     |event| {
+///          // Set distance from 0
+///          if let breadth_first::EventPred::Unknown { node, distance, .. } = event {
+///              d[node] = distance;
+///          }
+///          Continue(())
+///     },
 /// ).continue_value_no_break();
 ///
 /// assert_eq!(d, [0, 1, 2, 2]);
@@ -68,7 +64,6 @@ use webgraph::traits::RandomAccessGraph;
 /// ```
 /// use std::convert::Infallible;
 /// use webgraph_algo::algo::visits::*;
-/// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::ops::ControlFlow::Continue;
@@ -80,16 +75,14 @@ use webgraph::traits::RandomAccessGraph;
 /// visit.visit_filtered(
 ///     [0],
 ///     |event| { Continue(()) },
-///     |breadth_first::FilterArgsPred { distance, .. }|
-///         {
-///             if distance > 2 {
-///                 false
-///             } else {
-///                 count += 1;
-///                 true
-///             }
-///         },
-///     no_logging![]
+///     |breadth_first::FilterArgsPred { distance, .. }| {
+///         if distance > 2 {
+///             false
+///         } else {
+///             count += 1;
+///             true
+///         }
+///     },
 /// ).continue_value_no_break();
 /// assert_eq!(count, 3);
 /// ```
@@ -118,35 +111,38 @@ impl<G: RandomAccessGraph> Seq<G> {
 }
 
 impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
-    fn visit_filtered<
+    fn visit_filtered_with<
         R: IntoIterator<Item = usize>,
+        T,
         E,
-        C: FnMut(EventPred) -> ControlFlow<E, ()>,
-        F: FnMut(FilterArgsPred) -> bool,
-        P: ProgressLog,
+        C: FnMut(&mut T, EventPred) -> ControlFlow<E, ()>,
+        F: FnMut(&mut T, FilterArgsPred) -> bool,
     >(
         &mut self,
         roots: R,
+        mut init: T,
         mut callback: C,
         mut filter: F,
-        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         self.queue.clear();
 
         for root in roots {
             if self.visited[root]
-                || !filter(FilterArgsPred {
-                    node: root,
-                    pred: root,
-                    distance: 0,
-                })
+                || !filter(
+                    &mut init,
+                    FilterArgsPred {
+                        node: root,
+                        pred: root,
+                        distance: 0,
+                    },
+                )
             {
                 continue;
             }
 
             // We call the init event only if there are some non-filtered roots
             if self.queue.is_empty() {
-                callback(EventPred::Init {})?;
+                callback(&mut init, EventPred::Init {})?;
             }
 
             self.visited.set(root, true);
@@ -154,18 +150,21 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                 NonMaxUsize::new(root).expect("node index should never be usize::MAX"),
             ));
 
-            pl.light_update();
-            callback(EventPred::Unknown {
-                node: root,
-                pred: root,
-                distance: 0,
-            })?;
+            callback(
+                &mut init,
+                EventPred::Unknown {
+                    node: root,
+                    pred: root,
+                    distance: 0,
+                },
+            )?;
         }
 
         if self.queue.is_empty() {
             return Continue(());
         }
 
+        // Insert marker
         self.queue.push_back(None);
         let mut distance = 1;
 
@@ -176,27 +175,32 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
                     for succ in self.graph.successors(node) {
                         let (node, pred) = (succ, node);
                         if !self.visited[succ] {
-                            if filter(FilterArgsPred {
-                                node,
-                                pred,
-
-                                distance,
-                            }) {
-                                self.visited.set(succ, true);
-                                pl.light_update();
-                                callback(EventPred::Unknown {
+                            if filter(
+                                &mut init,
+                                FilterArgsPred {
                                     node,
                                     pred,
 
                                     distance,
-                                })?;
+                                },
+                            ) {
+                                self.visited.set(succ, true);
+                                callback(
+                                    &mut init,
+                                    EventPred::Unknown {
+                                        node,
+                                        pred,
+
+                                        distance,
+                                    },
+                                )?;
                                 self.queue.push_back(Some(
                                     NonMaxUsize::new(succ)
                                         .expect("node index should never be usize::MAX"),
                                 ))
                             }
                         } else {
-                            callback(EventPred::Known { node, pred })?;
+                            callback(&mut init, EventPred::Known { node, pred })?;
                         }
                     }
                 }
@@ -211,9 +215,7 @@ impl<G: RandomAccessGraph> Sequential<EventPred> for Seq<G> {
             }
         }
 
-        callback(EventPred::Done {})?;
-
-        Continue(())
+        callback(&mut init, EventPred::Done {})
     }
 
     fn reset(&mut self) {

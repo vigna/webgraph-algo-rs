@@ -25,18 +25,19 @@ pub fn top_sort(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Box
     let mut pos = num_nodes;
 
     visit
-        .visit(
-            0..num_nodes,
-            |event| {
-                if let EventPred::Postvisit { node: curr, .. } = event {
-                    pos -= 1;
-                    topol_sort[pos].write(curr);
+        .visit(0..num_nodes, |event| {
+            match event {
+                EventPred::Previsit { .. } => {
+                    pl.light_update();
                 }
-
-                Continue(())
-            },
-            pl,
-        )
+                EventPred::Postvisit { node, .. } => {
+                    pos -= 1;
+                    topol_sort[pos].write(node);
+                }
+                _ => (),
+            }
+            Continue(())
+        })
         .continue_value_no_break();
 
     pl.done();

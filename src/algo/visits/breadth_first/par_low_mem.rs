@@ -9,7 +9,6 @@ use crate::algo::visits::{
     breadth_first::{EventPred, FilterArgsPred},
     Parallel,
 };
-use dsi_progress_logger::ConcurrentProgressLog;
 use parallel_frontier::prelude::{Frontier, ParallelIterator};
 use rayon::{prelude::*, ThreadPool};
 use std::{
@@ -42,7 +41,6 @@ use webgraph::traits::RandomAccessGraph;
 /// use webgraph_algo::algo::visits::Parallel;
 /// use webgraph_algo::algo::visits::breadth_first::{*, self};
 /// use webgraph_algo::threads;
-/// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use std::sync::atomic::AtomicUsize;
@@ -56,15 +54,14 @@ use webgraph::traits::RandomAccessGraph;
 /// visit.par_visit(
 ///     [0],
 ///     |event|
-///         {
-///             // Store the parent
-///             if let EventPred::Unknown { node, pred, ..} = event {
-///                 tree[node].store(pred, Ordering::Relaxed);
-///             }
-///             Continue(())
-///         },
-///    &threads![],
-///    no_logging![]
+///     {
+///         // Store the parent
+///         if let EventPred::Unknown { node, pred, ..} = event {
+///             tree[node].store(pred, Ordering::Relaxed);
+///         }
+///         Continue(())
+///     },
+///     &threads![],
 /// ).continue_value_no_break();
 ///
 /// assert_eq!(tree[0].load(Ordering::Relaxed), 0);
@@ -97,46 +94,51 @@ impl<G: RandomAccessGraph> ParLowMem<G> {
 }
 
 impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
-    fn par_visit_filtered<
+    fn par_visit_filtered_with<
         R: IntoIterator<Item = usize>,
+        T: Clone + Send + Sync,
         E: Send,
-        C: Fn(EventPred) -> ControlFlow<E, ()> + Sync,
-        F: Fn(FilterArgsPred) -> bool + Sync,
-        P: ConcurrentProgressLog,
+        C: Fn(&mut T, EventPred) -> ControlFlow<E, ()> + Sync,
+        F: Fn(&mut T, FilterArgsPred) -> bool + Sync,
     >(
         &mut self,
         roots: R,
+        mut init: T,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let mut filtered_roots = vec![];
         for root in roots {
             if self.visited.get(root, Ordering::Relaxed)
-                || !filter(FilterArgsPred {
-                    node: root,
-                    pred: root,
-                    distance: 0,
-                })
+                || !filter(
+                    &mut init,
+                    FilterArgsPred {
+                        node: root,
+                        pred: root,
+                        distance: 0,
+                    },
+                )
             {
                 continue;
             }
 
             // We call the init event only if there are some non-filtered roots
             if filtered_roots.is_empty() {
-                callback(EventPred::Init {})?;
+                callback(&mut init, EventPred::Init {})?;
             }
 
             filtered_roots.push(root);
             self.visited.set(root, true, Ordering::Relaxed);
 
-            pl.light_update();
-            callback(EventPred::Unknown {
-                node: root,
-                pred: root,
-                distance: 0,
-            })?;
+            callback(
+                &mut init,
+                EventPred::Unknown {
+                    node: root,
+                    pred: root,
+                    distance: 0,
+                },
+            )?;
         }
 
         if filtered_roots.is_empty() {
@@ -157,28 +159,33 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
                 curr_frontier
                     .par_iter()
                     .chunks(self.granularity)
-                    .try_for_each_with(pl.clone(), |pl, chunk| {
+                    .try_for_each_with(init.clone(), |mut init, chunk| {
                         chunk.into_iter().try_for_each(|&node| {
                             self.graph
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
                                     let (node, pred) = (succ, node);
-                                    if filter(FilterArgsPred {
-                                        node,
-                                        pred,
-                                        distance,
-                                    }) {
+                                    if filter(
+                                        &mut init,
+                                        FilterArgsPred {
+                                            node,
+                                            pred,
+                                            distance,
+                                        },
+                                    ) {
                                         if !self.visited.swap(succ, true, Ordering::Relaxed) {
-                                            pl.light_update();
-                                            callback(EventPred::Unknown {
-                                                node,
-                                                pred,
-                                                distance,
-                                            })?;
+                                            callback(
+                                                &mut init,
+                                                EventPred::Unknown {
+                                                    node,
+                                                    pred,
+                                                    distance,
+                                                },
+                                            )?;
                                             next_frontier.push(succ);
                                         } else {
-                                            callback(EventPred::Known { node, pred })?;
+                                            callback(&mut init, EventPred::Known { node, pred })?;
                                         }
                                     }
 
@@ -194,9 +201,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventPred> for ParLowMem<G> {
             next_frontier.clear();
         }
 
-        callback(EventPred::Done {})?;
-
-        Continue(())
+        callback(&mut init, EventPred::Done {})
     }
 
     fn reset(&mut self) {

@@ -327,16 +327,12 @@ fn test_er() -> Result<()> {
         let mut pll = Seq::new(&graph);
         let mut ecc = [0; 100];
         for root in 0..100 {
-            pll.visit(
-                [root],
-                |event| {
-                    if let EventPred::Unknown { distance, .. } = event {
-                        ecc[root] = ecc[root].max(distance);
-                    }
-                    Continue(())
-                },
-                no_logging![],
-            )
+            pll.visit([root], |event| {
+                if let EventPred::Unknown { distance, .. } = event {
+                    ecc[root] = ecc[root].max(distance);
+                }
+                Continue(())
+            })
             .continue_value_no_break();
             pll.reset();
         }

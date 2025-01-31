@@ -31,16 +31,16 @@ pub enum EventPred {
     /// This event should be used to set up state at the start of the visit.
     ///
     /// Note that this event will not happen if the visit is empty, that
-    /// is, if the root has been already visited.
+    /// is, all of the roots are already visited or filtered.
     Init {},
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
         node: usize,
-        /// The predecessor of [curr](`EventPred::Unknown::node`).
+        /// The predecessor of [node](`EventPred::Unknown::node`).
         pred: usize,
-        /// The distance of the current node from the [root](`EventPred::Unknown::root`).
+        /// The distance of the current node from the roots.
         distance: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
@@ -52,7 +52,7 @@ pub enum EventPred {
     Known {
         /// The current node.
         node: usize,
-        /// The predecessor of [curr](`EventPred::Known::node`).
+        /// The predecessor of [node](`EventPred::Known::node`).
         pred: usize,
     },
     /// The visit has been completed.
@@ -68,9 +68,9 @@ pub enum EventPred {
 pub struct FilterArgsPred {
     /// The current node.
     pub node: usize,
-    /// The predecessor of [curr](`Self::node`).
+    /// The predecessor of [node](`Self::node`).
     pub pred: usize,
-    /// The distance of the current node from the [root](`Self::root`).
+    /// The distance of the current node from the roots.
     pub distance: usize,
 }
 
@@ -85,15 +85,14 @@ pub enum EventNoPred {
     /// This event should be used to set up state at the start of the visit.
     ///
     /// Note that this event will not happen if the visit is empty, that
-    /// is, if the root has been already visited.
+    /// is, all of the roots are already visited or filtered.
     Init {},
     /// The node has been encountered for the first time: we are traversing a
     /// new tree arc, unless all node fields are equal to the root.
     Unknown {
         /// The current node.
         node: usize,
-        /// The distance of the current node from the
-        /// [root](`EventNoPred::Unknown::root`).
+        /// The distance of the current node from the roots.
         distance: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
@@ -119,7 +118,7 @@ pub enum EventNoPred {
 pub struct FilterArgsNoPred {
     /// The current node.
     pub node: usize,
-    /// The distance of the current node from the [root](`Self::root`).
+    /// The distance of the current node from the roots.
     pub distance: usize,
 }
 

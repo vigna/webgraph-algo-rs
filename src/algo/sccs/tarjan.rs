@@ -40,81 +40,78 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
     let mut number_of_components = 0;
 
     if visit
-        .visit(
-            0..num_nodes,
-            |event| {
-                match event {
-                    EventPred::Init { .. } => {
-                        root_low_link = index;
+        .visit(0..num_nodes, |event| {
+            match event {
+                EventPred::Init { .. } => {
+                    root_low_link = index;
+                }
+                EventPred::Previsit { node: curr, .. } => {
+                    pl.light_update();
+                    high_link[curr] = index; // >= num_nodes, <= umax::SIZE
+                    index -= 1;
+                    lead.push(true);
+                }
+                EventPred::Revisit {
+                    node: curr, pred, ..
+                } => {
+                    // curr has not been emitted yet but it has a higher link
+                    if high_link[pred] < high_link[curr] {
+                        // Safe as the stack is never empty
+                        lead.set(lead.len() - 1, false);
+                        high_link[pred] = high_link[curr];
+                        if high_link[pred] == root_low_link && index == 0 {
+                            // All nodes have been discovered, and we
+                            // found a high link identical to that of the
+                            // root: thus, all nodes on the visit path
+                            // and all nodes in the component stack
+                            // belong to the same component.
+
+                            // pred is the last node on the visit path,
+                            // so it won't be returned by the stack method
+                            high_link[pred] = number_of_components;
+                            for &node in component_stack.iter() {
+                                high_link[node] = number_of_components;
+                            }
+                            // Nodes on the visit path will be assigned
+                            // to the same component later
+                            return Break(StoppedWhenDone {});
+                        }
                     }
-                    EventPred::Previsit { node: curr, .. } => {
-                        high_link[curr] = index; // >= num_nodes, <= umax::SIZE
-                        index -= 1;
-                        lead.push(true);
-                    }
-                    EventPred::Revisit {
-                        node: curr, pred, ..
-                    } => {
-                        // curr has not been emitted yet but it has a higher link
+                }
+                EventPred::Postvisit {
+                    node: curr, pred, ..
+                } => {
+                    // Safe as the stack is never empty
+                    if lead.pop().unwrap() {
+                        // Set the component index of nodes in the component
+                        // stack with higher link than the current node
+                        while let Some(node) = component_stack.pop() {
+                            // TODO: ugly
+                            if high_link[curr] < high_link[node] {
+                                component_stack.push(node);
+                                break;
+                            }
+                            index += 1;
+                            high_link[node] = number_of_components;
+                        }
+                        // Set the component index of the current node
+                        high_link[curr] = number_of_components;
+                        index += 1;
+                        number_of_components += 1;
+                    } else {
+                        component_stack.push(curr);
+                        // Propagate knowledge to the parent
                         if high_link[pred] < high_link[curr] {
                             // Safe as the stack is never empty
                             lead.set(lead.len() - 1, false);
                             high_link[pred] = high_link[curr];
-                            if high_link[pred] == root_low_link && index == 0 {
-                                // All nodes have been discovered, and we
-                                // found a high link identical to that of the
-                                // root: thus, all nodes on the visit path
-                                // and all nodes in the component stack
-                                // belong to the same component.
-
-                                // pred is the last node on the visit path,
-                                // so it won't be returned by the stack method
-                                high_link[pred] = number_of_components;
-                                for &node in component_stack.iter() {
-                                    high_link[node] = number_of_components;
-                                }
-                                // Nodes on the visit path will be assigned
-                                // to the same component later
-                                return Break(StoppedWhenDone {});
-                            }
                         }
                     }
-                    EventPred::Postvisit {
-                        node: curr, pred, ..
-                    } => {
-                        // Safe as the stack is never empty
-                        if lead.pop().unwrap() {
-                            // Set the component index of nodes in the component
-                            // stack with higher link than the current node
-                            while let Some(node) = component_stack.pop() {
-                                // TODO: ugly
-                                if high_link[curr] < high_link[node] {
-                                    component_stack.push(node);
-                                    break;
-                                }
-                                index += 1;
-                                high_link[node] = number_of_components;
-                            }
-                            // Set the component index of the current node
-                            high_link[curr] = number_of_components;
-                            index += 1;
-                            number_of_components += 1;
-                        } else {
-                            component_stack.push(curr);
-                            // Propagate knowledge to the parent
-                            if high_link[pred] < high_link[curr] {
-                                // Safe as the stack is never empty
-                                lead.set(lead.len() - 1, false);
-                                high_link[pred] = high_link[curr];
-                            }
-                        }
-                    }
-                    _ => {}
                 }
-                Continue(())
-            },
-            pl,
-        )
+                _ => {}
+            }
+            Continue(())
+        })
         .is_break()
     {
         // In case we exited early, complete the assignment

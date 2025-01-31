@@ -6,7 +6,6 @@
  */
 
 use anyhow::Result;
-use dsi_progress_logger::prelude::*;
 use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -95,19 +94,13 @@ macro_rules! test_bfv_algo_seq {
 
                 for root in 0..graph.num_nodes() {
                     visit
-                        .visit(
-                            [root],
-                            |event| {
-                                if let breadth_first::EventPred::Unknown {
-                                    node, distance, ..
-                                } = event
-                                {
-                                    dists[node].store(distance, Ordering::Relaxed);
-                                }
-                                Continue(())
-                            },
-                            no_logging![],
-                        )
+                        .visit([root], |event| {
+                            if let breadth_first::EventPred::Unknown { node, distance, .. } = event
+                            {
+                                dists[node].store(distance, Ordering::Relaxed);
+                            }
+                            Continue(())
+                        })
                         .continue_value_no_break();
                 }
                 let actual_dists = into_non_atomic(dists);
@@ -125,17 +118,12 @@ macro_rules! test_bfv_algo_seq {
                 let mut dists = vec![0; graph.num_nodes()];
 
                 visit
-                    .visit(
-                        [0, 3],
-                        |event| {
-                            if let breadth_first::EventPred::Unknown { node, distance, .. } = event
-                            {
-                                dists[node] = distance;
-                            }
-                            Continue(())
-                        },
-                        no_logging![],
-                    )
+                    .visit([0, 3], |event| {
+                        if let breadth_first::EventPred::Unknown { node, distance, .. } = event {
+                            dists[node] = distance;
+                        }
+                        Continue(())
+                    })
                     .continue_value_no_break();
 
                 assert_eq!(dists, [0, 1, 1, 0]);
@@ -155,19 +143,13 @@ macro_rules! test_bfv_algo_seq {
                 for i in 0..graph.num_nodes() {
                     let root = (i + 10000) % graph.num_nodes();
                     visit
-                        .visit(
-                            [root],
-                            |event| {
-                                if let breadth_first::EventPred::Unknown {
-                                    node, distance, ..
-                                } = event
-                                {
-                                    dists[node].store(distance, Ordering::Relaxed);
-                                }
-                                Continue(())
-                            },
-                            no_logging![],
-                        )
+                        .visit([root], |event| {
+                            if let breadth_first::EventPred::Unknown { node, distance, .. } = event
+                            {
+                                dists[node].store(distance, Ordering::Relaxed);
+                            }
+                            Continue(())
+                        })
                         .continue_value_no_break();
                 }
 
@@ -228,7 +210,6 @@ macro_rules! test_bfv_algo_par {
                                 Continue(())
                             },
                             &t,
-                            no_logging![],
                         )
                         .continue_value_no_break();
                 }
@@ -258,7 +239,6 @@ macro_rules! test_bfv_algo_par {
                             Continue(())
                         },
                         &threads![],
-                        no_logging![],
                     )
                     .continue_value_no_break();
 
@@ -292,7 +272,6 @@ macro_rules! test_bfv_algo_par {
                                 Continue(())
                             },
                             &t,
-                            no_logging![],
                         )
                         .continue_value_no_break();
                 }

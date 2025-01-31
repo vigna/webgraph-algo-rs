@@ -37,22 +37,19 @@ pub fn kosaraju(
     let mut components = vec![0; num_nodes].into_boxed_slice();
 
     visit
-        .visit(
-            top_sort,
-            |event| {
-                match event {
-                    EventNoPred::Previsit { node: curr, .. } => {
-                        components[curr] = number_of_components;
-                    }
-                    EventNoPred::Done { .. } => {
-                        number_of_components += 1;
-                    }
-                    _ => (),
+        .visit(top_sort, |event| {
+            match event {
+                EventNoPred::Previsit { node: curr, .. } => {
+                    pl.light_update();
+                    components[curr] = number_of_components;
                 }
-                Continue(())
-            },
-            pl,
-        )
+                EventNoPred::Done { .. } => {
+                    number_of_components += 1;
+                }
+                _ => (),
+            }
+            Continue(())
+        })
         .continue_value_no_break();
 
     pl.done();

@@ -61,7 +61,6 @@
 pub mod breadth_first;
 pub mod depth_first;
 
-use dsi_progress_logger::{ConcurrentProgressLog, ProgressLog};
 use rayon::ThreadPool;
 use std::ops::ControlFlow;
 use thiserror::Error;
@@ -100,31 +99,72 @@ pub type FilterArgs<A> = <A as Event>::FilterArgs;
 /// A sequential visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_filtered`](Sequential::visit_filtered) method, which should perform a
-/// visit of a graph starting from a given node, and the
-/// [`visit_all_filtered`](Sequential::visit_all_filtered) method, which should
-/// perform a visit of the whole graph by starting a visit from each node.
+/// [`visit_filtered`](Sequential::visit_filtered) method, which should perform
+/// a visit of a graph starting from a given set of nodes. Note that different
+/// visits types might interpret the set of nodes differently: for example, a
+/// [breadth-first visit](breadth_first) will interpret the set of nodes as the
+/// initial queue, whereas a [depth-first visit](depth_first) will interpret the
+/// set of nodes as the nodes to visit in the order they are provided.
 pub trait Sequential<A: Event> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
-    /// * `root`: The node to start the visit from.
+    /// * `roots`: The nodes to start the visit from.
     /// * `callback`: The callback function.
     /// * `filter`: The filter function.
-    /// * `pl`: A progress logger.
+    fn visit_filtered_with<
+        R: IntoIterator<Item = usize>,
+        T,
+        E,
+        C: FnMut(&mut T, A) -> ControlFlow<E, ()>,
+        F: FnMut(&mut T, A::FilterArgs) -> bool,
+    >(
+        &mut self,
+        roots: R,
+        init: T,
+        callback: C,
+        filter: F,
+    ) -> ControlFlow<E, ()>;
+
+    /// Visits the graph from the specified node.
+    ///
+    /// # Arguments:
+    /// * `roots`: The nodes to start the visit from.
+    /// * `callback`: The callback function.
+    /// * `filter`: The filter function.
     fn visit_filtered<
         R: IntoIterator<Item = usize>,
         E,
         C: FnMut(A) -> ControlFlow<E, ()>,
         F: FnMut(A::FilterArgs) -> bool,
-        P: ProgressLog,
     >(
         &mut self,
         roots: R,
+        mut callback: C,
+        mut filter: F,
+    ) -> ControlFlow<E, ()> {
+        self.visit_filtered_with(roots, (), |(), a| callback(a), |(), a| filter(a))
+    }
+
+    /// Visits the graph from the specified node.
+    ///
+    /// # Arguments:
+    /// * `roots`: The nodes to start the visit from.
+    /// * `callback`: The callback function.
+    /// * `filter`: The filter function.
+    fn visit_with<
+        R: IntoIterator<Item = usize>,
+        T,
+        E,
+        C: FnMut(&mut T, A) -> ControlFlow<E, ()>,
+    >(
+        &mut self,
+        roots: R,
+        init: T,
         callback: C,
-        filter: F,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()>;
+    ) -> ControlFlow<E, ()> {
+        self.visit_filtered_with(roots, init, callback, |_, _| true)
+    }
 
     /// Visits the graph from the specified node without a filter.
     ///
@@ -132,18 +172,12 @@ pub trait Sequential<A: Event> {
     /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
     /// returns true.
     #[inline(always)]
-    fn visit<
-        R: IntoIterator<Item = usize>,
-        E,
-        C: FnMut(A) -> ControlFlow<E, ()>,
-        P: ProgressLog,
-    >(
+    fn visit<R: IntoIterator<Item = usize>, E, C: FnMut(A) -> ControlFlow<E, ()>>(
         &mut self,
-        root: R,
+        roots: R,
         callback: C,
-        pl: &mut P,
     ) -> ControlFlow<E, ()> {
-        self.visit_filtered(root, callback, |_| true, pl)
+        self.visit_filtered(roots, callback, |_| true)
     }
 
     /// Resets the visit status, making it possible to reuse it.
@@ -153,15 +187,42 @@ pub trait Sequential<A: Event> {
 /// A parallel visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_filtered`](Parallel::par_visit_filtered) method, which should perform a
-/// visit of a graph starting from a given node, and the
-/// [`visit_all_filtered`](Parallel::par_visit_all_filtered) method, which should
-/// perform a visit of the whole graph by starting a visit from each node.
+/// [`par_visit_filtered`](Parallel::par_visit_filtered) method, which should
+/// perform a parallel visit of a graph starting from a given set of nodes. Note
+/// that different visits types might interpret the set of nodes differently:
+/// for example, a [breadth-first visit](breadth_first) will interpret the set
+/// of nodes as the initial queue, whereas a [depth-first visit](depth_first)
+/// will interpret the set of nodes as the nodes to visit in the order they are
+/// provided.
 pub trait Parallel<A: Event> {
     /// Visits the graph from the specified node.
     ///
     /// # Arguments:
-    /// * `root`: The node to start the visit from.
+    /// * `roots`: The nodes to start the visit from.
+    /// * `callback`: The callback function.
+    /// * `filter`: A filter function that will be called on each node to
+    ///    determine whether the node should be visited or not.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
+    /// * `pl`: A progress logger.
+    fn par_visit_filtered_with<
+        R: IntoIterator<Item = usize>,
+        T: Clone + Send + Sync + Sync,
+        E: Send,
+        C: Fn(&mut T, A) -> ControlFlow<E, ()> + Sync,
+        F: Fn(&mut T, A::FilterArgs) -> bool + Sync,
+    >(
+        &mut self,
+        roots: R,
+        init: T,
+        callback: C,
+        filter: F,
+        thread_pool: &ThreadPool,
+    ) -> ControlFlow<E, ()>;
+
+    /// Visits the graph from the specified node.
+    ///
+    /// # Arguments:
+    /// * `roots`: The nodes to start the visit from.
     /// * `callback`: The callback function.
     /// * `filter`: A filter function that will be called on each node to
     ///    determine whether the node should be visited or not.
@@ -172,15 +233,45 @@ pub trait Parallel<A: Event> {
         E: Send,
         C: Fn(A) -> ControlFlow<E, ()> + Sync,
         F: Fn(A::FilterArgs) -> bool + Sync,
-        P: ConcurrentProgressLog,
     >(
         &mut self,
         roots: R,
         callback: C,
         filter: F,
         thread_pool: &ThreadPool,
-        pl: &mut P,
-    ) -> ControlFlow<E, ()>;
+    ) -> ControlFlow<E, ()> {
+        self.par_visit_filtered_with(
+            roots,
+            (),
+            |(), a| callback(a),
+            |(), a| filter(a),
+            thread_pool,
+        )
+    }
+
+    /// Visits the graph from the specified node.
+    ///
+    /// # Arguments:
+    /// * `roots`: The nodes to start the visit from.
+    /// * `callback`: The callback function.
+    /// * `filter`: A filter function that will be called on each node to
+    ///    determine whether the node should be visited or not.
+    /// * `thread_pool`: The thread pool to use for parallel computation.
+    /// * `pl`: A progress logger.
+    fn par_visit_with<
+        R: IntoIterator<Item = usize>,
+        T: Clone + Send + Sync + Sync,
+        E: Send,
+        C: Fn(&mut T, A) -> ControlFlow<E, ()> + Sync,
+    >(
+        &mut self,
+        roots: R,
+        init: T,
+        callback: C,
+        thread_pool: &ThreadPool,
+    ) -> ControlFlow<E, ()> {
+        self.par_visit_filtered_with(roots, init, callback, |_, _| true, thread_pool)
+    }
 
     /// Visits the graph from the specified node without a filter.
     ///
@@ -188,19 +279,13 @@ pub trait Parallel<A: Event> {
     /// [`visit_filtered`](Parallel::par_visit_filtered)
     /// with a filter that always returns true.
     #[inline(always)]
-    fn par_visit<
-        R: IntoIterator<Item = usize>,
-        E: Send,
-        C: Fn(A) -> ControlFlow<E, ()> + Sync,
-        P: ConcurrentProgressLog,
-    >(
+    fn par_visit<R: IntoIterator<Item = usize>, E: Send, C: Fn(A) -> ControlFlow<E, ()> + Sync>(
         &mut self,
         roots: R,
         callback: C,
         thread_pool: &ThreadPool,
-        pl: &mut P,
     ) -> ControlFlow<E, ()> {
-        self.par_visit_filtered(roots, callback, |_| true, thread_pool, pl)
+        self.par_visit_filtered(roots, callback, |_| true, thread_pool)
     }
 
     /// Resets the visit status, making it possible to reuse it.

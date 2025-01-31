@@ -46,12 +46,14 @@ pub fn symm_par(
 
     for node in 0..num_nodes {
         visit
-            .par_visit(
+            .par_visit_with(
                 [node],
-                |event| {
+                pl.clone(),
+                |pl, event| {
                     match event {
                         EventNoPred::Init { .. } => {}
                         EventNoPred::Unknown { node, .. } => {
+                            pl.light_update();
                             unsafe {
                                 slice[node].set(MaybeUninit::new(
                                     number_of_components.load(Ordering::Relaxed),
@@ -66,7 +68,6 @@ pub fn symm_par(
                     Continue(())
                 },
                 thread_pool,
-                pl,
             )
             .continue_value_no_break();
     }

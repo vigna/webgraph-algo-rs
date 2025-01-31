@@ -9,7 +9,6 @@ use crate::algo::visits::{
     depth_first::{EventNoPred, EventPred, FilterArgsNoPred, FilterArgsPred},
     Sequential,
 };
-use dsi_progress_logger::ProgressLog;
 use sealed::sealed;
 use std::ops::ControlFlow::{self, Continue};
 use sux::bits::BitVec;
@@ -76,7 +75,6 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// ```
 /// use webgraph_algo::algo::visits::*;
 /// use webgraph_algo::algo::visits::depth_first::*;
-/// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::traits::SequentialLabeling;
 /// use webgraph::labels::proj::Left;
@@ -87,15 +85,13 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///
 /// assert!(visit.visit(
 ///     0..graph.num_nodes(),
-///     |event|
-///         {
+///     |event| {
+///         match event {
 ///             // Stop the visit as soon as a back edge is found
-///            match event {
-///                EventPred::Revisit { on_stack: true, .. } => Break(StoppedWhenDone),
-///                _ => Continue(()),
-///            }
-///         },
-///     no_logging![]
+///             EventPred::Revisit { on_stack: true, .. } => Break(StoppedWhenDone),
+///             _ => Continue(()),
+///         }
+///     },
 /// ).is_break()); // As the graph is not acyclic
 /// ```
 ///
@@ -105,7 +101,6 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// ```
 /// use webgraph_algo::algo::visits::*;
 /// use webgraph_algo::algo::visits::depth_first::*;
-/// use dsi_progress_logger::no_logging;
 /// use webgraph::graphs::vec_graph::VecGraph;
 /// use webgraph::labels::proj::Left;
 /// use webgraph::traits::labels::SequentialLabeling;
@@ -118,14 +113,12 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 ///
 /// visit.visit(
 ///     0..graph.num_nodes(),
-///     |event|
-///         {
-///            if let EventPred::Postvisit { node, .. } = event {
-///                 top_sort.push(node);
-///            }
-///            Continue(())
-///         },
-///     no_logging![]
+///     |event| {
+///         if let EventPred::Postvisit { node, .. } = event {
+///             top_sort.push(node);
+///         }
+///         Continue(())
+///     }
 /// ).continue_value_no_break();
 /// ```
 pub struct SeqIter<'a, S, G: RandomAccessGraph, P, const PRED: bool> {
@@ -281,44 +274,49 @@ impl NodeStates for ThreeStates {
 }
 
 impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, S, G, usize, true> {
-    fn visit_filtered<
+    fn visit_filtered_with<
         R: IntoIterator<Item = usize>,
+        T,
         E,
-        C: FnMut(EventPred) -> ControlFlow<E, ()>,
-        F: FnMut(FilterArgsPred) -> bool,
-        P: ProgressLog,
+        C: FnMut(&mut T, EventPred) -> ControlFlow<E, ()>,
+        F: FnMut(&mut T, FilterArgsPred) -> bool,
     >(
         &mut self,
         roots: R,
+        mut init: T,
         mut callback: C,
         mut filter: F,
-        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
         for root in roots {
             if state.known(root)
-                || !filter(FilterArgsPred {
-                    node: root,
-                    pred: root,
-                    root,
-                    depth: 0,
-                })
+                || !filter(
+                    &mut init,
+                    FilterArgsPred {
+                        node: root,
+                        pred: root,
+                        root,
+                        depth: 0,
+                    },
+                )
             {
                 // We ignore the node: it might be visited later
                 return Continue(());
             }
 
-            callback(EventPred::Init { root })?;
+            callback(&mut init, EventPred::Init { root })?;
 
             state.set_known(root);
-            pl.light_update();
-            callback(EventPred::Previsit {
-                node: root,
-                pred: root,
-                root,
-                depth: 0,
-            })?;
+            callback(
+                &mut init,
+                EventPred::Previsit {
+                    node: root,
+                    pred: root,
+                    root,
+                    depth: 0,
+                },
+            )?;
 
             self.stack
                 .push((self.graph.successors(root).into_iter(), root));
@@ -332,7 +330,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
             'recurse: loop {
                 let depth = self.stack.len();
                 let Some((iter, parent)) = self.stack.last_mut() else {
-                    callback(EventPred::Done { root })?;
+                    callback(&mut init, EventPred::Done { root })?;
                     break;
                 };
 
@@ -340,29 +338,37 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                     // Check if node should be visited
                     if state.known(succ) {
                         // Node has already been discovered
-                        callback(EventPred::Revisit {
-                            node: succ,
-                            pred: current_node,
-                            root,
-                            depth: depth + 1,
-                            on_stack: state.on_stack(succ),
-                        })?;
-                    } else {
-                        // First time seeing node
-                        if filter(FilterArgsPred {
-                            node: succ,
-                            pred: current_node,
-                            root,
-                            depth: depth + 1,
-                        }) {
-                            state.set_known(succ);
-                            pl.light_update();
-                            callback(EventPred::Previsit {
+                        callback(
+                            &mut init,
+                            EventPred::Revisit {
                                 node: succ,
                                 pred: current_node,
                                 root,
                                 depth: depth + 1,
-                            })?;
+                                on_stack: state.on_stack(succ),
+                            },
+                        )?;
+                    } else {
+                        // First time seeing node
+                        if filter(
+                            &mut init,
+                            FilterArgsPred {
+                                node: succ,
+                                pred: current_node,
+                                root,
+                                depth: depth + 1,
+                            },
+                        ) {
+                            state.set_known(succ);
+                            callback(
+                                &mut init,
+                                EventPred::Previsit {
+                                    node: succ,
+                                    pred: current_node,
+                                    root,
+                                    depth: depth + 1,
+                                },
+                            )?;
                             // current_node is the parent of succ
                             self.stack
                                 .push((self.graph.successors(succ).into_iter(), current_node));
@@ -377,12 +383,15 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                     }
                 }
 
-                callback(EventPred::Postvisit {
-                    node: current_node,
-                    pred: *parent,
-                    root,
-                    depth,
-                })?;
+                callback(
+                    &mut init,
+                    EventPred::Postvisit {
+                        node: current_node,
+                        pred: *parent,
+                        root,
+                        depth,
+                    },
+                )?;
 
                 state.set_off_stack(current_node);
 
@@ -403,42 +412,48 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
 }
 
 impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G, (), false> {
-    fn visit_filtered<
+    fn visit_filtered_with<
         R: IntoIterator<Item = usize>,
+        T,
         E,
-        C: FnMut(EventNoPred) -> ControlFlow<E, ()>,
-        F: FnMut(FilterArgsNoPred) -> bool,
-        P: ProgressLog,
+        C: FnMut(&mut T, EventNoPred) -> ControlFlow<E, ()>,
+        F: FnMut(&mut T, FilterArgsNoPred) -> bool,
     >(
         &mut self,
         roots: R,
+        mut init: T,
         mut callback: C,
         mut filter: F,
-        pl: &mut P,
     ) -> ControlFlow<E, ()> {
         let state = &mut self.state;
 
         for root in roots {
             if state.known(root)
-                || !filter(FilterArgsNoPred {
+                || !filter(
+                    &mut init,
+                    FilterArgsNoPred {
+                        node: root,
+                        root,
+                        depth: 0,
+                    },
+                )
+            {
+                // We ignore the node: it might be visited later
+                continue;
+            }
+
+            callback(&mut init, EventNoPred::Init { root })?;
+
+            state.set_known(root);
+
+            callback(
+                &mut init,
+                EventNoPred::Previsit {
                     node: root,
                     root,
                     depth: 0,
-                })
-            {
-                // We ignore the node: it might be visited later
-                return Continue(());
-            }
-
-            callback(EventNoPred::Init { root })?;
-
-            state.set_known(root);
-            pl.light_update();
-            callback(EventNoPred::Previsit {
-                node: root,
-                root,
-                depth: 0,
-            })?;
+                },
+            )?;
 
             self.stack
                 .push((self.graph.successors(root).into_iter(), ()));
@@ -446,7 +461,7 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
             'recurse: loop {
                 let depth = self.stack.len();
                 let Some((iter, _)) = self.stack.last_mut() else {
-                    callback(EventNoPred::Done { root })?;
+                    callback(&mut init, EventNoPred::Done { root })?;
                     break;
                 };
 
@@ -454,25 +469,33 @@ impl<G: RandomAccessGraph> Sequential<EventNoPred> for SeqIter<'_, TwoStates, G,
                     // Check if node should be visited
                     if state.known(succ) {
                         // Node has already been discovered
-                        callback(EventNoPred::Revisit {
-                            node: succ,
-                            root,
-                            depth: depth + 1,
-                        })?;
-                    } else {
-                        // First time seeing node
-                        if filter(FilterArgsNoPred {
-                            node: succ,
-                            root,
-                            depth: depth + 1,
-                        }) {
-                            state.set_known(succ);
-                            pl.light_update();
-                            callback(EventNoPred::Previsit {
+                        callback(
+                            &mut init,
+                            EventNoPred::Revisit {
                                 node: succ,
                                 root,
                                 depth: depth + 1,
-                            })?;
+                            },
+                        )?;
+                    } else {
+                        // First time seeing node
+                        if filter(
+                            &mut init,
+                            FilterArgsNoPred {
+                                node: succ,
+                                root,
+                                depth: depth + 1,
+                            },
+                        ) {
+                            state.set_known(succ);
+                            callback(
+                                &mut init,
+                                EventNoPred::Previsit {
+                                    node: succ,
+                                    root,
+                                    depth: depth + 1,
+                                },
+                            )?;
                             // current_node is the parent of succ
                             self.stack
                                 .push((self.graph.successors(succ).into_iter(), ()));

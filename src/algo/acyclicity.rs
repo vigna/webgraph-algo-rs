@@ -21,17 +21,17 @@ pub fn acyclicity(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> b
 
     let mut visit = SeqPath::new(&graph);
 
-    let acyclic = visit.visit(
-        0..num_nodes,
-        |event| {
-            // Stop the visit as soon as a back edge is found.
-            match event {
-                EventPred::Revisit { on_stack: true, .. } => Break(StoppedWhenDone {}),
-                _ => Continue(()),
+    let acyclic = visit.visit(0..num_nodes, |event| {
+        // Stop the visit as soon as a back edge is found.
+        match event {
+            EventPred::Previsit { .. } => {
+                pl.light_update();
+                Continue(())
             }
-        },
-        pl,
-    );
+            EventPred::Revisit { on_stack: true, .. } => Break(StoppedWhenDone {}),
+            _ => Continue(()),
+        }
+    });
 
     pl.done();
     acyclic.is_continue()

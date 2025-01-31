@@ -26,7 +26,7 @@ pub enum EventNoPred {
     /// This event should be used to set up state at the start of the visit.
     ///
     /// Note that this event will not happen if the visit is empty, that
-    /// is, if the root has been already visited.
+    /// is, all of the roots are already visited or filtered.
     Init {
         /// The root of the current visit tree, that is, the first node that
         /// will be visited.
@@ -41,7 +41,7 @@ pub enum EventNoPred {
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from
         /// the [root](`EventNoPred::Previsit::root`) to
-        /// [curr](`EventNoPred::Previsit::node`).
+        /// [node](`EventNoPred::Previsit::node`).
         depth: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
@@ -53,7 +53,7 @@ pub enum EventNoPred {
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from
         /// the [root](`EventNoPred::Revisit::root`) to
-        /// [curr](`EventNoPred::Revisit::node`).
+        /// [node](`EventNoPred::Revisit::node`).
         depth: usize,
     },
     /// The visit has been completed.
@@ -75,7 +75,7 @@ pub struct FilterArgsNoPred {
     /// The root of the current visit tree.
     pub root: usize,
     /// The depth of the visit, that is, the length of the visit path from the
-    /// [root](`Self::root`) to [curr](`Self::node`).
+    /// [root](`Self::root`) to [node](`Self::node`).
     pub depth: usize,
 }
 
@@ -90,7 +90,7 @@ pub enum EventPred {
     /// This event should be used to set up state at the start of the visit.
     ///
     /// Note that this event will not happen if the visit is empty, that
-    /// is, if the root has been already visited.
+    /// is, all of the roots are already visited or filtered.
     Init {
         /// The root of the current visit tree, that is, the first node that
         /// will be visited.
@@ -101,12 +101,12 @@ pub enum EventPred {
     Previsit {
         /// The current node.
         node: usize,
-        /// The parent of [curr](`EventPred::Previsit::node`) in the visit tree.
+        /// The parent of [node](`EventPred::Previsit::node`) in the visit tree.
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from the
-        /// [root](`EventPred::Previsit::root`) to [curr](`EventPred::Previsit::node`).
+        /// [root](`EventPred::Previsit::root`) to [node](`EventPred::Previsit::node`).
         depth: usize,
     },
     /// The node has been encountered before: we are traversing a back arc, a
@@ -114,7 +114,7 @@ pub enum EventPred {
     Revisit {
         /// The current node.
         node: usize,
-        /// The parent of [curr](`EventPred::Revisit::node`) in the visit tree.
+        /// The parent of [node](`EventPred::Revisit::node`) in the visit tree.
         pred: usize,
         /// The root of the current visit tree.
         root: usize,
@@ -138,7 +138,7 @@ pub enum EventPred {
         root: usize,
         /// The depth of the visit, that is, the length of the visit path from
         /// the [root](`EventPred::Postvisit::root`) to
-        /// [curr](`EventPred::Postvisit::node`).
+        /// [node](`EventPred::Postvisit::node`).
         depth: usize,
     },
     /// The visit has been completed.
@@ -157,12 +157,12 @@ pub enum EventPred {
 pub struct FilterArgsPred {
     /// The current node.
     pub node: usize,
-    /// The parent of [curr](`Self::node`) in the visit tree.
+    /// The parent of [node](`Self::node`) in the visit tree.
     pub pred: usize,
     /// The root of the current visit tree.
     pub root: usize,
     /// The depth of the visit, that is, the length of the visit path from the
-    /// [root](`Self::root`) to [curr](`Self::node`).
+    /// [root](`Self::root`) to [node](`Self::node`).
     pub depth: usize,
 }
 
