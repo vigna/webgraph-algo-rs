@@ -85,20 +85,17 @@ fn test_many_scc() -> Result<()> {
 fn test_lozenge() -> Result<()> {
     let arcs = vec![(0, 1), (1, 0), (0, 2), (1, 3), (2, 3)];
 
-    let mut vec_graph = VecGraph::new();
+    let mut graph = VecGraph::new();
     for i in 0..4 {
-        vec_graph.add_node(i);
+        graph.add_node(i);
     }
-    let mut transposed_vec_graph = vec_graph.clone();
+    let mut transpose = graph.clone();
     for arc in arcs {
-        vec_graph.add_arc(arc.0, arc.1);
-        transposed_vec_graph.add_arc(arc.1, arc.0);
+        graph.add_arc(arc.0, arc.1);
+        transpose.add_arc(arc.1, arc.0);
     }
 
-    let graph = vec_graph;
-    let transposed = transposed_vec_graph;
-
-    let sum_sweep = Radius::compute_directed(&graph, &transposed, None, &threads![], no_logging![]);
+    let sum_sweep = Radius::compute_directed(graph, transpose, None, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.radius, 2);
     assert!(sum_sweep.radial_vertex == 0 || sum_sweep.radial_vertex == 1);

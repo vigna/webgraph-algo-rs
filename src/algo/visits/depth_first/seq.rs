@@ -325,7 +325,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
 
             // This variable keeps track of the current node being visited; the
             // parent node is derived at each iteration of the 'recurse loop.
-            let mut current_node = root;
+            let mut curr = root;
 
             'recurse: loop {
                 let depth = self.stack.len();
@@ -342,7 +342,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                             &mut init,
                             EventPred::Revisit {
                                 node: succ,
-                                pred: current_node,
+                                pred: curr,
                                 root,
                                 depth: depth + 1,
                                 on_stack: state.on_stack(succ),
@@ -354,7 +354,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                             &mut init,
                             FilterArgsPred {
                                 node: succ,
-                                pred: current_node,
+                                pred: curr,
                                 root,
                                 depth: depth + 1,
                             },
@@ -364,19 +364,19 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                                 &mut init,
                                 EventPred::Previsit {
                                     node: succ,
-                                    pred: current_node,
+                                    pred: curr,
                                     root,
                                     depth: depth + 1,
                                 },
                             )?;
                             // current_node is the parent of succ
                             self.stack
-                                .push((self.graph.successors(succ).into_iter(), current_node));
+                                .push((self.graph.successors(succ).into_iter(), curr));
 
                             state.set_on_stack(succ);
 
                             // At the next iteration, succ will be the current node
-                            current_node = succ;
+                            curr = succ;
 
                             continue 'recurse;
                         } // Else we ignore the node: it might be visited later
@@ -386,18 +386,18 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                 callback(
                     &mut init,
                     EventPred::Postvisit {
-                        node: current_node,
+                        node: curr,
                         pred: *parent,
                         root,
                         depth,
                     },
                 )?;
 
-                state.set_off_stack(current_node);
+                state.set_off_stack(curr);
 
                 // We're going up one stack level, so the next current_node
                 // is the current parent.
-                current_node = *parent;
+                curr = *parent;
                 self.stack.pop();
             }
         }

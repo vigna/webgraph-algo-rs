@@ -51,14 +51,12 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                     index -= 1;
                     lead.push(true);
                 }
-                EventPred::Revisit {
-                    node: curr, pred, ..
-                } => {
+                EventPred::Revisit { node, pred, .. } => {
                     // curr has not been emitted yet but it has a higher link
-                    if high_link[pred] < high_link[curr] {
+                    if high_link[pred] < high_link[node] {
                         // Safe as the stack is never empty
                         lead.set(lead.len() - 1, false);
-                        high_link[pred] = high_link[curr];
+                        high_link[pred] = high_link[node];
                         if high_link[pred] == root_low_link && index == 0 {
                             // All nodes have been discovered, and we
                             // found a high link identical to that of the
@@ -78,16 +76,14 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                         }
                     }
                 }
-                EventPred::Postvisit {
-                    node: curr, pred, ..
-                } => {
+                EventPred::Postvisit { node, pred, .. } => {
                     // Safe as the stack is never empty
                     if lead.pop().unwrap() {
                         // Set the component index of nodes in the component
                         // stack with higher link than the current node
                         while let Some(node) = component_stack.pop() {
                             // TODO: ugly
-                            if high_link[curr] < high_link[node] {
+                            if high_link[node] < high_link[node] {
                                 component_stack.push(node);
                                 break;
                             }
@@ -95,16 +91,16 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                             high_link[node] = number_of_components;
                         }
                         // Set the component index of the current node
-                        high_link[curr] = number_of_components;
+                        high_link[node] = number_of_components;
                         index += 1;
                         number_of_components += 1;
                     } else {
-                        component_stack.push(curr);
+                        component_stack.push(node);
                         // Propagate knowledge to the parent
-                        if high_link[pred] < high_link[curr] {
+                        if high_link[pred] < high_link[node] {
                             // Safe as the stack is never empty
                             lead.set(lead.len() - 1, false);
-                            high_link[pred] = high_link[curr];
+                            high_link[pred] = high_link[node];
                         }
                     }
                 }

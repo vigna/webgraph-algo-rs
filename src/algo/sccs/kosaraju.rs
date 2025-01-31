@@ -39,9 +39,9 @@ pub fn kosaraju(
     visit
         .visit(top_sort, |event| {
             match event {
-                EventNoPred::Previsit { node: curr, .. } => {
+                EventNoPred::Previsit { node, .. } => {
                     pl.light_update();
-                    components[curr] = number_of_components;
+                    components[node] = number_of_components;
                 }
                 EventNoPred::Done { .. } => {
                     number_of_components += 1;

@@ -177,6 +177,7 @@ impl<G: RandomAccessGraph + Sync> Parallel<EventNoPred> for ParFair<G, false> {
                                 .successors(node)
                                 .into_iter()
                                 .try_for_each(|succ| {
+                                    // TODO: confusing
                                     let node = succ;
                                     if filter(
                                         &mut init,
