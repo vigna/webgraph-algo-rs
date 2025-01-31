@@ -12,7 +12,6 @@ use crate::algo::visits::{
 use sealed::sealed;
 use std::ops::ControlFlow::{self, Continue};
 use sux::bits::BitVec;
-use sux::traits::BitFieldSliceMut;
 use webgraph::traits::{RandomAccessGraph, RandomAccessLabeling};
 
 /// A depth-first visit which does not keep track of predecessors, or nodes on the stack.
@@ -302,7 +301,7 @@ impl<S: NodeStates, G: RandomAccessGraph> Sequential<EventPred> for SeqIter<'_, 
                 )
             {
                 // We ignore the node: it might be visited later
-                return Continue(());
+                continue;
             }
 
             callback(&mut init, EventPred::Init { root })?;
