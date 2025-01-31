@@ -10,7 +10,7 @@ use dsi_progress_logger::prelude::*;
 use lender::for_;
 use sux::bit_vec;
 use webgraph::graphs::random::ErdosRenyi;
-use webgraph::prelude::BvGraph;
+use webgraph::prelude::{BTreeGraph, BvGraph};
 use webgraph::traits::RandomAccessGraph;
 use webgraph::transform;
 use webgraph::{graphs::vec_graph::VecGraph, traits::SequentialLabeling};
@@ -257,20 +257,18 @@ fn test_lozenge() -> Result<()> {
 fn test_er_symm() -> Result<()> {
     for n in (10..=100).step_by(10) {
         for d in 1..10 {
-            let er = VecGraph::from_lender(ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter());
-
-            let mut graph = VecGraph::new();
-            graph.add_node(er.num_nodes() - 1);
+            let er = ErdosRenyi::new(n, (d as f64) / 10.0, 0).iter();
+            let mut sym_graph = BTreeGraph::new();
+            sym_graph.add_node(n - 1);
             for_!((src, succ) in er {
                 for dst in succ {
-                    graph.add_arc(src, dst);
-                    graph.add_arc(dst, src);
+                    sym_graph.add_arc(src, dst);
+                    sym_graph.add_arc(dst, src);
                 }
             });
-            let graph = graph;
-            let symm_par = sccs::symm_par(&graph, &threads![], no_logging![]);
-            let symm_seq = sccs::symm_seq(&graph, no_logging![]);
-            let tarjan = sccs::tarjan(graph, no_logging![]);
+            let symm_par = sccs::symm_par(&sym_graph, &threads![], no_logging![]);
+            let symm_seq = sccs::symm_seq(&sym_graph, no_logging![]);
+            let tarjan = sccs::tarjan(sym_graph, no_logging![]);
             assert_eq!(symm_seq.num_components(), tarjan.num_components());
             assert_eq!(symm_par.num_components(), tarjan.num_components());
         }

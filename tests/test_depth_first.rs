@@ -6,8 +6,13 @@
  */
 
 use dsi_progress_logger::prelude::*;
+use no_break::NoBreak;
 use webgraph::prelude::VecGraph;
-use webgraph_algo::algo::{acyclicity, top_sort, traits::Acyclicity};
+use webgraph_algo::{
+    algo::{acyclicity, top_sort, traits::Acyclicity},
+    prelude::depth_first,
+    traits::Sequential,
+};
 
 #[test]
 fn test_top_sort() {
@@ -46,4 +51,20 @@ fn test_acyclicity() {
 
     assert!(acyclicity(&graph, no_logging![]));
     assert!(graph.is_acyclic());
+}
+
+#[test]
+fn test_depth() {
+    let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]);
+    depth_first::SeqNoPred::new(&graph)
+        .visit([0], |event| {
+            match event {
+                depth_first::EventNoPred::Previsit { node, depth, .. } => {
+                    assert_eq!(node, depth);
+                }
+                _ => (),
+            }
+            std::ops::ControlFlow::Continue(())
+        })
+        .continue_value_no_break();
 }

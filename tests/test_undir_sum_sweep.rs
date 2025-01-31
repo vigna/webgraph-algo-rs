@@ -11,6 +11,7 @@ use no_break::NoBreak;
 use std::ops::ControlFlow::Continue;
 use webgraph::graphs::random::ErdosRenyi;
 use webgraph::graphs::vec_graph::VecGraph;
+use webgraph::prelude::BTreeGraph;
 use webgraph::traits::SequentialLabeling;
 use webgraph::transform;
 use webgraph_algo::algo::exact_sum_sweep::*;
@@ -21,17 +22,7 @@ use webgraph_algo::traits::Sequential;
 #[test]
 fn test_path() -> Result<()> {
     let arcs = vec![(0, 1), (1, 2), (2, 1), (1, 0)];
-
-    let mut vec_graph = VecGraph::new();
-    for i in 0..3 {
-        vec_graph.add_node(i);
-    }
-    for arc in arcs {
-        vec_graph.add_arc(arc.0, arc.1);
-    }
-
-    let graph = vec_graph;
-
+    let graph = VecGraph::from_arcs(arcs.iter().copied());
     let sum_sweep = All::compute_undirected(&graph, &threads![], no_logging![]);
 
     assert_eq!(sum_sweep.eccentricities[0], 2);
@@ -128,24 +119,21 @@ fn test_lozenge() -> Result<()> {
 #[test]
 fn test_cycle() -> Result<()> {
     for size in [3, 5, 7] {
-        let mut vec_graph = VecGraph::new();
+        let mut graph = BTreeGraph::new();
         for i in 0..size {
-            vec_graph.add_node(i);
+            graph.add_node(i);
         }
         for i in 0..size {
             if i == size - 1 {
-                vec_graph.add_arc(i, 0);
-                vec_graph.add_arc(0, i);
+                graph.add_arc(i, 0);
+                graph.add_arc(0, i);
             } else {
-                vec_graph.add_arc(i, i + 1);
-                vec_graph.add_arc(i + 1, i);
+                graph.add_arc(i, i + 1);
+                graph.add_arc(i + 1, i);
             }
         }
 
-        let graph = vec_graph;
-
         let sum_sweep = RadiusDiameter::compute_undirected(&graph, &threads![], no_logging![]);
-
         assert_eq!(sum_sweep.diameter, size / 2);
         assert_eq!(sum_sweep.radius, size / 2);
     }

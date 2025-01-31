@@ -81,14 +81,14 @@ pub fn tarjan(graph: impl RandomAccessGraph, pl: &mut impl ProgressLog) -> Basic
                     if lead.pop().unwrap() {
                         // Set the component index of nodes in the component
                         // stack with higher link than the current node
-                        while let Some(stack_node) = component_stack.pop() {
+                        while let Some(comp_node) = component_stack.pop() {
                             // TODO: ugly
-                            if high_link[node] < high_link[stack_node] {
-                                component_stack.push(stack_node);
+                            if high_link[node] < high_link[comp_node] {
+                                component_stack.push(comp_node);
                                 break;
                             }
                             index += 1;
-                            high_link[stack_node] = number_of_components;
+                            high_link[comp_node] = number_of_components;
                         }
                         // Set the component index of the current node
                         high_link[node] = number_of_components;
