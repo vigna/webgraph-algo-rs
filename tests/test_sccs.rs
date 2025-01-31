@@ -242,6 +242,18 @@ fn test_er() -> Result<()> {
 }
 
 #[test]
+fn test_lozenge() -> Result<()> {
+    let arcs = [(0, 1), (1, 0), (0, 2), (1, 3), (2, 3)];
+    let graph = VecGraph::from_arcs(arcs);
+
+    let components = sccs::tarjan(&graph, no_logging![]);
+
+    assert_eq!(components.components(), &[2, 2, 1, 0]);
+
+    Ok(())
+}
+
+#[test]
 fn test_er_symm() -> Result<()> {
     for n in (10..=100).step_by(10) {
         for d in 1..10 {
