@@ -23,7 +23,7 @@ parallel_frontier = { git = "https://github.com/zommiommy/parallel_frontier" }
 unwrap-infallible = "0.1.5"
 thiserror = "2.0.0"
 sealed = "0.6.0"
-lender = "0.2.9"
+lender = "0.3.1"
 impl-tools = "0.10.1"
 sync-cell-slice = "0.9.9"
 no-break = "0.1.1"
