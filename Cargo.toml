@@ -16,7 +16,7 @@ rayon = "1.8.1"
 stderrlog = "0.6.0"
 kahan = "0.1.4"
 rand = "0.8.5"
-sux = "0.5.0"
+sux = "0.7.2"
 tempfile = "3.10.1"
 webgraph = { git = "https://github.com/vigna/webgraph-rs" }
 parallel_frontier = { git = "https://github.com/zommiommy/parallel_frontier" }
