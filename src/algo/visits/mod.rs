@@ -42,14 +42,9 @@
 //! multiple times on the same node (and with a different predecessor, if
 //! available) due to race conditions.
 //!
-//! All visits accept also a mutable reference to an implementation of
-//! [`ProgressLog`](`dsi_progress_logger::ProgressLog`) or
-//! [`ConcurrentProgressLog`](`dsi_progress_logger::ConcurrentProgressLog`) to
-//! log the progress of the visit: [`ProgressLog::light_update`] will be called
-//! just before invoking the callback on a node-discovery event (`Previsit` for
-//! depth-first visits, `Unknown` for breadth-first visits). As usual, when
-//! passing [`no_logging![]`](dsi_progress_logger::no_logging) the logging code
-//! should be optimized away by the compiler.
+//! All visits have also methods accepting an `init` item similarly to the
+//! [`rayon`] [`map_with`](rayon::iter::ParallelIterator::map_with) method. For
+//! parallel visits, the item will be cloned.
 //!
 //! There is a blanket implementation of the [`Parallel`] trait for all types
 //! implementing the [`Sequential`] trait. This approach makes it possible to
@@ -57,6 +52,13 @@
 //!
 //! Visit must provide a `reset` method that makes it possible to reuse the
 //! visit.
+//!
+//! # Examples
+//!
+//! There are examples of visits in
+//! [`SeqIter`](crate::algo::visits::depth_first::SeqIter),
+//! [`ParFair`](crate::algo::visits::breadth_first::ParFair) and
+//! [`ParLowMem`](crate::algo::visits::breadth_first::ParLowMem).
 
 pub mod breadth_first;
 pub mod depth_first;
@@ -99,18 +101,25 @@ pub type FilterArgs<A> = <A as Event>::FilterArgs;
 /// A sequential visit.
 ///
 /// Implementation of this trait must provide the
-/// [`visit_filtered`](Sequential::visit_filtered) method, which should perform
-/// a visit of a graph starting from a given set of nodes. Note that different
-/// visits types might interpret the set of nodes differently: for example, a
-/// [breadth-first visit](breadth_first) will interpret the set of nodes as the
-/// initial queue, whereas a [depth-first visit](depth_first) will interpret the
-/// set of nodes as the nodes to visit in the order they are provided.
+/// [`visit_filtered_with`](Sequential::visit_filtered_with) method, which
+/// should perform a visit of a graph starting from a given set of nodes. Note
+/// that different visits types might interpret the set of nodes differently:
+/// for example, a [breadth-first visit](breadth_first) will interpret the set
+/// of nodes as the initial queue, whereas a [depth-first visit](depth_first)
+/// will interpret the set of nodes as a list of nodes from which to start
+/// visits.
 pub trait Sequential<A: Event> {
-    /// Visits the graph from the specified node.
+    /// Visits the graph from the specified nodes with an initialization value
+    /// and a filter function.
     ///
-    /// # Arguments:
+    /// # Arguments
+    ///
     /// * `roots`: The nodes to start the visit from.
+    ///
+    /// * `init`: a value the will be passed to the callback function.
+    ///
     /// * `callback`: The callback function.
+    ///
     /// * `filter`: The filter function.
     fn visit_filtered_with<
         R: IntoIterator<Item = usize>,
@@ -126,11 +135,14 @@ pub trait Sequential<A: Event> {
         filter: F,
     ) -> ControlFlow<E, ()>;
 
-    /// Visits the graph from the specified node.
+    /// Visits the graph from the specified nodes with a filter function.
     ///
-    /// # Arguments:
+    /// # Arguments
+    ///
     /// * `roots`: The nodes to start the visit from.
+    ///
     /// * `callback`: The callback function.
+    ///
     /// * `filter`: The filter function.
     fn visit_filtered<
         R: IntoIterator<Item = usize>,
@@ -146,12 +158,15 @@ pub trait Sequential<A: Event> {
         self.visit_filtered_with(roots, (), |(), a| callback(a), |(), a| filter(a))
     }
 
-    /// Visits the graph from the specified node.
+    /// Visits the graph from the specified nodes with an initialization value.
     ///
-    /// # Arguments:
+    /// # Arguments
+    ///
     /// * `roots`: The nodes to start the visit from.
+    ///
+    /// * `init`: a value the will be passed to the callback function.
+    ///
     /// * `callback`: The callback function.
-    /// * `filter`: The filter function.
     fn visit_with<
         R: IntoIterator<Item = usize>,
         T,
@@ -166,12 +181,13 @@ pub trait Sequential<A: Event> {
         self.visit_filtered_with(roots, init, callback, |_, _| true)
     }
 
-    /// Visits the graph from the specified node without a filter.
+    /// Visits the graph from the specified nodes.
     ///
-    /// The default implementation calls
-    /// [`visit_filtered`](Sequential::visit_filtered) with a filter that always
-    /// returns true.
-    #[inline(always)]
+    /// # Arguments
+    ///
+    /// * `roots`: The nodes to start the visit from.
+    ///
+    /// * `callback`: The callback function.
     fn visit<R: IntoIterator<Item = usize>, E, C: FnMut(A) -> ControlFlow<E, ()>>(
         &mut self,
         roots: R,
@@ -187,23 +203,29 @@ pub trait Sequential<A: Event> {
 /// A parallel visit.
 ///
 /// Implementation of this trait must provide the
-/// [`par_visit_filtered`](Parallel::par_visit_filtered) method, which should
-/// perform a parallel visit of a graph starting from a given set of nodes. Note
-/// that different visits types might interpret the set of nodes differently:
-/// for example, a [breadth-first visit](breadth_first) will interpret the set
-/// of nodes as the initial queue, whereas a [depth-first visit](depth_first)
-/// will interpret the set of nodes as the nodes to visit in the order they are
-/// provided.
+/// [`par_visit_filtered_with`](Parallel::par_visit_filtered_with) method, which
+/// should perform a parallel visit of a graph starting from a given set of
+/// nodes. Note that different visits types might interpret the set of nodes
+/// differently: for example, a [breadth-first visit](breadth_first) will
+/// interpret the set of nodes as the initial queue, whereas a [depth-first
+/// visit](depth_first) will interpret the set of nodes as a list of nodes from
+/// which to start visits.
 pub trait Parallel<A: Event> {
-    /// Visits the graph from the specified node.
+    /// Visits the graph from the specified nodes with an initialization value
+    /// and a filter function.
     ///
-    /// # Arguments:
+    /// # Arguments
+    ///
     /// * `roots`: The nodes to start the visit from.
+    ///
+    /// * `init`: a value the will be cloned and passed to the callback
+    ///   function.
+    ///
     /// * `callback`: The callback function.
-    /// * `filter`: A filter function that will be called on each node to
-    ///    determine whether the node should be visited or not.
+    ///
+    /// * `filter`: The filter function.
+    ///
     /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: A progress logger.
     fn par_visit_filtered_with<
         R: IntoIterator<Item = usize>,
         T: Clone + Send + Sync + Sync,
@@ -219,15 +241,17 @@ pub trait Parallel<A: Event> {
         thread_pool: &ThreadPool,
     ) -> ControlFlow<E, ()>;
 
-    /// Visits the graph from the specified node.
+    /// Visits the graph from the specified nodes with a filter function.
     ///
-    /// # Arguments:
+    /// # Arguments
+    ///
     /// * `roots`: The nodes to start the visit from.
+    ///
     /// * `callback`: The callback function.
-    /// * `filter`: A filter function that will be called on each node to
-    ///    determine whether the node should be visited or not.
+    ///
+    /// * `filter`: The filter function.
+    ///
     /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: A progress logger.
     fn par_visit_filtered<
         R: IntoIterator<Item = usize>,
         E: Send,
@@ -249,15 +273,18 @@ pub trait Parallel<A: Event> {
         )
     }
 
-    /// Visits the graph from the specified node.
+    /// Visits the graph from the specified nodes with an initialization value.
     ///
-    /// # Arguments:
+    /// # Arguments
+    ///
     /// * `roots`: The nodes to start the visit from.
+    ///
+    /// * `init`: a value the will be cloned and passed to the callback
+    ///   function.
+    ///
     /// * `callback`: The callback function.
-    /// * `filter`: A filter function that will be called on each node to
-    ///    determine whether the node should be visited or not.
+    ///
     /// * `thread_pool`: The thread pool to use for parallel computation.
-    /// * `pl`: A progress logger.
     fn par_visit_with<
         R: IntoIterator<Item = usize>,
         T: Clone + Send + Sync + Sync,
@@ -273,12 +300,15 @@ pub trait Parallel<A: Event> {
         self.par_visit_filtered_with(roots, init, callback, |_, _| true, thread_pool)
     }
 
-    /// Visits the graph from the specified node without a filter.
+    /// Visits the graph from the specified nodes.
     ///
-    /// This method just calls
-    /// [`visit_filtered`](Parallel::par_visit_filtered)
-    /// with a filter that always returns true.
-    #[inline(always)]
+    /// # Arguments
+    ///
+    /// * `roots`: The nodes to start the visit from.
+    ///
+    /// * `callback`: The callback function.
+    ///
+    /// * `thread_pool`: The thread pool to use for parallel computation.
     fn par_visit<R: IntoIterator<Item = usize>, E: Send, C: Fn(A) -> ControlFlow<E, ()> + Sync>(
         &mut self,
         roots: R,

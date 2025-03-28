@@ -35,7 +35,9 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// # Examples
 ///
-/// Let's compute the breadth-first tree starting from 0:
+/// Let's compute the breadth-first tree starting from 0. We will be using a
+/// [`SyncSlice`] from the [`sync_cell_slice`] crate to store the parent of each
+/// node.
 ///
 /// ```
 /// use webgraph_algo::algo::visits::Parallel;
@@ -47,27 +49,29 @@ use webgraph::traits::RandomAccessGraph;
 /// use std::sync::atomic::Ordering;
 /// use std::ops::ControlFlow::Continue;
 /// use no_break::NoBreak;
+/// use sync_cell_slice::SyncSlice;
 ///
 /// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0), (1, 3)]);
 /// let mut visit = breadth_first::ParLowMem::new(&graph, 1);
-/// let mut tree = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
+/// let mut tree = vec![0_usize; 4];
+/// let mut tree_sync = tree.as_sync_slice();
 /// visit.par_visit(
 ///     [0],
 ///     |event|
 ///     {
 ///         // Store the parent
 ///         if let EventPred::Unknown { node, pred, ..} = event {
-///             tree[node].store(pred, Ordering::Relaxed);
+///             unsafe { tree_sync[node].set(pred) };
 ///         }
 ///         Continue(())
 ///     },
 ///     &threads![],
 /// ).continue_value_no_break();
 ///
-/// assert_eq!(tree[0].load(Ordering::Relaxed), 0);
-/// assert_eq!(tree[1].load(Ordering::Relaxed), 0);
-/// assert_eq!(tree[2].load(Ordering::Relaxed), 1);
-/// assert_eq!(tree[3].load(Ordering::Relaxed), 1);
+/// assert_eq!(tree[0], 0);
+/// assert_eq!(tree[1], 0);
+/// assert_eq!(tree[2], 1);
+/// assert_eq!(tree[3], 1);
 /// ```
 pub struct ParLowMem<G: RandomAccessGraph> {
     graph: G,
