@@ -20,7 +20,6 @@ sux = "0.7.2"
 tempfile = "3.10.1"
 webgraph = "0.2.0"
 parallel_frontier = { git = "https://github.com/zommiommy/parallel_frontier" }
-unwrap-infallible = "0.1.5"
 thiserror = "2.0.0"
 sealed = "0.6.0"
 lender = "0.3.1"

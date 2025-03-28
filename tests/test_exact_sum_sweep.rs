@@ -195,9 +195,9 @@ fn test_clique() -> Result<()> {
         let transposed = vec_graph;
         let radial_vertices = AtomicBitVec::new(size);
         let rngs = [
-            rand::random::<usize>() % size,
-            rand::random::<usize>() % size,
-            rand::random::<usize>() % size,
+            rand::random::<u64>() as usize % size,
+            rand::random::<u64>() as usize % size,
+            rand::random::<u64>() as usize % size,
         ];
         radial_vertices.set(rngs[0], true, std::sync::atomic::Ordering::Relaxed);
         radial_vertices.set(rngs[1], true, std::sync::atomic::Ordering::Relaxed);
