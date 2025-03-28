@@ -51,7 +51,9 @@ use webgraph::traits::RandomAccessGraph;
 ///
 /// # Examples
 ///
-/// Let's compute the distances from 0:
+/// Let's compute the distances from 0. We will be using a
+/// [`SyncSlice`](sync_cell_slice::SyncSlice) from the [`sync_cell_slice`] crate
+/// to store the parent of each node.
 ///
 /// ```
 /// use webgraph_algo::algo::visits::Parallel;
@@ -62,27 +64,30 @@ use webgraph::traits::RandomAccessGraph;
 /// use std::sync::atomic::AtomicUsize;
 /// use std::sync::atomic::Ordering;
 /// use std::ops::ControlFlow::Continue;
+/// use sync_cell_slice::SyncSlice;
 /// use no_break::NoBreak;
 ///
 /// let graph = VecGraph::from_arcs([(0, 1), (1, 2), (2, 0), (1, 3)]);
 /// let mut visit = breadth_first::ParFairNoPred::new(&graph, 1);
-/// let mut d = [AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0)];
+/// let mut d = [0_usize; 4];
+/// let mut d_sync = d.as_sync_slice();
 /// visit.par_visit(
 ///     [0],
 ///     |event| {
 ///         // Set distance from 0
 ///         if let EventNoPred::Unknown { node, distance, ..} = event {
-///             d[node].store(distance, Ordering::Relaxed);
+///             // There will be exactly one set for each node
+///             unsafe { d_sync[node].set(distance) };
 ///         }
 ///         Continue(())
 ///     },
 ///    &threads![],
 /// ).continue_value_no_break();
 ///
-/// assert_eq!(d[0].load(Ordering::Relaxed), 0);
-/// assert_eq!(d[1].load(Ordering::Relaxed), 1);
-/// assert_eq!(d[2].load(Ordering::Relaxed), 2);
-/// assert_eq!(d[3].load(Ordering::Relaxed), 2);
+/// assert_eq!(d[0], 0);
+/// assert_eq!(d[1], 1);
+/// assert_eq!(d[2], 2);
+/// assert_eq!(d[3], 2);
 /// ```
 pub struct ParFair<G: RandomAccessGraph, const PRED: bool = false> {
     graph: G,

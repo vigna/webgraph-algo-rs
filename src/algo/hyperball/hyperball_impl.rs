@@ -109,7 +109,7 @@ impl<
         let logic = HyperLogLogBuilder::new(num_elements)
             .log_2_num_reg(log2m)
             .build()
-            .with_context(|| "Could not build hyperloglog logic")?;
+            .with_context(|| "Could not build HyperLogLog logic")?;
 
         let array_0 =
             SliceCounterArray::with_mmap(logic.clone(), graph.num_nodes(), mmap_options.clone())
@@ -268,7 +268,7 @@ impl<
     }
 
     /// Sets the base granularity used in the parallel phases of the iterations.
-    pub fn arc_granulatity(mut self, arc_granularity: usize) -> Self {
+    pub fn arc_granularity(mut self, arc_granularity: usize) -> Self {
         self.arc_granularity = arc_granularity;
         self
     }
@@ -338,7 +338,7 @@ impl<
 
         let mut discounted_centralities = Vec::new();
         pl.info(format_args!(
-            "Initializing {} discount fuctions",
+            "Initializing {} discount functions",
             self.discount_functions.len()
         ));
         for _ in self.discount_functions.iter() {
@@ -372,7 +372,7 @@ impl<
             curr_state: self.array_0,
             next_state: self.array_1,
             completed: false,
-            neighbourhood_function: Vec::new(),
+            neighborhood_function: Vec::new(),
             last: 0.0,
             relative_increment: 0.0,
             iteration_context: IterationContext {
@@ -471,7 +471,7 @@ impl<G1: SequentialLabeling, D> IterationContext<'_, G1, D> {
     }
 }
 
-/// An algorithm that computes an approximation of the neighbourhood function,
+/// An algorithm that computes an approximation of the neighborhood function,
 /// of the size of the reachable sets, and of (discounted) positive geometric
 /// centralities of a graph.
 pub struct HyperBall<
@@ -496,11 +496,11 @@ pub struct HyperBall<
     next_state: A,
     /// `true` if the computation is over.
     completed: bool,
-    /// The neighbourhood fuction.
-    neighbourhood_function: Vec<f64>,
+    /// The neighborhood fuction.
+    neighborhood_function: Vec<f64>,
     /// The value computed by the last iteration.
     last: f64,
-    /// The relative increment of the neighbourhood function for the last
+    /// The relative increment of the neighborhood function for the last
     /// iteration.
     relative_increment: f64,
     /// Context used in a single iteration.
@@ -525,7 +525,7 @@ where
     /// * `upper_bound`: an upper bound to the number of iterations.
     ///
     /// * `threshold`: a value that will be used to stop the computation by
-    ///   relative increment if the neighbourhood function is being computed. If
+    ///   relative increment if the neighborhood function is being computed. If
     ///   [`None`] the computation will stop when no counters are modified.
     ///
     /// * `thread_pool`: The thread pool to use for parallel computation.
@@ -571,7 +571,7 @@ where
 
             if let Some(t) = threshold {
                 if i > 3 && self.relative_increment < (1.0 + t) {
-                    pl.info(format_args!("Terminating approximation after {} iteration(s) by relative bound on the neighbourhood function", i + 1));
+                    pl.info(format_args!("Terminating approximation after {} iteration(s) by relative bound on the neighborhood function", i + 1));
                     break;
                 }
             }
@@ -629,10 +629,10 @@ where
         Ok(())
     }
 
-    /// Returns the neighbourhood function computed by this instance.
-    pub fn neighbourhood_function(&self) -> Result<Vec<f64>> {
+    /// Returns the neighborhood function computed by this instance.
+    pub fn neighborhood_function(&self) -> Result<Vec<f64>> {
         self.ensure_iteration()?;
-        Ok(self.neighbourhood_function.clone())
+        Ok(self.neighborhood_function.clone())
     }
 
     /// Returns the sum of distances computed by this instance if requested.
@@ -918,7 +918,7 @@ where
         // We enforce monotonicity--non-monotonicity can only be caused by
         // approximation errors
         let &last_output = self
-            .neighbourhood_function
+            .neighborhood_function
             .as_slice()
             .last()
             .expect("Should always have at least 1 element");
@@ -941,7 +941,7 @@ where
             self.relative_increment
         ));
 
-        self.neighbourhood_function.push(*current_nf_mut);
+        self.neighborhood_function.push(*current_nf_mut);
 
         ic.iteration += 1;
 
@@ -981,10 +981,10 @@ where
         let mut modified_counters = 0;
         let arc_upper_limit = graph.num_arcs();
 
-        // During standard iterations, cumulates the neighbourhood function for the nodes scanned
+        // During standard iterations, cumulates the neighborhood function for the nodes scanned
         // by this thread. During systolic iterations, cumulates the *increase* of the
-        // neighbourhood function for the nodes scanned by this thread.
-        let mut neighbourhood_function_delta = KahanSum::new_with_value(0.0);
+        // neighborhood function for the nodes scanned by this thread.
+        let mut neighborhood_function_delta = KahanSum::new_with_value(0.0);
         let mut helper = curr_state.logic().new_helper();
         let logic = curr_state.logic();
         let mut next_counter = logic.new_counter();
@@ -1052,21 +1052,21 @@ where
                     let counter_modified = modified && next_counter.as_ref() != prev_counter;
 
                     // We need the counter value only if the iteration is standard (as we're going to
-                    // compute the neighbourhood function cumulating actual values, and not deltas) or
-                    // if the counter was actually modified (as we're going to cumulate the neighbourhood
+                    // compute the neighborhood function cumulating actual values, and not deltas) or
+                    // if the counter was actually modified (as we're going to cumulate the neighborhood
                     // function delta, or at least some centrality).
                     if !ic.systolic || counter_modified {
                         post = logic.count(next_counter.as_ref())
                     }
                     if !ic.systolic {
-                        neighbourhood_function_delta += post;
+                        neighborhood_function_delta += post;
                     }
 
                     if counter_modified && (ic.systolic || do_centrality) {
                         let pre = logic.count(prev_counter);
                         if ic.systolic {
-                            neighbourhood_function_delta += -pre;
-                            neighbourhood_function_delta += post;
+                            neighborhood_function_delta += -pre;
+                            neighborhood_function_delta += post;
                         }
 
                         if do_centrality {
@@ -1145,7 +1145,7 @@ where
             }
         }
 
-        *ic.current_nf.lock().unwrap() += neighbourhood_function_delta.sum();
+        *ic.current_nf.lock().unwrap() += neighborhood_function_delta.sum();
         ic.visited_arcs.fetch_add(visited_arcs, Ordering::Relaxed);
         ic.modified_counters
             .fetch_add(modified_counters, Ordering::Relaxed);
@@ -1200,9 +1200,9 @@ where
         }
 
         self.last = self.graph.num_nodes() as f64;
-        pl.info(format_args!("Initializing neighbourhood function"));
-        self.neighbourhood_function.clear();
-        self.neighbourhood_function.push(self.last);
+        pl.info(format_args!("Initializing neighborhood function"));
+        self.neighborhood_function.clear();
+        self.neighborhood_function.push(self.last);
 
         pl.info(format_args!("Initializing modified counters"));
         thread_pool.install(|| ic.curr_modified.fill(true, Ordering::Relaxed));

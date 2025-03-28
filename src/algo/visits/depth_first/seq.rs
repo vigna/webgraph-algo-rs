@@ -63,10 +63,6 @@ pub type SeqPath<'a, G> = SeqIter<'a, ThreeStates, G, usize, true>;
 /// retrieved using the [`stack`](SeqPred::stack) method (only for [`SeqPred`] and
 /// [`SeqPath`]).
 ///
-/// The progress logger will be [invoked](ProgressLog::light_update) after
-/// completion of each postvisit (in particular, after the [postvisit
-/// event](EventPred::Postvisit), if available).
-///
 /// # Examples
 ///
 /// Let's test acyclicity:
@@ -172,7 +168,7 @@ impl<'a, S: NodeStates, G: RandomAccessGraph, P, const PRED: bool> SeqIter<'a, S
 }
 
 impl<'a, S, G: RandomAccessGraph> SeqIter<'a, S, G, usize, true> {
-    /// Returns an iterator over the nodes stil on the visit path,
+    /// Returns an iterator over the nodes still on the visit path,
     /// except for the last one.
     ///
     /// Node will be returned in reverse order of visit.

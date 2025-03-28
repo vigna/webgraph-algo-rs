@@ -7,13 +7,14 @@
 
 //! Breadth-first visits.
 //!
-//! Implementations must accept a callback function with argument [`EventNoPred`], or
-//! [`EventPred`] if the visit keeps track of parent nodes. The associated filter
-//! argument types are [`FilterArgsNoPred`] and [`FilterArgsPred`], respectively.
+//! Implementations must accept a callback function with argument
+//! [`EventNoPred`], or [`EventPred`] if the visit keeps track of parent nodes.
+//! The associated filter argument types are [`FilterArgsNoPred`] and
+//! [`FilterArgsPred`], respectively.
 //!
 //! Note that since [`EventPred`] contains the predecessor of the visited node,
 //! all post-initialization visit events can be interpreted as arc events. The
-//! only exception are the previsit and postvisit events of the root.
+//! only exception is the [`Unknown`](EventPred::Unknown) event at the root.
 
 mod seq;
 pub use seq::*;

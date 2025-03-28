@@ -17,7 +17,7 @@ pub struct All {
     pub radius: usize,
     /// A vertex whose eccentricity equals the diameter.
     pub diametral_vertex: usize,
-    /// A vertex whose eccentrivity equals the radius.
+    /// A vertex whose eccentricity equals the radius.
     pub radial_vertex: usize,
     /// Number of iterations before the radius was found.
     pub radius_iterations: usize,
@@ -37,7 +37,7 @@ pub struct RadiusDiameter {
     pub radius: usize,
     /// A vertex whose eccentricity equals the diameter.
     pub diametral_vertex: usize,
-    /// A vertex whose eccentrivity equals the radius.
+    /// A vertex whose eccentricity equals the radius.
     pub radial_vertex: usize,
     /// Number of iterations before the radius was found.
     pub radius_iterations: usize,

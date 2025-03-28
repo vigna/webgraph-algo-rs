@@ -36,8 +36,8 @@ use webgraph::traits::RandomAccessGraph;
 /// # Examples
 ///
 /// Let's compute the breadth-first tree starting from 0. We will be using a
-/// [`SyncSlice`] from the [`sync_cell_slice`] crate to store the parent of each
-/// node.
+/// [`SyncSlice`](sync_cell_slice::SyncSlice) from the [`sync_cell_slice`] crate
+/// to store the parent of each node.
 ///
 /// ```
 /// use webgraph_algo::algo::visits::Parallel;
@@ -61,6 +61,7 @@ use webgraph::traits::RandomAccessGraph;
 ///     {
 ///         // Store the parent
 ///         if let EventPred::Unknown { node, pred, ..} = event {
+///             // There will be exactly one set for each node
 ///             unsafe { tree_sync[node].set(pred) };
 ///         }
 ///         Continue(())

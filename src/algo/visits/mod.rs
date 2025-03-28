@@ -27,9 +27,8 @@
 //!
 //! [Sequential visits](Sequential) are visits that are executed in a single
 //! thread, whereas [parallel visits](Parallel) use multiple threads. The
-//! signature of callbacks reflects this difference: the callbacks of sequential
-//! visits are `FnMut(A) -> ControlFlow<E, ()>`, whereas the callbacks of
-//! parallel visits are `Fn(A) -> ControlFlow<E, ()> + Sync`.
+//! signature of callbacks reflects this difference ([`FnMut`] for the sequential
+//! case vs. [`Fn`] + [`Sync`] for the parallel case).
 //!
 //! In case of interruption sequential visits usually return immediately to the
 //! caller, whereas in general parallel visits might need to complete part of
