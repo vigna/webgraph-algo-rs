@@ -17,7 +17,7 @@ use webgraph_algo::threads;
 use webgraph_algo::utils::hyper_log_log::HyperLogLogBuilder;
 use webgraph_algo::utils::SliceCounterArray;
 
-fn main() -> Result<()> {
+fn main2() -> Result<()> {
     stderrlog::new()
         .verbosity(2)
         .timestamp(stderrlog::Timestamp::Second)
@@ -91,4 +91,14 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn main() {
+    let mut v = vec![0; 5];
+    let node = 0;
+    let mut iter = (0..5).into_iter();
+    while let Some(curr) = iter.next() {
+        v[curr] = node;
+    }
+    println!("{:?}", v);
 }

@@ -64,7 +64,7 @@ pub struct Diameter {
 pub struct Radius {
     /// The radius.
     pub radius: usize,
-    /// A vertex whose eccentrivity equals the radius.
+    /// A vertex whose eccentricity equals the radius.
     pub radial_vertex: usize,
     /// Number of iterations before the radius was found.
     pub radius_iterations: usize,

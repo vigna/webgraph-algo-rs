@@ -1169,7 +1169,7 @@ where
             for (i, &node_weight) in w.iter().enumerate() {
                 let mut counter = self.curr_state.get_counter_mut(i);
                 for _ in 0..node_weight {
-                    counter.add(&random());
+                    counter.add(&(random::<u64>() as usize));
                 }
             }
         } else {
